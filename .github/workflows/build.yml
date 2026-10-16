@@ -159,8 +159,8 @@ jobs:
             TERRACES=$(grep -c "\[Net\] Terrasse .* atteinte" fc-host.log || true)
             STOPS=$(cat fc-host.log fc-client.log | grep -c "Dash arrêté avant le vide" || true)
             FALLS=$(grep -c "Chute dans la fosse" fc-host.log || true)
-            TACKLES=$(grep -c "\[Match\] Tacle du joueur" fc-host.log || true)
-            RINGOUTS=$(grep -c "Ring-out" fc-host.log || true)
+            TACKLES=$(grep -c "\[Match\] Tacle du joueur 1 sur le joueur 0" fc-host.log || true)
+            RINGOUTS=$(grep -c "Ring-out : le joueur 0 est poussé dans la fosse par le joueur 1" fc-host.log || true)
             echo "Fosse croisée : tremplins $PADS, terrasses validées $TERRACES, dashs arrêtés $STOPS, chutes $FALLS, tacles $TACKLES, ring-outs $RINGOUTS"
             if [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$STOPS" -lt 1 ] || [ "$FALLS" -lt 1 ] || [ "$TACKLES" -lt 1 ] || [ "$RINGOUTS" -lt 1 ]; then
               echo "Tentative $ATTEMPT : tremplin, terrasse, arrêt du dash, chute, tacle du client ou ring-out non reconnus"

@@ -315,7 +315,7 @@ public partial class DesktopPlayer : Node3D
             dashRechargeLeft -= dt;
             if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = RechargeTime; }
         }
-        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated)
+        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated && !(FreeRoam && jumpY > 0.1f && PitGap(worldPos) < 6f))   // pas de dash en l'air près de la fosse
         {
             dodgeDir = wish.LengthSquared() > 0.01f ? wish.Normalized() : forward;
             dodgeLeft = FreeRoam ? DashTime : DodgeTime;

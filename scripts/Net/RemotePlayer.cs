@@ -29,6 +29,10 @@ public partial class RemotePlayer : Node3D
     /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, compteur de dashs du client, saut de retour de KO toléré.</summary>
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
+    public double FlightUntil { get; set; }          // vol de tremplin accordé par l'hôte (plafond de tête relevé)
+    public double FlightReadyAt { get; set; }
+    public int FlightZone { get; set; } = -1;        // plaque du tremplin utilisé : seule sa terrasse est accessible
+    public (int victim, Vector2 dir, double until)? PendingTackle { get; set; }   // tacle arrivé avant la pose qui annonce le dash
     public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;

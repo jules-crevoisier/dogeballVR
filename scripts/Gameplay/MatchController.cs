@@ -85,7 +85,7 @@ public partial class MatchController : Node3D
         var pa = a.GlobalPosition; var pv = v.GlobalPosition;
         var toVictim = new Vector2(pv.X - pa.X, pv.Z - pa.Z);
         if (toVictim.Length() > TackleReach || Mathf.Abs(pv.Y - pa.Y) > 1.5f) return;
-        if (toVictim.Length() > 0.4f && Mathf.RadToDeg(toVictim.AngleTo(dir)) > 70f) return;   // on pousse dans le sens du dash, pas où l'on veut
+        if (toVictim.Length() > 0.4f && Mathf.Abs(Mathf.RadToDeg(toVictim.AngleTo(dir))) > 70f) return;   // on pousse dans le sens du dash, pas où l'on veut
         if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true) return;        // un bot ne se déplace pas : pas de tacle sans poussée
         tackleReadyAt[tacklerId] = now + 0.8;
         lastPush[victimId] = (tacklerId, now);
@@ -107,7 +107,7 @@ public partial class MatchController : Node3D
             // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
             bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
             if (!above) overPitSince.Remove(id);
-            else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 1.8) { overPitSince.Remove(id); hp.Y = 0f; }
+            else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
             if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
             if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
             {
@@ -337,7 +337,7 @@ public partial class MatchController : Node3D
             if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
             else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
             hurtboxes[id].Eliminated = false;
-            ringGraceUntil[id] = now + 0.8;
+            ringGraceUntil[id] = now + 1.6;
             respawnAt.Remove(id);
         }
         CheckRingOut(now);
