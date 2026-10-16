@@ -292,6 +292,7 @@ public partial class Main : Node3D
     {
         if (!net!.Remotes.Remove(peerId, out var remote)) return;
         int zoneId = remote.PlayerId;
+        net.LiftPlayerLeft(remote);
         match.Unregister(zoneId);
         remote.DropBalls();
         remote.QueueFree();

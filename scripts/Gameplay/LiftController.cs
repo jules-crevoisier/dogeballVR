@@ -6,7 +6,7 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Lift d'une zone (maps à niveaux) : debout sur le pad puis accroupi pendant 1 s, fondu de 0,4 s, et tout le plateau
-/// de la zone monte. Au maximum 8 s en haut, retour automatique, puis recharge. Verrouillé si le joueur tient une balle
+/// de la zone monte. Au maximum MaxHighSeconds (6 s sur La Fosse) en haut, retour automatique, puis recharge. Verrouillé si le joueur tient une balle
 /// chargée, et un joueur éliminé redescend. Aucune locomotion au joystick : on monte dans un cadre fixe (le pad).
 /// </summary>
 public partial class LiftController : Node

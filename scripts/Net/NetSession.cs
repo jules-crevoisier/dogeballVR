@@ -59,6 +59,14 @@ public partial class NetSession : Node
     public Func<int, Maps.LiftDef?> LiftOf { get; set; } = _ => null;
     /// <summary>Vrai si un coéquipier est déjà en haut (une seule zone haute par équipe).</summary>
     readonly Dictionary<int, double> liftReadyAtByZone = new();   // la recharge reste à la zone, pas au joueur (reconnexion)
+    /// <summary>Un joueur part (ou est remplacé) : s'il était en haut, la recharge de sa zone démarre.</summary>
+    public void LiftPlayerLeft(RemotePlayer remote)
+    {
+        var lift = LiftOf(remote.PlayerId);
+        if (lift != null && remote.HostElevation > 0f) liftReadyAtByZone[remote.PlayerId] = Time.GetTicksMsec() / 1000.0 + lift.CooldownSeconds;
+        remote.HostElevation = 0f;
+    }
+
     public Func<int, bool> TeammateHigh { get; set; } = _ => false;
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
