@@ -154,7 +154,7 @@ public partial class NetSession : Node
         elevation = ValidateElevation(remote, head, elevation);
         // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
-        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f + elevation, 3.5f + elevation),
+        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation),
             Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
         double now = Time.GetTicksMsec() / 1000.0;
@@ -256,6 +256,18 @@ public partial class NetSession : Node
                 connectedAt.Remove(peerId);
                 Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
             }
+        }
+        // Le lift se reprend au tick de l'hôte (durée maximale, élimination), même si le client ne dit plus rien.
+        foreach (var remote in Remotes.Values)
+        {
+            var lift = LiftOf(remote.PlayerId);
+            if (remote.HostElevation <= 0f || lift == null) continue;
+            if (clock - remote.LiftHighSince <= lift.MaxHighSeconds + 0.6 && !IsEliminated(remote.PlayerId)) continue;
+            var p = remote.GetPose();
+            var down = Vector3.Up * p.Elevation;
+            remote.HostElevation = 0f;
+            remote.LiftReadyAt = clock + lift.CooldownSeconds;
+            remote.SetPose(new PoseData(p.Head - down, p.Yaw, p.Left - down, p.Right - down, 0f));
         }
         if (Multiplayer.GetPeers().Length == 0) return;
         string hud = HudText();

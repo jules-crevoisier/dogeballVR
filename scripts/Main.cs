@@ -25,6 +25,7 @@ public partial class Main : Node3D
     DesktopPlayer? desktopPlayer;
     Camera3D? xrCamera;
     LiftController? lift;
+    double hostDeniedFor;
     ClientWorld? clientWorld;
     System.Collections.Generic.Dictionary<int, Node3D> platforms = new();
     Node3D localMarker = null!;
@@ -335,6 +336,12 @@ public partial class Main : Node3D
         if (localBody == null) return;
         var p = localBody.GlobalPosition;
         float elevation = lift?.Elevation ?? 0f;
+        // Client : l'hôte décide. S'il ne confirme pas notre altitude pendant 1 s, on redescend.
+        if (clientWorld != null && lift != null)
+        {
+            hostDeniedFor = lift.IsHigh && clientWorld.ElevationOf(localHurtbox.PlayerId) < 0.1f ? hostDeniedFor + delta : 0;
+            if (hostDeniedFor > 1.0) { lift.ForceDown(); hostDeniedFor = 0; }
+        }
         localMarker.GlobalPosition = new Vector3(p.X, elevation, p.Z);
         foreach (var (id, platform) in platforms)
         {

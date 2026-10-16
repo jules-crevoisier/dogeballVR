@@ -27,6 +27,12 @@ public partial class LiftController : Node
     public Action<float> Fade { get; set; } = _ => { };
 
     public float Elevation { get; private set; }
+    /// <summary>L'hôte a refusé ou repris l'altitude : on redescend.</summary>
+    public void ForceDown()
+    {
+        if (state == State.High) StartMove(State.FadingDown);
+    }
+
     public bool IsHigh => state is State.High or State.FadingDown;
 
     const float CrouchHeight = 1.15f;
