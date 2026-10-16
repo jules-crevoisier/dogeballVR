@@ -53,7 +53,7 @@ public partial class Hurtbox : Area3D
 
     void OnBodyEntered(Node3D body)
     {
-        if (Eliminated || DashInvulnerable || body is not Ball ball || ball.IsHeld) return;
+        if (Eliminated || DashInvulnerable || body is not Ball ball || ball.IsHeld || ball.HasExploded) return;
         if (ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;          // neutre ou tir allié
         if (ball.IsPass) return;                                           // une passe ne blesse personne
         if (ball.LinearVelocity.Length() < (ball.ThrowMode == Ball.ModeLob ? Ball.LobHitMinSpeed : Ball.HitMinSpeed)) return;       // trop lente
@@ -61,7 +61,10 @@ public partial class Hurtbox : Area3D
         int shooter = ball.OwnerPlayerId;
         int charge = ball.Charge;
         float distance = ball.ThrowDistance;
+        bool bomb = ball.Kind == Ball.KindBomb;
+        int shooterTeam = ball.OwnerTeam;
         ball.Spent();
         EmitSignal(SignalName.Hit, PlayerId, shooter, charge, distance);
+        if (bomb) ball.Explode(PlayerId, shooterTeam, shooter);
     }
 }

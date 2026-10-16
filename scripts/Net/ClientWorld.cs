@@ -39,6 +39,8 @@ public partial class ClientWorld : Node3D
         Net.HudReceived += text => Hud.Text = text;
     }
 
+    readonly HashSet<int> loggedKinds = new(), explodedSeen = new();
+
     void OnSnapshot(float[] data)
     {
         var (players, snapBalls) = NetSession.Decode(data);
@@ -80,12 +82,17 @@ public partial class ClientWorld : Node3D
                 AddChild(ball);
                 balls[b.NetId] = ball;
             }
-            ball.ApplyNet(b.Position, b.Velocity, b.Team, b.OwnerId, b.Charge, b.Held, b.Pass);
+            ball.ApplyNet(b.Position, b.Velocity, b.Team, b.OwnerId, b.Charge, b.Held, b.Pass, b.Kind);
+            if (b.Kind == Ball.KindExploded && explodedSeen.Add(b.NetId)) { DogeballVR.Visual.Explosion.Spawn(this, b.Position, Ball.BombRadius); GD.Print("[Client] Onde de choc de bombe reçue"); }
+            if (b.Kind != 0 && loggedKinds.Add(b.NetId)) GD.Print($"[Client] Balle spéciale reçue : type {b.Kind}");
         }
         foreach (var id in new List<int>(balls.Keys))
         {
             if (seen.Contains(id)) continue;
-            if (IsInstanceValid(balls[id])) balls[id].QueueFree();
+            if (IsInstanceValid(balls[id]))
+            {
+                balls[id].QueueFree();
+            }
             balls.Remove(id);
         }
     }

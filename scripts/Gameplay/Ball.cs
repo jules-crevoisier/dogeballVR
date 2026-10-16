@@ -25,6 +25,30 @@ public partial class Ball : RigidBody3D
     public static event System.Action<int>? CaughtThrow;
     double flightTime;
 
+    /// <summary>Balle spéciale (une famille par match, voir specialBalls dans les maps) : 0 normale, 1 bombe, 2 rebond.</summary>
+    public const int KindNormal = 0, KindBomb = 1, KindBounce = 2, KindExploded = 3;   // 3 : bombe explosée, envoyée aux clients 0,15 s avant sa disparition
+    public const float BombRadius = 3f;
+    static readonly Color BombColor = new(1f, 0.8f, 0.1f), BounceColor = new(0.7f, 0.4f, 1f);
+    /// <summary>Une bombe explose : position, équipe et id du tireur, id de la cible déjà touchée (exclue du souffle).</summary>
+    public static event System.Action<Vector3, int, int, int>? Exploded;
+    int kind;
+    double sinceRelease;
+    bool exploded;
+    double explodedFor;
+    public bool HasExploded => exploded || kind == KindExploded;   // client : la marionnette de type 3 compte aussi
+    public int Kind
+    {
+        get => kind;
+        set
+        {
+            kind = value;
+            if (core != null) core.MaterialOverride = Materials.Glow(KindColor() ?? Palette.BallCore, 1f);
+            UpdateLook();
+        }
+    }
+    Color? KindColor() => kind == KindBomb ? BombColor : kind == KindBounce ? BounceColor : null;
+    MeshInstance3D? core;
+
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
     static readonly float[] HaloScale = { 1.0f, 1.15f, 1.35f, 1.6f };
     static readonly float[] HaloAlpha = { 0.25f, 0.4f, 0.55f, 0.75f };
@@ -75,11 +99,12 @@ public partial class Ball : RigidBody3D
         var ball = new Ball { Name = "Ball" };
         ball.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.11f } });
         // DA v3 : sphère de 0,30 m (hitbox 0,22 m), contour sombre de 1,8 cm, halo additif à la couleur de l'équipe qui a lancé.
-        ball.AddChild(new MeshInstance3D
+        ball.core = new MeshInstance3D
         {
             Mesh = new SphereMesh { Radius = 0.15f, Height = 0.30f },
             MaterialOverride = Materials.Glow(Palette.BallCore, 1f),
-        });
+        };
+        ball.AddChild(ball.core);
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
         ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
@@ -117,8 +142,9 @@ public partial class Ball : RigidBody3D
     }
 
     /// <summary>Applique l'état envoyé par l'hôte (position lissée dans _Process).</summary>
-    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held, bool pass = false)
+    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held, bool pass = false, int kind = 0)
     {
+        if (kind != Kind) Kind = kind;
         ThrowMode = pass ? ModePass : 0;   // marionnette : sert au HUD et à la prise automatique d'une passe
         bool first = netTarget == Vector3.Zero;
         netTarget = position;
@@ -140,6 +166,12 @@ public partial class Ball : RigidBody3D
         LinearDamp = 0.1f;   // faible : la portée vient surtout de la gravité réduite et du vol limité
         AngularDamp = 2f;
         PhysicsMaterialOverride = new PhysicsMaterial { Bounce = 0.55f, Friction = 1.2f };
+        if (!IsPuppet)
+        {
+            ContactMonitor = true;   // bombe : explose au contact du décor
+            MaxContactsReported = 4;
+            BodyEntered += OnContact;
+        }
     }
 
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
@@ -173,11 +205,13 @@ public partial class Ball : RigidBody3D
         curveSpin = spin;
         LinearVelocity = velocity;
         flightTime = 0;
+        sinceRelease = 0;
         ThrowMode = mode;
         arcTime = 0;
         LinearDampMode = mode == 0 ? DampMode.Combine : DampMode.Replace;   // en cloche : aucun frottement (le défaut du projet s'ajouterait sinon)
         LinearDamp = mode == 0 ? 0.1f : 0f;
         GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
+        if (kind == KindBomb && velocity.Length() < LobHitMinSpeed) Spent();   // lâchée sans élan (tacle, KO) : bombe neutre, pas d'explosion aux pieds
         Released?.Invoke(this);
     }
 
@@ -188,6 +222,39 @@ public partial class Ball : RigidBody3D
         LinearDampMode = DampMode.Combine;
         LinearDamp = 0.1f;
         GravityScale = GravityFactor;
+    }
+
+    /// <summary>Test headless : fait passer la balle pour un tir de ce joueur.</summary>
+    public void MarkThrown(int team, int playerId)
+    {
+        OwnerTeam = team;
+        OwnerPlayerId = playerId;
+        LastTeam = team;
+        sinceRelease = 1;
+        UpdateLook();
+    }
+
+    void OnContact(Node body)
+    {
+        if (exploded || kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
+        if (sinceRelease < 0.12) return;   // pas dans la main qui la lâche
+        Explode(-1, OwnerTeam, OwnerPlayerId);
+    }
+
+    /// <summary>Explosion de la bombe : la balle est consommée, le MatchController applique les dégâts autour d'elle.</summary>
+    public void Explode(int exceptId, int team, int shooter)
+    {
+        if (exploded || IsPuppet) return;
+        exploded = true;
+        Spent();
+        kind = KindExploded;
+        RemoveFromGroup("balls");   // plus ramassable ni comptée ; le snapshot l'envoie encore via le groupe « exploded_balls »
+        AddToGroup("exploded_balls");
+        SetDeferred(RigidBody3D.PropertyName.Freeze, true);   // différé : on est dans un callback physique
+        Visible = false;
+        SetDeferred(CollisionObject3D.PropertyName.CollisionLayer, 0u);
+        SetDeferred(CollisionObject3D.PropertyName.CollisionMask, 0u);
+        Exploded?.Invoke(GlobalPosition, team, shooter, exceptId);
     }
 
     public void Spent()
@@ -213,7 +280,8 @@ public partial class Ball : RigidBody3D
 
     void UpdateLook()
     {
-        var c = Palette.Team(OwnerTeam);
+        if (PhysicsMaterialOverride != null) PhysicsMaterialOverride.Bounce = kind == KindBounce && OwnerTeam >= 0 ? 0.95f : 0.55f;   // rebond seulement une fois lancée : neutre, elle reste sur la plaque
+        var c = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
         c.A = HaloAlpha[Charge];
         haloMaterial.AlbedoColor = c;
     }
@@ -230,7 +298,8 @@ public partial class Ball : RigidBody3D
         }
         else if (IsPuppet)
         {
-            if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
+            if (kind == KindExploded) Visible = false;
+            else if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
             if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
             // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
             netTarget += LinearVelocity * (float)delta;
@@ -280,9 +349,13 @@ public partial class Ball : RigidBody3D
     public override void _PhysicsProcess(double delta)
     {
         if (IsPuppet) return;
+        if (exploded) { if ((explodedFor += delta) > 0.15) QueueFree(); return; }
+        sinceRelease += delta;
+        if (kind == KindBomb && !IsHeld && OwnerTeam >= 0 && !IsPass && sinceRelease > 0.12)
+            foreach (var b in GetCollidingBodies()) if (b is not Ball) { Explode(-1, OwnerTeam, OwnerPlayerId); return; }   // déjà au contact au lâcher
         // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
         if (ThrowMode != 0 && !IsHeld && ((arcTime += delta) > ArcMaxSeconds || (arcTime > 0.3 && GlobalPosition.Y < 0.25f))) Spent();   // fin de l'arc : au sol la balle redevient une balle neutre ramassable par tous   // une cloche qui n'a touché personne devient neutre
-        if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
+        if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds * (kind == KindBounce ? 2.5f : 1f)) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.

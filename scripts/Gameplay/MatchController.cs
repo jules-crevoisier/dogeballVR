@@ -227,8 +227,9 @@ public partial class MatchController : Node3D
         Rules.PlayerEliminated += OnEliminated;
         Ball.Released += OnBallReleased;
         Ball.CaughtThrow += OnCaughtThrow;
+        Ball.Exploded += OnBombExploded;
         TackleRequested += OnTackle;
-        TreeExiting += () => { Ball.Released -= OnBallReleased; Ball.CaughtThrow -= OnCaughtThrow; TackleRequested -= OnTackle; };
+        TreeExiting += () => { Ball.Released -= OnBallReleased; Ball.CaughtThrow -= OnCaughtThrow; Ball.Exploded -= OnBombExploded; TackleRequested -= OnTackle; };
     }
 
     /// <summary>À appeler quand tous les joueurs sont enregistrés.</summary>
@@ -236,6 +237,8 @@ public partial class MatchController : Node3D
     {
         Rules.ResetMatch();
         round = 1;
+        specialKind = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0 ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
 
@@ -256,6 +259,9 @@ public partial class MatchController : Node3D
         foreach (var d in dispensers) { d.Stored = d.Def.StartBalls; d.Timer = 0; d.OnPedestal = null; }
         if (!UsesDispensers) for (int i = 0; i < BallsOnField; i++) SpawnBall();
         roundTimeLeft = Rules.RoundSeconds;
+        specialClock = 0;
+        specialAnnounced = false;
+        specialLaunched = 0;
         ballTimer = 0;
         banner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
         inRound = true;
@@ -373,6 +379,7 @@ public partial class MatchController : Node3D
             }
         }
 
+        UpdateSpecialBalls(delta);
         roundTimeLeft -= delta;
         int winner = Rules.KoTargetReached();
         if (winner >= 0) FinishRound(winner);
@@ -383,6 +390,77 @@ public partial class MatchController : Node3D
             else FinishRound(result);
         }
         UpdateHud();
+    }
+
+    // Balles spéciales : une famille par match, lancée par le moyeu toutes les 45 s vers l'équipe menée, annoncée 5 s avant.
+    const double SpecialIntervalSeconds = 45, SpecialAnnounceSeconds = 5;
+    int specialKind;
+    double specialClock;
+    bool specialAnnounced;
+    int specialLaunched;
+    string specialBanner = "", bannerBeforeSpecial = "";
+
+    int bombTests;
+
+    /// <summary>Test headless (--special-test) : une bombe de l'équipe 0 tombe à 1,2 m d'un joueur de l'équipe 1 et doit le toucher par le souffle.</summary>
+    void BombTest()
+    {
+        int shooter = -1;
+        Hurtbox? victim = null;
+        foreach (var (id, h) in hurtboxes)
+        {
+            if (h.Team == 0 && shooter < 0) shooter = id;
+            if (h.Team == 1 && victim == null && !h.Eliminated) victim = h;
+        }
+        if (victim == null || shooter < 0) { GD.Print("[Match] Test bombe : pas de cible"); return; }
+        var ball = SpawnBallAt(new Vector3(victim.GlobalPosition.X + 1.2f, 0.6f, victim.GlobalPosition.Z));
+        ball.Kind = Ball.KindBomb;
+        ball.MarkThrown(0, shooter);
+        ball.LinearVelocity = new Vector3(0, -14f, 0);
+        GD.Print("[Match] Test bombe : lancée");
+    }
+
+    static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
+
+    void UpdateSpecialBalls(double delta)
+    {
+        if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
+        specialClock += delta;
+        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0) { bombTests++; BombTest(); }
+        double due = SpecialIntervalSeconds * (specialLaunched + 1);
+        if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
+        {
+            specialAnnounced = true;
+            bannerBeforeSpecial = banner;
+            specialBanner = $"BALLE SPÉCIALE : {SpecialName(specialKind).ToUpper()} DANS {SpecialAnnounceSeconds:0} s";
+            banner = specialBanner;
+            GD.Print($"[Match] Balle spéciale annoncée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
+        }
+        if (specialAnnounced && specialClock >= due)
+        {
+            specialAnnounced = false;
+            specialLaunched++;
+            if (banner == specialBanner) banner = bannerBeforeSpecial;
+            if (!LaunchFromHub(hubLauncher, specialKind)) { GD.Print("[Match] Balle spéciale : aucune plaque de l'équipe menée, lancer annulé"); return; }
+            GD.Print($"[Match] Balle spéciale lancée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
+        }
+    }
+
+    /// <summary>Souffle de la bombe : 1 cœur à chaque adversaire à moins de BombRadius (pas de tir allié), la cible déjà touchée par la balle est exclue.</summary>
+    void OnBombExploded(Vector3 position, int team, int shooterId, int exceptId)
+    {
+        DogeballVR.Visual.Explosion.Spawn(this, position, Ball.BombRadius);
+        if (!inRound) return;
+        int touched = 0;
+        foreach (var (id, h) in new List<KeyValuePair<int, Hurtbox>>(hurtboxes))
+        {
+            if (id == exceptId || h.Team == team || h.Eliminated || h.DashInvulnerable) continue;
+            if (h.Vulnerable != null && !h.Vulnerable()) continue;
+            if (h.GlobalPosition.DistanceTo(position) > Ball.BombRadius) continue;
+            OnHit(id, shooterId, 0, -1f);
+            touched++;
+        }
+        GD.Print($"[Match] Bombe : explosion en {position.X:0.0} / {position.Z:0.0}, {touched} adversaire(s) touché(s) par le souffle");
     }
 
     // `round` est le numéro de la prochaine manche : manches jouées = round - 1.
@@ -493,20 +571,21 @@ public partial class MatchController : Node3D
     /// Lanceur du moyeu : lob lent (1,6 s de vol) vers la plaque qui a le moins de balles (à égalité, celle d'une équipe
     /// qui perd) ; on la voit arriver et on l'attrape.
     /// </summary>
-    void LaunchFromHub(BallSpawnDef def)
+    bool LaunchFromHub(BallSpawnDef def, int kind = 0)
     {
         ZoneDef? target = null;
         int fewest = int.MaxValue;
         int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
         foreach (var z in hubZones)
         {
+            if (kind != 0 && z.Team != trailing) continue;   // balle spéciale : toujours chez l'équipe menée
             int count = 0;
             foreach (var n in GetTree().GetNodesInGroup("balls"))
                 if (n is Ball { IsHeld: false } b && new Vector2(b.GlobalPosition.X - z.X, b.GlobalPosition.Z - z.Z).Length() < 5.5f) count++;
             // La plaque d'une équipe qui perd passe devant à nombre de balles égal.
             if (count < fewest || (count == fewest && target != null && z.Team == trailing && target.Team != trailing)) { fewest = count; target = z; }
         }
-        if (target == null) return;
+        if (target == null) return false;
         var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
         var to = new Vector3(target.X, 0.6f, target.Z);
         for (int attempt = 0; attempt < 8; attempt++)   // pas sur un couvert : la balle roulerait hors de portée
@@ -522,8 +601,10 @@ public partial class MatchController : Node3D
         float g = 9.8f * Ball.GravityFactor;
         var d = to - from;
         var ball = SpawnBallAt(from);
+        ball.Kind = kind;
         ball.LinearVelocity = new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
         if (ballsCached >= 0) ballsCached++;
+        return true;
     }
 
     /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>
