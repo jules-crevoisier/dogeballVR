@@ -18,7 +18,7 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
-        XrBootstrap.Start(GetViewport());
+        bool xrActive = XrBootstrap.Start(GetViewport());
 
         var map = MapData.Load("res://maps/demo_2v2.json");
         var zones = new ZoneManager { Name = "ZoneManager" };
@@ -26,12 +26,20 @@ public partial class Main : Node3D
         zones.Setup(map, localZoneId: 0);
         zones.EdgeWarning += d => GD.Print($"Bord de zone à {d:0.00} m");
 
-        // Joueur local : placé au centre de sa zone.
-        var origin = new XROrigin3D { Name = "XROrigin3D", Position = map.Zones[0].Center };
-        origin.AddChild(new XRCamera3D { Name = "XRCamera3D" });
-        origin.AddChild(new HandThrower { Name = "LeftHand", Tracker = "left_hand" });
-        origin.AddChild(new HandThrower { Name = "RightHand", Tracker = "right_hand" });
-        AddChild(origin);
+        if (xrActive)
+        {
+            // Joueur local en VR : placé au centre de sa zone.
+            var origin = new XROrigin3D { Name = "XROrigin3D", Position = map.Zones[0].Center };
+            origin.AddChild(new XRCamera3D { Name = "XRCamera3D" });
+            origin.AddChild(new HandThrower { Name = "LeftHand", Tracker = "left_hand" });
+            origin.AddChild(new HandThrower { Name = "RightHand", Tracker = "right_hand" });
+            AddChild(origin);
+        }
+        else
+        {
+            // Pas de casque : joueur clavier-souris pour tester (voir DesktopPlayer).
+            AddChild(new DesktopPlayer { Name = "DesktopPlayer", Zones = zones });
+        }
 
         AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0) });
         AddFloor();
