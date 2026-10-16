@@ -150,8 +150,6 @@ public partial class DesktopPlayer : Node3D
             selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false);
             selfAvatar.TopLevel = true;
             AddChild(selfAvatar);
-            var hub = Zones.Map.Hub;
-            if (hub != null) fixedBoxes.Add((new Vector2(hub.X, hub.Z), new Vector2(hub.Pylon.Size, hub.Pylon.Size) * 0.5f));
         }
         autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
         rng.Seed = 4242;
@@ -301,7 +299,7 @@ public partial class DesktopPlayer : Node3D
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
-        float top = charging ? ChargeSpeed : FreeRoam || input.Sprint ? RunSpeed : WalkSpeed;
+        float top = charging ? ChargeSpeed : FreeRoam || (input.Sprint && input.Move.Y < -0.1f && !crouched) ? RunSpeed : WalkSpeed;
         if (crouched) top *= 0.6f;
 
         Vector2 target = wish * top;
@@ -309,7 +307,7 @@ public partial class DesktopPlayer : Node3D
         {
             dodgeLeft -= dt;
             velocity = dodgeDir * (FreeRoam ? DashSpeed : DodgeSpeed);
-            if (dodgeLeft <= 0) velocity = dodgeDir * Mathf.Min(velocity.Length(), RunSpeed);   // fin du dash : pas de glissade, la distance reste celle annoncée (4 m)
+            if (dodgeLeft <= 0 && FreeRoam) velocity = dodgeDir * Mathf.Min(velocity.Length(), RunSpeed);   // fin du dash : pas de glissade, la distance reste celle annoncée (4 m)
         }
         else
         {
@@ -557,6 +555,7 @@ public partial class DesktopPlayer : Node3D
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         var from = head.GlobalPosition;
         var ideal = from + basis * new Vector3(0.75f, 0.25f, CameraDistance);
+        var bnd = Zones.Map.Bounds;
         ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
         // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.
         float full = from.DistanceTo(ideal);
@@ -567,7 +566,9 @@ public partial class DesktopPlayer : Node3D
         {
             var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, ideal, 0xFFFFFFFF, exclude));
             if (hit.Count == 0) break;
-            if (hit["collider"].AsGodotObject() is StaticBody3D) { allowed = Mathf.Max(0.5f, from.DistanceTo(hit["position"].AsVector3()) - 0.25f); break; }
+            var hp = hit["position"].AsVector3();
+            bool arenaWall = hp.X < bnd.MinX + 0.6f || hp.X > bnd.MaxX - 0.6f || hp.Z < bnd.MinZ + 0.6f || hp.Z > bnd.MaxZ - 0.6f || hp.Y > bnd.CeilingHeight - 0.5f;
+            if (hit["collider"].AsGodotObject() is StaticBody3D && !arenaWall) { allowed = Mathf.Min(full, Mathf.Max(0.2f, from.DistanceTo(hp) - 0.25f)); break; }
             exclude.Add(hit["rid"].AsRid());
         }
         float f = allowed / full;
@@ -595,7 +596,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated;
+            selfAvatar.Visible = !Hurtbox.Eliminated && camFraction > 0.4f;   // caméra collée au joueur : on le fond pour ne pas masquer le viseur
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
         }
     }

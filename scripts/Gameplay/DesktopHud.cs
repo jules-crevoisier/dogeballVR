@@ -74,7 +74,7 @@ public partial class DesktopHud : CanvasLayer
     Control root = null!;
     Crosshair crosshair = null!;
     Label score = null!, resume = null!, dodgeLabel = null!, koLabel = null!;
-    ColorRect dodgeBack = null!, dodgeFill = null!;
+    ColorRect dodgeBack = null!, dodgeFill = null!, dodgeSplit = null!;
     Label lives = null!, state = null!, help = null!, toast = null!, catchLabel = null!;
     ColorRect bar = null!, barBack = null!, catchBack = null!, catchFill = null!, flash = null!;
     double hitMarkerLeft;
@@ -113,6 +113,8 @@ public partial class DesktopHud : CanvasLayer
 
         catchBack = MakeGauge(new Vector2(-150, -40), 120, out catchFill, out catchLabel, "Clic D");
         dodgeBack = MakeGauge(new Vector2(70, -40), 60, out dodgeFill, out dodgeLabel, Player.FreeRoam ? "Maj" : "E");
+        dodgeSplit = new ColorRect { Color = new Color(0, 0, 0, 0.9f), Position = new Vector2(29, 0), Size = new Vector2(2, 12) };   // séparateur entre les deux charges
+        dodgeBack.AddChild(dodgeSplit);
 
         help = MakeLabel(new Vector2(0, 0), 16);
         help.Text = Player.FreeRoam ? HelpFree : Help;
@@ -212,6 +214,7 @@ public partial class DesktopHud : CanvasLayer
         // Dash : deux segments (une charge chacun), le suivant se remplit pendant la recharge.
         float dash = Player.DashCharges + (Player.DashCharges < Player.DashMax ? Player.DashRecharge01 : 0f);
         dodgeFill.Size = new Vector2(60 * Mathf.Min(dash, Player.DashMax) / Player.DashMax, 12);
+        dodgeSplit.Visible = Player.DashMax > 1;
         dodgeFill.Color = Player.DashCharges >= 1 ? new Color(0.45f, 0.9f, 0.55f) : new Color(0.55f, 0.58f, 0.66f);
 
         hitMarkerLeft = Mathf.Max(0, hitMarkerLeft - delta);

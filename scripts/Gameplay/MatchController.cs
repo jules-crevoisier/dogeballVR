@@ -406,7 +406,8 @@ public partial class MatchController : Node3D
         float g = 9.8f * Ball.GravityFactor;
         var d = to - from;
         var ball = SpawnBallAt(from);
-        ball.LinearVelocity = new Vector3(d.X / flight, d.Y / flight + 0.5f * g * flight, d.Z / flight);
+        ball.LinearVelocity = new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
+        if (ballsCached >= 0) ballsCached++;
     }
 
     /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>

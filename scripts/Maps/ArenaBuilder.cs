@@ -197,11 +197,7 @@ public static class ArenaBuilder
                 });
         if (map.Hub == null) return;
         var h = map.Hub;
-        var size = new Vector3(h.Pylon.Size, h.Pylon.TopY, h.Pylon.Size);
-        var pylon = new StaticBody3D { Name = "Pylone", Position = new Vector3(h.X, h.Pylon.TopY / 2f, h.Z) };
-        pylon.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(Palette.Indigo) });
-        pylon.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-        root.AddChild(pylon);
+        // Le pylône est l'obstacle « pylone » du JSON (déjà construit avec les couverts) : ici seulement le lanceur.
         root.AddChild(new MeshInstance3D
         {
             Name = "Lanceur",

@@ -288,8 +288,10 @@ public partial class Main : Node3D
         bot.QueueFree();
         match.Unregister(zoneId);
 
+        var start = zone.Center;
+        if (net != null && net.FreeRoam && map.Pc?.Spawns.Find(sp => sp.Zone == zoneId) is { } sp0) start = new Vector3(sp0.X, 0, sp0.Z);   // jeu libre : le client apparaît à son point d'apparition
         var remote = new RemotePlayer { Name = $"Remote{peerId}", PeerId = peerId, PlayerId = zoneId, Team = zone.Team,
-            StartPose = new PoseData(zone.Center + Vector3.Up * 1.6f, Mathf.DegToRad(zone.FacingDegrees), zone.Center + new Vector3(-0.3f, 1.0f, 0), zone.Center + new Vector3(0.3f, 1.0f, 0)) };
+            StartPose = new PoseData(start + Vector3.Up * 1.6f, Mathf.DegToRad(zone.FacingDegrees), start + new Vector3(-0.3f, 1.0f, 0), start + new Vector3(0.3f, 1.0f, 0)) };
         AddChild(remote);
         match.Register(remote.Hurtbox);
         net!.Remotes[peerId] = remote;

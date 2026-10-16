@@ -30,7 +30,9 @@ public partial class RemotePlayer : Node3D
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
     public bool PrevDash { get; set; }
-    public double TeleportUntil { get; set; }
+    public bool TeleportPending { get; set; }
+    /// <summary>Dernière pose acceptée par l'hôte (non lissée) : référence de la vérification de vitesse.</summary>
+    public PoseData TargetPose => hasPose ? target : new PoseData(Vector3.Zero, 0, Vector3.Zero, Vector3.Zero);
     PoseData target, current;
     bool hasPose;
 

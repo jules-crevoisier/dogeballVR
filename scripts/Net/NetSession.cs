@@ -37,7 +37,7 @@ public partial class NetSession : Node
     /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
     public bool FreeRoam { get; set; }
     const float FreeRunCap = 9f, FreeDashCap = 30f;     // course 7,5 m/s + marge ; dash 20 m/s pendant 0,2 s
-    const double DashSlack = 0.3, DashRecharge = 1.6;   // fenêtre d'un dash validé (latence comprise) ; recharge d'une charge
+    const double DashSlack = 0.25, DashRecharge = 1.6;   // fenêtre d'un dash validé (latence comprise) ; recharge d'une charge
     float MoveSpeedCap => FreeRoam ? FreeRunCap : MaxMoveSpeed;
     float VerticalSpeedCap => FreeRoam ? 5.5f : 4f;
     float HeadCeiling => FreeRoam ? 2.9f : 2.3f;
@@ -175,18 +175,18 @@ public partial class NetSession : Node
         var zone = ZoneRect(remote.PlayerId);
         head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), head.Y, Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourue depuis la dernière pose acceptée (temps réel écoulé).
-        var last = remote.GetPose().Head;
+        var last = remote.TargetPose.Head;
         float cap = MoveSpeedCap;
         if (FreeRoam)
         {
             // Dash : l'hôte tient le compte des charges (2, une toutes les 1,6 s) ; sans charge le signal est ignoré.
             remote.DashBudget = Mathf.Min(2f, remote.DashBudget + (float)((remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0) / DashRecharge));
-            if (dash && !remote.PrevDash && remote.DashBudget >= 0.95f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
+            if (dash && !remote.PrevDash && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
             remote.PrevDash = dash;
             if (now < remote.DashUntil) cap = FreeDashCap;
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
-            if (IsEliminated(remote.PlayerId)) remote.TeleportUntil = now + 1.0;
-            if (now < remote.TeleportUntil) cap = 1000f;
+            if (IsEliminated(remote.PlayerId)) remote.TeleportPending = true;
+            else if (remote.TeleportPending) { remote.TeleportPending = false; cap = 1000f; }   // une seule pose libre après le KO
         }
         float allowed = cap * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
@@ -205,7 +205,7 @@ public partial class NetSession : Node
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
-        var lastPose = remote.GetPose();
+        var lastPose = remote.TargetPose;
         float lastRel = last.Y - lastPose.Elevation;
         head.Y = Mathf.Clamp(head.Y - elevation, lastRel - VerticalSpeedCap * dt, lastRel + VerticalSpeedCap * dt) + elevation;
         remote.LastPoseAt = now;
