@@ -114,6 +114,10 @@ public class RulesDef
 {
     /// <summary>Après une touche, la cible ne peut plus être blessée pendant ce temps (0 = pas d'invulnérabilité).</summary>
     public float InvulnerableAfterHitSeconds { get; set; }
+    /// <summary>Un cœur perdu revient après ce délai sans être touché (0 = jamais).</summary>
+    public float HeartRegenSeconds { get; set; }
+    /// <summary>KO d'équipe qui met fin à la manche (0 = valeur par défaut des règles).</summary>
+    public int KoTarget { get; set; }
 }
 
 /// <summary>Règles de balle de la map : plafond de balles en jeu, durée de vol maximale, gravité réduite pour tendre les trajectoires.</summary>

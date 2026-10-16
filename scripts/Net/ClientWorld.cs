@@ -78,7 +78,7 @@ public partial class ClientWorld : Node3D
                 AddChild(ball);
                 balls[b.NetId] = ball;
             }
-            ball.ApplyNet(b.Position, b.Velocity, b.Team, b.OwnerId, b.Charge, b.Held);
+            ball.ApplyNet(b.Position, b.Velocity, b.Team, b.OwnerId, b.Charge, b.Held, b.Pass);
         }
         foreach (var id in new List<int>(balls.Keys))
         {

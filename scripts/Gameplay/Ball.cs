@@ -12,6 +12,7 @@ public partial class Ball : RigidBody3D
 {
     public const int MaxCharge = 3;
     public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
+    public const float LobHitMinSpeed = 4.5f;   // une cloche arrive presque à la verticale : seuil plus bas
 
     /// <summary>Réglages de la map (voir BallRulesDef) : gravité, et durée de vol après laquelle la balle ne blesse plus.</summary>
     public static float GravityFactor { get; set; } = 0.6f;
@@ -47,6 +48,13 @@ public partial class Ball : RigidBody3D
     public int LastTeam { get; private set; } = -1;
     public int Charge { get; private set; }
     public bool IsHeld { get; private set; }
+
+    /// <summary>Mode de lancer : 0 tir tendu, 1 lob (cloche, blesse), 2 passe (cloche guidée vers un allié, ne blesse personne).</summary>
+    public const int ModeLob = 1, ModePass = 2;
+    public int ThrowMode { get; private set; }
+    public bool IsPass => ThrowMode == ModePass;
+    public const float ArcGravity = 9.8f, ArcMaxSeconds = 2.6f;   // en cloche la balle retombe à pleine gravité ; durée de vol plafonnée
+    double arcTime;
 
     /// <summary>Temps passé immobile au sol (s) : au-delà, la balle est recyclée et réapparaît dans une autre zone.</summary>
     public double RestTime { get; private set; }
@@ -109,8 +117,9 @@ public partial class Ball : RigidBody3D
     }
 
     /// <summary>Applique l'état envoyé par l'hôte (position lissée dans _Process).</summary>
-    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held)
+    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held, bool pass = false)
     {
+        ThrowMode = pass ? ModePass : 0;   // marionnette : sert au HUD et à la prise automatique d'une passe
         bool first = netTarget == Vector3.Zero;
         netTarget = position;
         if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
@@ -134,11 +143,12 @@ public partial class Ball : RigidBody3D
     }
 
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
-    public void Hold(Node3D hand, int playerId, int team)
+    public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
-        else if (OwnerTeam != team) ResetCharge();
+        else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
+        EndArc();
         OwnerPlayerId = playerId;
         OwnerTeam = team;
         LastTeam = team;
@@ -152,7 +162,7 @@ public partial class Ball : RigidBody3D
         UpdateLook();
     }
 
-    public void Release(Vector3 velocity, float spin)
+    public void Release(Vector3 velocity, float spin, int mode = 0)
     {
         var world = GetTree().CurrentScene;
         var xf = GlobalTransform;
@@ -163,12 +173,26 @@ public partial class Ball : RigidBody3D
         curveSpin = spin;
         LinearVelocity = velocity;
         flightTime = 0;
+        ThrowMode = mode;
+        arcTime = 0;
+        LinearDampMode = mode == 0 ? DampMode.Combine : DampMode.Replace;   // en cloche : aucun frottement (le défaut du projet s'ajouterait sinon)
+        LinearDamp = mode == 0 ? 0.1f : 0f;
+        GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
         Released?.Invoke(this);
     }
 
     /// <summary>La balle a touché : elle devient neutre (plus personne n'est blessé tant qu'elle n'est pas reprise).</summary>
+    void EndArc()
+    {
+        ThrowMode = 0;
+        LinearDampMode = DampMode.Combine;
+        LinearDamp = 0.1f;
+        GravityScale = GravityFactor;
+    }
+
     public void Spent()
     {
+        EndArc();
         OwnerPlayerId = -1;
         OwnerTeam = -1;
         ResetCharge();
@@ -257,7 +281,8 @@ public partial class Ball : RigidBody3D
     {
         if (IsPuppet) return;
         // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
-        if (!IsHeld && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
+        if (ThrowMode != 0 && !IsHeld && ((arcTime += delta) > ArcMaxSeconds || (arcTime > 0.3 && GlobalPosition.Y < 0.25f))) Spent();   // fin de l'arc : au sol la balle redevient une balle neutre ramassable par tous   // une cloche qui n'a touché personne devient neutre
+        if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.

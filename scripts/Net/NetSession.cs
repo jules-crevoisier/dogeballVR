@@ -142,14 +142,14 @@ public partial class NetSession : Node
         Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.DashCount));
     }
 
-    public void RequestCatch(int ballId, int hand)
+    public void RequestCatch(int ballId, int hand, bool perfect = false)
     {
-        if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand));
+        if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand, perfect));
     }
 
-    public void RequestThrow(int hand, Vector3 velocity, float spin)
+    public void RequestThrow(int hand, Vector3 velocity, float spin, int mode = 0)
     {
-        if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin));
+        if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin, mode));
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -257,7 +257,7 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void CatchRpc(int ballId, int hand)
+    void CatchRpc(int ballId, int hand, bool perfect)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
@@ -269,22 +269,31 @@ public partial class NetSession : Node
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
             float lagSlack = Mathf.Min(ball.LinearVelocity.Length() * 0.12f, 2.0f);
             if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach + lagSlack) return;
-            ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team);
+            if (ball.IsPass && ball.OwnerTeam != remote.Hurtbox.Team) return;   // une passe ne s'intercepte pas (phase 2)
+            // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
+            // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
+            bool perfectOk = perfect && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed
+                && ball.ThrowMode == 0 && ball.LinearVelocity.Length() >= 10f && catchNow - remote.LastPerfectAt > 2.0
+                && ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) + 0.01f < (ball.GlobalPosition - ball.LinearVelocity * 0.3f).DistanceTo(remote.HandNode(hand).GlobalPosition);
+            if (perfectOk) remote.LastPerfectAt = catchNow;
+            ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team, perfectOk);
             remote.NextCatchAt = 0;
+            if (perfectOk) GD.Print($"[Net] Attrape parfaite de la zone {remote.Hurtbox.PlayerId}");
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
             return;
         }
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void ThrowRpc(int hand, Vector3 velocity, float spin)
+    void ThrowRpc(int hand, Vector3 velocity, float spin, int mode)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
-        ball.Release(velocity.LimitLength(MaxThrowSpeed), Mathf.Clamp(spin, -MaxSpin, MaxSpin));
+        mode = Mathf.Clamp(mode, 0, 2);
+        ball.Release(velocity.LimitLength(mode == 0 ? MaxThrowSpeed : 24f), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
-        GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s");
+        GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s" + (mode == Ball.ModePass ? " (passe)" : mode == Ball.ModeLob ? " (cloche)" : spin != 0 ? " (effet)" : ""));
     }
 
     // ---------------------------------------------------------------- hôte -> clients
@@ -349,7 +358,7 @@ public partial class NetSession : Node
             var vel = b.IsHeld ? Vector3.Zero : b.LinearVelocity;
             data.AddRange(new[]
             {
-                b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : 0f,
+                b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : (b.IsPass ? 2f : 0f),   // 2 = passe en vol
             });
         }
         return data.ToArray();
@@ -379,11 +388,11 @@ public partial class NetSession : Node
                 d[i + 11] > 0.5f, (int)d[i + 12], d[i + 13] > 0.5f));
         for (int k = 0; k < nb; k++, i += BallFloats)
             balls.Add(new SnapshotBall((int)d[i], new Vector3(d[i + 1], d[i + 2], d[i + 3]), new Vector3(d[i + 4], d[i + 5], d[i + 6]),
-                (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f));
+                (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f && d[i + 10] < 1.5f, d[i + 10] > 1.5f));
         return (players, balls);
     }
 }
 
 public record SnapshotPlayer(int Id, PoseData Pose, bool Eliminated, int Lives, bool Bot);
 
-public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held);
+public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held, bool Pass = false);

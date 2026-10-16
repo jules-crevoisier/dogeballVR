@@ -20,7 +20,9 @@ public partial class DesktopHud : CanvasLayer
         "Maj   dash (2 charges)      Espace   sauter\n" +
         "Ctrl / C   s'accroupir (ramasser)\n" +
         "Clic gauche   lancer (maintenir = plus fort)\n" +
-        "Clic droit   attraper (0,5 s)\n" +
+        "E maintenu + Q/D   effet      R   cloche\n" +
+        "Clic molette / X   passe à un allié      F   feinte\n" +
+        "Clic droit   attraper (tôt = attrape parfaite)\n" +
         "PgHaut / PgBas   sensibilité\n" +
         "Échap   libérer la souris      F1   cacher l'aide";
 
@@ -30,7 +32,7 @@ public partial class DesktopHud : CanvasLayer
         "Ctrl / C   s'accroupir (ramasser, ascenseur)\n" +
         "E   esquive\n" +
         "Clic gauche   lancer (maintenir = plus fort)\n" +
-        "Clic droit   attraper (0,5 s)\n" +
+        "Clic droit   attraper (0,45 s)\n" +
         "PgHaut / PgBas   sensibilité\n" +
         "Échap   libérer la souris      F1   cacher l'aide";
 
@@ -47,6 +49,31 @@ public partial class DesktopHud : CanvasLayer
     sealed partial class Crosshair : Control
     {
         public DesktopHud Hud = null!;
+
+        /// <summary>Jeu libre : une balle ennemie rapide hors de l'écran (derrière, sur le côté) est signalée par une flèche au bord, jusqu'à 25 m.</summary>
+        void DrawBallArrows(Vector2 c)
+        {
+            if (!Hud.Player.FreeRoam) return;
+            var cam = GetViewport().GetCamera3D();
+            if (cam == null) return;
+            var view = GetViewportRect().Size;
+            foreach (var node in GetTree().GetNodesInGroup("balls"))
+            {
+                if (node is not Ball { IsHeld: false } b || b.OwnerTeam < 0 || b.OwnerTeam == Hud.Player.Hurtbox.Team || b.IsPass || b.LinearVelocity.Length() < 12f) continue;
+                if (b.GlobalPosition.DistanceTo(Hud.Player.Hurtbox.GlobalPosition) > 25f) continue;
+                bool behind = cam.IsPositionBehind(b.GlobalPosition);
+                var p = cam.UnprojectPosition(b.GlobalPosition);
+                if (!behind && p.X > 0 && p.Y > 0 && p.X < view.X && p.Y < view.Y) continue;   // visible : pas besoin de flèche
+                var dir = (p - c).Normalized();
+                if (behind) dir = -dir;
+                float m = 46f;
+                float k = Mathf.Min(Mathf.Abs(dir.X) > 1e-3f ? (view.X * 0.5f - m) / Mathf.Abs(dir.X) : 1e9f, Mathf.Abs(dir.Y) > 1e-3f ? (view.Y * 0.5f - m) / Mathf.Abs(dir.Y) : 1e9f);
+                var at = c + dir * k;
+                var perp = new Vector2(-dir.Y, dir.X);
+                var tri = new[] { at + dir * 18f, at - dir * 10f + perp * 13f, at - dir * 10f - perp * 13f };
+                DrawColoredPolygon(tri, new Color(Palette.Team(b.OwnerTeam), 0.9f));
+            }
+        }
         public override void _Draw()
         {
             var c = Size * 0.5f;
@@ -61,6 +88,7 @@ public partial class DesktopHud : CanvasLayer
                 DrawLine(a, b, col, 2f);
             }
             DrawCircle(c, 2.2f, col);
+            DrawBallArrows(c);
             if (Hud.hitMarkerLeft > 0)
             {
                 var mc = Hud.hitMarkerKill ? new Color(1f, 0.15f, 0.15f) : Colors.White;
@@ -202,7 +230,7 @@ public partial class DesktopHud : CanvasLayer
         bool tips = age < 12;
         state.Text = ball == null
             ? (Player.CatchState == 1 ? "Attrape !" : tips ? "Passe sur une balle pour la ramasser, ou clic droit pour l'attraper" : "")
-            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : tips ? "Clic gauche : lancer (maintenir = plus fort)" : "");
+            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : tips ? (Player.FreeRoam ? "Clic gauche : lancer   Clic molette : passe   F : feinte   R : cloche" : "Clic gauche : lancer (maintenir = plus fort)") : "");
         float c = Player.ThrowCharge01;
         barBack.Visible = ball != null;
         bar.Size = new Vector2(240 * c, 14);

@@ -131,6 +131,13 @@ jobs:
           if [ "$DASHES" -lt 3 ]; then
             echo "Le dash du client n'est pas reconnu par l'hôte"; exit 1
           fi
+          PASSES=$(grep -c "(passe)" ring-host.log || true)
+          LOBS=$(grep -c "(cloche)" ring-host.log || true)
+          CURVES=$(grep -c "(effet)" ring-host.log || true)
+          echo "Coups spéciaux du client PC validés par l'hôte : passes $PASSES, cloches $LOBS, effets $CURVES"
+          if [ "$PASSES" -lt 1 ] || [ "$LOBS" -lt 1 ] || [ "$CURVES" -lt 1 ]; then
+            echo "Passe, cloche ou effet du client non reconnus par l'hôte"; exit 1
+          fi
           if [ "$CATCHES" -lt 4 ] || [ "$THROWS" -lt 4 ]; then
             echo "Le joueur libre client n'est pas accepté par l'hôte"; exit 1
           fi

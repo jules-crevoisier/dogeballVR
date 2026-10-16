@@ -12,16 +12,16 @@ public static class BallActions
     public static NetSession? Net { get; set; }
     public static bool IsClient => Net is { IsClient: true };
 
-    public static void Catch(Ball ball, Node3D hand, int handIndex, int playerId, int team)
+    public static void Catch(Ball ball, Node3D hand, int handIndex, int playerId, int team, bool perfect = false)
     {
-        if (IsClient) Net!.RequestCatch(ball.NetId, handIndex);
-        else ball.Hold(hand, playerId, team);
+        if (IsClient) Net!.RequestCatch(ball.NetId, handIndex, perfect);
+        else ball.Hold(hand, playerId, team, perfect);
     }
 
-    public static void Throw(Ball ball, int handIndex, Vector3 velocity, float spin)
+    public static void Throw(Ball ball, int handIndex, Vector3 velocity, float spin, int mode = 0)
     {
-        if (IsClient) Net!.RequestThrow(handIndex, velocity, spin);
-        else ball.Release(velocity, spin);
+        if (IsClient) Net!.RequestThrow(handIndex, velocity, spin, mode);
+        else ball.Release(velocity, spin, mode);
     }
 
     /// <summary>Côté client : la balle (marionnette) que l'hôte dit tenue par ce joueur.</summary>

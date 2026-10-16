@@ -18,7 +18,7 @@ public class MatchRules
     public float RoundSeconds { get; init; } = 120f;
     public float OvertimeSeconds { get; init; } = 30f;
     public int MaxRounds { get; init; } = 5;
-    public int KoTarget { get; init; } = 3;
+    public int KoTarget { get; set; } = 3;
 
     readonly Dictionary<int, int> lives = new();
     readonly Dictionary<int, int> teamOf = new();

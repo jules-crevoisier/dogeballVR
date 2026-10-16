@@ -30,6 +30,7 @@ public partial class RemotePlayer : Node3D
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
     public int LastDashCount { get; set; }
+    public double LastPerfectAt { get; set; } = -10;
     public bool TeleportPending { get; set; }
     public double TeleportDeadline { get; set; }
     /// <summary>Dernière pose acceptée par l'hôte (non lissée) : référence de la vérification de vitesse.</summary>

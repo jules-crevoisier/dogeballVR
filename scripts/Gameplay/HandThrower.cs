@@ -68,7 +68,7 @@ public partial class HandThrower : XRController3D
     void OnBodyEntered(Node3D body)
     {
         // Différé : Hold change l'état physique de la balle, interdit pendant le traitement des collisions.
-        if (body is Ball ball && gripDown && CanCatch && !ball.IsHeld) CallDeferred(MethodName.CatchDeferred, ball);
+        if (body is Ball ball && gripDown && CanCatch && !ball.IsHeld && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team)) CallDeferred(MethodName.CatchDeferred, ball);
     }
 
     /// <summary>Une seule balle par joueur, et pas de prise tant que l'hôte n'a pas confirmé la précédente.</summary>
@@ -83,7 +83,7 @@ public partial class HandThrower : XRController3D
     {
         if (!CanCatch) return;
         foreach (var body in catchArea.GetOverlappingBodies())
-            if (body is Ball ball && !ball.IsHeld) { Catch(ball); return; }
+            if (body is Ball ball && !ball.IsHeld && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team)) { Catch(ball); return; }
     }
 
     void Catch(Ball ball)
