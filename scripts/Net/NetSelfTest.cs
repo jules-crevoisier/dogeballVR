@@ -28,7 +28,7 @@ public partial class NetSelfTest : Node
         Net.LocalPose = () => new PoseData(new Vector3(hand.X, 1.6f, hand.Z), 0, hand, hand);
     }
 
-    const float HandSpeed = 8f;   // sous la vitesse maximale que l'hôte accepte (12 m/s)
+    const float HandSpeed = 8f;   // sous la vitesse maximale que l'hôte accepte (8 m/s)
 
     public override void _PhysicsProcess(double delta)
     {

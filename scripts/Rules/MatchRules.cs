@@ -6,7 +6,7 @@ namespace DogeballVR.Rules;
 /// <summary>
 /// Règles pures (sans Godot) : vies, manches, score. Exécutées côté serveur, testables à part.
 /// 2v2 nerveux : 2 vies par joueur, un joueur à 0 vie est un KO et revient 3 s plus tard (pas de temps mort).
-/// Partie au meilleur des 5 manches de 2 min : fin dès qu'une équipe a 3 manches (choix arcade, 6 min maximum hors prolongation).
+/// Partie au meilleur des 3 manches de 75 s : une manche s'arrête dès qu'une équipe atteint 3 KO, la partie dès 2 manches gagnées (3 à 5 min typiques pour une borne).
 /// Une manche revient à l'équipe avec le plus de KO. Égalité à la fin : prolongation de 30 s à mort subite
 /// (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche
 /// décisive est jouée jusqu'à départage. KoTarget > 0 réactive la fin anticipée.
@@ -15,10 +15,10 @@ public class MatchRules
 {
     public int LivesPerPlayer { get; init; } = 2;
     public float RespawnSeconds { get; init; } = 3f;
-    public float RoundSeconds { get; init; } = 120f;
+    public float RoundSeconds { get; init; } = 75f;
     public float OvertimeSeconds { get; init; } = 30f;
-    public int MaxRounds { get; init; } = 5;
-    public int KoTarget { get; init; } = 0;
+    public int MaxRounds { get; init; } = 3;
+    public int KoTarget { get; init; } = 3;
 
     readonly Dictionary<int, int> lives = new();
     readonly Dictionary<int, int> teamOf = new();

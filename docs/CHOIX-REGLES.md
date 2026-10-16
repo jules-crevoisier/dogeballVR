@@ -14,3 +14,6 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Invulnérabilité après un coup : la balle traverse sans être consommée.
 - Anti-triche resserré : vitesse de déplacement 8 m/s, vitesse verticale 4 m/s, main à 1 m de la tête, spin plafonné à 12.
 - Limites connues : pas de compensation de latence pour les prises (l'hôte garde un léger avantage), pas de validation de la direction des lancers, portée jamais mesurée avec une vraie main sur casque.
+- Revue 4 : partie raccourcie en meilleur des 3 manches de 75 s, manche finie à 3 KO.
+- Bots : un tir ennemi rapide n'est attrapé qu'une fois sur trois ; visée à 1,3 m.
+- Prises côté hôte : tolérance de latence = vitesse de la balle x 0,12 s (2 m maximum) ; tête client au minimum à 0,8 m.

@@ -111,6 +111,12 @@ public partial class Bot : Node3D
         {
             if (node is not Ball ball || ball.IsHeld) continue;
             if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 0.8f) > CatchRadius) continue;
+            // Un tir ennemi rapide n'est attrapé qu'une fois sur trois : les bots ne neutralisent plus la moitié des tirs.
+            if (ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f && rng.Randf() > 0.3f)
+            {
+                catchCooldown = 0.5f;
+                return;
+            }
             held = ball;
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
             throwDelay = rng.RandfRange(0.3f, 0.7f);

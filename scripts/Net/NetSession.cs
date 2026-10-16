@@ -147,7 +147,7 @@ public partial class NetSession : Node
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw)) return;
         // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
-        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.2f, 3.5f),
+        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f, 3.5f),
             Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
         double now = Time.GetTicksMsec() / 1000.0;
@@ -180,7 +180,9 @@ public partial class NetSession : Node
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
-            if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach) return;
+            // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
+            float lagSlack = Mathf.Min(ball.LinearVelocity.Length() * 0.12f, 2.0f);
+            if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach + lagSlack) return;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team);
             remote.NextCatchAt = 0;
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
