@@ -20,6 +20,9 @@ public partial class Hurtbox : Area3D
     /// <summary>Côté client : la touche est jugée par l'hôte, cette zone ne détecte rien.</summary>
     public bool Passive { get; set; }
 
+    /// <summary>Altitude des pieds (plateau haut du lift) : la capsule va des pieds à la tête.</summary>
+    public float Elevation { get; set; }
+
     /// <summary>Caméra à suivre (joueur). Si null, la hurtbox reste là où elle est (bot).</summary>
     public Node3D? Head { get; set; }
 
@@ -36,9 +39,9 @@ public partial class Hurtbox : Area3D
     public override void _PhysicsProcess(double delta)
     {
         if (Head == null) return;
-        float h = Mathf.Max(Head.GlobalPosition.Y + 0.1f, 0.6f);
+        float h = Mathf.Max(Head.GlobalPosition.Y - Elevation + 0.1f, 0.6f);
         capsule.Height = h;
-        GlobalPosition = new Vector3(Head.GlobalPosition.X, h * 0.5f, Head.GlobalPosition.Z);
+        GlobalPosition = new Vector3(Head.GlobalPosition.X, Elevation + h * 0.5f, Head.GlobalPosition.Z);
     }
 
     /// <summary>Posé par le MatchController : faux pendant l'invulnérabilité après une touche.</summary>

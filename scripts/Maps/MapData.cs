@@ -13,8 +13,36 @@ public class ZoneDef
     public float Y { get; set; }
     public float Z { get; set; }
     public float FacingDegrees { get; set; }
+    /// <summary>Lift de la zone (map à niveaux) : le plateau entier monte quand le joueur s'accroupit sur le pad.</summary>
+    public LiftDef? Lift { get; set; }
 
     public Vector3 Center => new(X, Y, Z);
+}
+
+public class LiftPadDef
+{
+    public float X { get; set; }
+    public float Z { get; set; }
+    public float Radius { get; set; } = 0.8f;
+}
+
+public class LiftDef
+{
+    public LiftPadDef Pad { get; set; } = new();
+    public List<float> LevelElevations { get; set; } = new() { 0f, 2.4f };
+    public float FadeSeconds { get; set; } = 0.4f;
+    public float MaxHighSeconds { get; set; } = 8f;
+    public float CooldownSeconds { get; set; } = 12f;
+    public float HighElevation => LevelElevations.Count > 0 ? LevelElevations[^1] : 0f;
+}
+
+public class LiftRulesDef
+{
+    public float HoldCrouchSeconds { get; set; } = 1f;
+    public bool LockWhenHoldingChargedBall { get; set; } = true;
+    public bool DownOnElimination { get; set; } = true;
+    public bool OneHighZonePerTeam { get; set; } = true;
+    public float RailingHeight { get; set; } = 0.9f;
 }
 
 /// <summary>Un élément de décor (greybox) : boîte pleine, centre en x et z, base en y.</summary>
@@ -118,10 +146,24 @@ public class MapData
     public BallReturnDef BallReturn { get; set; } = new();
     public BallRulesDef BallRules { get; set; } = new();
     public RulesDef Rules { get; set; } = new();
+    public LiftRulesDef LiftRules { get; set; } = new();
     public List<ZoneDef> Zones { get; set; } = new();
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();
+
+    public bool HasLifts => Zones.Exists(z => z.Lift != null);
+
+    /// <summary>Altitude maximale d'un joueur (plateau haut) : borne les poses acceptées par l'hôte.</summary>
+    public float MaxElevation
+    {
+        get
+        {
+            float m = 0f;
+            foreach (var z in Zones) if (z.Lift != null) m = Mathf.Max(m, z.Lift.HighElevation);
+            return m;
+        }
+    }
 
     /// <summary>Limites de l'arène, quel que soit le format du fichier.</summary>
     public BoundsDef Bounds => ArenaBounds ?? new BoundsDef

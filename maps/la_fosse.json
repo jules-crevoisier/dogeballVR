@@ -1,0 +1,428 @@
+{
+  "name": "la_fosse",
+  "schemaVersion": 2,
+  "zoneWidth": 15,
+  "zoneDepth": 8,
+  "edgeWarningDistance": 1.5,
+  "zones": [
+    {
+      "id": 0,
+      "team": 0,
+      "x": -7.5,
+      "y": 0.0,
+      "z": -5.5,
+      "facingDegrees": 180,
+      "lift": {
+        "pad": {
+          "x": -2.9,
+          "z": -7.4,
+          "radius": 0.6
+        },
+        "levelElevations": [
+          0.0,
+          1.6
+        ],
+        "fadeSeconds": 0.4,
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
+      }
+    },
+    {
+      "id": 1,
+      "team": 0,
+      "x": 7.5,
+      "y": 0.0,
+      "z": -5.5,
+      "facingDegrees": 180,
+      "lift": {
+        "pad": {
+          "x": 2.9,
+          "z": -7.4,
+          "radius": 0.6
+        },
+        "levelElevations": [
+          0.0,
+          1.6
+        ],
+        "fadeSeconds": 0.4,
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
+      }
+    },
+    {
+      "id": 2,
+      "team": 1,
+      "x": -7.5,
+      "y": 0.0,
+      "z": 5.5,
+      "facingDegrees": 0,
+      "lift": {
+        "pad": {
+          "x": -2.9,
+          "z": 7.4,
+          "radius": 0.6
+        },
+        "levelElevations": [
+          0.0,
+          1.6
+        ],
+        "fadeSeconds": 0.4,
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
+      }
+    },
+    {
+      "id": 3,
+      "team": 1,
+      "x": 7.5,
+      "y": 0.0,
+      "z": 5.5,
+      "facingDegrees": 0,
+      "lift": {
+        "pad": {
+          "x": 2.9,
+          "z": 7.4,
+          "radius": 0.6
+        },
+        "levelElevations": [
+          0.0,
+          1.6
+        ],
+        "fadeSeconds": 0.4,
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
+      }
+    }
+  ],
+  "ballRules": {
+    "maxBallsInPlay": 6,
+    "throwAssist": {
+      "speedMultiplier": 1.4,
+      "minLaunchSpeed": 9.0,
+      "note": "multiplicateur de vitesse de main (ThrowSpeedScale du dépôt) ; la main Quest serait vers 10 m/s (à mesurer)"
+    },
+    "maxFlightSeconds": 1.5,
+    "ballGravityFactor": 0.3,
+    "neutralBallExemptFromFlightLimit": true,
+    "overflow": "une balle retournée attend en file si le distributeur est plein",
+    "note": "portée utile visée : 12 à 20 m ; au-delà de ~20 m, uniquement par rebond sur les murs"
+  },
+  "rules": {
+    "roundWin": "3 vies par joueur ; la manche va à l'équipe qui élimine tous les adversaires, sinon à celle qui a le plus de vies au temps",
+    "stuckBallReturnSeconds": 3,
+    "friendlyFire": false,
+    "invulnerableAfterHitSeconds": 1.5,
+    "catchReward": "un attrapé fait perdre une vie au lanceur adverse ou rend une vie à l'attrapeur",
+    "eliminatedPlayer": "retour après 5 s ; 0 vie = spectateur jusqu'à la fin de la manche",
+    "returnedBallDispenser": "distributeur de l'équipe adverse du dernier lanceur dont le stock est le plus bas",
+    "expiredBall": "une balle expirée retourne comme une balle perdue",
+    "coverPhasing": "une balle ne traverse pas un couvert ; si la tête du joueur entre dans un couvert, fondu, il reste touchable"
+  },
+  "liftRules": {
+    "holdCrouchSeconds": 1.0,
+    "oneHighZonePerTeam": true,
+    "lockWhenHoldingChargedBall": true,
+    "railingHeight": 0.9,
+    "railingEdges": [
+      "front"
+    ],
+    "coverWhenHigh": "les couverts de la zone sont remplacés par un garde-corps de 0,9 m sur le bord avant une fois en haut",
+    "highGroundBonus": "la première balle lancée du haut est chargée +1 (tir plongeant)",
+    "followsZone": "obstacles et distributeurs de la zone montent avec elle ; une balle au sol est réinjectée au distributeur",
+    "downOnElimination": true
+  },
+  "levels": [
+    {
+      "id": 0,
+      "elevation": 0.0
+    },
+    {
+      "id": 1,
+      "elevation": 1.6
+    }
+  ],
+  "arenaBounds": {
+    "minX": -16,
+    "maxX": 16,
+    "minZ": -10.5,
+    "maxZ": 10.5,
+    "wallHeight": 6.0,
+    "ceilingHeight": 9.0,
+    "wallKind": "rebound"
+  },
+  "ballReturn": {
+    "seconds": 3,
+    "target": "dispenser_of_team_opposite_last_thrower"
+  },
+  "obstacles": [
+    {
+      "id": "bunker_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -7.5,
+      "y": 0.0,
+      "z": -4.3,
+      "sx": 3.6,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "bunker accroupi, on déborde à gauche ou à droite"
+    },
+    {
+      "id": "pilier_ext_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -12.0,
+      "y": 0.0,
+      "z": -6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier extérieur"
+    },
+    {
+      "id": "pilier_int_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier intérieur"
+    },
+    {
+      "id": "bunker_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 7.5,
+      "y": 0.0,
+      "z": -4.3,
+      "sx": 3.6,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "bunker accroupi, on déborde à gauche ou à droite"
+    },
+    {
+      "id": "pilier_ext_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 12.0,
+      "y": 0.0,
+      "z": -6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier extérieur"
+    },
+    {
+      "id": "pilier_int_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier intérieur"
+    },
+    {
+      "id": "bunker_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": -7.5,
+      "y": 0.0,
+      "z": 4.3,
+      "sx": 3.6,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "bunker accroupi, on déborde à gauche ou à droite"
+    },
+    {
+      "id": "pilier_ext_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": -12.0,
+      "y": 0.0,
+      "z": 6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier extérieur"
+    },
+    {
+      "id": "pilier_int_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": -3.0,
+      "y": 0.0,
+      "z": 6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier intérieur"
+    },
+    {
+      "id": "bunker_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": 7.5,
+      "y": 0.0,
+      "z": 4.3,
+      "sx": 3.6,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "bunker accroupi, on déborde à gauche ou à droite"
+    },
+    {
+      "id": "pilier_ext_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": 12.0,
+      "y": 0.0,
+      "z": 6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier extérieur"
+    },
+    {
+      "id": "pilier_int_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": 3.0,
+      "y": 0.0,
+      "z": 6.0,
+      "sx": 0.6,
+      "sy": 2.2,
+      "sz": 0.6,
+      "rotY": 0,
+      "note": "pilier intérieur"
+    },
+    {
+      "id": "tour",
+      "kind": "bumper",
+      "zone": -1,
+      "x": 0,
+      "y": -4,
+      "z": 0,
+      "sx": 2.0,
+      "sy": 9.5,
+      "sz": 2.0,
+      "rotY": 0,
+      "note": "tour centrale qui sort de la fosse"
+    },
+    {
+      "id": "aileron_g",
+      "kind": "bumper",
+      "zone": -1,
+      "x": -7.5,
+      "y": -4,
+      "z": 0,
+      "sx": 1.2,
+      "sy": 6.0,
+      "sz": 1.2,
+      "rotY": 0,
+      "note": "plot de rebond dans la fosse"
+    },
+    {
+      "id": "aileron_d",
+      "kind": "bumper",
+      "zone": -1,
+      "x": 7.5,
+      "y": -4,
+      "z": 0,
+      "sx": 1.2,
+      "sy": 6.0,
+      "sz": 1.2,
+      "rotY": 0,
+      "note": "plot de rebond dans la fosse"
+    },
+    {
+      "id": "fosse",
+      "kind": "pit",
+      "zone": -1,
+      "x": 0,
+      "y": -4,
+      "z": 0,
+      "sx": 32,
+      "sy": 0.1,
+      "sz": 3,
+      "rotY": 0,
+      "note": "sol de la fosse : les balles perdues y tombent"
+    }
+  ],
+  "ballSpawns": [
+    {
+      "id": "dist_z0",
+      "kind": "dispenser",
+      "zone": 0,
+      "x": -13.3,
+      "y": 1.0,
+      "z": -7.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z1",
+      "kind": "dispenser",
+      "zone": 1,
+      "x": 13.3,
+      "y": 1.0,
+      "z": -7.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z2",
+      "kind": "dispenser",
+      "zone": 2,
+      "x": -13.3,
+      "y": 1.0,
+      "z": 7.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z3",
+      "kind": "dispenser",
+      "zone": 3,
+      "x": 13.3,
+      "y": 1.0,
+      "z": 7.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "centre",
+      "kind": "neutral_drop",
+      "zone": -1,
+      "x": 0,
+      "y": 5.8,
+      "z": 0,
+      "intervalSeconds": 15,
+      "rule": "lob vers l'équipe menée (égalité : alterné)"
+    }
+  ],
+  "devChoices": "Choix dev (voir docs/CHOIX-REGLES.md) : 6 balles en jeu, gravité 0,3, 2 vies et retour à 3 s (valeurs du code), le reste du JSON est lu tel quel."
+}

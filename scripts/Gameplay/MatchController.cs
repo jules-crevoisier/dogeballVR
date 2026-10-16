@@ -57,6 +57,8 @@ public partial class MatchController : Node3D
     {
         if (inRound && hurtboxes.ContainsKey(catcherId)) Rules.RegisterPerfectCatch(catcherId);
     }
+    /// <summary>Altitude actuelle du plateau d'une zone (lift) : le distributeur monte avec elle.</summary>
+    public System.Func<int, float> ZoneElevation { get; set; } = _ => 0f;
 
     int BallsInPlay()
     {
@@ -163,8 +165,14 @@ public partial class MatchController : Node3D
     readonly int[] hitsByRange = new int[4];
     static int RangeBucket(float d) { int i = 0; while (i < RangeEdges.Length && d >= RangeEdges[i]) i++; return i; }
 
+    readonly HashSet<int> highBonusUsed = new();
+
     void OnBallReleased(Ball ball)
     {
+        // Tir plongeant : la première balle lancée depuis le plateau haut est chargée +1 (une fois par montée).
+        int thrower = ball.OwnerPlayerId;
+        if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
+        { ball.AddCharge(); ball.AddCharge(); }   // charge 2 : dégâts doubles dès le premier tir
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));
@@ -224,7 +232,7 @@ public partial class MatchController : Node3D
         else
         {
             foreach (var n in GetTree().GetNodesInGroup("balls"))
-                if (n is Ball { IsHeld: false } b && (b.GlobalPosition.Y < -5f || b.RestTime > BallRecycleSeconds)) b.QueueFree();
+                if (n is Ball { IsHeld: false } b && (b.GlobalPosition.Y < -3f || b.RestTime > BallRecycleSeconds)) b.QueueFree();
 
             ballTimer += delta;
             if (ballTimer >= BallSpawnInterval && GetTree().GetNodesInGroup("balls").Count < BallsOnField)
@@ -287,9 +295,10 @@ public partial class MatchController : Node3D
     void UpdateDispensers(double delta, double now)
     {
         ballsCached = -1;
+        highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
         foreach (var d in dispensers)
         {
-            var pedestal = new Vector3(d.Def.X, d.Def.Y, d.Def.Z);
+            var pedestal = new Vector3(d.Def.X, d.Def.Y + ZoneElevation(d.Def.Zone), d.Def.Z);
             if (d.OnPedestal != null && (!IsInstanceValid(d.OnPedestal) || d.OnPedestal.IsHeld || d.OnPedestal.GlobalPosition.DistanceTo(pedestal) > 0.6f))
                 d.OnPedestal = null;
             if (d.OnPedestal == null && d.Stored > 0 && RoomForBall())
@@ -309,7 +318,7 @@ public partial class MatchController : Node3D
         {
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
-            if (b.GlobalPosition.Y > -5f && b.RestTime <= BallRecycleSeconds) continue;
+            if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);
             pendingReturns.Add((now + returnSeconds, team));

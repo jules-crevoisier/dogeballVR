@@ -23,6 +23,7 @@ public partial class HandThrower : XRController3D
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
 
+    public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
     int HandIndex => Tracker == "left_hand" ? 0 : 1;
     double ignoreHeldUntil;
     double catchRequestedAt = -10;
