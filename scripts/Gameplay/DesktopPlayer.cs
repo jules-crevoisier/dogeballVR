@@ -171,6 +171,11 @@ public partial class DesktopPlayer : Node3D
         ShowToast($"Sensibilité : {sensitivity / 0.0022f:0.00}x");
     }
 
+    public override void _Process(double delta)
+    {
+        camera.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         time += delta;
@@ -385,6 +390,7 @@ public partial class DesktopPlayer : Node3D
                 float t = (float)(chargeTime / MaxChargeTime);
                 float speed = Mathf.Lerp(MinThrow, MaxThrow, t);
                 BallActions.Throw(held, 1, ThrowVelocity(speed), 0f);
+                if (BallActions.IsClient) held.Visible = false;   // pas de balle fantôme dans la main en attendant la confirmation de l'hôte
                 ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
                 held = null;
                 charging = false;

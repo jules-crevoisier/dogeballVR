@@ -200,11 +200,13 @@ public partial class Ball : RigidBody3D
         if (IsPuppet && IsHeld && LocalHoldOverride != null && IsInstanceValid(LocalHoldOverride))
         {
             GlobalTransform = LocalHoldOverride.GlobalTransform;
+            Visible = true;
             netTarget = GlobalPosition;
             overridden = true;
         }
         else if (IsPuppet)
         {
+            if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
             if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
             // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
             netTarget += LinearVelocity * (float)delta;
