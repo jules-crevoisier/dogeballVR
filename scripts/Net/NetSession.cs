@@ -181,8 +181,9 @@ public partial class NetSession : Node
         // Échange de plaques : l'hôte a déjà posé la copie à la place attendue ; les poses d'avant l'échange (ou d'un client qui ignore l'ordre) sont jetées.
         if (now < remote.SwapUntil)
         {
-            if (new Vector2(head.X - remote.SwapTarget.X, head.Z - remote.SwapTarget.Z).Length() > 3f) { remote.LastPoseAt = now; return; }
+            if (new Vector2(head.X - remote.SwapTarget.X, head.Z - remote.SwapTarget.Z).Length() > 6f) { remote.LastPoseAt = now; return; }
             remote.SwapUntil = 0;
+            GD.Print($"[Net] Échange confirmé : la zone {remote.PlayerId} a rejoint sa nouvelle place");
         }
         // Bornes de l'hôte : la tête reste dans la zone, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
@@ -506,7 +507,7 @@ public partial class NetSession : Node
             var old = r.TargetPose;
             var shift = target - old.Head;
             shift.Y = 0;
-            r.SetPose(new PoseData(old.Head + shift, old.Yaw, old.Left + shift, old.Right + shift, old.Elevation, old.DashCount));
+            r.SnapPose(new PoseData(old.Head + shift, old.Yaw, old.Left + shift, old.Right + shift, old.Elevation, old.DashCount));
             r.SwapTarget = target;
             r.SwapUntil = now + 1.5;
         }

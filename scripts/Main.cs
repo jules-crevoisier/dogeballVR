@@ -192,7 +192,6 @@ public partial class Main : Node3D
     // ------------------------------------------------------------------ hôte / hors ligne
 
     int currentPlate;
-    int[] lastPlates = System.Array.Empty<int>();
     System.Action<float>? swapFade;
 
     /// <summary>Échange de plaques : si la table dit que ce joueur change de plaque, on le déplace (fondu en VR) ; chaque machine déplace son propre joueur.</summary>
@@ -237,13 +236,10 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        lastPlates = new int[map.Zones.Count];
-        for (int i = 0; i < lastPlates.Length; i++) lastPlates[i] = i;
         match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
-            lastPlates = plates;
             ApplyPlates(plates);
             net?.BroadcastPlates(plates, targets);
         };
@@ -335,6 +331,7 @@ public partial class Main : Node3D
             GD.Print($"[Net] Zone {zoneId} refusée pour le pair {peerId}");
             return;
         }
+        match.RestorePlates();
         bots.Remove(zoneId);
         bot.DropHeld();
         bot.QueueFree();
@@ -361,6 +358,7 @@ public partial class Main : Node3D
         match.Unregister(zoneId);
         remote.DropBalls();
         remote.QueueFree();
+        match.RestorePlates();
         SpawnBot(map.Zones.Find(z => z.Id == zoneId)!);
         GD.Print($"[Net] Joueur de la zone {zoneId} parti, un bot reprend");
     }

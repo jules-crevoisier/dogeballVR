@@ -59,6 +59,12 @@ public partial class RemotePlayer : Node3D
 
     public PoseData GetPose() => hasPose ? current : new PoseData(Vector3.Zero, 0, Vector3.Zero, Vector3.Zero);
 
+    /// <summary>Téléportation de la copie (échange de plaques) : pas de glissement à travers l'arène.</summary>
+    public void SnapPose(PoseData pose)
+    {
+        target = pose; current = pose; hasPose = true;
+    }
+
     public void SetPose(PoseData pose)
     {
         target = pose;

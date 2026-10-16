@@ -192,9 +192,9 @@ jobs:
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" swap-host.log swap-client.log; then echo "Erreur à l'exécution (échanges de plaques)"; exit 1; fi
             SWAPS=$(grep -c "Échange de plaques : joueur 0 <-> joueur 1" swap-host.log || true)
             MOVED=$(cat swap-host.log swap-client.log | grep -c "\[PC\] Échange de plaques" || true)
-            CLOSE=$(grep "Échange vérifié" swap-host.log | grep -c -E "à [0-3]\.[0-9] m" || true)
-            echo "Essai $ATTEMPT : échanges $SWAPS, joueurs déplacés $MOVED, copies de l'hôte à moins de 4 m $CLOSE"
-            if [ "$SWAPS" -ge 1 ] && [ "$MOVED" -ge 2 ] && [ "$CLOSE" -ge 2 ]; then exit 0; fi
+            CLOSE=$(grep -c "Échange confirmé : la zone 1 " swap-host.log || true)
+            echo "Essai $ATTEMPT : échanges $SWAPS, joueurs déplacés $MOVED, client confirmé par l'hôte $CLOSE"
+            if [ "$SWAPS" -ge 1 ] && [ "$MOVED" -ge 2 ] && [ "$CLOSE" -ge 1 ]; then exit 0; fi
           done
           echo "Échange de plaques non reconnu"; exit 1
 

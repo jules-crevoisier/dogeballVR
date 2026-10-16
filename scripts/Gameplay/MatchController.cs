@@ -446,9 +446,17 @@ public partial class MatchController : Node3D
     }
     public int PlateOf(int playerId) => playerId >= 0 && playerId < plateOf.Length ? plateOf[playerId] : playerId;
 
-    void ResetPlates()
+    /// <summary>Un joueur arrive ou part : plus d'échange en cours, tout le monde retrouve sa plaque.</summary>
+    public void RestorePlates()
     {
-        swapClock = 0; swapIndex = 0; swapWarned = false; swapNotice = ""; swapCheck = null;
+        swapNotice = ""; swapCheck = null;
+        if (plateOf.Length == planZones.Count) ResetPlates(keepClock: true);
+    }
+
+    void ResetPlates(bool keepClock = false)
+    {
+        if (!keepClock) { swapClock = 0; swapIndex = 0; swapWarned = false; }
+        swapNotice = ""; swapCheck = null;
         int n = planZones.Count;
         if (plateOf.Length != n) { plateOf = new int[n]; for (int i = 0; i < n; i++) plateOf[i] = i; return; }
         var home = new int[n];
@@ -560,6 +568,7 @@ public partial class MatchController : Node3D
     void StartOvertime()
     {
         Rules.InOvertime = true;
+        swapNotice = "";
         roundTimeLeft = Rules.OvertimeSeconds;
         banner = "PROLONGATION : PREMIER KO";
         if (!UsesDispensers)
@@ -571,6 +580,7 @@ public partial class MatchController : Node3D
     void FinishRound(int winnerTeam)
     {
         inRound = false;
+        swapNotice = ""; specialNotice = ""; specialAnnounced = false;
         Rules.EndRound(winnerTeam);
         round++;
         bool over = MatchOver();
