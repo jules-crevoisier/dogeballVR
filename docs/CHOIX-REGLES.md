@@ -10,3 +10,7 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Récompense de rattrapage parfait (`RegisterPerfectCatch`) : adoptée.
 - Non implémentés : traversée des couvertures, bonus de hauteur (high ground).
 - `arenaBounds` est lu depuis la map chargée ; la fosse est dans le sol, seuil de recyclage des balles sous y=-4.
+- Partie : meilleur des 5 manches, fin dès 3 manches gagnées (revue 3 : 10 min était trop long pour une borne d'arcade).
+- Invulnérabilité après un coup : la balle traverse sans être consommée.
+- Anti-triche resserré : vitesse de déplacement 8 m/s, vitesse verticale 4 m/s, main à 1 m de la tête, spin plafonné à 12.
+- Limites connues : pas de compensation de latence pour les prises (l'hôte garde un léger avantage), pas de validation de la direction des lancers, portée jamais mesurée avec une vraie main sur casque.

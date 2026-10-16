@@ -18,14 +18,14 @@ public partial class NetSession : Node
     const float PoseInterval = 1f / 30f;
     const float CatchReach = 1.2f;    // tolérance de l'hôte : la main (déjà bornée près de la tête) doit être près de la balle
     const float MaxThrowSpeed = 30f;  // = plafond côté joueur (HandThrower, DesktopPlayer)
-    const float MaxMoveSpeed = 12f;   // m/s : au-delà, la pose est ramenée (pas de téléportation)
+    const float MaxMoveSpeed = 8f;    // m/s : au-delà, la pose est ramenée (pas de téléportation)
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
     const double HelloTimeout = 5.0;          // un pair sans Hello est déconnecté
     const int PlayerFloats = 14;
-    const float MaxHandReach = 1.2f;   // une main reste près de la tête
-    const float MaxSpin = 30f;
+    const float MaxHandReach = 1.0f;   // une main reste près de la tête
+    const float MaxSpin = 12f;
     const int BallFloats = 11;
 
     public NetMode Mode { get; private set; } = NetMode.Offline;
@@ -161,6 +161,9 @@ public partial class NetSession : Node
             var limited = horizontal.LimitLength(allowed);
             head = new Vector3(last.X + limited.X, head.Y, last.Z + limited.Z);
         }
+        // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
+        float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
+        head.Y = Mathf.Clamp(head.Y, last.Y - 4f * dt, last.Y + 4f * dt);
         remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
@@ -218,7 +221,7 @@ public partial class NetSession : Node
         string hud = HudText();
         if (hud != lastHud) { lastHud = hud; Rpc(MethodName.HudRpc, hud); }
         snapshotTimer += delta;
-        if (snapshotTimer < SnapshotInterval) return;
+        if (snapshotTimer < SnapshotInterval - 0.002f) return;   // marge : 1/30 en float dépasse 2 ticks de 1/60 et tombait à 20 Hz
         snapshotTimer = 0;
         Rpc(MethodName.SnapshotRpc, BuildSnapshot());
         SnapshotsSent++;

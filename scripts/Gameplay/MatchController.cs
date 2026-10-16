@@ -105,6 +105,7 @@ public partial class MatchController : Node3D
         hurtboxes[hurtbox.PlayerId] = hurtbox;
         Rules.AddPlayer(hurtbox.PlayerId, hurtbox.Team);
         hurtbox.Hit += OnHit;
+        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && Time.GetTicksMsec() / 1000.0 - t < invulnerableSeconds);
         // Un joueur KO remplacé (départ, arrivée) reste KO jusqu'à son retour : pas d'invulnérabilité à 0 vie.
         if (Rules.LivesOf(hurtbox.PlayerId) <= 0)
         {

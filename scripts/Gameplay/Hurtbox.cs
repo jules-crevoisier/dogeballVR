@@ -41,11 +41,15 @@ public partial class Hurtbox : Area3D
         GlobalPosition = new Vector3(Head.GlobalPosition.X, h * 0.5f, Head.GlobalPosition.Z);
     }
 
+    /// <summary>Posé par le MatchController : faux pendant l'invulnérabilité après une touche.</summary>
+    public System.Func<bool>? Vulnerable { get; set; }
+
     void OnBodyEntered(Node3D body)
     {
         if (Eliminated || body is not Ball ball || ball.IsHeld) return;
         if (ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;          // neutre ou tir allié
         if (ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;       // trop lente
+        if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée
         int shooter = ball.OwnerPlayerId;
         int charge = ball.Charge;
         float distance = ball.ThrowDistance;
