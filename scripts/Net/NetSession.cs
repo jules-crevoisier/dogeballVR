@@ -41,8 +41,13 @@ public partial class NetSession : Node
     const float FreeRunCap = 9f, FreeDashCap = 26f;     // course 7,5 m/s + marge ; dash 20 m/s pendant 0,2 s
     const double DashSlack = 0.25, DashRecharge = 1.6;   // fenêtre d'un dash validé (latence comprise) ; recharge d'une charge
     float MoveSpeedCap => FreeRoam ? FreeRunCap : MaxMoveSpeed;
+    /// <summary>Carte à tremplins : les vols vont plus haut (sommet à 3 m des pieds) et les pieds peuvent être sur une terrasse.</summary>
+    public Maps.MapData? Map { get; set; }
+    bool PadMap => FreeRoam && Map?.Pc?.JumpPads.Count > 0;
     float VerticalSpeedCap => FreeRoam ? 5.5f : 4f;
     float HeadCeiling => FreeRoam ? 2.9f : 2.3f;
+    const float FlightVerticalCap = 6.5f, FlightCeiling = 5.0f;   // seulement pendant un vol de tremplin ou sur une terrasse
+    const double TerraceMaxStay = 8.0, TerraceCooldown = 7.5;   // recharge comptée depuis l'acceptation de l'hôte : le client compte 10 s depuis le lancer, ~2 s avant l'arrivée
     /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
     public double SimulatedLag { get; set; }
     readonly Queue<(double due, Action action)> delayed = new();
@@ -188,6 +193,8 @@ public partial class NetSession : Node
             remote.LastDashCount = dashCount;
             if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
             if (now < remote.DashUntil) cap = FreeDashCap;
+            else if (now < remote.PushUntil) cap = 14f;   // poussée de 8 m/s : marge sans autoriser de téléportation
+            ArmFlight(remote, head, now);
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
             if (IsEliminated(remote.PlayerId)) { remote.TeleportPending = true; remote.TeleportDeadline = 0; }
             else if (remote.TeleportPending)
@@ -215,26 +222,51 @@ public partial class NetSession : Node
             && new Vector2(head.X - liftDef.Pad.X, head.Z - liftDef.Pad.Z).Length() < liftDef.Pad.Radius + 0.8f;
         remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
-        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, HeadCeiling + elevation);
+        // Jeu libre : la hauteur de tête est absolue (la terrasse ne la décale pas) ; au-dessus de la fosse elle peut descendre (chute).
+        float lowY = FreeRoam ? (Map != null && Map.OverPit(head.X, head.Z, 0.1f) ? -8f : 0.8f) : 0.8f + elevation;
+        bool airborne = FreeRoam && PadMap && (Time.GetTicksMsec() / 1000.0 < remote.FlightUntil || elevation > 0f);
+        head.Y = Mathf.Clamp(head.Y, lowY, FreeRoam ? (airborne ? FlightCeiling : HeadCeiling) : HeadCeiling + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
         var lastPose = remote.TargetPose;
-        float lastRel = last.Y - lastPose.Elevation;
-        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - VerticalSpeedCap * dt, lastRel + VerticalSpeedCap * dt) + elevation;
+        float refElevation = FreeRoam ? 0f : elevation;
+        float lastRel = last.Y - (FreeRoam ? 0f : lastPose.Elevation);
+        float vCap = airborne ? FlightVerticalCap : VerticalSpeedCap;
+        head.Y = Mathf.Clamp(head.Y - refElevation, lastRel - vCap * dt, lastRel + vCap * dt) + refElevation;
         remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
         remote.SetPose(new PoseData(head, yaw, left, right, elevation));
+        if (FreeRoam && remote.PendingTackle is { } pt)
+        {
+            remote.PendingTackle = null;
+            if (now <= pt.until && now <= remote.DashUntil + 0.1) Gameplay.MatchController.RequestTackle(remote.PlayerId, pt.victim, pt.dir);
+        }
     }
 
     /// <summary>
     /// Le client demande à être en haut ; l'hôte accorde l'altitude du lift seulement si la tête est sur le pad, hors recharge,
     /// sans coéquipier déjà en haut, et la reprend après la durée maximale ou à l'élimination.
     /// </summary>
+    /// <summary>Tremplin (PC) : le vol n'est accordé que tête au-dessus d'un tremplin de son camp, hors recharge ; il relève le plafond de tête 2,2 s.</summary>
+    void ArmFlight(RemotePlayer remote, Vector3 head, double now)
+    {
+        if (!PadMap || head.Y > 2.3f || IsEliminated(remote.PlayerId) || Map?.Pc == null) return;
+        int team = Map.Zones.Find(z => z.Id == remote.PlayerId)?.Team ?? -1;
+        foreach (var pad in Map.Pc.JumpPads)
+        {
+            if (Map.Zones.Find(z => z.Id == pad.Zone)?.Team != team) continue;
+            if (new Vector2(head.X - pad.X, head.Z - pad.Z).Length() > pad.Radius + 1.0f) continue;
+            remote.FlightUntil = now + 2.2; remote.FlightZone = pad.Zone;   // renouvelé à chaque pose au sol près du tremplin : le lancer est toujours couvert
+            return;
+        }
+    }
+
     float ValidateElevation(RemotePlayer remote, Vector3 head, float requested)
     {
         double t = Time.GetTicksMsec() / 1000.0;
+        if (FreeRoam) return ValidateTerrace(remote, head, requested, t);
         var lift = LiftOf(remote.PlayerId);
         float accepted = remote.HostElevation;
         if (lift == null) accepted = 0f;
@@ -254,6 +286,67 @@ public partial class NetSession : Node
         }
         remote.HostElevation = accepted;
         return accepted;
+    }
+
+    /// <summary>Terrasse (PC) : l'altitude n'est accordée que tête au-dessus de la terrasse et assez haut (arrivée par tremplin) ; reprise après 8 s, puis recharge de 10 s.</summary>
+    float ValidateTerrace(RemotePlayer remote, Vector3 head, float requested, double t)
+    {
+        var terrace = Map?.TerraceAt(head.X, head.Z, 0.3f);
+        float accepted = remote.HostElevation;
+        if (terrace == null || requested <= 0.1f || IsEliminated(remote.PlayerId))
+        {
+            accepted = 0f;
+        }
+        else if (accepted > 0f)
+        {
+            if (t - remote.LiftHighSince > TerraceMaxStay + 1.0) { accepted = 0f; liftReadyAtByZone[remote.PlayerId] = t + TerraceCooldown; }   // reprise : même recharge que le lift
+        }
+        else if (head.Y >= terrace.Sy + 0.6f && t < remote.FlightUntil + 0.5 && terrace.Zone == remote.FlightZone && t >= (liftReadyAtByZone.TryGetValue(remote.PlayerId, out double readyAt) ? readyAt : 0))
+        {
+            accepted = terrace.Sy;
+            remote.LiftHighSince = t;
+            liftReadyAtByZone[remote.PlayerId] = t + TerraceCooldown;
+            GD.Print($"[Net] Terrasse {terrace.Id} atteinte par la zone {remote.PlayerId}");
+        }
+        remote.HostElevation = accepted;
+        return accepted;
+    }
+
+    // ---------------------------------------------------------------- tacle et poussée
+
+    /// <summary>Le client annonce un tacle (son dash touche la victime) ; l'hôte exige un dash validé et juge le reste (distance, invulnérabilité…).</summary>
+    public void RequestTackle(int victimId, Vector2 dir)
+    {
+        if (Connected) Later(() => RpcId(1, MethodName.TackleRpc, victimId, dir));
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void TackleRpc(int victimId, Vector2 dir)
+    {
+        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote) || !dir.IsFinite()) return;
+        // Le RPC (fiable) peut devancer la pose (non fiable) : le tacle attend la prochaine pose (dash validé, position à jour), 0,3 s au plus.
+        remote.PendingTackle = (victimId, dir, Time.GetTicksMsec() / 1000.0 + 0.3);
+    }
+
+    /// <summary>Hôte : pousse un joueur distant (tacle validé). Le plafond de vitesse de sa copie s'élargit 0,45 s.</summary>
+    public void SendPush(int victimId, Vector2 dir)
+    {
+        foreach (var remote in Remotes.Values)
+        {
+            if (remote.PlayerId != victimId) continue;
+            remote.PushUntil = Time.GetTicksMsec() / 1000.0 + 0.3;
+            RpcId(remote.PeerId, MethodName.PushRpc, dir);
+        }
+    }
+
+    /// <summary>Client : l'hôte annonce une poussée subie.</summary>
+    public Action<Vector2>? PushReceived { get; set; }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void PushRpc(Vector2 dir)
+    {
+        if (!IsClient || Multiplayer.GetRemoteSenderId() != 1 || !dir.IsFinite()) return;
+        PushReceived?.Invoke(dir);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -314,6 +407,16 @@ public partial class NetSession : Node
                 Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
             }
         }
+        // Terrasse (PC) : reprise à l'expiration ou à l'élimination même si le client ne dit plus rien.
+        if (FreeRoam)
+            foreach (var remote in Remotes.Values)
+            {
+                if (remote.HostElevation <= 0f) continue;
+                if (clock - remote.LiftHighSince <= TerraceMaxStay + 1.0 && !IsEliminated(remote.PlayerId)) continue;
+                var tp = remote.GetPose();
+                remote.HostElevation = 0f;
+                remote.SetPose(new PoseData(tp.Head, tp.Yaw, tp.Left, tp.Right, 0f, tp.DashCount));
+            }
         // Le lift se reprend au tick de l'hôte (durée maximale, élimination), même si le client ne dit plus rien.
         foreach (var remote in Remotes.Values)
         {

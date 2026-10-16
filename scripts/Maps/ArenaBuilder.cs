@@ -16,7 +16,7 @@ public static class ArenaBuilder
     /// <summary>L'arène construite et, par zone, le plateau qui monte avec le lift (zone, couverts, distributeur, pad).</summary>
     public record Result(Node3D Root, Dictionary<int, Node3D> Platforms);
 
-    public static Result Build(MapData map, int localZoneId)
+    public static Result Build(MapData map, int localZoneId, bool pcProfile = true)
     {
         var root = new Node3D { Name = "Arena" };
         var platforms = new Dictionary<int, Node3D>();
@@ -34,7 +34,7 @@ public static class ArenaBuilder
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
-        if (map.IsRing) AddRingExtras(root, map);
+        if (map.IsRing) { AddRingExtras(root, map); if (pcProfile) AddPcExtras(root, map); }
         foreach (var prop in map.Props) AddProp(root, prop);
         foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
@@ -63,8 +63,76 @@ public static class ArenaBuilder
         float x0 = b.MinX - 3f, x1 = b.MaxX + 3f, z0 = b.MinZ - 3f, z1 = b.MaxZ + 3f;
         var pit = map.Obstacles.Find(o => o.Kind == "pit");
         if (pit == null) { AddSlab(root, x0, x1, z0, z1, 0.2f); return; }
+        if (map.PitRect is { } hole)
+        {
+            // Fosse carrée au centre (ring-out) : quatre dalles autour du trou, rebord clair de 0,3 m.
+            float px0 = hole.X - hole.Sx / 2f, px1 = hole.X + hole.Sx / 2f, pz0 = hole.Z - hole.Sz / 2f, pz1 = hole.Z + hole.Sz / 2f;
+            AddSlab(root, x0, x1, z0, pz0, 4.2f);
+            AddSlab(root, x0, x1, pz1, z1, 4.2f);
+            AddSlab(root, x0, px0, pz0, pz1, 4.2f);
+            AddSlab(root, px1, x1, pz0, pz1, 4.2f);
+            AddRim(root, px0, px1, pz0, pz1);
+            return;
+        }
         AddSlab(root, x0, x1, z0, pit.Z - pit.Sz / 2f, 4.2f);
         AddSlab(root, x0, x1, pit.Z + pit.Sz / 2f, z1, 4.2f);
+    }
+
+    /// <summary>Rebord de la fosse : bande claire de 0,3 m de large (visuelle, sans collision : le joueur peut s'y engager et tomber).</summary>
+    static void AddRim(Node3D root, float x0, float x1, float z0, float z1)
+    {
+        const float w = 0.3f;
+        void Strip(float cx, float cz, float sx, float sz) => root.AddChild(new MeshInstance3D
+        {
+            Name = "Rebord",
+            Mesh = new BoxMesh { Size = new Vector3(sx, 0.04f, sz) },
+            Position = new Vector3(cx, 0.02f, cz),
+            MaterialOverride = Materials.Glow(Palette.Lines, 0.8f),
+        });
+        Strip((x0 + x1) / 2f, z0 + w / 2f, x1 - x0, w);
+        Strip((x0 + x1) / 2f, z1 - w / 2f, x1 - x0, w);
+        Strip(x0 + w / 2f, (z0 + z1) / 2f, w, z1 - z0 - 2 * w);
+        Strip(x1 - w / 2f, (z0 + z1) / 2f, w, z1 - z0 - 2 * w);
+    }
+
+    /// <summary>Terrasses et tremplins du profil PC. Terrasse : bloc plein à parapet (les balles ne le traversent pas) ; tremplin : disque lumineux au sol.</summary>
+    static void AddPcExtras(Node3D root, MapData map)
+    {
+        if (map.Pc == null) return;
+        foreach (var t in map.Pc.Terraces)
+        {
+            var zone = map.Zones.Find(z => z.Id == t.Zone);
+            var color = Palette.Team(zone?.Team ?? 0);
+            var body = new StaticBody3D { Name = t.Id, Position = new Vector3(t.X, t.Sy / 2f, t.Z) };
+            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(t.Sx, t.Sy, t.Sz) }, MaterialOverride = Materials.Grid(Palette.Indigo, color.Darkened(0.35f)) });
+            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(t.Sx, t.Sy, t.Sz) } });
+            root.AddChild(body);
+            // Parapet : quatre murets fins sur le bord de la terrasse.
+            const float th = 0.12f;
+            void Wall(float cx, float cz, float sx, float sz)
+            {
+                var size = new Vector3(sx, t.ParapetHeight, sz);
+                var w = new StaticBody3D { Name = $"{t.Id}_parapet", Position = new Vector3(cx, t.Sy + t.ParapetHeight / 2f, cz) };
+                w.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(color.Darkened(0.2f)) });
+                w.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+                root.AddChild(w);
+            }
+            Wall(t.X, t.Z - t.Sz / 2f + th / 2f, t.Sx, th);
+            Wall(t.X, t.Z + t.Sz / 2f - th / 2f, t.Sx, th);
+            Wall(t.X - t.Sx / 2f + th / 2f, t.Z, th, t.Sz - 2 * th);
+            Wall(t.X + t.Sx / 2f - th / 2f, t.Z, th, t.Sz - 2 * th);
+        }
+        foreach (var p in map.Pc.JumpPads)
+        {
+            var zone = map.Zones.Find(z => z.Id == p.Zone);
+            root.AddChild(new MeshInstance3D
+            {
+                Name = p.Id,
+                Mesh = new CylinderMesh { TopRadius = p.Radius, BottomRadius = p.Radius, Height = 0.05f },
+                Position = new Vector3(p.X, 0.03f, p.Z),
+                MaterialOverride = Materials.Glow(Palette.Team(zone?.Team ?? 0), 1.2f),
+            });
+        }
     }
 
     static void AddSlab(Node3D root, float x0, float x1, float z0, float z1, float thickness)

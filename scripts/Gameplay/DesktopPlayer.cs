@@ -27,6 +27,10 @@ public partial class DesktopPlayer : Node3D
     const int DashMaxCharges = 2;
     const double DashGap = 0.35;         // délai minimal entre deux dashs
     const float PlayerRadius = 0.3f;
+    const float PadGravity = 5f;          // vol de tremplin : gravité réduite, sommet à 3 m (vitesse verticale 5,5 m/s, sous le plafond de l'hôte)
+    const float VoidMargin = 0.8f;        // le dash s'arrête à 0,8 m du vide
+    const float PushSpeed = 8f, PushTime = 0.25f;   // poussée de tacle : 2 m en 0,25 s
+    const float TackleRadius = 1.1f;      // un dash qui passe à moins de 1,1 m d'un adversaire le tacle
     const float CameraDistance = 3.0f;   // 3e personne : distance de la caméra derrière la tête
     const float EyeHeight = 1.6f;
     const float CrouchHeight = 0.9f;
@@ -104,6 +108,13 @@ public partial class DesktopPlayer : Node3D
     int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
     int dashCount;                   // compteur envoyé à l'hôte : chaque dash le fait avancer d'un cran
+    // Tremplins, terrasses, fosse, tacle (jeu libre)
+    bool padFlight;                  // vol de tremplin en cours : trajectoire guidée jusqu'à la terrasse
+    Vector2 padVel;
+    double padReadyAt, terraceSince, evictUntil, pushUntil;
+    Vector2 evictDir, pushDir;
+    double fallenFor;
+    int tackledDash = -1;            // numéro du dash qui a déjà tacle (un seul tacle par dash)
     int MaxCharges => FreeRoam ? DashMaxCharges : 1;
     double RechargeTime => FreeRoam ? DashRecharge : DodgeCooldown;
     public int DashCharges => dashCharges;
@@ -304,7 +315,7 @@ public partial class DesktopPlayer : Node3D
             dashRechargeLeft -= dt;
             if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = RechargeTime; }
         }
-        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated)
+        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated && !(FreeRoam && jumpY > 0.1f && PitGap(worldPos) < 6f))   // pas de dash en l'air près de la fosse
         {
             dodgeDir = wish.LengthSquared() > 0.01f ? wish.Normalized() : forward;
             dodgeLeft = FreeRoam ? DashTime : DodgeTime;
@@ -332,30 +343,62 @@ public partial class DesktopPlayer : Node3D
             velocity = velocity.MoveToward(target, accel * dt);
         }
 
-        // Saut ; pas de saut accroupi.
-        float jumpSpeed = FreeRoam ? FreeJumpSpeed : JumpSpeed;
-        if (jumpY <= 0f && jumpVel <= 0f)
+        // Forces qui prennent la main sur les commandes : vol de tremplin, poussée de tacle, redescente forcée de la terrasse.
+        if (FreeRoam)
         {
-            jumpY = 0; jumpVel = 0;
-            if (input.Jump && !crouched && !Hurtbox.Eliminated) jumpVel = jumpSpeed;
+            if (padFlight) velocity = padVel;
+            else if (time < pushUntil) velocity = pushDir * PushSpeed;
+            else if (time < evictUntil) velocity = evictDir * 4f;
         }
-        if (jumpVel > 0 || jumpY > 0)
+
+        // Saut ; pas de saut accroupi.
+        if (FreeRoam) StepVerticalFree(input, dt, crouched);
+        else
         {
-            jumpVel -= Gravity * dt;
-            jumpY += jumpVel * dt;
-            if (jumpY <= 0) { jumpY = 0; jumpVel = 0; }
+            if (jumpY <= 0f && jumpVel <= 0f)
+            {
+                jumpY = 0; jumpVel = 0;
+                if (input.Jump && !crouched && !Hurtbox.Eliminated) jumpVel = JumpSpeed;
+            }
+            if (jumpVel > 0 || jumpY > 0)
+            {
+                jumpVel -= Gravity * dt;
+                jumpY += jumpVel * dt;
+                if (jumpY <= 0) { jumpY = 0; jumpVel = 0; }
+            }
         }
 
         if (jumpY <= 0f) eyeY = Mathf.MoveToward(eyeY, input.Crouch ? CrouchHeight : EyeHeight, EyeSpeed * dt);   // pas d'accroupi en l'air : la vitesse verticale reste sous le plafond de l'hôte
 
         if (FreeRoam)
         {
-            worldPos += velocity * dt;
+            var step = velocity * dt;
+            bool dashing = velocity.Length() > RunSpeed + 1f && !padFlight && time >= pushUntil;
+            if (dashing)
+            {
+                if (PitGap(worldPos + step) < VoidMargin && PitGap(worldPos + step) < PitGap(worldPos) && PitGap(worldPos) > 0f)
+                {
+                    // Le dash s'arrête à 0,8 m du vide : il ne suffit pas d'un dash pour tomber, il faut courir ou être poussé.
+                    step = Vector2.Zero; velocity = Vector2.Zero; dodgeLeft = 0; Hurtbox.DashInvulnerable = false;
+                    GD.Print("[PC] Dash arrêté avant le vide");
+                }
+                else if (Elevation + jumpY < 0.3f) TryTackle();
+            }
+            worldPos += step;
             var b = Zones.Map.Bounds;
             var c = new Vector2(Mathf.Clamp(worldPos.X, b.MinX + 0.5f, b.MaxX - 0.5f), Mathf.Clamp(worldPos.Y, b.MinZ + 0.5f, b.MaxZ - 0.5f));
             if (c != worldPos) velocity = Vector2.Zero;
             worldPos = c;
             PushOutOfObstacles();
+            KeepInsidePit();
+            if (Elevation > 0 && time - terraceSince > TerraceMaxStay && time >= evictUntil)
+            {
+                // Plus de 8 s sur la terrasse : on est ramené vers la plaque.
+                var tr = Zones.Map.TerraceAt(worldPos.X, worldPos.Y);
+                if (tr != null) evictDir = (new Vector2(zone.Center.X - tr.X, zone.Center.Z - tr.Z)).Normalized();
+                evictUntil = time + 1.2;
+                ShowToast("Terrasse : tu redescends");
+            }
             return;
         }
 
@@ -370,6 +413,110 @@ public partial class DesktopPlayer : Node3D
         if (clamped != localPos) velocity = Vector2.Zero;   // on s'arrête contre le bord
         localPos = clamped;
         PushOutOfObstacles();
+    }
+
+    const double TerraceMaxStay = 8.0;
+
+    /// <summary>Distance (en m, norme du max) entre le point et le bord de la fosse : positive dehors, négative dedans, grande sans fosse.</summary>
+    float PitGap(Vector2 p)
+    {
+        var pit = Zones.Map.PitRect;
+        if (pit == null) return 1000f;
+        return Mathf.Max(Mathf.Abs(p.X - pit.X) - pit.Sx / 2f, Mathf.Abs(p.Y - pit.Z) - pit.Sz / 2f);
+    }
+
+    /// <summary>
+    /// Verticale du jeu libre, en hauteur absolue des pieds : sol, terrasse (bloc plein), fosse (pas de sol : on tombe), vol de tremplin.
+    /// L'altitude (Elevation) est celle de la terrasse quand on est au-dessus, 0 sinon ; elle voyage dans la pose et l'hôte la vérifie.
+    /// </summary>
+    void StepVerticalFree(PcInput input, float dt, bool crouched)
+    {
+        var map = Zones.Map;
+        float feet = Elevation + jumpY;
+        var terrace = map.TerraceAt(worldPos.X, worldPos.Y);
+        float ground = terrace != null && feet >= terrace.Sy - 0.25f ? terrace.Sy : map.OverPit(worldPos.X, worldPos.Y, -0.05f) ? float.NegativeInfinity : 0f;
+        bool grounded = jumpVel <= 0f && ground > float.NegativeInfinity && feet <= ground + 0.03f;
+        if (grounded)
+        {
+            feet = ground; jumpVel = 0f; padFlight = false;
+            if (input.Jump && !crouched && !Hurtbox.Eliminated && time >= evictUntil) jumpVel = FreeJumpSpeed;
+            else if (!Hurtbox.Eliminated) TryPad();
+        }
+        if (!grounded || jumpVel > 0f)
+        {
+            float prev = feet;
+            jumpVel -= (padFlight ? PadGravity : Gravity) * dt;
+            feet += jumpVel * dt;
+            if (jumpVel < 0f && ground > float.NegativeInfinity && prev >= ground && feet <= ground) { feet = ground; jumpVel = 0f; padFlight = false; }
+            if (feet < -6f) { feet = -6f; jumpVel = 0f; }   // fond de la fosse : l'hôte a déjà jugé la chute depuis longtemps
+        }
+        float elevation = terrace != null && feet >= terrace.Sy - 0.05f ? terrace.Sy : 0f;
+        if (elevation != Elevation)
+        {
+            if (elevation > 0f) { terraceSince = time; GD.Print($"[PC] Terrasse atteinte ({terrace!.Id})"); }
+            Elevation = elevation;
+        }
+        jumpY = feet - Elevation;
+    }
+
+    /// <summary>Tremplin de son camp sous les pieds : vol guidé de 1,8 s (sommet à 3 m) qui se pose au centre de la terrasse de la plaque. Recharge 10 s.</summary>
+    void TryPad()
+    {
+        if (time < padReadyAt || Zones.Map.Pc == null) return;
+        foreach (var pad in Zones.Map.Pc.JumpPads)
+        {
+            var padZone = Zones.Map.Zones.Find(z => z.Id == pad.Zone);
+            var terrace = Zones.Map.Pc.Terraces.Find(t => t.Zone == pad.Zone);
+            if (padZone == null || padZone.Team != Hurtbox.Team || terrace == null) continue;
+            if (new Vector2(worldPos.X - pad.X, worldPos.Y - pad.Z).Length() > pad.Radius + 0.1f) continue;
+            float vy = Mathf.Sqrt(2f * PadGravity * pad.LaunchToY);
+            float flight = (vy + Mathf.Sqrt(Mathf.Max(vy * vy - 2f * PadGravity * terrace.Sy, 0f))) / PadGravity;   // durée jusqu'à redescendre à hauteur de la terrasse
+            padVel = (new Vector2(terrace.X, terrace.Z) - worldPos) / flight;
+            jumpVel = vy; padFlight = true;
+            padReadyAt = time + pad.CooldownSeconds;
+            GD.Print($"[PC] Tremplin {pad.Id}");
+            return;
+        }
+    }
+
+    /// <summary>Un dash qui touche un adversaire le tacle : il lâche sa balle et est poussé de 2 m dans la direction du dash. L'hôte juge (distance, invulnérabilité).</summary>
+    void TryTackle()
+    {
+        if (tackledDash == dashCount || Hurtbox.Eliminated || Zones.Map.PitRect == null) return;   // le tacle n'existe que sur les cartes à fosse
+        foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated || h.DashInvulnerable) continue;
+            var hp = h.GlobalPosition;
+            if (new Vector2(hp.X - worldPos.X, hp.Z - worldPos.Y).Length() > TackleRadius || Mathf.Abs(hp.Y - (Elevation + jumpY + 0.85f)) > 1.2f) continue;
+            tackledDash = dashCount;
+            BallActions.Tackle(Hurtbox.PlayerId, h.PlayerId, dodgeDir);
+            GD.Print($"[PC] Tacle sur le joueur {h.PlayerId}");
+            ShowToast("Tacle !");
+            dodgeLeft = 0;
+            velocity = dodgeDir * RunSpeed * 0.4f;   // le tacleur ralentit net
+            return;
+        }
+    }
+
+    /// <summary>Poussée subie (tacle validé par l'hôte) : 2 m en 0,25 s ; sur une terrasse, on est évincé vers le bas.</summary>
+    public void ApplyPush(Vector2 dir)
+    {
+        if (!FreeRoam || !dir.IsFinite() || dir.LengthSquared() < 0.01f) return;
+        pushDir = dir.Normalized();
+        pushUntil = time + PushTime;
+        dodgeLeft = 0; charging = false; chargeTime = 0; padFlight = false;
+        if (Elevation > 0f) { evictDir = pushDir; evictUntil = time + 1.0; }
+        GD.Print("[PC] Poussé par un tacle");
+        ShowToast("Poussé !");
+    }
+
+    /// <summary>Quand les pieds sont sous le bord de la fosse, on tombe droit : le mur de la fosse nous garde à l'intérieur.</summary>
+    void KeepInsidePit()
+    {
+        var pit = Zones.Map.PitRect;
+        if (pit == null || Elevation + jumpY > -0.15f || !Zones.Map.OverPit(worldPos.X, worldPos.Y, 0.3f)) return;
+        worldPos = new Vector2(Mathf.Clamp(worldPos.X, pit.X - pit.Sx / 2f + 0.3f, pit.X + pit.Sx / 2f - 0.3f), Mathf.Clamp(worldPos.Y, pit.Z - pit.Sz / 2f + 0.3f, pit.Z + pit.Sz / 2f - 0.3f));
+        velocity = Vector2.Zero;
     }
 
     /// <summary>Les couverts, plots et le pylône sont solides : on glisse le long (cercle de 0,3 m contre le rectangle de l'obstacle).</summary>
@@ -403,6 +550,9 @@ public partial class DesktopPlayer : Node3D
             if (o.Kind == "pit" || baseY > Elevation + 1.5f || baseY + o.Sy < Elevation + 0.3f) continue;
             Collide(new Vector2(o.X, o.Z), new Vector2(o.Sx, o.Sz) * 0.5f, Mathf.DegToRad(o.RotY));
         }
+        if (FreeRoam && Zones.Map.Pc != null && Elevation + jumpY < 99f)
+            foreach (var t in Zones.Map.Pc.Terraces)
+                if (Elevation + jumpY < t.Sy - 0.25f) Collide(new Vector2(t.X, t.Z), new Vector2(t.Sx, t.Sz) * 0.5f, 0f);   // la terrasse est un bloc : on y monte par le tremplin
         if (!moved) return;
         if (FreeRoam)
         {
@@ -672,7 +822,21 @@ public partial class DesktopPlayer : Node3D
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
         if (FreeRoam)
         {
-            if (wasEliminated && !Hurtbox.Eliminated) { worldPos = spawnPos; velocity = Vector2.Zero; }   // retour de KO : au point d'apparition
+            if (wasEliminated && !Hurtbox.Eliminated)   // retour de KO : au point d'apparition, au sol
+            {
+                worldPos = spawnPos; velocity = Vector2.Zero;
+                jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; pushUntil = 0; evictUntil = 0;
+            }
+            // Tombé et jamais jugé (pause entre deux manches…) : après 1,5 s au fond on remonte au point d'apparition.
+            fallenFor = !Hurtbox.Eliminated && Elevation + jumpY < -2.5f ? fallenFor + 1.0 / 60.0 : 0;
+            if (fallenFor > 1.5) { fallenFor = 0; worldPos = spawnPos; velocity = Vector2.Zero; jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; GD.Print("[PC] Remonté au point d'apparition (chute non jugée)"); }
+            if (Hurtbox.Eliminated && Elevation + jumpY < -2.5f)
+            {
+                // Tombé dans la fosse et déclaré KO : on remonte au point d'apparition tout de suite (invisible, immobile) pour que la copie de l'hôte suive avant le retour.
+                worldPos = spawnPos; velocity = Vector2.Zero;
+                jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; pushUntil = 0; evictUntil = 0;
+                GD.Print("[PC] Remonté au point d'apparition après la chute");
+            }
             wasEliminated = Hurtbox.Eliminated;
             GlobalPosition = new Vector3(worldPos.X, Elevation, worldPos.Y);
         }
@@ -710,7 +874,7 @@ public partial class DesktopPlayer : Node3D
         {
             foreach (var node in GetTree().GetNodesInGroup("balls"))
             {
-                if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() > PickupSlowSpeed) continue;
+                if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() > PickupSlowSpeed || b.GlobalPosition.Y < -0.5f || Zones.Map.OverPit(b.GlobalPosition.X, b.GlobalPosition.Z, 0.8f)) continue;   // pas de balle dans ou au-dessus de la fosse
                 float d = b.GlobalPosition.DistanceTo(head.GlobalPosition);
                 if (d < ballDist) { ballDist = d; target = b; }
             }
@@ -780,6 +944,185 @@ public partial class DesktopPlayer : Node3D
         if (time > apNextDodge) { input.Dodge = true; apNextDodge = time + rng.RandfRange(5f, 8f); }
         if (time < apCrouchUntil) input.Crouch = true;
         else if (rng.Randf() < 0.002f) apCrouchUntil = time + 1.0;
+        // Le pilote automatique ne marche pas droit dans la fosse en allant chercher une balle ; seul le scénario de test le fait exprès.
+        if (FreeRoam && Zones.Map.PitRect != null && input.Move.LengthSquared() > 0.01f)
+        {
+            var wish = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw)) * input.Move.X - new Vector2(-Mathf.Sin(yaw), -Mathf.Cos(yaw)) * input.Move.Y;
+            if (PitGap(worldPos + wish.Normalized() * 1.6f) < 0.3f || PitGap(worldPos + velocity.Normalized() * 2.4f) < 0.2f && velocity.Length() > 4f) input.Move = Vector2.Zero;   // freinage : à 7,5 m/s l'inertie porte à près de 2 m
+        }
+        ScriptedMoves(ref input, (float)delta);
         return input;
+    }
+
+    // Scénario du mode test sur une carte à fosse : tremplin et terrasse, tacle dans la fosse (l'équipe 1 sert d'appât au bord, l'équipe 0 pousse),
+    // puis dash qui s'arrête avant le vide et chute volontaire. La CI vérifie que chaque geste est validé par l'hôte.
+    bool apDashedToVoid, apFell;
+
+    bool SegmentHitsPit(Vector2 a, Vector2 b, float margin)
+    {
+        for (int i = 0; i <= 16; i++)
+            if (PitGap(a.Lerp(b, i / 16f)) < margin) return true;
+        return false;
+    }
+
+    /// <summary>Waypoint qui contourne la fosse quand la ligne droite la traverse (coins de la fosse élargis de 1,8 m).</summary>
+    Vector2 AroundPit(Vector2 from, Vector2 to)
+    {
+        var pit = Zones.Map.PitRect;
+        if (pit == null) return to;
+        float margin = Mathf.Min(1.2f, Mathf.Max(PitGap(to), 0f) * 0.7f);   // cible au bord de la fosse : la ligne droite est bonne tant qu'elle ne la touche pas
+        if (!SegmentHitsPit(from, to, margin)) return to;
+        Vector2? best = null; float bestLen = float.MaxValue;
+        foreach (var sx in new[] { -1f, 1f })
+            foreach (var sz in new[] { -1f, 1f })
+            {
+                var corner = new Vector2(pit.X + sx * (pit.Sx / 2f + 1.8f), pit.Z + sz * (pit.Sz / 2f + 1.8f));
+                if (SegmentHitsPit(from, corner, 1.0f)) continue;
+                float len = from.DistanceTo(corner) + corner.DistanceTo(to);
+                if (len < bestLen) { bestLen = len; best = corner; }
+            }
+        return best ?? to;
+    }
+
+    bool CoverBlocks(Vector2 a, Vector2 b, out ObstacleDef? hit)
+    {
+        hit = null;
+        float len = a.DistanceTo(b);
+        for (float d = 0.7f; d <= len; d += 0.25f)
+        {
+            var q = a.Lerp(b, len < 0.01f ? 0f : d / len);
+            foreach (var o in Zones.Map.Obstacles)
+            {
+                if (o.Kind == "pit" || o.Y > 1.0f) continue;
+                if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.55f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.55f) { hit = o; return true; }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Le scénario n'a pas de pathfinding : contourne par le coin le plus court le premier couvert qui barre la route.</summary>
+    Vector2 AroundCover(Vector2 from, Vector2 to)
+    {
+        if (!CoverBlocks(from, to, out var o) || o == null) return to;
+        Vector2? best = null; float bestLen = float.MaxValue;
+        foreach (var sx in new[] { -1f, 1f })
+            foreach (var sz in new[] { -1f, 1f })
+            {
+                var corner = new Vector2(o.X + sx * (o.Sx / 2f + 0.9f), o.Z + sz * (o.Sz / 2f + 0.9f));
+                if (CoverBlocks(from, corner, out _) || SegmentHitsPit(from, corner, 0.5f)) continue;
+                float len = from.DistanceTo(corner) + corner.DistanceTo(to);
+                if (len < bestLen) { bestLen = len; best = corner; }
+            }
+        return best ?? to;
+    }
+
+    bool SteerTo(Vector2 target, ref PcInput input, float stop, float dt, bool avoidPit = true)
+    {
+        float finalDist = (target - worldPos).Length();
+        if (avoidPit) target = AroundPit(worldPos, target);
+        target = AroundCover(worldPos, target);
+        var to = target - worldPos;
+        float want = Mathf.Atan2(-to.X, -to.Y);
+        yaw += Mathf.Clamp(Mathf.AngleDifference(yaw, want), -8f * dt, 8f * dt);
+        pitch = Mathf.MoveToward(pitch, 0f, 4f * dt);
+        input.Move = finalDist > stop ? new Vector2(0, -1) : Vector2.Zero;
+        return finalDist <= stop;
+    }
+
+    /// <summary>Décale un point de test le long de `tangent` tant qu'il tombe dans un couvert ou un pilier.</summary>
+    Vector2 FreeSpot(Vector2 p, Vector2 tangent)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            var q = p + tangent * (i % 2 == 0 ? 1 : -1) * 1.4f * ((i + 1) / 2);
+            bool blocked = false;
+            foreach (var o in Zones.Map.Obstacles)
+            {
+                if (o.Kind == "pit" || o.Y > 1.0f) continue;
+                if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.9f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.9f) { blocked = true; break; }
+            }
+            if (!blocked) return q;
+        }
+        return p;
+    }
+
+    void ScriptedMoves(ref PcInput input, float dt)
+    {
+        var map = Zones.Map;
+        if (Hurtbox.Eliminated && apDashedToVoid) apFell = true;   // le scénario s'arrête après la chute volontaire
+        if (!FreeRoam || map.PitRect is not { } pit || Hurtbox.Eliminated || apFell || time < 8 || time >= 62) return;
+        var center = new Vector2(pit.X, pit.Z);
+        if (time < 22)
+        {
+            // Phase 0 : tremplin de son camp, puis on tient la terrasse en tirant de là-haut.
+            if (padFlight) { input.Move = Vector2.Zero; input.Jump = false; return; }
+            if (Elevation > 0f) { input.Move = Vector2.Zero; input.Jump = false; input.Dodge = false; return; }
+            var pad = map.Pc?.JumpPads.Find(p => map.Zones.Find(z => z.Id == p.Zone)?.Team == Hurtbox.Team && p.Zone == Hurtbox.PlayerId);
+            if (pad == null || padReadyAt > 0) return;
+            input.Fire = false; input.Jump = false; input.Dodge = false;
+            SteerTo(new Vector2(pad.X, pad.Z), ref input, 0.1f, dt);
+            return;
+        }
+        if (time < 47)
+        {
+            input.Jump = false; input.Pass = false; input.Lob = false; input.Feint = false;
+            if (Hurtbox.Team == 0)
+            {
+                // Appât : debout à 1,5 m du bord, du côté de son point d'apparition, sans bouger ni tirer.
+                var dirOut = (spawnPos - center).Normalized();
+                var edge = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));   // point du bord sur la demi-droite centre -> apparition
+                input.Fire = false; input.Dodge = false;
+                if (SteerTo(edge + dirOut * 1.5f, ref input, 0.4f, dt))
+                {
+                    var look = center - worldPos;
+                    yaw = Mathf.Atan2(-look.X, -look.Y);
+                }
+                return;
+            }
+            // Pousseur : derrière l'adversaire le plus proche du bord (côté opposé à la fosse), puis dash vers la fosse.
+            Hurtbox? prey = null; float bestGap = 3.2f;
+            foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
+            {
+                if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated) continue;
+                float gap = PitGap(new Vector2(h.GlobalPosition.X, h.GlobalPosition.Z));
+                if (gap > 0.2f && gap < bestGap) { bestGap = gap; prey = h; }
+            }
+            if (prey == null) return;   // personne au bord : jeu normal
+            var pp = new Vector2(prey.GlobalPosition.X, prey.GlobalPosition.Z);
+            var away = (pp - center).Normalized();
+            var behind = pp + away * 2.0f;
+            input.Fire = false;
+            if (SteerTo(behind, ref input, 0.45f, dt))
+            {
+                var look = center - worldPos;
+                yaw = Mathf.Atan2(-look.X, -look.Y);
+                input.Dodge = true;
+            }
+            return;
+        }
+        // Phase 2 : à 3,4 m du bord, dash vers la fosse (il doit s'arrêter), puis on court dedans.
+        {
+            input.Fire = false; input.Jump = false; input.Pass = false; input.Lob = false; input.Feint = false; input.Dodge = false;
+            float gap = PitGap(worldPos);
+            if (!apDashedToVoid)
+            {
+                var dirOut = (spawnPos - center).Normalized();
+                var rim = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));
+                var start = FreeSpot(rim + dirOut * 3.4f, new Vector2(-dirOut.Y, dirOut.X));
+                if (SteerTo(start, ref input, 0.3f, dt))
+                {
+                    var look = center - worldPos;
+                    yaw = Mathf.Atan2(-look.X, -look.Y);
+                    if (dashCharges > 0) { input.Dodge = true; apDashedToVoid = true; GD.Print($"[PC] Test : dash vers la fosse depuis {worldPos.X:0.0} / {worldPos.Y:0.0} (écart {PitGap(worldPos):0.0} m)"); }
+                }
+                return;
+            }
+            if (dodgeLeft <= 0 && Elevation + jumpY > -0.15f)
+            {
+                var look = center - worldPos;
+                yaw = Mathf.Atan2(-look.X, -look.Y);
+                input.Move = new Vector2(0, -1);   // on court dans la fosse
+            }
+        }
     }
 }

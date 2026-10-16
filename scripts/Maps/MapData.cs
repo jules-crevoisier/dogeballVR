@@ -171,11 +171,39 @@ public class PcJointDef
     public float Sz { get; set; } = 1f;
 }
 
-/// <summary>Profil clavier-souris (schéma v3) : apparitions et joints entre plaques. Ignoré en VR.</summary>
+/// <summary>Tremplin (profil PC) : pousse le joueur jusqu'à la terrasse de sa plaque.</summary>
+public class JumpPadDef
+{
+    public string Id { get; set; } = "";
+    public int Zone { get; set; }
+    public float X { get; set; }
+    public float Z { get; set; }
+    public float Radius { get; set; } = 0.6f;
+    public float LaunchToY { get; set; } = 3f;
+    public float MaxStaySeconds { get; set; } = 8f;
+    public float CooldownSeconds { get; set; } = 10f;
+}
+
+/// <summary>Terrasse (profil PC) : bloc haut au fond d'une plaque, entouré d'un parapet. On y monte par le tremplin.</summary>
+public class TerraceDef
+{
+    public string Id { get; set; } = "";
+    public int Zone { get; set; }
+    public float X { get; set; }
+    public float Z { get; set; }
+    public float Sx { get; set; } = 4f;
+    public float Sy { get; set; } = 1.6f;
+    public float Sz { get; set; } = 2f;
+    public float ParapetHeight { get; set; } = 1f;
+}
+
+/// <summary>Profil clavier-souris (schéma v3) : apparitions, joints entre plaques, tremplins et terrasses. Ignoré en VR.</summary>
 public class PcDef
 {
     public List<PcSpawnDef> Spawns { get; set; } = new();
     public List<PcJointDef> Joints { get; set; } = new();
+    public List<JumpPadDef> JumpPads { get; set; } = new();
+    public List<TerraceDef> Terraces { get; set; } = new();
 }
 
 /// <summary>Description d'une map en données (aucune zone codée en dur dans les scènes).</summary>
@@ -205,6 +233,20 @@ public class MapData
     public List<BallSpawnDef> BallSpawns { get; set; } = new();
 
     public bool IsRing => Layout == "ring";
+
+    /// <summary>Fosse carrée au centre (obstacle « pit » qui ne coupe pas toute l'arène) : y tomber est un ring-out. Null sinon.</summary>
+    public ObstacleDef? PitRect => IsRing ? Obstacles.Find(o => o.Kind == "pit") : null;
+
+    /// <summary>Vrai si le point (x, z) est au-dessus de la fosse de ring-out, `margin` mètres de marge comprise (négative = à l'intérieur).</summary>
+    public bool OverPit(float x, float z, float margin = 0f)
+    {
+        var p = PitRect;
+        return p != null && Mathf.Abs(x - p.X) < p.Sx / 2f + margin && Mathf.Abs(z - p.Z) < p.Sz / 2f + margin;
+    }
+
+    /// <summary>Terrasse sous le point (x, z), `margin` comprise, sinon null.</summary>
+    public TerraceDef? TerraceAt(float x, float z, float margin = 0f) =>
+        Pc?.Terraces.Find(t => Mathf.Abs(x - t.X) < t.Sx / 2f + margin && Mathf.Abs(z - t.Z) < t.Sz / 2f + margin);
 
     public bool HasLifts => Zones.Exists(z => z.Lift != null);
 
