@@ -118,7 +118,7 @@ public partial class DesktopPlayer : Node3D
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
     bool autoplay;
     readonly RandomNumberGenerator rng = new();
-    bool apCurvePending;
+    bool apCurvePending = true;   // le premier tir en prend un déjà
     double apLobWaitUntil;
     int apSpecials;
     double apNextSpecial = 3;
@@ -457,7 +457,7 @@ public partial class DesktopPlayer : Node3D
                 bool ally = FreeRoam && time > pickupBlockedUntil && ball.IsPass && ball.OwnerTeam == Hurtbox.Team && ball.OwnerPlayerId != Hurtbox.PlayerId && ball.GlobalPosition.DistanceTo(head.GlobalPosition + Vector3.Down * 0.3f) <= 1.3f;
                 bool viaCatch = ally || (catchWindowLeft > 0 && ball.GlobalPosition.DistanceTo(hand) <= CatchReach);
                 bool hostileFast = ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed;
-                bool fastShot = hostileFast && ball.LinearVelocity.Length() >= PerfectMinSpeed;
+                bool fastShot = hostileFast && ball.ThrowMode != Ball.ModeLob && ball.LinearVelocity.Length() >= PerfectMinSpeed;
                 bool perfect = FreeRoam && !ally && viaCatch && fastShot && time - catchOpenedAt <= PerfectCatchWindow;
                 bool slow = ball.LinearVelocity.Length() < PickupSlowSpeed && time > pickupBlockedUntil;
                 float scoopDist = ball.GlobalPosition.DistanceTo(scoop);
@@ -548,14 +548,14 @@ public partial class DesktopPlayer : Node3D
         var from = camera.GlobalPosition;
         var fwd = -camera.GlobalTransform.Basis.Z;
         Hurtbox? best = null, nearest = null;
-        float bestAngle = 35f, nearestDist = 30f;
+        float bestAngle = 35f, nearestDist = 33f;   // au-delà de 33 m la passe (24 m/s au plus) retomberait courte
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
         {
             if (node is not Hurtbox h || h == Hurtbox || h.Team != Hurtbox.Team || h.Eliminated) continue;
             var to = h.GlobalPosition - from;
             float angle = Mathf.RadToDeg(fwd.AngleTo(to));
-            if (angle < bestAngle) { bestAngle = angle; best = h; }
             float d = h.GlobalPosition.DistanceTo(head.GlobalPosition);
+            if (angle < bestAngle && d <= nearestDist) { bestAngle = angle; best = h; }
             if (d < nearestDist) { nearestDist = d; nearest = h; }
         }
         return best ?? nearest;

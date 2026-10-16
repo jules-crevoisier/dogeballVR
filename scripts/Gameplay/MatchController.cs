@@ -59,7 +59,9 @@ public partial class MatchController : Node3D
     /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
     void OnCaughtThrow(int catcherId)
     {
-        if (inRound && hurtboxes.ContainsKey(catcherId)) Rules.RegisterPerfectCatch(catcherId);
+        if (!inRound || !hurtboxes.ContainsKey(catcherId)) return;
+        Rules.RegisterPerfectCatch(catcherId);
+        lastDamageAt[catcherId] = Time.GetTicksMsec() / 1000.0;   // le cœur rendu repousse aussi la régénération
     }
     /// <summary>Altitude actuelle du plateau d'une zone (lift) : le distributeur monte avec elle.</summary>
     public System.Func<int, float> ZoneElevation { get; set; } = _ => 0f;

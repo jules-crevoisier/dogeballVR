@@ -281,7 +281,7 @@ public partial class Ball : RigidBody3D
     {
         if (IsPuppet) return;
         // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
-        if (ThrowMode != 0 && !IsHeld && (arcTime += delta) > ArcMaxSeconds) Spent();   // une cloche qui n'a touché personne devient neutre
+        if (ThrowMode != 0 && !IsHeld && ((arcTime += delta) > ArcMaxSeconds || (arcTime > 0.3 && GlobalPosition.Y < 0.25f))) Spent();   // fin de l'arc : au sol la balle redevient une balle neutre ramassable par tous   // une cloche qui n'a touché personne devient neutre
         if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
