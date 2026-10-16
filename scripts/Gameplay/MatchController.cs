@@ -237,7 +237,7 @@ public partial class MatchController : Node3D
     {
         Rules.ResetMatch();
         round = 1;
-        specialKind = rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        specialKind = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0 ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
@@ -424,7 +424,7 @@ public partial class MatchController : Node3D
 
     void UpdateSpecialBalls(double delta)
     {
-        if (hubLauncher == null || specialKind == 0) return;
+        if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
         if (!bombTestDone && specialClock >= 8 && System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0) { bombTestDone = true; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
@@ -441,7 +441,7 @@ public partial class MatchController : Node3D
             specialAnnounced = false;
             specialLaunched++;
             if (banner == specialBanner) banner = bannerBeforeSpecial;
-            LaunchFromHub(hubLauncher, specialKind);
+            if (!LaunchFromHub(hubLauncher, specialKind)) { GD.Print("[Match] Balle spéciale : aucune plaque de l'équipe menée, lancer annulé"); return; }
             GD.Print($"[Match] Balle spéciale lancée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
     }
@@ -571,7 +571,7 @@ public partial class MatchController : Node3D
     /// Lanceur du moyeu : lob lent (1,6 s de vol) vers la plaque qui a le moins de balles (à égalité, celle d'une équipe
     /// qui perd) ; on la voit arriver et on l'attrape.
     /// </summary>
-    void LaunchFromHub(BallSpawnDef def, int kind = 0)
+    bool LaunchFromHub(BallSpawnDef def, int kind = 0)
     {
         ZoneDef? target = null;
         int fewest = int.MaxValue;
@@ -585,7 +585,7 @@ public partial class MatchController : Node3D
             // La plaque d'une équipe qui perd passe devant à nombre de balles égal.
             if (count < fewest || (count == fewest && target != null && z.Team == trailing && target.Team != trailing)) { fewest = count; target = z; }
         }
-        if (target == null) return;
+        if (target == null) return false;
         var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
         var to = new Vector3(target.X, 0.6f, target.Z);
         for (int attempt = 0; attempt < 8; attempt++)   // pas sur un couvert : la balle roulerait hors de portée
@@ -604,6 +604,7 @@ public partial class MatchController : Node3D
         ball.Kind = kind;
         ball.LinearVelocity = new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
         if (ballsCached >= 0) ballsCached++;
+        return true;
     }
 
     /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>

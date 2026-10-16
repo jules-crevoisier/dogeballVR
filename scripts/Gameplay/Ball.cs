@@ -26,7 +26,7 @@ public partial class Ball : RigidBody3D
     double flightTime;
 
     /// <summary>Balle spéciale (une famille par match, voir specialBalls dans les maps) : 0 normale, 1 bombe, 2 rebond.</summary>
-    public const int KindNormal = 0, KindBomb = 1, KindBounce = 2;
+    public const int KindNormal = 0, KindBomb = 1, KindBounce = 2, KindExploded = 3;   // 3 : bombe explosée, envoyée aux clients 0,15 s avant sa disparition
     public const float BombRadius = 3f;
     static readonly Color BombColor = new(1f, 0.8f, 0.1f), BounceColor = new(0.7f, 0.4f, 1f);
     /// <summary>Une bombe explose : position, équipe et id du tireur, id de la cible déjà touchée (exclue du souffle).</summary>
@@ -34,6 +34,8 @@ public partial class Ball : RigidBody3D
     int kind;
     double sinceRelease;
     bool exploded;
+    double explodedFor;
+    public bool HasExploded => exploded;
     public int Kind
     {
         get => kind;
@@ -234,7 +236,7 @@ public partial class Ball : RigidBody3D
 
     void OnContact(Node body)
     {
-        if (kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
+        if (exploded || kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
         if (sinceRelease < 0.12) return;   // pas dans la main qui la lâche
         Explode(-1, OwnerTeam, OwnerPlayerId);
     }
@@ -244,8 +246,12 @@ public partial class Ball : RigidBody3D
     {
         if (exploded || IsPuppet) return;
         exploded = true;
+        Spent();
+        kind = KindExploded;
+        Freeze = true;
+        FreezeMode = FreezeModeEnum.Static;
+        Visible = false;
         Exploded?.Invoke(GlobalPosition, team, shooter, exceptId);
-        QueueFree();
     }
 
     public void Spent()
@@ -338,7 +344,10 @@ public partial class Ball : RigidBody3D
     public override void _PhysicsProcess(double delta)
     {
         if (IsPuppet) return;
+        if (exploded) { if ((explodedFor += delta) > 0.15) QueueFree(); return; }
         sinceRelease += delta;
+        if (kind == KindBomb && !IsHeld && OwnerTeam >= 0 && !IsPass && sinceRelease > 0.12)
+            foreach (var b in GetCollidingBodies()) if (b is not Ball) { Explode(-1, OwnerTeam, OwnerPlayerId); return; }   // déjà au contact au lâcher
         // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
         if (ThrowMode != 0 && !IsHeld && ((arcTime += delta) > ArcMaxSeconds || (arcTime > 0.3 && GlobalPosition.Y < 0.25f))) Spent();   // fin de l'arc : au sol la balle redevient une balle neutre ramassable par tous   // une cloche qui n'a touché personne devient neutre
         if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds * (kind == KindBounce ? 2.5f : 1f)) Spent();

@@ -97,7 +97,7 @@ Source : `v3/maps/map_b_fosse_croisee.json` (copie : `maps/fosse_croisee.json`, 
 ## Tour 4v4 : huit plaques autour d'une fosse de 16×10 m (phase 3b)
 
 - **Carte** : `maps/tour_4v4.json` (v3, carte C du level design). Huit plaques en anneau (équipes A,B,A,B…), fosse rectangulaire de 16×10 m avec le pylône au centre, un tremplin et une terrasse par plaque, 4 contre 4, seuil de KO à 10, régénération de cœur 10 s. Les règles de la Fosse croisée s'appliquent telles quelles (tacle, ring-out, chute, tremplins) ; le code lit déjà une fosse rectangulaire quelconque.
-- **Pas encore fait** : les échanges de plateaux et les balles spéciales (phase 4) ; le rotor est décrit plus bas.
+- **Pas encore fait** : les échanges de plateaux (phase 4c) ; le rotor est décrit plus bas.
 - **Test** : `--map=tour_4v4 --pc-autoplay` à deux humains (hôte zone 0 = appât, client `--zone=1` = pousseur) ; l'appât se place à 0,5 à 1,8 m du bord (décalé le long du bord s'il faut éviter les couverts, sa place et celle du pousseur 2 m derrière étant libres) ; les autres zones sont des bots, que le scénario ne vise pas (un tacle sur un bot est ignoré par l'hôte). Étape CI « Test Tour 4v4 », 30 ms de latence, 4 tentatives. Le plafond de joueurs réseau passe à 8 (la zone demandée au Hello doit exister dans la carte) ; un vrai 4v4 à huit humains n'a pas été joué.
 
 ## Rotor du moyeu (phase 4a)
@@ -110,10 +110,10 @@ Source : `v3/maps/map_b_fosse_croisee.json` (copie : `maps/fosse_croisee.json`, 
 
 ## Balles spéciales : bombe et rebond (phase 4b)
 
-Une seule famille de balle spéciale par match, tirée au sort au début (comme dans Knockout City). Toutes les 45 s de manche (45 s et 90 s), le moyeu lance en lob une balle spéciale vers une plaque de l'équipe menée aux KO (à égalité, l'équipe alterne). Le tableau annonce « BALLE SPÉCIALE : … DANS 5 s » à 40 s et 85 s. La balle est neutre à l'atterrissage : n'importe qui peut la ramasser, elle garde sa couleur (jaune pour la bombe, violet pour le rebond) et son halo prend cette couleur tant qu'elle est neutre.
+Une seule famille de balle spéciale par match, tirée au sort au début (comme dans Knockout City). Toutes les 45 s de manche (45 s et 90 s, jamais en prolongation), le moyeu lance en lob une balle spéciale vers une plaque de l'équipe menée aux KO (à égalité, l'équipe alterne). Le tableau annonce « BALLE SPÉCIALE : … DANS 5 s » à 40 s et 85 s. La balle est neutre à l'atterrissage : n'importe qui peut la ramasser, elle garde sa couleur (jaune pour la bombe, violet pour le rebond) et son halo prend cette couleur tant qu'elle est neutre.
 
-- **Bombe** : explose au contact d'un adversaire ou du décor une fois lancée (0,12 s après le lâcher). Souffle de 3 m : 1 cœur à chaque adversaire dans le rayon, sans tir allié ni cumul avec le coup direct (la cible touchée est exclue du souffle). Les joueurs en dash et ceux protégés par l'invulnérabilité après une touche ne sont pas touchés. Les clients voient l'onde de choc quand une bombe lancée disparaît du snapshot.
-- **Rebond** : rebonds à 0,95 (au lieu de 0,55) et vol létal 2,5 fois plus long : elle revient après avoir ricoché sur les murs.
+- **Bombe** : explose au contact d'un adversaire ou du décor une fois lancée (0,12 s après le lâcher). Souffle de 3 m : 1 cœur à chaque adversaire dans le rayon, sans tir allié ni cumul avec le coup direct (la cible touchée est exclue du souffle). Les joueurs en dash et ceux protégés par l'invulnérabilité après une touche ne sont pas touchés. Le souffle ignore la charge (1 cœur, contre 2 pour un coup direct chargé) et les murs. L'hôte envoie la bombe explosée (type 3) pendant 0,15 s : c'est ce qui déclenche l'onde de choc chez les clients. Les balles spéciales ne comptent pas dans la limite de balles en jeu.
+- **Rebond** : rebonds à 0,95 (au lieu de 0,55) et vol létal (tir tendu) 2,5 fois plus long : elle revient après avoir ricoché sur les murs.
 - **Sonar et cage** : listés dans les maps (`specialBalls.types`) mais pas encore implémentés ; seuls bombe et rebond sont tirés.
 
-Limites connues : une balle spéciale tombée dans la fosse ou recyclée est remplacée par une balle normale ; la bombe explose aussi au contact du corps d'un coéquipier ; le ressenti n'a pas été testé à la main. Test CI : `--special-test` lâche une bombe à 1,2 m d'un adversaire et vérifie le souffle, plus l'annonce et le lancer à 45 s.
+Limites connues : une balle spéciale tombée dans la fosse ou recyclée est remplacée par une balle normale ; `types`, l'intervalle et l'annonce sont codés en dur (le JSON des maps est descriptif) ; le ressenti n'a pas été testé à la main. Test CI : `--special-test` lâche une bombe à 1,2 m d'un adversaire et vérifie le souffle, plus l'annonce et le lancer à 45 s.

@@ -169,13 +169,13 @@ jobs:
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           for ATTEMPT in 1 2 3; do
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 3200 -- --map=croix_neon --pc-autoplay --special-test > special.log 2>&1 || true
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 3900 -- --map=croix_neon --pc-autoplay --special-test > special.log 2>&1 || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" special.log; then echo "Erreur à l'exécution (balles spéciales)"; exit 1; fi
             ANNOUNCED=$(grep -c "Balle spéciale annoncée" special.log || true)
             LAUNCHED=$(grep -c "Balle spéciale lancée" special.log || true)
             BLASTS=$(grep -c "Bombe : explosion .* [1-9][0-9]* adversaire(s) touché(s)" special.log || true)
             echo "Essai $ATTEMPT : annonce $ANNOUNCED, lancer $LAUNCHED, souffles qui touchent $BLASTS"
-            if [ "$ANNOUNCED" -ge 1 ] && [ "$LAUNCHED" -ge 1 ] && { [ "$BLASTS" -ge 1 ] || grep -q "Balle spéciale du match : rebond" special.log; }; then exit 0; fi
+            if [ "$ANNOUNCED" -ge 1 ] && [ "$LAUNCHED" -ge 1 ] && [ "$BLASTS" -ge 1 ]; then exit 0; fi
           done
           echo "Balles spéciales : annonce, lancer ou souffle manquant"; exit 1
 
