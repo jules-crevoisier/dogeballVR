@@ -21,6 +21,10 @@ public partial class DesktopPlayer : Node3D
     public ZoneManager Zones { get; set; } = null!;
     public Hurtbox Hurtbox { get; set; } = null!;
 
+    /// <summary>Charge du lancer en cours (0 à 1), pour la jauge du HUD.</summary>
+    public float ThrowCharge01 => charging ? (float)(chargeTime / MaxChargeTime) : 0f;
+    public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
+
     Camera3D camera = null!;
     Node3D holdPoint = null!;
     Ball? held;

@@ -3,10 +3,16 @@
   "zoneWidth": 15.0,
   "zoneDepth": 8.0,
   "edgeWarningDistance": 1.0,
+  "arenaWidth": 30.0,
+  "arenaDepth": 16.0,
+  "arenaHeight": 8.0,
   "zones": [
     { "id": 0, "team": 0, "x": -7.5, "y": 0.0, "z": -4.0, "facingDegrees": 180 },
     { "id": 1, "team": 0, "x":  7.5, "y": 0.0, "z": -4.0, "facingDegrees": 180 },
     { "id": 2, "team": 1, "x": -7.5, "y": 0.0, "z":  4.0, "facingDegrees": 0 },
     { "id": 3, "team": 1, "x":  7.5, "y": 0.0, "z":  4.0, "facingDegrees": 0 }
+  ],
+  "props": [
+    { "type": "box", "x": 0.0, "y": 0.6, "z": 0.0, "sizeX": 30.0, "sizeY": 1.2, "sizeZ": 0.05, "color": "#ffffff", "solid": false }
   ]
 }
