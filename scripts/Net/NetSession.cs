@@ -464,7 +464,16 @@ public partial class NetSession : Node
                 b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : (b.IsPass ? 2f : 0f),   // 2 = passe en vol
             });
         }
+        data.Add(Maps.Rotor.Current?.Angle ?? -1f);   // dernier flottant : angle du rotor (-1 = pas de rotor)
         return data.ToArray();
+    }
+
+    /// <summary>Angle du rotor porté par un snapshot, ou -1.</summary>
+    public static float RotorAngleOf(float[] d)
+    {
+        if (d.Length < 2) return -1f;
+        int end = 2 + (int)d[0] * PlayerFloats + (int)d[1] * BallFloats;
+        return d.Length > end ? d[end] : -1f;
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]

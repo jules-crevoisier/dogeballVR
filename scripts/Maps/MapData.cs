@@ -141,6 +141,16 @@ public class HubDef
     public float Z { get; set; }
     public HubPylonDef Pylon { get; set; } = new();
     public HubLauncherDef Launcher { get; set; } = new();
+    public HubRotorDef? Rotor { get; set; }
+}
+
+public class HubRotorDef
+{
+    public float ArmLength { get; set; } = 4f;
+    public float Thickness { get; set; } = 0.4f;
+    public float YMin { get; set; } = 0.6f;
+    public float YMax { get; set; } = 3f;
+    public float DegPerSecond { get; set; } = 60f;
 }
 
 public class HubPylonDef
