@@ -61,7 +61,10 @@ public partial class Hurtbox : Area3D
         int shooter = ball.OwnerPlayerId;
         int charge = ball.Charge;
         float distance = ball.ThrowDistance;
+        bool bomb = ball.Kind == Ball.KindBomb;
+        int shooterTeam = ball.OwnerTeam;
         ball.Spent();
         EmitSignal(SignalName.Hit, PlayerId, shooter, charge, distance);
+        if (bomb) ball.Explode(PlayerId, shooterTeam, shooter);
     }
 }

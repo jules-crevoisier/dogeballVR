@@ -107,3 +107,13 @@ Source : `v3/maps/map_b_fosse_croisee.json` (copie : `maps/fosse_croisee.json`, 
 - **Test** : `--rotor-test` lance 30 balles tendues à 22 m/s sur le moyeu, à 1,5 m de l'axe (hors du pylône), et juge chacune 1,3 s plus tard (mesuré : 16 à 20 arrêtées ; témoin `--rotor-off` sans collision : 0 à 4 ; la CI exige ≥ 10 et ≤ 8) ; en réseau le scénario de Croix Néon poste les deux joueurs à 2,6 m du centre de 8 à 20 s et l'étape CI exige au moins un « Poussé par le rotor ». L'étape Croix Néon est reprise jusqu'à 3 fois (le scénario de coups spéciaux est aléatoire).
 - **Limites** : jamais ressenti en jeu ; les balles très rapides (30 m/s) peuvent traverser un bras au pas de 60 Hz malgré la détection continue ; sur les cartes à fosse, le rotor est au-dessus du vide et n'affecte que les balles (la collision du joueur PC n'est active que sur les cartes sans fosse) ; le rayon de visée et la caméra traversent le rotor.
 - Une balle qui retomberait sur le dessus de la barre (y = 3 m) serait emportée sans être recyclée tant qu'elle bouge à plus de 0,4 m/s : non observé, non traité.
+
+## Balles spéciales : bombe et rebond (phase 4b)
+
+Une seule famille de balle spéciale par match, tirée au sort au début (comme dans Knockout City). Toutes les 45 s de manche (45 s et 90 s), le moyeu lance en lob une balle spéciale vers une plaque de l'équipe menée aux KO (à égalité, l'équipe alterne). Le tableau annonce « BALLE SPÉCIALE : … DANS 5 s » à 40 s et 85 s. La balle est neutre à l'atterrissage : n'importe qui peut la ramasser, elle garde sa couleur (jaune pour la bombe, violet pour le rebond) et son halo prend cette couleur tant qu'elle est neutre.
+
+- **Bombe** : explose au contact d'un adversaire ou du décor une fois lancée (0,12 s après le lâcher). Souffle de 3 m : 1 cœur à chaque adversaire dans le rayon, sans tir allié ni cumul avec le coup direct (la cible touchée est exclue du souffle). Les joueurs en dash et ceux protégés par l'invulnérabilité après une touche ne sont pas touchés. Les clients voient l'onde de choc quand une bombe lancée disparaît du snapshot.
+- **Rebond** : rebonds à 0,95 (au lieu de 0,55) et vol létal 2,5 fois plus long : elle revient après avoir ricoché sur les murs.
+- **Sonar et cage** : listés dans les maps (`specialBalls.types`) mais pas encore implémentés ; seuls bombe et rebond sont tirés.
+
+Limites connues : une balle spéciale tombée dans la fosse ou recyclée est remplacée par une balle normale ; la bombe explose aussi au contact du corps d'un coéquipier ; le ressenti n'a pas été testé à la main. Test CI : `--special-test` lâche une bombe à 1,2 m d'un adversaire et vérifie le souffle, plus l'annonce et le lancer à 45 s.

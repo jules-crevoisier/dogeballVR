@@ -27,7 +27,7 @@ public partial class NetSession : Node
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
     const float MaxSpin = 12f;
     const double MinCrouchOnPad = 0.8;   // le lift exige un accroupi tenu sur le pad (le client en demande 1 s)
-    const int BallFloats = 11;
+    const int BallFloats = 12;
 
     public NetMode Mode { get; private set; } = NetMode.Offline;
     public bool IsClient => Mode == NetMode.Client;
@@ -461,7 +461,7 @@ public partial class NetSession : Node
             var vel = b.IsHeld ? Vector3.Zero : b.LinearVelocity;
             data.AddRange(new[]
             {
-                b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : (b.IsPass ? 2f : 0f),   // 2 = passe en vol
+                b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : (b.IsPass ? 2f : 0f), b.Kind,   // 2 = passe en vol ; Kind : 0 normale, 1 bombe, 2 rebond
             });
         }
         data.Add(Maps.Rotor.Current?.Angle ?? -1f);   // dernier flottant : angle du rotor (-1 = pas de rotor)
@@ -500,11 +500,11 @@ public partial class NetSession : Node
                 d[i + 11] > 0.5f, (int)d[i + 12], d[i + 13] > 0.5f));
         for (int k = 0; k < nb; k++, i += BallFloats)
             balls.Add(new SnapshotBall((int)d[i], new Vector3(d[i + 1], d[i + 2], d[i + 3]), new Vector3(d[i + 4], d[i + 5], d[i + 6]),
-                (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f && d[i + 10] < 1.5f, d[i + 10] > 1.5f));
+                (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f && d[i + 10] < 1.5f, d[i + 10] > 1.5f, (int)d[i + 11]));
         return (players, balls);
     }
 }
 
 public record SnapshotPlayer(int Id, PoseData Pose, bool Eliminated, int Lives, bool Bot);
 
-public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held, bool Pass = false);
+public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held, bool Pass = false, int Kind = 0);
