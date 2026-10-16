@@ -57,7 +57,8 @@ public partial class MatchController : Node3D
         return n;
     }
 
-    bool RoomForBall() => maxBallsInPlay <= 0 || BallsInPlay() < maxBallsInPlay;
+    int ballsCached = -1;   // recalculé une fois par image (évite un parcours du groupe par distributeur)
+    bool RoomForBall() => maxBallsInPlay <= 0 || (ballsCached < 0 ? ballsCached = BallsInPlay() : ballsCached) < maxBallsInPlay;
     int neutralFlip;
 
     /// <summary>Lit les zones et les emplacements de balles de la map (distributeurs, lâcher neutre, retour des balles perdues).</summary>
@@ -87,7 +88,6 @@ public partial class MatchController : Node3D
     public void Unregister(int playerId)
     {
         hurtboxes.Remove(playerId);
-        respawnAt.Remove(playerId);
     }
 
     public void Register(Hurtbox hurtbox)
@@ -95,6 +95,12 @@ public partial class MatchController : Node3D
         hurtboxes[hurtbox.PlayerId] = hurtbox;
         Rules.AddPlayer(hurtbox.PlayerId, hurtbox.Team);
         hurtbox.Hit += OnHit;
+        // Un joueur KO remplacé (départ, arrivée) reste KO jusqu'à son retour : pas d'invulnérabilité à 0 vie.
+        if (Rules.LivesOf(hurtbox.PlayerId) <= 0)
+        {
+            hurtbox.Eliminated = true;
+            if (!respawnAt.ContainsKey(hurtbox.PlayerId)) respawnAt[hurtbox.PlayerId] = Time.GetTicksMsec() / 1000.0 + Rules.RespawnSeconds;
+        }
     }
 
     public override void _Ready()
@@ -112,6 +118,7 @@ public partial class MatchController : Node3D
         AddChild(hud);
         Rules.PlayerEliminated += OnEliminated;
         Ball.Released += OnBallReleased;
+        TreeExiting += () => Ball.Released -= OnBallReleased;
     }
 
     /// <summary>À appeler quand tous les joueurs sont enregistrés.</summary>
@@ -149,7 +156,7 @@ public partial class MatchController : Node3D
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));
-        if (best == float.MaxValue || ball.OwnerTeam < 0) return;
+        if (best == float.MaxValue || ball.OwnerTeam < 0 || ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;   // lâcher mou (KO, départ) : pas un tir
         ball.ThrowDistance = best;
         throwsByRange[RangeBucket(best)]++;
     }
@@ -263,6 +270,7 @@ public partial class MatchController : Node3D
     /// </summary>
     void UpdateDispensers(double delta, double now)
     {
+        ballsCached = -1;
         foreach (var d in dispensers)
         {
             var pedestal = new Vector3(d.Def.X, d.Def.Y, d.Def.Z);
@@ -272,6 +280,7 @@ public partial class MatchController : Node3D
             {
                 d.OnPedestal = SpawnBallAt(pedestal + new Vector3(0, 0.2f, 0));
                 d.Stored--;
+                ballsCached++;
             }
             if (d.Stored < d.Def.MaxStored)
             {

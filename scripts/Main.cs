@@ -36,7 +36,13 @@ public partial class Main : Node3D
         bool xrActive = XrBootstrap.Start(GetViewport());
         bool client = cfg.Mode == NetMode.Client;
 
-        map = MapData.Load($"res://maps/{cfg.Map}.json");
+        string mapPath = $"res://maps/{cfg.Map}.json";
+        if (!FileAccess.FileExists(mapPath))
+        {
+            GD.PrintErr($"Map introuvable : {mapPath}. Repli sur neon_court.");
+            mapPath = "res://maps/neon_court.json";
+        }
+        map = MapData.Load(mapPath);
         int localZoneId = client ? cfg.Zone : 0;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
@@ -116,6 +122,11 @@ public partial class Main : Node3D
             net.LivesOf = id => match.Rules.LivesOf(id);
             net.IsEliminated = id => match.IsEliminated(id);
             net.IsBot = id => bots.ContainsKey(id);
+            net.ZoneRect = id =>
+            {
+                var z = map.Zones.Find(zz => zz.Id == id);
+                return z == null ? net.ArenaXZ : new Rect2(z.X - map.ZoneWidth / 2 - 0.5f, z.Z - map.ZoneDepth / 2 - 0.5f, map.ZoneWidth + 1f, map.ZoneDepth + 1f);
+            };
             var bnds = map.Bounds;
             net.ArenaXZ = new Rect2(bnds.MinX, bnds.MinZ, bnds.MaxX - bnds.MinX, bnds.MaxZ - bnds.MinZ);
             net.HudText = () => match.HudText;
@@ -220,7 +231,8 @@ public partial class Main : Node3D
         {
             // Le joueur automatique remplace les entrées : il vise le centre de la zone adverse.
             var enemy = map.Zones.Find(z => z.Team != localZone.Team)!;
-            AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up });
+            AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up,
+                ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
         var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
         if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");

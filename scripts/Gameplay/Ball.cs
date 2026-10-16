@@ -211,6 +211,8 @@ public partial class Ball : RigidBody3D
         bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
         if (fast) trailPoints.Add(p);
         if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        bool hadTrail = trailMesh.GetSurfaceCount() > 0;
+        if (!fast && !hadTrail && trailPoints.Count == 0) return;
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
         if (trailPoints.Count < 2 || cam == null) return;

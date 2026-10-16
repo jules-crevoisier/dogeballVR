@@ -16,8 +16,10 @@ public partial class NetSession : Node
     public const int MaxPlayers = 4;
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
-    const float CatchReach = 3f;      // tolérance de l'hôte : la main doit être près de la balle
-    const float MaxThrowSpeed = 35f;
+    const float CatchReach = 1.2f;    // tolérance de l'hôte : la main (déjà bornée près de la tête) doit être près de la balle
+    const float MaxThrowSpeed = 30f;  // = plafond côté joueur (HandThrower, DesktopPlayer)
+    const float MaxMoveSpeed = 12f;   // m/s : au-delà, la pose est ramenée (pas de téléportation)
+    const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const int PlayerFloats = 14;
     const float MaxHandReach = 1.2f;   // une main reste près de la tête
     const float MaxSpin = 30f;
@@ -36,6 +38,8 @@ public partial class NetSession : Node
     public Func<int, bool> IsBot { get; set; } = _ => false;
     /// <summary>Limites de l'arène (x, z) : l'hôte n'accepte aucune pose en dehors.</summary>
     public Rect2 ArenaXZ { get; set; } = new(-100, -100, 200, 200);
+    /// <summary>Rectangle (x, z) de la zone d'un joueur, marge comprise : un client ne sort pas de sa zone.</summary>
+    public Func<int, Rect2> ZoneRect { get; set; } = _ => new Rect2(-100, -100, 200, 200);
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
@@ -128,8 +132,20 @@ public partial class NetSession : Node
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw)) return;
         // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
-        head = new Vector3(Mathf.Clamp(head.X, ArenaXZ.Position.X, ArenaXZ.End.X), Mathf.Clamp(head.Y, 0.2f, 3.5f),
-            Mathf.Clamp(head.Z, ArenaXZ.Position.Y, ArenaXZ.End.Y));
+        var zone = ZoneRect(remote.PlayerId);
+        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.2f, 3.5f),
+            Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
+        // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
+        double now = Time.GetTicksMsec() / 1000.0;
+        var last = remote.GetPose().Head;
+        float allowed = MaxMoveSpeed * (float)Mathf.Clamp(now - remote.LastPoseAt, 0.02, 0.5);
+        var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
+        if (remote.LastPoseAt > 0 && horizontal.Length() > allowed)
+        {
+            var limited = horizontal.LimitLength(allowed);
+            head = new Vector3(last.X + limited.X, head.Y, last.Z + limited.Z);
+        }
+        remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
         remote.SetPose(new PoseData(head, yaw, left, right));
@@ -139,10 +155,10 @@ public partial class NetSession : Node
     void CatchRpc(int ballId, int hand)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
-        if (hand is < 0 or > 1 || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        if (hand is < 0 or > 1 || Time.GetTicksMsec() / 1000.0 < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
-            if (n is not Ball { IsHeld: false } ball || ball.NetId != ballId) continue;
+            if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
             if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach) return;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team);
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
@@ -157,6 +173,7 @@ public partial class NetSession : Node
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         ball.Release(velocity.LimitLength(MaxThrowSpeed), Mathf.Clamp(spin, -MaxSpin, MaxSpin));
+        remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
         GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s");
     }
 

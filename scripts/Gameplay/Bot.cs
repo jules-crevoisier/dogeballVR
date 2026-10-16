@@ -45,10 +45,11 @@ public partial class Bot : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Hurtbox.Eliminated) { Visible = false; return; }
+        if (Hurtbox.Eliminated) { DropHeld(); Visible = false; return; }
         Visible = true;
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
         catchCooldown -= delta;
+        TrackTargets(delta);
         Dodge(delta);
         if (held == null && catchCooldown <= 0) TryCatch();
         else ThinkThrow(delta);
@@ -117,23 +118,50 @@ public partial class Bot : Node3D
         }
     }
 
+    const float MaxUsefulRange = 16f;
+    int waitedForRange;
+    readonly Dictionary<Node3D, Vector3> lastPositions = new();
+    readonly Dictionary<Node3D, Vector3> velocities = new();
+
+    /// <summary>Vitesse estimée de chaque cible (pour l'anticipation du tir).</summary>
+    void TrackTargets(double delta)
+    {
+        if (delta <= 0) return;
+        foreach (var t in Targets)
+        {
+            if (!IsInstanceValid(t)) continue;
+            var p = t.GlobalPosition;
+            if (lastPositions.TryGetValue(t, out var prev))
+                velocities[t] = velocities.TryGetValue(t, out var old) ? old.Lerp((p - prev) / (float)delta, 0.3f) : (p - prev) / (float)delta;
+            lastPositions[t] = p;
+        }
+    }
+
     void ThinkThrow(double delta)
     {
         throwDelay -= delta;
         if (throwDelay > 0 || held == null) return;
-        // Cible : un adversaire de préférence, parfois l'allié pour charger la balle.
-        var candidates = new List<Node3D>();
+        // Cible : l'adversaire le plus proche de préférence, parfois l'allié pour charger la balle.
         bool pass = rng.Randf() < 0.15f;
+        Node3D? target = null;
+        float bestDist = float.MaxValue;
         for (int i = 0; i < Targets.Count; i++)
         {
             bool enemy = TargetTeams[i] != Hurtbox.Team;
-            if (Targets[i] != this && enemy != pass) candidates.Add(Targets[i]);
+            if (Targets[i] == this || enemy == pass) continue;
+            float d = Targets[i].GlobalPosition.DistanceTo(GlobalPosition);
+            if (d < bestDist) { bestDist = d; target = Targets[i]; }
         }
-        if (candidates.Count == 0) candidates = new List<Node3D>(Targets);
-        var target = candidates[(int)(rng.Randi() % (uint)candidates.Count)];
-        var aim = target.GlobalPosition + new Vector3(rng.RandfRange(-0.3f, 0.3f), 1.0f, rng.RandfRange(-0.3f, 0.3f));
+        target ??= Targets[(int)(rng.Randi() % (uint)Targets.Count)];
+        // Hors de portée utile (18 m et plus : aucune touche mesurée) : on attend un peu que la cible se rapproche.
+        if (!pass && bestDist > MaxUsefulRange && waitedForRange < 3) { waitedForRange++; throwDelay = 0.5; return; }
+        waitedForRange = 0;
+        float speed = rng.RandfRange(14f, 20f);
+        // Anticipation : on vise là où la cible sera à l'arrivée de la balle.
+        var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
+        var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.2f, 0.2f), 1.0f, rng.RandfRange(-0.2f, 0.2f));
         var dir = (aim - holdPoint.GlobalPosition).Normalized();
-        held.Release(dir * rng.RandfRange(14f, 20f) + Vector3.Up * 1.2f, 0f);
+        held.Release(dir * speed + Vector3.Up * 1.2f, 0f);
         held = null;
         catchCooldown = 0.6;
     }

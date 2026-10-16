@@ -20,6 +20,8 @@ public partial class RemotePlayer : Node3D
     /// <summary>Point au sol sous le joueur : cible des bots.</summary>
     public Node3D Body { get; private set; } = null!;
 
+    public double LastPoseAt { get; set; }
+    public double NextCatchAt { get; set; }
     PoseData target, current;
     bool hasPose;
 
