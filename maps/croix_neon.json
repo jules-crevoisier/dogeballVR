@@ -262,7 +262,7 @@
     "heldBallMaxSeconds": 10,
     "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
     "heartRegen": "remis à 2 au respawn ; +1 cœur après 10 s sans être touché",
-    "invulnerableAfterHitSeconds": 1.5,
+    "invulnerableAfterHitSeconds": 1.5, "heartRegenSeconds": 10, "koTarget": 6,
     "catchReward": "un attrapé rend un cœur à l'attrapeur (règle du dépôt) ; un perfect catch ajoute en plus 1 palier",
     "respawnSeconds": 3,
     "chargeByPass": "paliers 0 à 2 : chaque passe d'allié et chaque perfect catch ajoutent 1 palier ; palier 2 = KO direct ; au palier 0 ou 1, 1 cœur",

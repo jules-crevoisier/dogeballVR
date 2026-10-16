@@ -38,7 +38,10 @@ public partial class DesktopPlayer : Node3D
     const float MaxChargeTime = 0.7f;
     const float AssistCone = 7f;         // degrés : l'aide à la visée ne corrige que les presque-touches
     const float AssistStrength = 0.5f;
-    const double CatchWindow = 0.5, CatchRecovery = 0.55;
+    const double CatchWindow = 0.45, CatchRecovery = 0.6;   // fenêtre d'attrape, puis blocage du bouton après un appui raté
+    const double PerfectCatchWindow = 0.18;                 // balle qui arrive dans les 0,18 s après l'appui : attrape parfaite (palier en plus)
+    const float CurveSpin = 6f;                             // effet : rad/s, signe = côté (E maintenu + gauche/droite au lâcher)
+    const float PassSpeedCap = 24f;
     const float CatchReach = 1.1f;       // de la main tendue ; l'hôte accepte 1,2 m + marge de latence
     const float HandExtend = 0.95f;      // main tendue devant la tête (l'hôte plafonne à 1,0 m)
     const float PickupSlowSpeed = 3.5f;
@@ -105,7 +108,8 @@ public partial class DesktopPlayer : Node3D
     public int DashCharges => dashCharges;
     public int DashMax => MaxCharges;
     public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
-    bool prevJump, prevDodge, prevCatch;
+    bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint;
+    double catchOpenedAt = -10, feintUntil;
     bool ignoreClicksUntilRelease, fireLatch;
     float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
     double time;
@@ -113,9 +117,11 @@ public partial class DesktopPlayer : Node3D
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
     bool autoplay;
     readonly RandomNumberGenerator rng = new();
+    bool apCurve;
+    double apNextSpecial = 5;
     double apFireStart = -1, apNextJump = 2, apNextDodge = 4, apCrouchUntil;
 
-    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint; }
+    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, Feint, Curve; }
 
     public override void _Ready()
     {
@@ -261,6 +267,7 @@ public partial class DesktopPlayer : Node3D
         if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) m.X -= 1;
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) m.X += 1;
         bool jump = Input.IsKeyPressed(Key.Space), dash = Input.IsKeyPressed(FreeRoam ? Key.Shift : Key.E), catchDown = Input.IsMouseButtonPressed(MouseButton.Right);
+        bool pass = Input.IsMouseButtonPressed(MouseButton.Middle) || Input.IsKeyPressed(Key.X), lob = Input.IsKeyPressed(Key.R), feint = Input.IsKeyPressed(Key.F);
         var input = new PcInput
         {
             Move = m.LimitLength(1f),
@@ -270,8 +277,12 @@ public partial class DesktopPlayer : Node3D
             Sprint = !FreeRoam && Input.IsKeyPressed(Key.Shift),
             Catch = catchDown && !prevCatch,
             Fire = Input.IsMouseButtonPressed(MouseButton.Left),
+            Pass = FreeRoam && pass && !prevPass,
+            Lob = FreeRoam && lob && !prevLob,
+            Feint = FreeRoam && feint && !prevFeint,
+            Curve = FreeRoam && Input.IsKeyPressed(Key.E),
         };
-        prevJump = jump; prevDodge = dash; prevCatch = catchDown;
+        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint;
         return input;
     }
 
@@ -411,7 +422,7 @@ public partial class DesktopPlayer : Node3D
 
     Vector3 RightHand()
     {
-        if (catchWindowLeft > 0) return head.GlobalPosition + (-head.GlobalTransform.Basis.Z) * HandExtend;
+        if (catchWindowLeft > 0 || time < feintUntil) return head.GlobalPosition + (-head.GlobalTransform.Basis.Z) * HandExtend;
         if (time < scoopUntil && held == null) return ScoopPoint();
         return holdPoint.GlobalPosition;
     }
@@ -426,6 +437,7 @@ public partial class DesktopPlayer : Node3D
         {
             catchWindowLeft = CatchWindow;
             catchCooldownLeft = CatchRecovery;
+            catchOpenedAt = time;
         }
 
         // Prend une balle : attrape (main tendue) ou ramassage automatique des balles lentes près des pieds.
@@ -436,13 +448,19 @@ public partial class DesktopPlayer : Node3D
             foreach (var node in GetTree().GetNodesInGroup("balls"))
             {
                 if (node is not Ball { IsHeld: false } ball) continue;
-                bool viaCatch = catchWindowLeft > 0 && ball.GlobalPosition.DistanceTo(hand) <= CatchReach;
+                // Un ballon d'allié (passe) qui arrive est pris tout seul ; les tirs adverses demandent l'appui clic droit.
+                bool ally = FreeRoam && ball.OwnerTeam == Hurtbox.Team && ball.OwnerPlayerId != Hurtbox.PlayerId && ball.GlobalPosition.DistanceTo(head.GlobalPosition + Vector3.Down * 0.3f) <= 1.3f;
+                bool viaCatch = ally || (catchWindowLeft > 0 && ball.GlobalPosition.DistanceTo(hand) <= CatchReach);
+                bool hostileFast = ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed;
+                bool perfect = FreeRoam && !ally && viaCatch && hostileFast && time - catchOpenedAt <= PerfectCatchWindow;
                 bool slow = ball.LinearVelocity.Length() < PickupSlowSpeed && time > pickupBlockedUntil;
                 float scoopDist = ball.GlobalPosition.DistanceTo(scoop);
                 if (slow && scoopDist <= PickupRadius + 0.6f) scoopUntil = time + 0.2;
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
-                BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team);
+                BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
+                if (perfect) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
+                if (ally) GD.Print("[PC] Passe reçue");
                 if (viaCatch) { catchWindowLeft = 0; catchCooldownLeft = 0; }   // attrape réussie : pas de recharge
                 if (BallActions.IsClient) pickupBlockedUntil = time + 0.3;
                 break;
@@ -456,23 +474,81 @@ public partial class DesktopPlayer : Node3D
 
         if (held != null)
         {
-            if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            if (input.Feint)
+            {
+                // Feinte : le bras part comme pour un tir, sans lâcher. Le clic doit être relâché avant de réarmer.
+                charging = false; chargeTime = 0; fireLatch = true; fire = false;
+                feintUntil = time + 0.35;
+                ShowToast("Feinte !");
+            }
+            else if (input.Pass && !charging)
+            {
+                var mate = BestAlly();
+                if (mate == null) ShowToast("Pas d'allié à portée");
+                else Launch(ArcVelocity(holdPoint.GlobalPosition, mate.GlobalPosition + Vector3.Up * 0.4f, 4.2f), 0f, Ball.ModePass);
+            }
+            else if (input.Lob && !charging)
+            {
+                var enemy = BestEnemy(AssistCone * 2f);
+                var to = enemy != null ? enemy.GlobalPosition : camera.GlobalPosition - camera.GlobalTransform.Basis.Z * AimDistance();
+                Launch(ArcVelocity(holdPoint.GlobalPosition, to, 2.2f), 0f, Ball.ModeLob);
+            }
+            else if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
             else if (charging)
             {
                 float t = (float)(chargeTime / MaxChargeTime);
                 float speed = Mathf.Lerp(MinThrow, MaxThrow, t);
-                BallActions.Throw(held, 1, ThrowVelocity(speed), 0f);
-                if (BallActions.IsClient) held.Visible = false;   // pas de balle fantôme dans la main en attendant la confirmation de l'hôte
-                ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
-                held = null;
-                charging = false;
-                chargeTime = 0;
-                pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
-                fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
+                float spin = input.Curve && Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) * CurveSpin : 0f;   // effet : E maintenu + gauche/droite
+                Launch(ThrowVelocity(speed), spin, 0);
             }
         }
         else { charging = false; chargeTime = 0; }
         holdPoint.Position = HoldLocalPosition();
+    }
+
+    void Launch(Vector3 velocity, float spin, int mode)
+    {
+        BallActions.Throw(held!, 1, velocity, spin, mode);
+        GD.Print($"[PC] Lancer {(mode == Ball.ModePass ? "passe" : mode == Ball.ModeLob ? "cloche" : spin != 0 ? "effet" : "tendu")} à {velocity.Length():0.0} m/s");
+        if (BallActions.IsClient) held!.Visible = false;   // pas de balle fantôme dans la main en attendant la confirmation de l'hôte
+        ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
+        held = null;
+        charging = false;
+        chargeTime = 0;
+        pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
+        fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
+    }
+
+    /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
+    static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
+    {
+        float g = Ball.ArcGravity;
+        float top = Mathf.Max(from.Y, to.Y);
+        float apex = apexY > 3f ? Mathf.Max(apexY, top + 0.8f) : top + apexY;   // passe : sommet à 4,2 m absolus ; lob : hauteur relative
+        float vy = Mathf.Sqrt(2f * g * (apex - from.Y));
+        float disc = vy * vy - 2f * g * (to.Y - from.Y);
+        float time = (vy + Mathf.Sqrt(Mathf.Max(disc, 0f))) / g;
+        var v = new Vector3((to.X - from.X) / time, vy, (to.Z - from.Z) / time);
+        return v.LimitLength(PassSpeedCap);
+    }
+
+    /// <summary>Allié visé : le mieux aligné avec le regard dans 35°, sinon le plus proche (jusqu'à 30 m).</summary>
+    Hurtbox? BestAlly()
+    {
+        var from = camera.GlobalPosition;
+        var fwd = -camera.GlobalTransform.Basis.Z;
+        Hurtbox? best = null, nearest = null;
+        float bestAngle = 35f, nearestDist = 30f;
+        foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (node is not Hurtbox h || h == Hurtbox || h.Team != Hurtbox.Team || h.Eliminated) continue;
+            var to = h.GlobalPosition - from;
+            float angle = Mathf.RadToDeg(fwd.AngleTo(to));
+            if (angle < bestAngle) { bestAngle = angle; best = h; }
+            float d = h.GlobalPosition.DistanceTo(head.GlobalPosition);
+            if (d < nearestDist) { nearestDist = d; nearest = h; }
+        }
+        return best ?? nearest;
     }
 
     Vector3 HoldLocalPosition()
@@ -659,10 +735,20 @@ public partial class DesktopPlayer : Node3D
         if (held != null && enemy != null)
         {
             float err = Mathf.RadToDeg((-head.GlobalTransform.Basis.Z).AngleTo(enemy.GlobalPosition - head.GlobalPosition));
-            if (apFireStart < 0 && err < 6f) apFireStart = time + rng.RandfRange(0.0f, 0.7f);
+            if (apFireStart < 0 && err < 6f) { apFireStart = time + rng.RandfRange(0.0f, 0.7f); apCurve = FreeRoam && rng.Randf() < 0.35f; }
             input.Fire = apFireStart < 0 || time < apFireStart;
+            input.Curve = apCurve;
         }
         else apFireStart = -1;
+        // Coups spéciaux du jeu libre, de temps en temps : passe à un allié, feinte, cloche.
+        if (FreeRoam && held != null && time > apNextSpecial)
+        {
+            float r = rng.Randf();
+            apNextSpecial = time + rng.RandfRange(3f, 6f);
+            if (r < 0.4f) input.Pass = true;
+            else if (r < 0.6f) input.Feint = true;
+            else if (enemy != null) input.Lob = true;
+        }
 
         if (time > apNextJump) { input.Jump = true; apNextJump = time + rng.RandfRange(2.5f, 5f); }
         input.Sprint = !FreeRoam;

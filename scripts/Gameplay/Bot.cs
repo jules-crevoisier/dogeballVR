@@ -110,6 +110,7 @@ public partial class Bot : Node3D
         foreach (var node in GetTree().GetNodesInGroup("balls"))
         {
             if (node is not Ball ball || ball.IsHeld) continue;
+            if (ball.IsPass && ball.OwnerTeam != Hurtbox.Team) continue;   // une passe adverse ne s'intercepte pas
             if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 0.8f) > CatchRadius) continue;
             // Un tir ennemi rapide n'est attrapé qu'une fois sur trois : les bots ne neutralisent plus la moitié des tirs.
             if (ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f && rng.Randf() > 0.3f)

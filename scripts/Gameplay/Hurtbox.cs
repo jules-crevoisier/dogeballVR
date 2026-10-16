@@ -55,6 +55,7 @@ public partial class Hurtbox : Area3D
     {
         if (Eliminated || DashInvulnerable || body is not Ball ball || ball.IsHeld) return;
         if (ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;          // neutre ou tir allié
+        if (ball.IsPass) return;                                           // une passe ne blesse personne
         if (ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;       // trop lente
         if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée
         int shooter = ball.OwnerPlayerId;

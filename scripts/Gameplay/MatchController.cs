@@ -53,6 +53,8 @@ public partial class MatchController : Node3D
     int maxBallsInPlay;
     double invulnerableSeconds;
     readonly Dictionary<int, double> lastHitAt = new();
+    readonly Dictionary<int, double> lastDamageAt = new();   // dernier cœur perdu ou regagné : repart le délai de régénération
+    float heartRegenSeconds;
 
     /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
     void OnCaughtThrow(int catcherId)
@@ -82,6 +84,8 @@ public partial class MatchController : Node3D
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
+        heartRegenSeconds = map.Rules.HeartRegenSeconds;
+        if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
         HandThrower.MinLaunchSpeed = map.BallRules.ThrowAssist.MinLaunchSpeed;
         foreach (var def in map.BallSpawns)
         {
@@ -208,6 +212,7 @@ public partial class MatchController : Node3D
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
         lastHitAt[targetId] = clock;
+        lastDamageAt[targetId] = clock;
         if (throwDistance >= 0f) hitsByRange[RangeBucket(throwDistance)]++;
         // Une balle chargée fait plus mal : charge 2 ou plus = 2 vies, sinon 1.
         Rules.RegisterHit(shooterId, targetId);
@@ -242,6 +247,16 @@ public partial class MatchController : Node3D
             hurtboxes[id].Eliminated = false;
             respawnAt.Remove(id);
         }
+        if (heartRegenSeconds > 0)
+            foreach (var id in hurtboxes.Keys)
+            {
+                if (hurtboxes[id].Eliminated || Rules.LivesOf(id) >= Rules.LivesPerPlayer) continue;
+                lastDamageAt.TryGetValue(id, out double since);
+                if (now - since < heartRegenSeconds) continue;
+                Rules.RegisterPerfectCatch(id);   // +1 cœur (plafonné)
+                GD.Print($"[Match] Cœur regagné par le joueur {id} (10 s sans être touché)");
+                lastDamageAt[id] = now;
+            }
 
         if (UsesDispensers) UpdateDispensers(delta, now);
         else

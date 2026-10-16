@@ -67,3 +67,14 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 - **Limites connues (phase 1)** : pas de lobby mixte VR/PC sur les cartes en anneau (le mode libre suit la plateforme de l'hôte, conformément au cahier des charges) ; pas de collision joueur-joueur ; tir 3e personne sans raycast main→cible (collé à un couvert, la balle peut partir dans l'abri) ; le ressenti n'a pas été testé à la souris ni au casque.
 - **Choix assumés** : un joueur KO est immobilisé en jeu libre seulement ; la caméra 3e personne suit le pas physique (60 Hz) sans interpolation, à vérifier sur écran 144 Hz ; accroupi 0,9 m et attrape 0,5 s (le cahier des charges dit 1,0 m et 0,45 s) ne sont pas encore alignés.
 - **Limites réseau connues** (revue 5) : l'hôte ne contrôle pas les obstacles (un client modifié pourrait se tenir dans le pylône) ; un client modifié peut réclamer une invulnérabilité de 0,3 s par dash sans bouger (budget de 2 charges) ; la fenêtre d'invulnérabilité de l'hôte démarre à la réception du compteur, donc décalée de la latence ; pas de test CI de retour de KO.
+
+## Croix Néon : coups spéciaux (phase 2 de la refonte Knockout City)
+
+- **Passe** (molette ou X) : cloche vers l'allié le mieux aligné (35°, sinon le plus proche), gravité pleine, sommet à 4,2 m, sans frottement pour tomber là où on a visé. La passe ne blesse personne et ne s'intercepte pas (bots compris). L'allié la prend tout seul (1,3 m) et elle gagne +1 palier ; 2 paliers = KO direct (déjà le cas : 2 cœurs, dégâts doubles).
+- **Cloche** (R) : lob blessant vers l'adversaire visé ou le point visé, sommet 2,2 m au-dessus des deux extrémités.
+- **Effet** (E maintenu + gauche/droite au lâcher) : balle qui dévie de 3 à 4 m sur 20 m (spin 6 rad/s, force de Magnus existante).
+- **Feinte** (F) : le bras part sans lâcher (visible des autres via la pose), charge annulée, il faut relâcher le clic pour réarmer.
+- **Attrape parfaite** : clic droit dans les 0,18 s avant l'arrivée d'un tir adverse rapide : +1 cœur (règle existante) et la balle repart avec un palier. Fenêtre d'attrape 0,45 s, blocage de 0,6 s après un appui raté. Le client déclare la perfection, l'hôte ne la valide que sur un tir adverse rapide.
+- **Règles** de la carte : un cœur revient après 10 s sans être touché, la manche s'arrête à 6 KO.
+- **Flèches** : une balle ennemie rapide (≥ 12 m/s) à moins de 25 m et hors de l'écran est signalée par une flèche au bord.
+- **Limites** : les passes ne sont pas interceptables (même par une attrape parfaite) ; les bots ne passent pas ; verrouillage de l'aide à la visée absent sur l'effet ; ressenti non testé à la souris.
