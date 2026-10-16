@@ -34,3 +34,13 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Revue La Fosse 4 : la recharge du lift est tenue par zone (une reconnexion ne la remet pas à zéro), l'hôte exige un accroupi tenu 0,8 s sur le pad avant de monter, marge de durée de 1 s.
 - Toujours non fait : verrou « balle chargée » côté hôte, seuil d'accroupi relatif à la taille du joueur (borne d'arcade : un enfant peut déclencher le lift debout), remise à zéro du lift entre manches, bots qui utilisent le lift, mesure sur casque.
 - Revue La Fosse 5 : la recharge du lift démarre aussi si le joueur part en haut. L'accroupi est lu sur la hauteur de tête envoyée par le client : il protège d'un bug, pas d'un client modifié (limite assumée, bornée à 6 s toutes les 18 s sur le pad).
+
+## Clavier-souris (joueur PC)
+- Inspiré des commandes de Knockout City : ZQSD/WASD, Maj sprint (7,5 m/s contre 5,5 de marche, 3,8 en armant un lancer), Espace saut (~0,5 m), Ctrl/C accroupi, E esquive (10 m/s pendant 0,18 s, recharge 1,2 s), souris pour viser. Accélération courte (pas de glissade).
+- Lancer : clic gauche maintenu puis relâché. Un tap part à 14 m/s, 0,7 s de charge donnent 30 m/s. Aide à la visée légère : un adversaire à moins de 7° du regard attire le tir de moitié.
+- Attrape : clic droit ouvre une fenêtre de 0,5 s (main tendue à 0,95 m, portée 1,1 m), puis 0,55 s de recharge si elle est ratée ; réussie, pas de recharge. Les balles lentes (< 3,5 m/s) à moins de 0,9 m des pieds sont ramassées automatiquement (la main se baisse dans la pose envoyée pour que l'hôte valide).
+- L'hôte garde la même validation : vitesse de déplacement plafonnée à 11 m/s (était 8) pour laisser passer l'esquive, saut sous le plafond vertical de 4 m/s, main à 1 m de la tête.
+- Les couverts et plots sont solides pour le joueur PC (il glisse le long). Sensibilité réglable (PageHaut/PageBas), enregistrée dans `user://settings.cfg`.
+- HUD : viseur rouge sur un adversaire, marqueur de touche (hôte et hors ligne seulement), flash rouge quand on perd une vie, indicateurs d'attrape et d'esquive, aide des touches (F1).
+- Test : `--pc-autoplay` pilote le joueur PC avec les mêmes actions que le clavier-souris (solo et client réseau, en CI).
+- Limites : aucun test avec une vraie souris ni une vraie manette ; le marqueur de touche n'existe pas côté client ; les valeurs de feeling (vitesses, fenêtre d'attrape) sont des estimations à régler à la main.

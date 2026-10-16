@@ -231,8 +231,10 @@ public partial class Ball : RigidBody3D
             var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
             var prev = trailPoints[Mathf.Max(i - 1, 0)];
             var dir = (next - prev).Normalized();
-            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t;
-            var vc = new Color(color, 0.6f * t);
+            // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
+            float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t * nearCam;
+            var vc = new Color(color, 0.6f * t * nearCam);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
         }

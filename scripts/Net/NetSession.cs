@@ -18,7 +18,7 @@ public partial class NetSession : Node
     const float PoseInterval = 1f / 30f;
     const float CatchReach = 1.2f;    // tolérance de l'hôte : la main (déjà bornée près de la tête) doit être près de la balle
     const float MaxThrowSpeed = 30f;  // = plafond côté joueur (HandThrower, DesktopPlayer)
-    const float MaxMoveSpeed = 8f;    // m/s : au-delà, la pose est ramenée (pas de téléportation)
+    const float MaxMoveSpeed = 11f;   // m/s (esquive PC à 10 m/s) : au-delà, la pose est ramenée (pas de téléportation)
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)

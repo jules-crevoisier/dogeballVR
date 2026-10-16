@@ -20,6 +20,8 @@ public partial class ClientWorld : Node3D
 
     readonly Dictionary<int, Ball> balls = new();
     readonly Dictionary<int, Avatar> avatars = new();
+    // Cibles passives (groupe « hurtboxes ») : l'aide à la visée et le viseur du joueur PC en ont besoin côté client.
+    readonly Dictionary<int, Hurtbox> aimTargets = new();
     readonly Dictionary<int, PoseData> poseTargets = new();
     readonly Dictionary<int, int> lives = new();
 
@@ -53,8 +55,16 @@ public partial class ClientWorld : Node3D
                 avatars[p.Id] = avatar;
                 poseTargets[p.Id] = p.Pose;
                 avatar.Pose(p.Pose.Head, p.Pose.Yaw, p.Pose.Left, p.Pose.Right);
+                var marker = new Hurtbox { Name = $"Aim{p.Id}", PlayerId = p.Id, Team = team, Passive = true };
+                AddChild(marker);
+                aimTargets[p.Id] = marker;
             }
             poseTargets[p.Id] = p.Pose;
+            if (aimTargets.TryGetValue(p.Id, out var aim))
+            {
+                aim.GlobalPosition = p.Pose.Head + new Vector3(0, -0.4f, 0);
+                aim.Eliminated = p.Eliminated;
+            }
             avatar.Visible = !p.Eliminated;
         }
 

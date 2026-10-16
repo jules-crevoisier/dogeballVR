@@ -32,6 +32,7 @@ public partial class Hurtbox : Area3D
     {
         AddChild(new CollisionShape3D { Shape = capsule });
         Monitoring = !Passive;
+        AddToGroup("hurtboxes");
         BodyEntered += OnBodyEntered;
         if (Head == null) Position = new Vector3(Position.X, 0.85f, Position.Z);
     }

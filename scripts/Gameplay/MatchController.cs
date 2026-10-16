@@ -190,6 +190,9 @@ public partial class MatchController : Node3D
         return string.Join(" | ", parts);
     }
 
+    /// <summary>Touche validée par l'hôte (ou hors ligne) : tireur, cible, vrai si la cible est KO. Pour le marqueur de touche du HUD.</summary>
+    public static event System.Action<int, int, bool>? HitScored;
+
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
         if (!inRound) return;
@@ -201,6 +204,7 @@ public partial class MatchController : Node3D
         // Une balle chargée fait plus mal : charge 2 ou plus = 2 vies, sinon 1.
         Rules.RegisterHit(shooterId, targetId);
         if (charge >= 2 && Rules.LivesOf(targetId) > 0) Rules.RegisterHit(shooterId, targetId);
+        HitScored?.Invoke(shooterId, targetId, Rules.LivesOf(targetId) <= 0);
     }
 
     void OnEliminated(int playerId)
@@ -211,6 +215,9 @@ public partial class MatchController : Node3D
 
     public override void _Process(double delta)
     {
+        // Le tableau flottant garde une taille apparente raisonnable : énorme quand on passe dessous, lisible de loin.
+        var cam = GetViewport().GetCamera3D();
+        if (cam != null) hud.PixelSize = 0.004f * Mathf.Clamp(cam.GlobalPosition.DistanceTo(hud.GlobalPosition) / 12f, 0.35f, 1.5f);
         if (!inRound)
         {
             breakLeft -= delta;
