@@ -22,8 +22,21 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 2. PC : lance sans casque (OpenXR indisponible) avec le joueur clavier-souris : ZQSD/WASD bouger, Maj accroupi, souris viser, clic droit maintenu attraper, clic gauche maintenu puis relâché lancer, Échap libère la souris.
 3. Quest : installer le « Godot OpenXR Vendors » (AssetLib), créer un preset d'export Android avec *XR Mode = OpenXR*, export APK, `adb install`.
 
+## Jouer à deux (réseau local)
+- Hôte : `DogeballVR.exe --host` (ou `godot --path . -- --host`). Il joue la zone 0 ; les autres zones sont des bots.
+- Client : `DogeballVR.exe --join=ADRESSE_IP_DE_L_HOTE` (port UDP 7777, `--port=N` pour changer). Il prend la zone 2 (équipe adverse) à la place d'un bot ; `--zone=1|3` pour une autre.
+- Map : `--map=neon_court` (par défaut) ou `--map=demo_2v2`, la même chez l'hôte et le client.
+- L'hôte est seul maître des balles, des touches et du score. Le client envoie sa pose et ses demandes d'attraper / lancer ; il reçoit l'état à 30 Hz.
+- Test automatique (CI) : `--net-selftest` sur le client le fait jouer seul.
+
+### Limites connues du réseau (revue indépendante)
+- Pas de prédiction ni de rembobinage : attraper et lancer passent par un aller-retour vers l'hôte. Sans conséquence sur un réseau local, à revoir pour de l'inter-lieux (référence : Knockout City fait du rollback).
+- Pas d'interpolation entre snapshots (lissage + extrapolation par la vitesse de la balle).
+- Allocations à chaque snapshot, matériaux transparents sur chaque balle : à mesurer sur Quest.
+- Rien de testé sur casque : en particulier le lancer VR côté client (fenêtre de 4 images pour la vitesse de main).
+
 ## Format de partie (nerveux)
-Partie de 10 minutes minimum : 5 manches de 2 min, toutes jouées en entier. 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
+Partie au meilleur des 3 manches de 75 s : manche finie dès 3 KO, partie dès 2 manches gagnées (3 à 5 min). 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
 
 ## État
 - Le projet compile (`dotnet build`) et une partie complète tourne en simulation avec les bots (Godot 4.3 .NET, mode headless, sans casque) : manches, KO, prolongation.

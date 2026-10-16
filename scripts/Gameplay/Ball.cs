@@ -13,6 +13,17 @@ public partial class Ball : RigidBody3D
     public const int MaxCharge = 3;
     public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
 
+    /// <summary>Réglages de la map (voir BallRulesDef) : gravité, et durée de vol après laquelle la balle ne blesse plus.</summary>
+    public static float GravityFactor { get; set; } = 0.6f;
+    public static float MaxFlightSeconds { get; set; }
+
+    /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
+    public float ThrowDistance { get; set; } = -1f;
+    public static event System.Action<Ball>? Released;
+    /// <summary>Un adversaire attrape une balle lancée vite : (balle, id du receveur). Le receveur regagne une vie.</summary>
+    public static event System.Action<int>? CaughtThrow;
+    double flightTime;
+
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
     static readonly float[] HaloScale = { 1.0f, 1.15f, 1.35f, 1.6f };
     static readonly float[] HaloAlpha = { 0.25f, 0.4f, 0.55f, 0.75f };
@@ -20,8 +31,17 @@ public partial class Ball : RigidBody3D
     const int TrailPoints = 10;
     const float TrailMinSpeed = 6f;                            // = seuil de blessure
 
+    /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
+    public int NetId { get; set; }
+
+    /// <summary>Côté client : simple image de la balle de l'hôte, sans physique.</summary>
+    public bool IsPuppet { get; private set; }
+    Vector3 netTarget;
+
     public int OwnerPlayerId { get; private set; } = -1;
     public int OwnerTeam { get; private set; } = -1;
+    /// <summary>Dernière équipe à avoir tenu la balle (reste valable après une touche) : une balle perdue revient à l'autre camp.</summary>
+    public int LastTeam { get; private set; } = -1;
     public int Charge { get; private set; }
     public bool IsHeld { get; private set; }
 
@@ -71,13 +91,38 @@ public partial class Ball : RigidBody3D
         return ball;
     }
 
+    /// <summary>Balle marionnette (client) : gelée, déplacée uniquement par les snapshots de l'hôte.</summary>
+    public static Ball CreatePuppet(int netId)
+    {
+        var ball = Create();
+        ball.NetId = netId;
+        ball.IsPuppet = true;
+        ball.Freeze = true;
+        ball.FreezeMode = FreezeModeEnum.Static;
+        return ball;
+    }
+
+    /// <summary>Applique l'état envoyé par l'hôte (position lissée dans _Process).</summary>
+    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held)
+    {
+        bool first = netTarget == Vector3.Zero;
+        netTarget = position;
+        if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
+        LinearVelocity = velocity;
+        OwnerTeam = team;
+        OwnerPlayerId = ownerId;
+        Charge = charge;
+        IsHeld = held;
+        UpdateLook();
+    }
+
     public override void _Ready()
     {
         AddToGroup("balls");
         Mass = 0.6f;
-        GravityScale = 0.6f; // un peu flottante, plus lisible en VR
+        GravityScale = GravityFactor; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
-        LinearDamp = 0.3f;
+        LinearDamp = 0.1f;   // faible : la portée vient surtout de la gravité réduite et du vol limité
         AngularDamp = 2f;
         PhysicsMaterialOverride = new PhysicsMaterial { Bounce = 0.55f, Friction = 1.2f };
     }
@@ -85,10 +130,12 @@ public partial class Ball : RigidBody3D
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
     public void Hold(Node3D hand, int playerId, int team)
     {
+        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
         else if (OwnerTeam != team) ResetCharge();
         OwnerPlayerId = playerId;
         OwnerTeam = team;
+        LastTeam = team;
         IsHeld = true;
         LinearVelocity = Vector3.Zero;
         AngularVelocity = Vector3.Zero;
@@ -109,6 +156,8 @@ public partial class Ball : RigidBody3D
         Freeze = false;
         curveSpin = spin;
         LinearVelocity = velocity;
+        flightTime = 0;
+        Released?.Invoke(this);
     }
 
     /// <summary>La balle a touché : elle devient neutre (plus personne n'est blessé tant qu'elle n'est pas reprise).</summary>
@@ -142,6 +191,12 @@ public partial class Ball : RigidBody3D
     public override void _Process(double delta)
     {
         visualTime += delta;
+        if (IsPuppet)
+        {
+            // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
+            netTarget += LinearVelocity * (float)delta;
+            GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
+        }
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
 
@@ -159,6 +214,8 @@ public partial class Ball : RigidBody3D
         bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
         if (fast) trailPoints.Add(p);
         if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        bool hadTrail = trailMesh.GetSurfaceCount() > 0;
+        if (!fast && !hadTrail && trailPoints.Count == 0) return;
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
         if (trailPoints.Count < 2 || cam == null) return;
@@ -181,6 +238,9 @@ public partial class Ball : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (IsPuppet) return;
+        // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
+        if (!IsHeld && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.

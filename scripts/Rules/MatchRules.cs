@@ -6,7 +6,7 @@ namespace DogeballVR.Rules;
 /// <summary>
 /// Règles pures (sans Godot) : vies, manches, score. Exécutées côté serveur, testables à part.
 /// 2v2 nerveux : 2 vies par joueur, un joueur à 0 vie est un KO et revient 3 s plus tard (pas de temps mort).
-/// Partie de 10 min minimum = 5 manches de 2 min, toutes jouées en entier (pas de fin anticipée).
+/// Partie au meilleur des 3 manches de 75 s : une manche s'arrête dès qu'une équipe atteint 3 KO, la partie dès 2 manches gagnées (3 à 5 min typiques pour une borne).
 /// Une manche revient à l'équipe avec le plus de KO. Égalité à la fin : prolongation de 30 s à mort subite
 /// (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche
 /// décisive est jouée jusqu'à départage. KoTarget > 0 réactive la fin anticipée.
@@ -15,10 +15,10 @@ public class MatchRules
 {
     public int LivesPerPlayer { get; init; } = 2;
     public float RespawnSeconds { get; init; } = 3f;
-    public float RoundSeconds { get; init; } = 120f;
+    public float RoundSeconds { get; init; } = 75f;
     public float OvertimeSeconds { get; init; } = 30f;
-    public int MaxRounds { get; init; } = 5;
-    public int KoTarget { get; init; } = 0;
+    public int MaxRounds { get; init; } = 3;
+    public int KoTarget { get; init; } = 3;
 
     readonly Dictionary<int, int> lives = new();
     readonly Dictionary<int, int> teamOf = new();
@@ -26,7 +26,13 @@ public class MatchRules
     public int[] Kos { get; } = new int[2];
 
     /// <summary>Prolongation à mort subite : le premier KO met fin à la manche.</summary>
-    public bool InOvertime { get; set; }
+    public bool InOvertime
+    {
+        get => inOvertime;
+        set { inOvertime = value; if (value) { overtimeStartKos[0] = Kos[0]; overtimeStartKos[1] = Kos[1]; } }
+    }
+    bool inOvertime;
+    readonly int[] overtimeStartKos = new int[2];
 
     public event Action<int>? PlayerEliminated;
     public event Action<int>? RoundWon;
@@ -34,7 +40,8 @@ public class MatchRules
     public void AddPlayer(int playerId, int team)
     {
         teamOf[playerId] = team;
-        lives[playerId] = LivesPerPlayer;
+        // Un joueur qui change de main (bot remplacé par un humain, reconnexion) garde ses vies.
+        if (!lives.ContainsKey(playerId)) lives[playerId] = LivesPerPlayer;
     }
 
     public int LivesOf(int playerId) => lives[playerId];
@@ -69,10 +76,16 @@ public class MatchRules
     /// <summary>Équipe qui a atteint le nombre de KO cible, ou -1.</summary>
     public int KoTargetReached()
     {
-        int target = InOvertime ? 1 : KoTarget;
-        if (target <= 0) return -1;
-        if (Kos[0] >= target) return 0;
-        if (Kos[1] >= target) return 1;
+        if (InOvertime)
+        {
+            // Mort subite : le premier KO depuis le début de la prolongation (les KO de la manche restent comptés).
+            if (Kos[0] > overtimeStartKos[0]) return 0;
+            if (Kos[1] > overtimeStartKos[1]) return 1;
+            return -1;
+        }
+        if (KoTarget <= 0) return -1;
+        if (Kos[0] >= KoTarget) return 0;
+        if (Kos[1] >= KoTarget) return 1;
         return -1;
     }
 
@@ -94,8 +107,9 @@ public class MatchRules
         InOvertime = false;
     }
 
-    /// <summary>La partie est finie quand les 5 manches sont jouées et que les équipes sont départagées.</summary>
-    public bool IsMatchOver(int roundsPlayed) => roundsPlayed >= MaxRounds && RoundsWon[0] != RoundsWon[1];
+    /// <summary>La partie est finie dès 2 manches gagnées (ou après les 3 manches si départagées).</summary>
+    public bool IsMatchOver(int roundsPlayed) =>
+        Math.Max(RoundsWon[0], RoundsWon[1]) > MaxRounds / 2 || (roundsPlayed >= MaxRounds && RoundsWon[0] != RoundsWon[1]);
 
     public void ResetMatch()
     {

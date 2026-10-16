@@ -1,4 +1,5 @@
 using Godot;
+using DogeballVR.Net;
 using DogeballVR.Zones;
 
 namespace DogeballVR.Gameplay;
@@ -27,6 +28,11 @@ public partial class DesktopPlayer : Node3D
 
     Camera3D camera = null!;
     Node3D holdPoint = null!;
+    double ignoreHeldUntil;          // client : laisse le temps à l'hôte de confirmer un lancer
+
+    /// <summary>Pose envoyée aux autres joueurs : tête, cap, main gauche (repos) et main droite (là où la balle est tenue).</summary>
+    public PoseData Pose => new(camera.GlobalPosition, camera.GlobalRotation.Y,
+        camera.GlobalPosition + camera.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), holdPoint.GlobalPosition);
     Ball? held;
     Vector2 localPos;                // position dans le repère de la zone (centre = 0)
     float yaw, pitch;
@@ -72,10 +78,12 @@ public partial class DesktopPlayer : Node3D
     {
         float dt = (float)delta;
         MoveInZone(dt);
+        if (BallActions.IsClient)
+            held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
         {
-            if (held != null) { held.Release(Vector3.Zero, 0f); held = null; charging = false; chargeTime = 0; }
+            if (held != null && !BallActions.IsClient) { held.Release(Vector3.Zero, 0f); held = null; charging = false; chargeTime = 0; }
         }
         else HandleCatchAndThrow(delta);
         ApplyTransform();
@@ -118,8 +126,9 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } ball) continue;
                 if (ball.GlobalPosition.DistanceTo(camera.GlobalPosition) > CatchReach) continue;
-                held = ball;
-                ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
+                if (!BallActions.IsClient) held = ball;
+                BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team);
+                catchCooldown = BallActions.IsClient ? 0.3 : 0;
                 break;
             }
         }
@@ -132,7 +141,8 @@ public partial class DesktopPlayer : Node3D
                 float t = (float)(chargeTime / MaxChargeTime);
                 float speed = Mathf.Lerp(MinThrow, MaxThrow, t);
                 var forward = -camera.GlobalTransform.Basis.Z;
-                held.Release(forward * speed, 0f);
+                BallActions.Throw(held, 1, forward * speed, 0f);
+                ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
                 held = null;
                 charging = false;
                 chargeTime = 0;

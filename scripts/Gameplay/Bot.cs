@@ -12,13 +12,14 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class Bot : Node3D
 {
-    const float Speed = 4.5f;
+    const float Speed = 3.0f;
     const float CatchRadius = 1.6f;
 
     public ZoneDef Zone { get; set; } = null!;
     public float ZoneWidth { get; set; } = 15f;
     public float ZoneDepth { get; set; } = 8f;
     public Hurtbox Hurtbox { get; set; } = null!;
+    public Avatar? Avatar { get; private set; }
     /// <summary>Positions des autres joueurs (visées).</summary>
     public IList<Node3D> Targets { get; set; } = new List<Node3D>();
     public IList<int> TargetTeams { get; set; } = new List<int>();
@@ -36,20 +37,29 @@ public partial class Bot : Node3D
         rng.Randomize();
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
-        AddChild(Avatar.Create(Hurtbox.Team, bot: true));
+        Avatar = Avatar.Create(Hurtbox.Team, bot: true);
+        AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Hurtbox.Eliminated) { Visible = false; return; }
+        if (Hurtbox.Eliminated) { DropHeld(); Visible = false; return; }
         Visible = true;
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
         catchCooldown -= delta;
+        TrackTargets(delta);
         Dodge(delta);
         if (held == null && catchCooldown <= 0) TryCatch();
         else ThinkThrow(delta);
+    }
+
+    /// <summary>Le bot disparaît (remplacé par un joueur) : il lâche sa balle au lieu de l'emporter.</summary>
+    public void DropHeld()
+    {
+        if (held != null && IsInstanceValid(held)) held.Release(Vector3.Zero, 0f);
+        held = null;
     }
 
     void Dodge(double delta)
@@ -101,6 +111,12 @@ public partial class Bot : Node3D
         {
             if (node is not Ball ball || ball.IsHeld) continue;
             if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 0.8f) > CatchRadius) continue;
+            // Un tir ennemi rapide n'est attrapé qu'une fois sur trois : les bots ne neutralisent plus la moitié des tirs.
+            if (ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f && rng.Randf() > 0.3f)
+            {
+                catchCooldown = 0.5f;
+                return;
+            }
             held = ball;
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
             throwDelay = rng.RandfRange(0.3f, 0.7f);
@@ -108,23 +124,50 @@ public partial class Bot : Node3D
         }
     }
 
+    const float MaxUsefulRange = 16f;
+    int waitedForRange;
+    readonly Dictionary<Node3D, Vector3> lastPositions = new();
+    readonly Dictionary<Node3D, Vector3> velocities = new();
+
+    /// <summary>Vitesse estimée de chaque cible (pour l'anticipation du tir).</summary>
+    void TrackTargets(double delta)
+    {
+        if (delta <= 0) return;
+        foreach (var t in Targets)
+        {
+            if (!IsInstanceValid(t)) continue;
+            var p = t.GlobalPosition;
+            if (lastPositions.TryGetValue(t, out var prev))
+                velocities[t] = velocities.TryGetValue(t, out var old) ? old.Lerp((p - prev) / (float)delta, 0.3f) : (p - prev) / (float)delta;
+            lastPositions[t] = p;
+        }
+    }
+
     void ThinkThrow(double delta)
     {
         throwDelay -= delta;
         if (throwDelay > 0 || held == null) return;
-        // Cible : un adversaire de préférence, parfois l'allié pour charger la balle.
-        var candidates = new List<Node3D>();
+        // Cible : l'adversaire le plus proche de préférence, parfois l'allié pour charger la balle.
         bool pass = rng.Randf() < 0.15f;
+        Node3D? target = null;
+        float bestDist = float.MaxValue;
         for (int i = 0; i < Targets.Count; i++)
         {
             bool enemy = TargetTeams[i] != Hurtbox.Team;
-            if (Targets[i] != this && enemy != pass) candidates.Add(Targets[i]);
+            if (Targets[i] == this || enemy == pass) continue;
+            float d = Targets[i].GlobalPosition.DistanceTo(GlobalPosition);
+            if (d < bestDist) { bestDist = d; target = Targets[i]; }
         }
-        if (candidates.Count == 0) candidates = new List<Node3D>(Targets);
-        var target = candidates[(int)(rng.Randi() % (uint)candidates.Count)];
-        var aim = target.GlobalPosition + new Vector3(rng.RandfRange(-0.3f, 0.3f), 1.0f, rng.RandfRange(-0.3f, 0.3f));
+        target ??= Targets[(int)(rng.Randi() % (uint)Targets.Count)];
+        // Hors de portée utile (18 m et plus : aucune touche mesurée) : on attend un peu que la cible se rapproche.
+        if (!pass && bestDist > MaxUsefulRange && waitedForRange < 3) { waitedForRange++; throwDelay = 0.5; return; }
+        waitedForRange = 0;
+        float speed = rng.RandfRange(16f, 24f);
+        // Anticipation : on vise là où la cible sera à l'arrivée de la balle.
+        var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
+        var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.1f, rng.RandfRange(-0.1f, 0.1f));
         var dir = (aim - holdPoint.GlobalPosition).Normalized();
-        held.Release(dir * rng.RandfRange(14f, 20f) + Vector3.Up * 1.2f, 0f);
+        held.Release(dir * speed + Vector3.Up * 1.2f, 0f);
         held = null;
         catchCooldown = 0.6;
     }
