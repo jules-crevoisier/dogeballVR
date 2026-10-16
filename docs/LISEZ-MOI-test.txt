@@ -4,6 +4,7 @@ Lancer : double-clic sur DogeballVR.exe (Windows peut afficher un avertissement 
 Garde le dossier data_DogeballVR_windows_x86_64 à côté du .exe.
 
 Tu es en 2 contre 2. Ton allié et les deux adversaires sont des bots.
+À deux : l'un lance DogeballVR.exe --host, l'autre DogeballVR.exe --join=ADRESSE_IP_DE_L_HOTE (même réseau, port UDP 7777 ouvert). Le second joueur prend la place d'un adversaire.
 Parties de 10 minutes : 5 manches de 2 minutes, prolongation de 30 s à mort subite en cas d'égalité.
 
 Contrôles
