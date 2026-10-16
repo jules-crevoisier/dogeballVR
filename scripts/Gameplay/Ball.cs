@@ -36,6 +36,9 @@ public partial class Ball : RigidBody3D
 
     /// <summary>Côté client : simple image de la balle de l'hôte, sans physique.</summary>
     public bool IsPuppet { get; private set; }
+    /// <summary>Client : tant que ce joueur local tient la marionnette, elle suit sa main sans attendre les snapshots (pas de retard, taille réduite).</summary>
+    public Node3D? LocalHoldOverride { get; set; }
+    bool overridden;
     Vector3 netTarget;
 
     public int OwnerPlayerId { get; private set; } = -1;
@@ -154,7 +157,7 @@ public partial class Ball : RigidBody3D
         var world = GetTree().CurrentScene;
         var xf = GlobalTransform;
         Reparent(world, false);
-        GlobalTransform = xf;
+        GlobalTransform = xf.Orthonormalized();   // la main du joueur PC est réduite : la balle lâchée reprend sa taille
         IsHeld = false;
         Freeze = false;
         curveSpin = spin;
@@ -194,8 +197,17 @@ public partial class Ball : RigidBody3D
     public override void _Process(double delta)
     {
         visualTime += delta;
-        if (IsPuppet)
+        if (IsPuppet && IsHeld && LocalHoldOverride != null && IsInstanceValid(LocalHoldOverride))
         {
+            GlobalTransform = LocalHoldOverride.GlobalTransform;
+            Visible = true;
+            netTarget = GlobalPosition;
+            overridden = true;
+        }
+        else if (IsPuppet)
+        {
+            if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
+            if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
             // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
             netTarget += LinearVelocity * (float)delta;
             GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
@@ -231,8 +243,10 @@ public partial class Ball : RigidBody3D
             var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
             var prev = trailPoints[Mathf.Max(i - 1, 0)];
             var dir = (next - prev).Normalized();
-            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t;
-            var vc = new Color(color, 0.6f * t);
+            // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
+            float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t * nearCam;
+            var vc = new Color(color, 0.6f * t * nearCam);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
         }

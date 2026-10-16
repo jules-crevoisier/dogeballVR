@@ -163,14 +163,19 @@ public static class ArenaBuilder
         var material = Materials.LimitWall(Palette.Danger);
         var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
         float hw = map.ZoneWidth * 0.5f, hd = map.ZoneDepth * 0.5f;
-        void Wall(float sx, float sz, Vector3 offset) => root.AddChild(new MeshInstance3D
+        void Wall(float sx, float sz, Vector3 offset)
         {
-            Name = "LimitWall",
-            Mesh = new BoxMesh { Size = new Vector3(sx, LimitWallHeight, sz) },
-            Basis = basis,
-            Position = zone.Center + basis * offset + new Vector3(0, LimitWallHeight * 0.5f, 0),
-            MaterialOverride = material,
-        });
+            var wall = new MeshInstance3D
+            {
+                Name = "LimitWall",
+                Mesh = new BoxMesh { Size = new Vector3(sx, LimitWallHeight, sz) },
+                Basis = basis,
+                Position = zone.Center + basis * offset + new Vector3(0, LimitWallHeight * 0.5f, 0),
+                MaterialOverride = material,
+            };
+            wall.AddToGroup("limit_wall");   // Godot renomme les doublons : le joueur PC retrouve les 4 murs par ce groupe
+            root.AddChild(wall);
+        }
         Wall(map.ZoneWidth, 0.02f, new Vector3(0, 0, -hd));
         Wall(map.ZoneWidth, 0.02f, new Vector3(0, 0, hd));
         Wall(0.02f, map.ZoneDepth, new Vector3(-hw, 0, 0));
