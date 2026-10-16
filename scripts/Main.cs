@@ -215,6 +215,7 @@ public partial class Main : Node3D
             net.IsEliminated = id => match.IsEliminated(id);
             net.IsBot = id => bots.ContainsKey(id);
             net.FreeRoam = map.IsRing && xrOrigin == null;
+            net.SpawnOf = id => map.Pc?.Spawns.Find(sp => sp.Zone == id) is { } s ? new Vector3(s.X, 0, s.Z) : null;
             net.ZoneRect = id =>
             {
                 if (net.FreeRoam) return net.ArenaXZ;

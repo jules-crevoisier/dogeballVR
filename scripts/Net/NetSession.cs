@@ -36,7 +36,9 @@ public partial class NetSession : Node
     public int ZoneId { get; set; }
     /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
     public bool FreeRoam { get; set; }
-    const float FreeRunCap = 9f, FreeDashCap = 30f;     // course 7,5 m/s + marge ; dash 20 m/s pendant 0,2 s
+    /// <summary>Point d'apparition d'un joueur en jeu libre (retour de KO).</summary>
+    public Func<int, Vector3?> SpawnOf { get; set; } = _ => null;
+    const float FreeRunCap = 9f, FreeDashCap = 26f;     // course 7,5 m/s + marge ; dash 20 m/s pendant 0,2 s
     const double DashSlack = 0.25, DashRecharge = 1.6;   // fenêtre d'un dash validé (latence comprise) ; recharge d'une charge
     float MoveSpeedCap => FreeRoam ? FreeRunCap : MaxMoveSpeed;
     float VerticalSpeedCap => FreeRoam ? 5.5f : 4f;
@@ -181,12 +183,23 @@ public partial class NetSession : Node
         {
             // Dash : l'hôte tient le compte des charges (2, une toutes les 1,6 s) ; sans charge le signal est ignoré.
             remote.DashBudget = Mathf.Min(2f, remote.DashBudget + (float)((remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0) / DashRecharge));
-            if (dash && !remote.PrevDash && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
+            if (dash && !remote.PrevDash && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
             remote.PrevDash = dash;
             if (now < remote.DashUntil) cap = FreeDashCap;
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
             if (IsEliminated(remote.PlayerId)) remote.TeleportPending = true;
-            else if (remote.TeleportPending) { remote.TeleportPending = false; cap = 1000f; }   // une seule pose libre après le KO
+            else if (remote.TeleportPending)
+            {
+                // Retour de KO : l'hôte remet la copie au point d'apparition et ignore les poses encore anciennes du client (au plus 1,5 s).
+                var spawn = SpawnOf(remote.PlayerId);
+                if (spawn is Vector3 sp)
+                {
+                    if (remote.TeleportDeadline <= 0) { remote.TeleportDeadline = now + 1.5; remote.SetPose(new PoseData(sp + Vector3.Up * 1.6f, yaw, sp + new Vector3(-0.3f, 1.0f, 0), sp + new Vector3(0.3f, 1.0f, 0))); }
+                    if (new Vector2(head.X - sp.X, head.Z - sp.Z).Length() > 3f && now < remote.TeleportDeadline) return;
+                }
+                remote.TeleportPending = false; remote.TeleportDeadline = 0;
+                remote.PrevDash = false;
+            }
         }
         float allowed = cap * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);

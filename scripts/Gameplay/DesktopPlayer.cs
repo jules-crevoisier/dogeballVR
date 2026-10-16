@@ -23,7 +23,7 @@ public partial class DesktopPlayer : Node3D
     const float JumpSpeed = 3.5f, Gravity = 12f;
     const float FreeJumpSpeed = 5.0f;    // jeu libre : saut d'environ 1 m (l'hôte laisse 5,5 m/s en lobby PC)
     const float DodgeSpeed = 10f, DodgeTime = 0.18f, DodgeCooldown = 1.2f;
-    const float DashSpeed = 20f, DashTime = 0.2f, DashRecharge = 1.6f;   // 4 m en 0,2 s, 2 charges
+    const float DashSpeed = 21.5f, DashTime = 0.2f, DashRecharge = 1.6f;   // 4 m en 0,2 s (la dernière image est ramenée à la course), 2 charges
     const int DashMaxCharges = 2;
     const double DashGap = 0.35;         // délai minimal entre deux dashs : le signal réseau d'un dash reste lisible pour l'hôte
     const float PlayerRadius = 0.3f;
@@ -96,9 +96,8 @@ public partial class DesktopPlayer : Node3D
     double pickupBlockedUntil;
     Vector2 spawnPos;
     bool wasEliminated;
-    readonly System.Collections.Generic.List<(Vector2 center, Vector2 half)> fixedBoxes = new();   // décor plein hors liste d'obstacles (pylône)
     float camFraction = 1f;          // part de la distance caméra libre de décor
-    int dashCharges = DashMaxCharges;
+    int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
     int MaxCharges => FreeRoam ? DashMaxCharges : 1;
     double RechargeTime => FreeRoam ? DashRecharge : DodgeCooldown;
@@ -151,6 +150,7 @@ public partial class DesktopPlayer : Node3D
             selfAvatar.TopLevel = true;
             AddChild(selfAvatar);
         }
+        dashCharges = MaxCharges;
         autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
         rng.Seed = 4242;
         LoadSettings();
@@ -214,7 +214,7 @@ public partial class DesktopPlayer : Node3D
     public override void _Process(double delta)
     {
         head.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
-        if (FreeRoam) PlaceCamera();
+        if (FreeRoam) PlaceCamera((float)delta);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -386,7 +386,6 @@ public partial class DesktopPlayer : Node3D
             if (o.Kind == "pit" || baseY > Elevation + 1.5f || baseY + o.Sy < Elevation + 0.3f) continue;
             Collide(new Vector2(o.X, o.Z), new Vector2(o.Sx, o.Sz) * 0.5f, Mathf.DegToRad(o.RotY));
         }
-        foreach (var (center, half) in fixedBoxes) Collide(center, half, 0f);
         if (!moved) return;
         if (FreeRoam)
         {
@@ -546,11 +545,10 @@ public partial class DesktopPlayer : Node3D
         float target = charging ? 94f : 100f;
         fov = Mathf.Lerp(fov, target, 1f - Mathf.Exp(-10f * dt));
         camera.Fov = fov;
-        if (FreeRoam) PlaceCamera();
     }
 
     /// <summary>3e personne : la caméra flotte derrière l'épaule droite, orientée comme la tête, et reste dans l'arène.</summary>
-    void PlaceCamera()
+    void PlaceCamera(float dt)
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         var from = head.GlobalPosition;
@@ -572,7 +570,7 @@ public partial class DesktopPlayer : Node3D
             exclude.Add(hit["rid"].AsRid());
         }
         float f = allowed / full;
-        camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 0.15f);
+        camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 1f - Mathf.Exp(-9f * dt));
         var pos = from.Lerp(ideal, camFraction);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
