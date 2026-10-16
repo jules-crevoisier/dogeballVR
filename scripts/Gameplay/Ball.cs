@@ -12,6 +12,7 @@ public partial class Ball : RigidBody3D
 {
     public const int MaxCharge = 3;
     public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
+    public const float LobHitMinSpeed = 4.5f;   // une cloche arrive presque à la verticale : seuil plus bas
 
     /// <summary>Réglages de la map (voir BallRulesDef) : gravité, et durée de vol après laquelle la balle ne blesse plus.</summary>
     public static float GravityFactor { get; set; } = 0.6f;
@@ -116,8 +117,9 @@ public partial class Ball : RigidBody3D
     }
 
     /// <summary>Applique l'état envoyé par l'hôte (position lissée dans _Process).</summary>
-    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held)
+    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held, bool pass = false)
     {
+        ThrowMode = pass ? ModePass : 0;   // marionnette : sert au HUD et à la prise automatique d'une passe
         bool first = netTarget == Vector3.Zero;
         netTarget = position;
         if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
@@ -173,7 +175,8 @@ public partial class Ball : RigidBody3D
         flightTime = 0;
         ThrowMode = mode;
         arcTime = 0;
-        LinearDamp = mode == 0 ? 0.1f : 0f;   // la trajectoire scriptée ne doit pas être freinée
+        LinearDampMode = mode == 0 ? DampMode.Combine : DampMode.Replace;   // en cloche : aucun frottement (le défaut du projet s'ajouterait sinon)
+        LinearDamp = mode == 0 ? 0.1f : 0f;
         GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
         Released?.Invoke(this);
     }
@@ -182,6 +185,7 @@ public partial class Ball : RigidBody3D
     void EndArc()
     {
         ThrowMode = 0;
+        LinearDampMode = DampMode.Combine;
         LinearDamp = 0.1f;
         GravityScale = GravityFactor;
     }
@@ -277,7 +281,7 @@ public partial class Ball : RigidBody3D
     {
         if (IsPuppet) return;
         // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
-        if (ThrowMode != 0 && !IsHeld && (arcTime += delta) > ArcMaxSeconds) { if (ThrowMode == ModePass) Spent(); else EndArc(); }
+        if (ThrowMode != 0 && !IsHeld && (arcTime += delta) > ArcMaxSeconds) Spent();   // une cloche qui n'a touché personne devient neutre
         if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;

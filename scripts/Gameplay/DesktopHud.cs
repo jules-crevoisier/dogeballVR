@@ -21,7 +21,7 @@ public partial class DesktopHud : CanvasLayer
         "Ctrl / C   s'accroupir (ramasser)\n" +
         "Clic gauche   lancer (maintenir = plus fort)\n" +
         "E maintenu + Q/D   effet      R   cloche\n" +
-        "Molette / X   passe à un allié      F   feinte\n" +
+        "Clic molette / X   passe à un allié      F   feinte\n" +
         "Clic droit   attraper (tôt = attrape parfaite)\n" +
         "PgHaut / PgBas   sensibilité\n" +
         "Échap   libérer la souris      F1   cacher l'aide";
@@ -32,7 +32,7 @@ public partial class DesktopHud : CanvasLayer
         "Ctrl / C   s'accroupir (ramasser, ascenseur)\n" +
         "E   esquive\n" +
         "Clic gauche   lancer (maintenir = plus fort)\n" +
-        "Clic droit   attraper (0,5 s)\n" +
+        "Clic droit   attraper (0,45 s)\n" +
         "PgHaut / PgBas   sensibilité\n" +
         "Échap   libérer la souris      F1   cacher l'aide";
 
@@ -230,7 +230,7 @@ public partial class DesktopHud : CanvasLayer
         bool tips = age < 12;
         state.Text = ball == null
             ? (Player.CatchState == 1 ? "Attrape !" : tips ? "Passe sur une balle pour la ramasser, ou clic droit pour l'attraper" : "")
-            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : tips ? (Player.FreeRoam ? "Clic gauche : lancer   Molette : passe   F : feinte   R : cloche" : "Clic gauche : lancer (maintenir = plus fort)") : "");
+            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : tips ? (Player.FreeRoam ? "Clic gauche : lancer   Clic molette : passe   F : feinte   R : cloche" : "Clic gauche : lancer (maintenir = plus fort)") : "");
         float c = Player.ThrowCharge01;
         barBack.Visible = ball != null;
         bar.Size = new Vector2(240 * c, 14);
