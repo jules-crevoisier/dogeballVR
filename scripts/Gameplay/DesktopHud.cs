@@ -59,7 +59,7 @@ public partial class DesktopHud : CanvasLayer
             var view = GetViewportRect().Size;
             foreach (var node in GetTree().GetNodesInGroup("balls"))
             {
-                if (node is not Ball { IsHeld: false } b || b.OwnerTeam < 0 || b.OwnerTeam == Hud.Player.Hurtbox.Team || b.LinearVelocity.Length() < 12f) continue;
+                if (node is not Ball { IsHeld: false } b || b.OwnerTeam < 0 || b.OwnerTeam == Hud.Player.Hurtbox.Team || b.IsPass || b.LinearVelocity.Length() < 12f) continue;
                 if (b.GlobalPosition.DistanceTo(Hud.Player.Hurtbox.GlobalPosition) > 25f) continue;
                 bool behind = cam.IsPositionBehind(b.GlobalPosition);
                 var p = cam.UnprojectPosition(b.GlobalPosition);

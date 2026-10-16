@@ -273,7 +273,7 @@ public partial class NetSession : Node
             // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
             bool perfectOk = perfect && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed
-                && catchNow - remote.LastPerfectAt > 2.0
+                && ball.ThrowMode == 0 && ball.LinearVelocity.Length() >= 10f && catchNow - remote.LastPerfectAt > 2.0
                 && ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) + 0.01f < (ball.GlobalPosition - ball.LinearVelocity * 0.3f).DistanceTo(remote.HandNode(hand).GlobalPosition);
             if (perfectOk) remote.LastPerfectAt = catchNow;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team, perfectOk);
