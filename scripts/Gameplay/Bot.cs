@@ -12,7 +12,7 @@ namespace DogeballVR.Gameplay;
 public partial class Bot : Node3D
 {
     const float Speed = 4.5f;
-    const float CatchRadius = 1.4f;
+    const float CatchRadius = 1.6f;
 
     public ZoneDef Zone { get; set; } = null!;
     public float ZoneWidth { get; set; } = 15f;
@@ -25,6 +25,7 @@ public partial class Bot : Node3D
     Node3D holdPoint = null!;
     Ball? held;
     double throwDelay;
+    double catchCooldown; // évite de rattraper aussitôt la balle qu'on vient de lancer
     float targetX;
     double changeDirTimer;
     readonly RandomNumberGenerator rng = new();
@@ -47,24 +48,53 @@ public partial class Bot : Node3D
     {
         if (Hurtbox.Eliminated) { Visible = false; return; }
         Visible = true;
+        if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
+        catchCooldown -= delta;
         Dodge(delta);
-        if (held == null) TryCatch();
+        if (held == null && catchCooldown <= 0) TryCatch();
         else ThinkThrow(delta);
     }
 
     void Dodge(double delta)
     {
-        changeDirTimer -= delta;
-        if (changeDirTimer <= 0)
-        {
-            targetX = rng.RandfRange(-(ZoneDepth * 0.5f - 0.5f), ZoneDepth * 0.5f - 0.5f);
-            changeDirTimer = rng.RandfRange(0.4f, 1.2f);
-        }
-        // Déplacement dans le repère de la zone : l'axe « profondeur » devient latéral pour le bot.
         var basis = new Basis(Vector3.Up, Mathf.DegToRad(Zone.FacingDegrees));
         var local = basis.Inverse() * (GlobalPosition - Zone.Center);
-        local.Z = Mathf.MoveToward(local.Z, targetX, Speed * (float)delta);
-        local.X = Mathf.Clamp(local.X, -(ZoneWidth * 0.5f - 0.5f), ZoneWidth * 0.5f - 0.5f);
+        float limitX = ZoneWidth * 0.5f - 0.5f;
+        float limitZ = ZoneDepth * 0.5f - 0.5f;
+
+        // Sans balle en main : aller chercher la balle libre la plus proche qui est dans sa zone.
+        Vector3? goal = null;
+        if (held == null)
+        {
+            float best = float.MaxValue;
+            foreach (var node in GetTree().GetNodesInGroup("balls"))
+            {
+                if (node is not Ball { IsHeld: false } ball) continue;
+                var bl = basis.Inverse() * (ball.GlobalPosition - Zone.Center);
+                if (Mathf.Abs(bl.X) > limitX + 0.5f || Mathf.Abs(bl.Z) > limitZ + 0.5f) continue;
+                float d = ball.GlobalPosition.DistanceTo(GlobalPosition);
+                if (d < best) { best = d; goal = bl; }
+            }
+        }
+
+        if (goal is Vector3 g)
+        {
+            local = local.MoveToward(new Vector3(g.X, 0, g.Z), Speed * (float)delta);
+        }
+        else
+        {
+            // Esquive : allers-retours latéraux dans la zone.
+            changeDirTimer -= delta;
+            if (changeDirTimer <= 0)
+            {
+                targetX = rng.RandfRange(-limitX, limitX);
+                changeDirTimer = rng.RandfRange(0.4f, 1.2f);
+            }
+            local.X = Mathf.MoveToward(local.X, targetX, Speed * (float)delta);
+        }
+        local.X = Mathf.Clamp(local.X, -limitX, limitX);
+        local.Z = Mathf.Clamp(local.Z, -limitZ, limitZ);
+        local.Y = 0;
         GlobalPosition = Zone.Center + basis * local;
     }
 
@@ -73,10 +103,10 @@ public partial class Bot : Node3D
         foreach (var node in GetTree().GetNodesInGroup("balls"))
         {
             if (node is not Ball ball || ball.IsHeld) continue;
-            if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 1.2f) > CatchRadius) continue;
+            if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 0.8f) > CatchRadius) continue;
             held = ball;
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
-            throwDelay = rng.RandfRange(0.4f, 1.0f);
+            throwDelay = rng.RandfRange(0.3f, 0.7f);
             return;
         }
     }
@@ -87,7 +117,7 @@ public partial class Bot : Node3D
         if (throwDelay > 0 || held == null) return;
         // Cible : un adversaire de préférence, parfois l'allié pour charger la balle.
         var candidates = new List<Node3D>();
-        bool pass = rng.Randf() < 0.2f;
+        bool pass = rng.Randf() < 0.15f;
         for (int i = 0; i < Targets.Count; i++)
         {
             bool enemy = TargetTeams[i] != Hurtbox.Team;
@@ -95,9 +125,10 @@ public partial class Bot : Node3D
         }
         if (candidates.Count == 0) candidates = new List<Node3D>(Targets);
         var target = candidates[(int)(rng.Randi() % (uint)candidates.Count)];
-        var aim = target.GlobalPosition + new Vector3(rng.RandfRange(-0.5f, 0.5f), 1.1f, rng.RandfRange(-0.5f, 0.5f));
+        var aim = target.GlobalPosition + new Vector3(rng.RandfRange(-0.3f, 0.3f), 1.0f, rng.RandfRange(-0.3f, 0.3f));
         var dir = (aim - holdPoint.GlobalPosition).Normalized();
-        held.Release(dir * rng.RandfRange(11f, 18f) + Vector3.Up * 1.5f, 0f);
+        held.Release(dir * rng.RandfRange(14f, 20f) + Vector3.Up * 1.2f, 0f);
         held = null;
+        catchCooldown = 0.6;
     }
 }

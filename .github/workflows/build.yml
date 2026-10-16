@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Compiler le projet C#
+        run: dotnet build DogeballVR.csproj --nologo
+
+      - name: Lancer la partie en simulation (Godot headless, 150 s de jeu)
+        env:
+          GODOT_VERSION: 4.3-stable
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+          unzip -q godot.zip
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . --build-solutions --quit
+          # 9000 images à 60 i/s = 150 s de jeu : une manche entière, la prolongation et le début de la suivante.
+          # Toute erreur de script C# fait échouer le job.
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 2>&1 | tee run.log
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" run.log; then
+            echo "Erreur à l'exécution"; exit 1
+          fi

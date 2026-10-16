@@ -13,7 +13,7 @@ public static class XrBootstrap
             GD.PrintErr("OpenXR indisponible : lancement en mode écran (test PC).");
             return false;
         }
-        viewport.UseXr = true;
+        viewport.UseXR = true;
         DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // le casque cadence le rendu
         return true;
     }

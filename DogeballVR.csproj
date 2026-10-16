@@ -3,6 +3,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <TargetFramework Condition=" '$(GodotTargetsAndroid)' == 'true' ">net7.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
     <RootNamespace>DogeballVR</RootNamespace>
     <AssemblyName>DogeballVR</AssemblyName>
   </PropertyGroup>

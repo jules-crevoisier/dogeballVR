@@ -21,6 +21,9 @@ public partial class Ball : RigidBody3D
     public int Charge { get; private set; }
     public bool IsHeld { get; private set; }
 
+    /// <summary>Temps passé immobile au sol (s) : au-delà, la balle est recyclée et réapparaît dans une autre zone.</summary>
+    public double RestTime { get; private set; }
+
     StandardMaterial3D material = null!;
 
     /// <summary>Effet de courbe : vitesse angulaire du poignet au lâcher (rad/s, axe vertical).</summary>
@@ -46,6 +49,9 @@ public partial class Ball : RigidBody3D
         Mass = 0.6f;
         GravityScale = 0.6f; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
+        LinearDamp = 0.3f;
+        AngularDamp = 2f;
+        PhysicsMaterialOverride = new PhysicsMaterial { Bounce = 0.55f, Friction = 1.2f };
     }
 
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
@@ -56,6 +62,8 @@ public partial class Ball : RigidBody3D
         OwnerPlayerId = playerId;
         OwnerTeam = team;
         IsHeld = true;
+        LinearVelocity = Vector3.Zero;
+        AngularVelocity = Vector3.Zero;
         Freeze = true;
         FreezeMode = FreezeModeEnum.Kinematic;
         Reparent(hand, false);
@@ -104,6 +112,7 @@ public partial class Ball : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.
         var v = LinearVelocity;

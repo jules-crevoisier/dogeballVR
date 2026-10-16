@@ -86,6 +86,8 @@ public partial class HandThrower : XRController3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
+
         // Historique glissant de la position / rotation de la main.
         for (int i = HistorySize - 1; i > 0; i--)
         {
