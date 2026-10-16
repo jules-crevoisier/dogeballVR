@@ -256,7 +256,7 @@ public partial class MatchController : Node3D
                 lastDamageAt.TryGetValue(id, out double since);
                 if (now - since < heartRegenSeconds) continue;
                 Rules.RegisterPerfectCatch(id);   // +1 cœur (plafonné)
-                GD.Print($"[Match] Cœur regagné par le joueur {id} (10 s sans être touché)");
+                GD.Print($"[Match] Cœur regagné par le joueur {id} ({heartRegenSeconds:0.#} s sans être touché)");
                 lastDamageAt[id] = now;
             }
 

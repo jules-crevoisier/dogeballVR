@@ -526,6 +526,7 @@ public partial class DesktopPlayer : Node3D
         charging = false;
         chargeTime = 0;
         pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
+        catchWindowLeft = 0;                  // une fenêtre encore ouverte ne doit pas reprendre la balle lancée
         fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
     }
 
