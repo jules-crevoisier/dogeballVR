@@ -33,6 +33,7 @@ public partial class RemotePlayer : Node3D
     public double FlightReadyAt { get; set; }
     public int FlightZone { get; set; } = -1;        // plaque du tremplin utilisé : seule sa terrasse est accessible
     public (int victim, Vector2 dir, double until)? PendingTackle { get; set; }   // tacle arrivé avant la pose qui annonce le dash
+    public double SwapUntil { get; set; }   // échange de plaques annoncé : le saut de position est accepté
     public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;

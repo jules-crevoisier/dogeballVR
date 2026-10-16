@@ -826,6 +826,22 @@ public partial class DesktopPlayer : Node3D
         camera.GlobalTransform = new Transform3D(basis, pos);
     }
 
+    /// <summary>Échange de plaques : le joueur se retrouve au même endroit relatif de la plaque d'arrivée (jeu libre) ou y est simplement posé (zones).</summary>
+    public void MoveToPlate(ZoneDef to)
+    {
+        var from = zone;
+        zone = to;
+        Zones.LocalZoneId = to.Id;
+        if (FreeRoam)
+        {
+            var p = PlateSwap.Remap(new Vector3(worldPos.X, 0, worldPos.Y), from, to);
+            worldPos = new Vector2(p.X, p.Z);
+            velocity = Vector2.Zero;
+        }
+        yaw += PlateSwap.YawDelta(from, to);
+        GD.Print($"[PC] Échange de plaques : plaque {from.Id} -> {to.Id}, en {worldPos.X:0.0} / {worldPos.Y:0.0}");
+    }
+
     void ApplyTransform()
     {
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));

@@ -179,6 +179,25 @@ jobs:
           done
           echo "Balles spéciales : annonce, lancer ou souffle manquant"; exit 1
 
+      - name: Test échanges de plaques (hôte et client échangent leurs places, l'hôte suit)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          for ATTEMPT in 1 2 3; do
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 2000 -- --host --port=7360 --map=croix_neon --pc-autoplay --swap-test > swap-host.log 2>&1 &
+            HOST_PID=$!
+            sleep 3
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 1800 -- --join=127.0.0.1 --port=7360 --zone=1 --net-lag=30 --map=croix_neon --pc-autoplay > swap-client.log 2>&1 || true
+            wait $HOST_PID || true
+            if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" swap-host.log swap-client.log; then echo "Erreur à l'exécution (échanges de plaques)"; exit 1; fi
+            SWAPS=$(grep -c "Échange de plaques : joueur 0 <-> joueur 1" swap-host.log || true)
+            MOVED=$(cat swap-host.log swap-client.log | grep -c "\[PC\] Échange de plaques" || true)
+            CLOSE=$(grep "Échange vérifié" swap-host.log | grep -c -E "à [0-3]\.[0-9] m" || true)
+            echo "Essai $ATTEMPT : échanges $SWAPS, joueurs déplacés $MOVED, copies de l'hôte à moins de 4 m $CLOSE"
+            if [ "$SWAPS" -ge 1 ] && [ "$MOVED" -ge 2 ] && [ "$CLOSE" -ge 2 ]; then exit 0; fi
+          done
+          echo "Échange de plaques non reconnu"; exit 1
+
       - name: Test Fosse croisée (tremplin, terrasse, tacle, ring-out, dash qui s'arrête avant le vide)
         run: |
           GODOT_VERSION=4.3-stable

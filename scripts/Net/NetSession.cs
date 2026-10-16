@@ -192,7 +192,8 @@ public partial class NetSession : Node
             bool dashNew = dashCount != remote.LastDashCount;   // compteur de dashs : insensible aux paquets perdus
             remote.LastDashCount = dashCount;
             if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
-            if (now < remote.DashUntil) cap = FreeDashCap;
+            if (now < remote.SwapUntil) cap = 400f;   // échange de plaques : saut accepté pendant 1,5 s
+            else if (now < remote.DashUntil) cap = FreeDashCap;
             else if (now < remote.PushUntil) cap = 14f;   // poussée de 8 m/s : marge sans autoriser de téléportation
             ArmFlight(remote, head, now);
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
@@ -487,6 +488,20 @@ public partial class NetSession : Node
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    /// <summary>Nouvelle table des plaques (indexée par joueur) : l'hôte l'envoie à tous et accepte le saut des joueurs déplacés.</summary>
+    public event Action<int[]>? PlatesReceived;
+    public void BroadcastPlates(int[] plateOf, int[] oldPlateOf)
+    {
+        if (!IsHost) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var r in Remotes.Values)
+            if (r.PlayerId < plateOf.Length && r.PlayerId < oldPlateOf.Length && plateOf[r.PlayerId] != oldPlateOf[r.PlayerId]) r.SwapUntil = now + 1.5;
+        Rpc(MethodName.PlatesRpc, plateOf);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void PlatesRpc(int[] plateOf) => PlatesReceived?.Invoke(plateOf);
 
     /// <summary>Décode un snapshot : renvoie les joueurs et les balles. Partagé avec les tests.</summary>
     public static (List<SnapshotPlayer> players, List<SnapshotBall> balls) Decode(float[] d)

@@ -191,6 +191,31 @@ public partial class Main : Node3D
 
     // ------------------------------------------------------------------ hôte / hors ligne
 
+    int currentPlate;
+    int[] lastPlates = System.Array.Empty<int>();
+    System.Action<float>? swapFade;
+
+    /// <summary>Échange de plaques : si la table dit que ce joueur change de plaque, on le déplace (fondu en VR) ; chaque machine déplace son propre joueur.</summary>
+    void ApplyPlates(int[] plates)
+    {
+        int id = localHurtbox.PlayerId;
+        if (id >= plates.Length || plates[id] == currentPlate) return;
+        var from = map.Zones.Find(z => z.Id == currentPlate)!;
+        var to = map.Zones.Find(z => z.Id == plates[id])!;
+        currentPlate = to.Id;
+        swapFade ??= MakeFade();
+        swapFade(1f);
+        if (desktopPlayer != null) desktopPlayer.MoveToPlate(to);
+        else if (xrOrigin != null)
+        {
+            xrOrigin.Position = new Vector3(to.X, xrOrigin.Position.Y - from.Y + to.Y, to.Z);
+            xrOrigin.RotateY(PlateSwap.YawDelta(from, to));
+            zones.LocalZoneId = to.Id;
+        }
+        var tween = CreateTween();
+        tween.TweenMethod(Callable.From<float>(v => swapFade(v)), 1f, 0f, 0.4);
+    }
+
     bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
 
     void BuildHost(ZoneDef localZone)
@@ -208,6 +233,18 @@ public partial class Main : Node3D
             else net?.SendPush(victimId, dir);
         };
         match.Register(localHurtbox);
+        currentPlate = localZone.Id;
+        lastPlates = new int[map.Zones.Count];
+        for (int i = 0; i < lastPlates.Length; i++) lastPlates[i] = i;
+        match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
+        match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
+        match.PlatesChanged += plates =>
+        {
+            var old = lastPlates;
+            lastPlates = plates;
+            ApplyPlates(plates);
+            net?.BroadcastPlates(plates, old);
+        };
 
         targets.Add(localMarker);
         targetTeams.Add(localZone.Team);
@@ -230,7 +267,7 @@ public partial class Main : Node3D
             net.ZoneRect = id =>
             {
                 if (net.FreeRoam) return net.ArenaXZ;
-                var z = map.Zones.Find(zz => zz.Id == id);
+                var z = map.Zones.Find(zz => zz.Id == match.PlateOf(id));
                 return z == null ? net.ArenaXZ : new Rect2(z.X - map.ZoneWidth / 2 - 0.5f, z.Z - map.ZoneDepth / 2 - 0.5f, map.ZoneWidth + 1f, map.ZoneDepth + 1f);
             };
             net.MaxElevation = map.MaxElevation;
@@ -344,6 +381,8 @@ public partial class Main : Node3D
         if (net != null) net.PushReceived = dir => desktopPlayer?.ApplyPush(dir);
         clientWorld = world;
         net!.LocalPose = localPose;
+        currentPlate = localZone.Id;
+        net.PlatesReceived += ApplyPlates;
         if (localBody is DesktopPlayer desktop)
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
         if (localBody is DesktopPlayer) hud.Visible = false;

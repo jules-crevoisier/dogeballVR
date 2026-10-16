@@ -160,6 +160,7 @@ public partial class MatchController : Node3D
     public void ConfigureMap(MapData map)
     {
         foreach (var zone in map.Zones) SpawnZones.Add(zone.Center);
+        planZones.AddRange(map.Zones);
         returnSeconds = map.BallReturn.Seconds;
         maxBallsInPlay = map.BallRules.MaxBallsInPlay;
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
@@ -260,7 +261,9 @@ public partial class MatchController : Node3D
         if (!UsesDispensers) for (int i = 0; i < BallsOnField; i++) SpawnBall();
         roundTimeLeft = Rules.RoundSeconds;
         specialClock = 0;
+        specialNotice = "";
         specialAnnounced = false;
+        ResetPlates();
         specialLaunched = 0;
         ballTimer = 0;
         banner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
@@ -380,6 +383,7 @@ public partial class MatchController : Node3D
         }
 
         UpdateSpecialBalls(delta);
+        UpdatePlateSwaps(delta);
         roundTimeLeft -= delta;
         int winner = Rules.KoTargetReached();
         if (winner >= 0) FinishRound(winner);
@@ -398,7 +402,7 @@ public partial class MatchController : Node3D
     double specialClock;
     bool specialAnnounced;
     int specialLaunched;
-    string specialBanner = "", bannerBeforeSpecial = "";
+    string specialNotice = "", swapNotice = "";   // annonces affichées à la place du bandeau de manche (la balle spéciale prime)
 
     int bombTests;
 
@@ -420,6 +424,78 @@ public partial class MatchController : Node3D
         GD.Print("[Match] Test bombe : lancée");
     }
 
+    // Échanges de plaques (VR/EVA ; au clavier seulement avec --swap-test) : à 20, 45, 70 et 95 s deux plaques échangent leurs joueurs,
+    // annoncé 3 s avant. L'hôte tient la table « plaque occupée par chaque joueur » ; chaque machine déplace son propre joueur.
+    static readonly double[] SwapTimes = { 20, 45, 70, 95 };
+    const double SwapWarnSeconds = 3;
+    public bool PlateSwaps { get; set; }
+    int[] plateOf = System.Array.Empty<int>();
+    readonly List<ZoneDef> planZones = new();
+    double swapClock;
+    int swapIndex;
+    bool swapWarned;
+    (int a, int b, double at, Vector3 expectedA, Vector3 expectedB)? swapCheck;
+    /// <summary>Nouvelle table (indexée par joueur) : à appliquer localement puis à diffuser.</summary>
+    public event System.Action<int[]>? PlatesChanged;
+    /// <summary>Position de tête d'un joueur vue par l'hôte (vérification de l'échange).</summary>
+    public System.Func<int, Vector3?>? HeadOf { get; set; }
+    public int PlateOf(int playerId) => playerId >= 0 && playerId < plateOf.Length ? plateOf[playerId] : playerId;
+
+    void ResetPlates()
+    {
+        swapClock = 0; swapIndex = 0; swapWarned = false; swapNotice = ""; swapCheck = null;
+        int n = planZones.Count;
+        bool moved = false;
+        for (int i = 0; i < plateOf.Length; i++) if (plateOf[i] != i) moved = true;
+        if (plateOf.Length != n) { plateOf = new int[n]; moved = false; }
+        for (int i = 0; i < plateOf.Length; i++) plateOf[i] = i;
+        if (moved) { GD.Print("[Match] Plaques rétablies au début de la manche"); PlatesChanged?.Invoke((int[])plateOf.Clone()); }
+    }
+
+    void UpdatePlateSwaps(double delta)
+    {
+        if (!PlateSwaps || plateOf.Length < 2 || Rules.InOvertime) return;
+        swapClock += delta;
+        if (swapCheck is { } chk && swapClock >= chk.at)
+        {
+            swapCheck = null;
+            foreach (var (id, expected) in new[] { (chk.a, chk.expectedA), (chk.b, chk.expectedB) })
+                if (HeadOf?.Invoke(id) is Vector3 head)
+                    GD.Print($"[Match] Échange vérifié : joueur {id} à {new Vector2(head.X - expected.X, head.Z - expected.Z).Length():0.0} m de la place attendue");
+        }
+        if (swapIndex >= SwapTimes.Length) return;
+        double due = SwapTimes[swapIndex];
+        if (!swapWarned && swapClock >= due - SwapWarnSeconds)
+        {
+            swapWarned = true;
+            swapNotice = $"ÉCHANGE DE PLAQUES DANS {SwapWarnSeconds:0} s";
+        }
+        if (swapClock < due) return;
+        swapNotice = ""; swapWarned = false;
+        int pairs = plateOf.Length / 2;
+        int p = (swapIndex + round - 1) % pairs;   // l'ordre des paires tourne d'une manche à l'autre
+        swapIndex++;
+        int plateA = 2 * p, plateB = 2 * p + 1, a = -1, b = -1;
+        for (int i = 0; i < plateOf.Length; i++) { if (plateOf[i] == plateA) a = i; if (plateOf[i] == plateB) b = i; }
+        if (a < 0 || b < 0 || (IsBot?.Invoke(a) ?? false) || (IsBot?.Invoke(b) ?? false) || IsEliminated(a) || IsEliminated(b))
+        {
+            GD.Print($"[Match] Échange de plaques {plateA} <-> {plateB} sauté (bot ou joueur KO : bot {a}={IsBot?.Invoke(a)} bot {b}={IsBot?.Invoke(b)} ko {a}={IsEliminated(a)} ko {b}={IsEliminated(b)})");
+            return;
+        }
+        var headA = HeadOf?.Invoke(a); var headB = HeadOf?.Invoke(b);
+        plateOf[a] = plateB; plateOf[b] = plateA;
+        GD.Print($"[Match] Échange de plaques : joueur {a} <-> joueur {b} (plaques {plateA} et {plateB}, manche {round}, t={swapClock:0.0} s)");
+        if (headA is Vector3 ha && headB is Vector3 hb)
+            swapCheck = (a, b, swapClock + 0.3, Remap(ha, plateA, plateB), Remap(hb, plateB, plateA));
+        PlatesChanged?.Invoke((int[])plateOf.Clone());
+    }
+
+    Vector3 Remap(Vector3 p, int fromPlate, int toPlate)
+    {
+        var from = planZones.Find(z => z.Id == fromPlate); var to = planZones.Find(z => z.Id == toPlate);
+        return from == null || to == null ? p : PlateSwap.Remap(p, from, to);
+    }
+
     static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
 
     void UpdateSpecialBalls(double delta)
@@ -431,16 +507,14 @@ public partial class MatchController : Node3D
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
             specialAnnounced = true;
-            bannerBeforeSpecial = banner;
-            specialBanner = $"BALLE SPÉCIALE : {SpecialName(specialKind).ToUpper()} DANS {SpecialAnnounceSeconds:0} s";
-            banner = specialBanner;
+            specialNotice = $"BALLE SPÉCIALE : {SpecialName(specialKind).ToUpper()} DANS {SpecialAnnounceSeconds:0} s";
             GD.Print($"[Match] Balle spéciale annoncée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
         if (specialAnnounced && specialClock >= due)
         {
             specialAnnounced = false;
             specialLaunched++;
-            if (banner == specialBanner) banner = bannerBeforeSpecial;
+            specialNotice = "";
             if (!LaunchFromHub(hubLauncher, specialKind)) { GD.Print("[Match] Balle spéciale : aucune plaque de l'équipe menée, lancer annulé"); return; }
             GD.Print($"[Match] Balle spéciale lancée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
@@ -643,7 +717,7 @@ public partial class MatchController : Node3D
     void UpdateHud()
     {
         int seconds = inRound ? Mathf.Max(0, Mathf.CeilToInt((float)roundTimeLeft)) : 0;
-        hud.Text = $"{banner}\nÉquipe 1 : {Rules.RoundsWon[0]}  -  {Rules.RoundsWon[1]} : Équipe 2\n" +
+        hud.Text = $"{(specialNotice != "" ? specialNotice : swapNotice != "" ? swapNotice : banner)}\nÉquipe 1 : {Rules.RoundsWon[0]}  -  {Rules.RoundsWon[1]} : Équipe 2\n" +
                    $"KO {Rules.Kos[0]} - {Rules.Kos[1]}   |   {seconds}s";
     }
 }
