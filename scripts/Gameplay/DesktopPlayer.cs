@@ -10,6 +10,7 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class DesktopPlayer : Node3D
 {
+    const float CatchReach = 2.2f;
     const float MoveSpeed = 6f;      // nerveux : on traverse la zone en 2-3 s
     const float MinThrow = 9f;
     const float MaxThrow = 30f;
@@ -21,22 +22,18 @@ public partial class DesktopPlayer : Node3D
     public Hurtbox Hurtbox { get; set; } = null!;
 
     Camera3D camera = null!;
-    Area3D catchArea = null!;
     Node3D holdPoint = null!;
     Ball? held;
     Vector2 localPos;                // position dans le repère de la zone (centre = 0)
     float yaw, pitch;
     double chargeTime;
     bool charging;
+    double catchCooldown;
 
     public override void _Ready()
     {
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0) };
         AddChild(camera);
-
-        catchArea = new Area3D { Name = "CatchArea", Position = new Vector3(0, 0, -0.9f) };
-        catchArea.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.6f } });
-        camera.AddChild(catchArea);
 
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.25f, -0.6f) };
         camera.AddChild(holdPoint);
@@ -71,6 +68,7 @@ public partial class DesktopPlayer : Node3D
     {
         float dt = (float)delta;
         MoveInZone(dt);
+        if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
         {
             if (held != null) { held.Release(Vector3.Zero, 0f); held = null; charging = false; chargeTime = 0; }
@@ -108,10 +106,18 @@ public partial class DesktopPlayer : Node3D
         bool catching = Input.IsMouseButtonPressed(MouseButton.Right);
         bool leftDown = Input.IsMouseButtonPressed(MouseButton.Left);
 
-        if (catching && held == null)
+        catchCooldown -= delta;
+        if (catching && held == null && catchCooldown <= 0)
         {
-            foreach (var body in catchArea.GetOverlappingBodies())
-                if (body is Ball ball && !ball.IsHeld) { held = ball; ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team); break; }
+            // Au clavier-souris on attrape toute balle à portée de bras, même au sol.
+            foreach (var node in GetTree().GetNodesInGroup("balls"))
+            {
+                if (node is not Ball { IsHeld: false } ball) continue;
+                if (ball.GlobalPosition.DistanceTo(camera.GlobalPosition) > CatchReach) continue;
+                held = ball;
+                ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
+                break;
+            }
         }
 
         if (held != null)
@@ -126,6 +132,7 @@ public partial class DesktopPlayer : Node3D
                 held = null;
                 charging = false;
                 chargeTime = 0;
+                catchCooldown = 0.4;
             }
         }
     }

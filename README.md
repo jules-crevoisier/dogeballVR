@@ -23,7 +23,9 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 3. Quest : installer le « Godot OpenXR Vendors » (AssetLib), créer un preset d'export Android avec *XR Mode = OpenXR*, export APK, `adb install`.
 
 ## Format de partie (nerveux)
-Partie de 5 min = 5 manches de 1 min, 3 manches gagnantes. 2 vies par joueur, retour 3 s après élimination. Un joueur à 0 vie est KO et revient 3 s plus tard. Fin de manche à 5 KO pour une équipe ou à la minute (plus de KO gagne, égalité = manche nulle). Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
+Partie de 10 minutes minimum : 5 manches de 2 min, toutes jouées en entier. 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
 
 ## État
-Squelette non compilé ni testé sur casque (écrit sans Godot installé). Premier travail : faire tourner `Main.tscn` sur Quest, puis régler le lancer (`HandThrower`).
+- Le projet compile (`dotnet build`) et une partie complète tourne en simulation avec les bots (Godot 4.3 .NET, mode headless, sans casque) : manches, KO, prolongation.
+- Un workflow GitHub Actions (`.github/workflows/build.yml`) fait ce build et cette simulation à chaque PR.
+- **Jamais testé sur casque ni à la main** : le ressenti du lancer, de l'attrapé et des vitesses reste à régler (`HandThrower`, `DesktopPlayer`, `Bot`).
