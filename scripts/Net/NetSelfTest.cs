@@ -27,6 +27,7 @@ public partial class NetSelfTest : Node
     float maxCheat, maxHigh;
     double highAt = -1;
     bool dropped;
+    bool spoofOnce = true;
     double timer;
     int catches, throws;
     double logTimer;
@@ -34,7 +35,17 @@ public partial class NetSelfTest : Node
     public override void _Ready()
     {
         hand = ZoneCenter + Vector3.Up * 1.2f;
-        Net.LocalPose = () => new PoseData(new Vector3(hand.X, 1.6f + requestedElevation, hand.Z), 0, hand + Vector3.Up * requestedElevation, hand + Vector3.Up * requestedElevation, requestedElevation);
+        Net.LocalPose = () =>
+        {
+            if (spoofOnce && Lift != null)
+            {
+                // Triche : un seul paquet avec la tête posée sur le pad, puis retour à la vraie position.
+                spoofOnce = false;
+                var fake = new Vector3(Lift.Pad.X, 1.6f + Lift.HighElevation, Lift.Pad.Z);
+                return new PoseData(fake, 0, fake, fake, Lift.HighElevation);
+            }
+            return new PoseData(new Vector3(hand.X, 1.6f + requestedElevation, hand.Z), 0, hand + Vector3.Up * requestedElevation, hand + Vector3.Up * requestedElevation, requestedElevation);
+        };
         if (Lift == null) liftPhase = 3;
     }
 
@@ -51,7 +62,7 @@ public partial class NetSelfTest : Node
                 maxCheat = Mathf.Max(maxCheat, seen);
                 if (liftClock > 2.0)
                 {
-                    GD.Print($"[NetTest] lift triche hors pad : altitude vue {maxCheat:0.00} {(maxCheat < 0.1f ? "OK" : "KO")}");
+                    GD.Print($"[NetTest] lift triche hors pad (tête spoofée sur le pad) : altitude vue {maxCheat:0.00} {(maxCheat < 0.1f ? "OK" : "KO")}");
                     requestedElevation = 0;
                     liftPhase = 1;
                 }

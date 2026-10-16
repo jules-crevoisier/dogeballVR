@@ -151,16 +151,14 @@ public partial class NetSession : Node
         if (!IsHost) return;
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw) || !float.IsFinite(elevation)) return;
-        elevation = ValidateElevation(remote, head, elevation);
-        // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
-        var zone = ZoneRect(remote.PlayerId);
-        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation),
-            Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
-        // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
+        // Inondation : paquet ignoré avant toute modification d'état.
         double now = Time.GetTicksMsec() / 1000.0;
-        if (remote.LastPoseAt > 0 && now - remote.LastPoseAt < MinPoseInterval) return;   // inondation : paquet ignoré
+        if (remote.LastPoseAt > 0 && now - remote.LastPoseAt < MinPoseInterval) return;
+        // Bornes de l'hôte : la tête reste dans la zone, les mains près de la tête (pas de téléportation hors de portée).
+        var zone = ZoneRect(remote.PlayerId);
+        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), head.Y, Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
+        // Vitesse maximale : on ramène la tête sur la distance parcourue depuis la dernière pose acceptée (temps réel écoulé).
         var last = remote.GetPose().Head;
-        // Allocation sur le temps réellement écoulé (le premier paquet part de la pose de départ, sur 0,1 s).
         float allowed = MaxMoveSpeed * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
         if (horizontal.Length() > allowed)
@@ -168,6 +166,9 @@ public partial class NetSession : Node
             var limited = horizontal.LimitLength(allowed);
             head = new Vector3(last.X + limited.X, head.Y, last.Z + limited.Z);
         }
+        // Le lift est jugé sur la tête acceptée (pas sur la tête brute du paquet).
+        elevation = ValidateElevation(remote, head, elevation);
+        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
