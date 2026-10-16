@@ -36,7 +36,7 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 - Rien de testé sur casque : en particulier le lancer VR côté client (fenêtre de 4 images pour la vitesse de main).
 
 ## Format de partie (nerveux)
-Partie au meilleur des 3 manches de 75 s : manche finie dès 3 KO, partie dès 2 manches gagnées (3 à 5 min). 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
+Partie de 5 min minimum, visée autour de 10 min : 5 manches de 2 min, toutes jouées ; une manche s'arrête dès qu'une équipe atteint 3 KO. 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
 
 ## État
 - Le projet compile (`dotnet build`) et une partie complète tourne en simulation avec les bots (Godot 4.3 .NET, mode headless, sans casque) : manches, KO, prolongation.
