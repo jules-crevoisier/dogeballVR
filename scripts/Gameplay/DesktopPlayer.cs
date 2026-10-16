@@ -1083,7 +1083,7 @@ public partial class DesktopPlayer : Node3D
             Hurtbox? prey = null; float bestGap = 3.2f;
             foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
             {
-                if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated) continue;
+                if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated || h.PlayerId != 0) continue;   // le tacle ne vise qu'un humain : l'appât est le joueur 0 (les autres zones peuvent être des bots)
                 float gap = PitGap(new Vector2(h.GlobalPosition.X, h.GlobalPosition.Z));
                 if (gap > 0.2f && gap < bestGap) { bestGap = gap; prey = h; }
             }
