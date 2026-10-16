@@ -178,6 +178,13 @@ public partial class NetSession : Node
         // Inondation : paquet ignoré avant toute modification d'état.
         double now = Time.GetTicksMsec() / 1000.0;
         if (remote.LastPoseAt > 0 && now - remote.LastPoseAt < MinPoseInterval) return;
+        // Échange de plaques : l'hôte a déjà posé la copie à la place attendue ; les poses d'avant l'échange (ou d'un client qui ignore l'ordre) sont jetées.
+        if (now < remote.SwapUntil)
+        {
+            if (new Vector2(head.X - remote.SwapTarget.X, head.Z - remote.SwapTarget.Z).Length() > 6f) { remote.LastPoseAt = now; return; }
+            remote.SwapUntil = 0;
+            GD.Print($"[Net] Échange confirmé : la zone {remote.PlayerId} a rejoint sa nouvelle place");
+        }
         // Bornes de l'hôte : la tête reste dans la zone, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
         head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), head.Y, Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
@@ -487,6 +494,28 @@ public partial class NetSession : Node
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    /// <summary>Nouvelle table des plaques (indexée par joueur) : l'hôte l'envoie à tous et accepte le saut des joueurs déplacés.</summary>
+    public event Action<int[]>? PlatesReceived;
+    public void BroadcastPlates(int[] plateOf, Dictionary<int, Vector3> targets)
+    {
+        if (!IsHost) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var r in Remotes.Values)
+        {
+            if (!targets.TryGetValue(r.PlayerId, out var target)) continue;
+            var old = r.TargetPose;
+            var shift = target - old.Head;
+            shift.Y = 0;
+            r.SnapPose(new PoseData(old.Head + shift, old.Yaw, old.Left + shift, old.Right + shift, old.Elevation, old.DashCount));
+            r.SwapTarget = target;
+            r.SwapUntil = now + 1.5;
+        }
+        Rpc(MethodName.PlatesRpc, plateOf);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void PlatesRpc(int[] plateOf) => PlatesReceived?.Invoke(plateOf);
 
     /// <summary>Décode un snapshot : renvoie les joueurs et les balles. Partagé avec les tests.</summary>
     public static (List<SnapshotPlayer> players, List<SnapshotBall> balls) Decode(float[] d)

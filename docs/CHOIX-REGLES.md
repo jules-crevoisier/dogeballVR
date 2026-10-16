@@ -97,7 +97,7 @@ Source : `v3/maps/map_b_fosse_croisee.json` (copie : `maps/fosse_croisee.json`, 
 ## Tour 4v4 : huit plaques autour d'une fosse de 16×10 m (phase 3b)
 
 - **Carte** : `maps/tour_4v4.json` (v3, carte C du level design). Huit plaques en anneau (équipes A,B,A,B…), fosse rectangulaire de 16×10 m avec le pylône au centre, un tremplin et une terrasse par plaque, 4 contre 4, seuil de KO à 10, régénération de cœur 10 s. Les règles de la Fosse croisée s'appliquent telles quelles (tacle, ring-out, chute, tremplins) ; le code lit déjà une fosse rectangulaire quelconque.
-- **Pas encore fait** : les échanges de plateaux (phase 4c) ; le rotor est décrit plus bas.
+- **Pas encore fait** : voir les sections suivantes (rotor, balles spéciales, échanges de plaques).
 - **Test** : `--map=tour_4v4 --pc-autoplay` à deux humains (hôte zone 0 = appât, client `--zone=1` = pousseur) ; l'appât se place à 0,5 à 1,8 m du bord (décalé le long du bord s'il faut éviter les couverts, sa place et celle du pousseur 2 m derrière étant libres) ; les autres zones sont des bots, que le scénario ne vise pas (un tacle sur un bot est ignoré par l'hôte). Étape CI « Test Tour 4v4 », 30 ms de latence, 4 tentatives. Le plafond de joueurs réseau passe à 8 (la zone demandée au Hello doit exister dans la carte) ; un vrai 4v4 à huit humains n'a pas été joué.
 
 ## Rotor du moyeu (phase 4a)
@@ -117,3 +117,13 @@ Une seule famille de balle spéciale par match, tirée au sort au début (comme 
 - **Sonar et cage** : listés dans les maps (`specialBalls.types`) mais pas encore implémentés ; seuls bombe et rebond sont tirés.
 
 Limites connues : une balle spéciale tombée dans la fosse ou recyclée est remplacée par une balle normale ; `types`, l'intervalle et l'annonce sont codés en dur (le JSON des maps est descriptif) ; le ressenti n'a pas été testé à la main. Test CI : `--special-test` lâche une bombe à 1,2 m d'un adversaire et vérifie le souffle, plus l'annonce et le lancer à 45 s.
+
+## Échanges de plaques (phase 4c)
+
+À 20, 45, 70 et 95 s de chaque manche, deux plaques échangent leurs joueurs. Le tableau annonce « ÉCHANGE DE PLAQUES DANS 3 s » trois secondes avant, puis chaque machine déplace son propre joueur (fondu au noir de 0,4 s) : il se retrouve au même endroit relatif de l'autre plaque, tourné de l'écart de cap. Une balle tenue suit son joueur. La paire change à chaque événement (plaques 0-1 puis 2-3 sur quatre plaques, et l'ordre tourne d'une manche à l'autre) ; au début de chaque manche tout le monde retrouve sa plaque d'origine. Pas d'échange en prolongation, ni si un des deux joueurs est un bot ou KO (l'événement est sauté et consommé).
+
+- **VR / EVA seulement** : au clavier-souris le jeu libre n'a pas de plaques ; `--swap-test` force les échanges pour tester la mécanique.
+- **Réseau** : l'hôte tient la table « plaque occupée par chaque joueur » et la diffuse (RPC fiable). Il pose lui-même la copie du joueur déplacé à la place attendue (même endroit relatif), puis, pendant 1,5 s, jette les poses du client qui en sont éloignées de plus de 6 m (poses d'avant l'échange, ou client qui ignore l'ordre) : aucune téléportation libre n'est accordée, un client qui triche ne gagne rien de plus que ce que la limite de vitesse lui permet (en jeu libre il peut regagner l'ancienne place à 9 m/s, seule la VR est bornée par la plaque). Les bornes de zone suivent la plaque occupée (hors jeu libre) et le point d'apparition de KO aussi.
+- **Annonces** : l'échange s'affiche sur une 2e ligne du tableau, la balle spéciale garde la première ; à 45 s les deux se chevauchent. Le lancer de balle spéciale vise l'équipe menée selon l'occupant de la plaque après l'échange.
+- **Test CI** : hôte (plaque 0) et client (plaque 1) échangent à 20 s ; on exige les deux déplacements et que l'hôte reçoive une vraie pose du client à moins de 6 m de la place attendue (« Échange confirmé »). Un joueur qui arrive ou part rétablit toutes les plaques.
+- **Limites** : jamais essayé avec un vrai casque (rotation de l'origine XR autour de la tête et fondu non testés), le lift et le tremplin de la plaque d'origine ne sont pas suivis, pas d'invulnérabilité pendant le fondu, l'altitude et le vol en cours sont conservés tels quels, les plaques ne sont rétablies qu'au début de la manche suivante (pas à la prolongation), un échange qui tombe sur un bot est simplement sauté, les paramètres (temps, annonce, fondu) sont codés en dur.

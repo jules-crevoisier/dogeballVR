@@ -33,6 +33,8 @@ public partial class RemotePlayer : Node3D
     public double FlightReadyAt { get; set; }
     public int FlightZone { get; set; } = -1;        // plaque du tremplin utilisé : seule sa terrasse est accessible
     public (int victim, Vector2 dir, double until)? PendingTackle { get; set; }   // tacle arrivé avant la pose qui annonce le dash
+    public double SwapUntil { get; set; }   // échange de plaques : jusque-là, seules les poses proches de SwapTarget sont acceptées
+    public Vector3 SwapTarget { get; set; }
     public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;
@@ -56,6 +58,12 @@ public partial class RemotePlayer : Node3D
     }
 
     public PoseData GetPose() => hasPose ? current : new PoseData(Vector3.Zero, 0, Vector3.Zero, Vector3.Zero);
+
+    /// <summary>Téléportation de la copie (échange de plaques) : pas de glissement à travers l'arène.</summary>
+    public void SnapPose(PoseData pose)
+    {
+        target = pose; current = pose; hasPose = true;
+    }
 
     public void SetPose(PoseData pose)
     {
