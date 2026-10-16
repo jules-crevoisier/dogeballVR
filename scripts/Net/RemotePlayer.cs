@@ -25,7 +25,7 @@ public partial class RemotePlayer : Node3D
     /// <summary>Lift tenu par l'hôte : altitude acceptée, début de la montée, prochaine montée possible.</summary>
     public float HostElevation { get; set; }
     public double LiftHighSince { get; set; }
-    public double LiftReadyAt { get; set; }
+    public double CrouchOnPadSince { get; set; }
     PoseData target, current;
     bool hasPose;
 

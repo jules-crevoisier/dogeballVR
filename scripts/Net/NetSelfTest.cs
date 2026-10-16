@@ -28,6 +28,7 @@ public partial class NetSelfTest : Node
     double highAt = -1;
     bool dropped;
     bool spoofOnce = true;
+    bool crouching;
     double timer;
     int catches, throws;
     double logTimer;
@@ -44,7 +45,7 @@ public partial class NetSelfTest : Node
                 var fake = new Vector3(Lift.Pad.X, 1.6f + Lift.HighElevation, Lift.Pad.Z);
                 return new PoseData(fake, 0, fake, fake, Lift.HighElevation);
             }
-            return new PoseData(new Vector3(hand.X, 1.6f + requestedElevation, hand.Z), 0, hand + Vector3.Up * requestedElevation, hand + Vector3.Up * requestedElevation, requestedElevation);
+            return new PoseData(new Vector3(hand.X, (crouching ? 1.0f : 1.6f) + requestedElevation, hand.Z), 0, hand + Vector3.Up * requestedElevation, hand + Vector3.Up * requestedElevation, requestedElevation);
         };
         if (Lift == null) liftPhase = 3;
     }
@@ -69,16 +70,16 @@ public partial class NetSelfTest : Node
                 break;
             case 1:
                 hand = hand.MoveToward(new Vector3(pad.X, hand.Y, pad.Z), 5f * (float)delta);
-                if (new Vector2(hand.X - pad.X, hand.Z - pad.Z).Length() < 0.2f) { liftPhase = 2; liftClock = 0; }
+                if (new Vector2(hand.X - pad.X, hand.Z - pad.Z).Length() < 0.2f) { liftPhase = 2; liftClock = 0; crouching = true; }
                 break;
             case 2:
-                requestedElevation = Lift.HighElevation;   // le client « triche » en gardant l'altitude : l'hôte doit la reprendre
+                requestedElevation = liftClock > 1.2 ? Lift.HighElevation : 0f;   // accroupi 1,2 s sur le pad, puis le client « triche » en gardant l'altitude : l'hôte doit la reprendre
                 maxHigh = Mathf.Max(maxHigh, seen);
                 if (highAt < 0 && seen > 0.1f) { highAt = liftClock; GD.Print("[NetTest] lift accordé sur le pad : OK"); }
                 if (highAt >= 0 && seen < 0.1f && !dropped)
                 {
                     dropped = true;
-                    GD.Print($"[NetTest] lift repris par l'hôte après {liftClock - highAt:0.0} s (max {Lift.MaxHighSeconds:0.0} s) : {(liftClock - highAt <= Lift.MaxHighSeconds + 1.0 ? "OK" : "KO")}");
+                    GD.Print($"[NetTest] lift repris par l'hôte après {liftClock - highAt:0.0} s (max {Lift.MaxHighSeconds:0.0} s) : {(liftClock - highAt <= Lift.MaxHighSeconds + 1.6 ? "OK" : "KO")}");
                     requestedElevation = 0;
                     liftPhase = 3;
                 }

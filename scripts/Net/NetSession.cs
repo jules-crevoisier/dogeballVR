@@ -26,6 +26,7 @@ public partial class NetSession : Node
     const int PlayerFloats = 15;
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
     const float MaxSpin = 12f;
+    const double MinCrouchOnPad = 0.8;   // le lift exige un accroupi tenu sur le pad (le client en demande 1 s)
     const int BallFloats = 11;
 
     public NetMode Mode { get; private set; } = NetMode.Offline;
@@ -57,6 +58,7 @@ public partial class NetSession : Node
     /// <summary>Lift de la zone d'un joueur (null : pas de lift) : l'hôte tient la machine d'états, le client ne fait que demander.</summary>
     public Func<int, Maps.LiftDef?> LiftOf { get; set; } = _ => null;
     /// <summary>Vrai si un coéquipier est déjà en haut (une seule zone haute par équipe).</summary>
+    readonly Dictionary<int, double> liftReadyAtByZone = new();   // la recharge reste à la zone, pas au joueur (reconnexion)
     public Func<int, bool> TeammateHigh { get; set; } = _ => false;
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
@@ -166,7 +168,11 @@ public partial class NetSession : Node
             var limited = horizontal.LimitLength(allowed);
             head = new Vector3(last.X + limited.X, head.Y, last.Z + limited.Z);
         }
-        // Le lift est jugé sur la tête acceptée (pas sur la tête brute du paquet).
+        // Le lift est jugé sur la tête acceptée (pas sur la tête brute du paquet) : accroupi sur le pad depuis assez longtemps.
+        var liftDef = LiftOf(remote.PlayerId);
+        bool crouchedOnPad = liftDef != null && head.Y - Mathf.Clamp(elevation, 0f, MaxElevation) < 1.25f
+            && new Vector2(head.X - liftDef.Pad.X, head.Z - liftDef.Pad.Z).Length() < liftDef.Pad.Radius + 0.8f;
+        remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
         head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
@@ -193,13 +199,13 @@ public partial class NetSession : Node
         if (lift == null) accepted = 0f;
         else if (accepted > 0f)
         {
-            if (requested <= 0.1f || t - remote.LiftHighSince > lift.MaxHighSeconds + 0.6 || IsEliminated(remote.PlayerId))
+            if (requested <= 0.1f || t - remote.LiftHighSince > lift.MaxHighSeconds + 1.0 || IsEliminated(remote.PlayerId))
             {
                 accepted = 0f;
-                remote.LiftReadyAt = t + lift.CooldownSeconds;
+                liftReadyAtByZone[remote.PlayerId] = t + lift.CooldownSeconds;
             }
         }
-        else if (requested > 0.1f && t >= remote.LiftReadyAt && !IsEliminated(remote.PlayerId) && !TeammateHigh(remote.PlayerId)
+        else if (requested > 0.1f && t >= (liftReadyAtByZone.TryGetValue(remote.PlayerId, out double readyAt) ? readyAt : 0) && remote.CrouchOnPadSince > 0 && t - remote.CrouchOnPadSince >= MinCrouchOnPad && !IsEliminated(remote.PlayerId) && !TeammateHigh(remote.PlayerId)
                  && new Vector2(head.X - lift.Pad.X, head.Z - lift.Pad.Z).Length() < lift.Pad.Radius + 0.8f)
         {
             accepted = lift.HighElevation;
@@ -263,11 +269,11 @@ public partial class NetSession : Node
         {
             var lift = LiftOf(remote.PlayerId);
             if (remote.HostElevation <= 0f || lift == null) continue;
-            if (clock - remote.LiftHighSince <= lift.MaxHighSeconds + 0.6 && !IsEliminated(remote.PlayerId)) continue;
+            if (clock - remote.LiftHighSince <= lift.MaxHighSeconds + 1.0 && !IsEliminated(remote.PlayerId)) continue;
             var p = remote.GetPose();
             var down = Vector3.Up * p.Elevation;
             remote.HostElevation = 0f;
-            remote.LiftReadyAt = clock + lift.CooldownSeconds;
+            liftReadyAtByZone[remote.PlayerId] = clock + lift.CooldownSeconds;
             remote.SetPose(new PoseData(p.Head - down, p.Yaw, p.Left - down, p.Right - down, 0f));
         }
         if (Multiplayer.GetPeers().Length == 0) return;
