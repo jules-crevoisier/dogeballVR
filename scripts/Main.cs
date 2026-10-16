@@ -234,6 +234,7 @@ public partial class Main : Node3D
             AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up,
                 ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
+        net.SimulatedLag = cfg.LagMs / 1000.0;
         var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
         if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
     }

@@ -20,6 +20,9 @@ public partial class NetSession : Node
     const float MaxThrowSpeed = 30f;  // = plafond côté joueur (HandThrower, DesktopPlayer)
     const float MaxMoveSpeed = 12f;   // m/s : au-delà, la pose est ramenée (pas de téléportation)
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
+    const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
+    const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
+    const double HelloTimeout = 5.0;          // un pair sans Hello est déconnecté
     const int PlayerFloats = 14;
     const float MaxHandReach = 1.2f;   // une main reste près de la tête
     const float MaxSpin = 30f;
@@ -30,6 +33,15 @@ public partial class NetSession : Node
     public bool IsHost => Mode == NetMode.Host;
     public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
     public int ZoneId { get; set; }
+    /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
+    public double SimulatedLag { get; set; }
+    readonly Queue<(double due, Action action)> delayed = new();
+
+    void Later(Action action)
+    {
+        if (SimulatedLag <= 0) action();
+        else delayed.Enqueue((Time.GetTicksMsec() / 1000.0 + SimulatedLag, action));
+    }
 
     // Hôte : qui sont les joueurs et où ils sont (fournisseurs de pose), état de vie, texte du tableau.
     public Dictionary<int, Func<PoseData>> PoseProviders { get; } = new();
@@ -88,6 +100,8 @@ public partial class NetSession : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        double clockNow = Time.GetTicksMsec() / 1000.0;
+        while (delayed.Count > 0 && delayed.Peek().due <= clockNow) delayed.Dequeue().action();
         if (Mode == NetMode.Host) HostTick(delta);
         else if (Mode == NetMode.Client) ClientTick(delta);
     }
@@ -100,17 +114,17 @@ public partial class NetSession : Node
         if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
         poseTimer = 0;
         var p = LocalPose();
-        RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right);
+        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right));
     }
 
     public void RequestCatch(int ballId, int hand)
     {
-        if (Connected) RpcId(1, MethodName.CatchRpc, ballId, hand);
+        if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand));
     }
 
     public void RequestThrow(int hand, Vector3 velocity, float spin)
     {
-        if (Connected) RpcId(1, MethodName.ThrowRpc, hand, velocity, spin);
+        if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin));
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -137,10 +151,12 @@ public partial class NetSession : Node
             Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
         double now = Time.GetTicksMsec() / 1000.0;
+        if (remote.LastPoseAt > 0 && now - remote.LastPoseAt < MinPoseInterval) return;   // inondation : paquet ignoré
         var last = remote.GetPose().Head;
-        float allowed = MaxMoveSpeed * (float)Mathf.Clamp(now - remote.LastPoseAt, 0.02, 0.5);
+        // Allocation sur le temps réellement écoulé (le premier paquet part de la pose de départ, sur 0,1 s).
+        float allowed = MaxMoveSpeed * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
-        if (remote.LastPoseAt > 0 && horizontal.Length() > allowed)
+        if (horizontal.Length() > allowed)
         {
             var limited = horizontal.LimitLength(allowed);
             head = new Vector3(last.X + limited.X, head.Y, last.Z + limited.Z);
@@ -155,12 +171,15 @@ public partial class NetSession : Node
     void CatchRpc(int ballId, int hand)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
-        if (hand is < 0 or > 1 || Time.GetTicksMsec() / 1000.0 < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        double catchNow = Time.GetTicksMsec() / 1000.0;
+        if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
             if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach) return;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team);
+            remote.NextCatchAt = 0;
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
             return;
         }
@@ -179,8 +198,22 @@ public partial class NetSession : Node
 
     // ---------------------------------------------------------------- hôte -> clients
 
+    readonly Dictionary<int, double> connectedAt = new();
+
     void HostTick(double delta)
     {
+        double clock = Time.GetTicksMsec() / 1000.0;
+        foreach (var peerId in Multiplayer.GetPeers())
+        {
+            if (Remotes.ContainsKey(peerId)) { connectedAt.Remove(peerId); continue; }
+            if (!connectedAt.TryGetValue(peerId, out double since)) { connectedAt[peerId] = clock; continue; }
+            if (clock - since > HelloTimeout)
+            {
+                GD.Print($"[Net] Pair {peerId} sans Hello : déconnecté");
+                connectedAt.Remove(peerId);
+                Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
+            }
+        }
         if (Multiplayer.GetPeers().Length == 0) return;
         string hud = HudText();
         if (hud != lastHud) { lastHud = hud; Rpc(MethodName.HudRpc, hud); }
@@ -223,7 +256,7 @@ public partial class NetSession : Node
     void SnapshotRpc(float[] data)
     {
         SnapshotsReceived++;
-        SnapshotReceived?.Invoke(data);
+        Later(() => SnapshotReceived?.Invoke(data));
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

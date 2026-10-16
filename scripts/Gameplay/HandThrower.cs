@@ -14,6 +14,9 @@ public partial class HandThrower : XRController3D
     const int HistorySize = 4;   // fenêtre courte : une moyenne trop longue mélange armé du bras et lâcher (lancers mous)
     const double PerfectCatchWindow = 0.15; // secondes entre le grip et l'arrivée de la balle
 
+    /// <summary>Réglé par la map (ballRules.throwAssist).</summary>
+    public static float MinLaunchSpeed { get; set; }
+
     [Export] public float ThrowSpeedScale = 1.4f;
     [Export] public float MaxThrowSpeed = 30f;
 
@@ -98,6 +101,8 @@ public partial class HandThrower : XRController3D
     {
         var (vel, spin) = EstimateHandMotion();
         vel = (vel * ThrowSpeedScale).LimitLength(MaxThrowSpeed);
+        // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu.
+        if (vel.Length() > 1.5f && vel.Length() < MinLaunchSpeed) vel = vel.Normalized() * MinLaunchSpeed;
         if (held != null) BallActions.Throw(held, HandIndex, vel, spin);
         else BallActions.Net!.RequestThrow(HandIndex, vel, spin); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
         ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;

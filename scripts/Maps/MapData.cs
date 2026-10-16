@@ -74,12 +74,27 @@ public class BoundsDef
     public string WallKind { get; set; } = "plain";
 }
 
+/// <summary>Aide au lancer VR : multiplicateur de la vitesse de main et vitesse minimale d'un vrai lancer.</summary>
+public class ThrowAssistDef
+{
+    public float SpeedMultiplier { get; set; } = 1.4f;
+    public float MinLaunchSpeed { get; set; } = 0f;
+}
+
+/// <summary>Règles de partie lues dans la map. Seules celles qui sont codées sont lues ; le reste du bloc « rules » est ignoré.</summary>
+public class RulesDef
+{
+    /// <summary>Après une touche, la cible ne peut plus être blessée pendant ce temps (0 = pas d'invulnérabilité).</summary>
+    public float InvulnerableAfterHitSeconds { get; set; }
+}
+
 /// <summary>Règles de balle de la map : plafond de balles en jeu, durée de vol maximale, gravité réduite pour tendre les trajectoires.</summary>
 public class BallRulesDef
 {
     public int MaxBallsInPlay { get; set; } = 0;          // 0 = pas de plafond
     public float MaxFlightSeconds { get; set; } = 0f;      // 0 = illimité
     public float BallGravityFactor { get; set; } = 0.6f;
+    public ThrowAssistDef ThrowAssist { get; set; } = new();
 }
 
 public class BallReturnDef
@@ -102,6 +117,7 @@ public class MapData
     public BoundsDef? ArenaBounds { get; set; }
     public BallReturnDef BallReturn { get; set; } = new();
     public BallRulesDef BallRules { get; set; } = new();
+    public RulesDef Rules { get; set; } = new();
     public List<ZoneDef> Zones { get; set; } = new();
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();

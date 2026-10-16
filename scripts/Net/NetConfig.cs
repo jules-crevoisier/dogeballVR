@@ -7,7 +7,7 @@ public enum NetMode { Offline, Host, Client }
 
 /// <summary>
 /// Options de lancement : <c>--host</c>, <c>--join=ADRESSE</c>, <c>--zone=N</c> (client, 2 par défaut : équipe adverse de l'hôte),
-/// <c>--port=N</c>, <c>--map=NOM</c> (neon_court par défaut), <c>--net-selftest</c> (le client joue seul, pour les tests automatiques).
+/// <c>--port=N</c>, <c>--map=NOM</c> (neon_court par défaut), <c>--net-lag=MS</c> (latence simulée côté client), <c>--net-selftest</c> (le client joue seul, pour les tests automatiques).
 /// Avec l'éditeur ou la ligne de commande : <c>godot --path . -- --host</c>.
 /// </summary>
 public class NetConfig
@@ -17,6 +17,8 @@ public class NetConfig
     public int Port { get; private set; } = NetSession.DefaultPort;
     public int Zone { get; private set; } = 2;
     public bool SelfTest { get; private set; }
+    /// <summary>Latence simulée côté client, en ms par sens (test sans outil réseau) : `--net-lag=50`.</summary>
+    public int LagMs { get; private set; }
     /// <summary>Nom de la map (dossier maps/). L'hôte et les clients doivent utiliser la même.</summary>
     public string Map { get; private set; } = "neon_court";
 
@@ -32,6 +34,7 @@ public class NetConfig
             else if (a.StartsWith("--zone=") && int.TryParse(a["--zone=".Length..], out int z)) cfg.Zone = z;
             else if (a.StartsWith("--port=") && int.TryParse(a["--port=".Length..], out int p)) cfg.Port = p;
             else if (a.StartsWith("--map=")) cfg.Map = a["--map=".Length..];
+            else if (a.StartsWith("--net-lag=") && int.TryParse(a["--net-lag=".Length..], out int lag)) cfg.LagMs = lag;
             else if (a == "--net-selftest") cfg.SelfTest = true;
         }
         return cfg;

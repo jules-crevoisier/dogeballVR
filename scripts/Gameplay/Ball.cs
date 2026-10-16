@@ -20,6 +20,8 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
+    /// <summary>Un adversaire attrape une balle lancée vite : (balle, id du receveur). Le receveur regagne une vie.</summary>
+    public static event System.Action<int>? CaughtThrow;
     double flightTime;
 
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
@@ -120,7 +122,7 @@ public partial class Ball : RigidBody3D
         Mass = 0.6f;
         GravityScale = GravityFactor; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
-        LinearDamp = 0.3f;
+        LinearDamp = 0.1f;   // faible : la portée vient surtout de la gravité réduite et du vol limité
         AngularDamp = 2f;
         PhysicsMaterialOverride = new PhysicsMaterial { Bounce = 0.55f, Friction = 1.2f };
     }
@@ -128,6 +130,7 @@ public partial class Ball : RigidBody3D
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
     public void Hold(Node3D hand, int playerId, int team)
     {
+        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
         else if (OwnerTeam != team) ResetCharge();
         OwnerPlayerId = playerId;

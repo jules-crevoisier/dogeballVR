@@ -49,6 +49,14 @@ public partial class MatchController : Node3D
     double neutralTimer;
     double returnSeconds = 3;
     int maxBallsInPlay;
+    double invulnerableSeconds;
+    readonly Dictionary<int, double> lastHitAt = new();
+
+    /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
+    void OnCaughtThrow(int catcherId)
+    {
+        if (inRound && hurtboxes.ContainsKey(catcherId)) Rules.RegisterPerfectCatch(catcherId);
+    }
 
     int BallsInPlay()
     {
@@ -69,6 +77,8 @@ public partial class MatchController : Node3D
         maxBallsInPlay = map.BallRules.MaxBallsInPlay;
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
+        invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
+        HandThrower.MinLaunchSpeed = map.BallRules.ThrowAssist.MinLaunchSpeed;
         foreach (var def in map.BallSpawns)
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
@@ -118,7 +128,8 @@ public partial class MatchController : Node3D
         AddChild(hud);
         Rules.PlayerEliminated += OnEliminated;
         Ball.Released += OnBallReleased;
-        TreeExiting += () => Ball.Released -= OnBallReleased;
+        Ball.CaughtThrow += OnCaughtThrow;
+        TreeExiting += () => { Ball.Released -= OnBallReleased; Ball.CaughtThrow -= OnCaughtThrow; };
     }
 
     /// <summary>À appeler quand tous les joueurs sont enregistrés.</summary>
@@ -173,6 +184,10 @@ public partial class MatchController : Node3D
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
         if (!inRound) return;
+        double clock = Time.GetTicksMsec() / 1000.0;
+        // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
+        if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
+        lastHitAt[targetId] = clock;
         if (throwDistance >= 0f) hitsByRange[RangeBucket(throwDistance)]++;
         // Une balle chargée fait plus mal : charge 2 ou plus = 2 vies, sinon 1.
         Rules.RegisterHit(shooterId, targetId);

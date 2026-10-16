@@ -40,10 +40,27 @@
   ],
   "ballRules": {
     "maxBallsInPlay": 6,
+    "throwAssist": {
+      "speedMultiplier": 1.4,
+      "minLaunchSpeed": 9.0,
+      "note": "multiplicateur de vitesse de main (ThrowSpeedScale du dépôt) ; la main Quest serait vers 10 m/s (à mesurer)"
+    },
     "maxFlightSeconds": 1.5,
-    "ballGravityFactor": 0.5,
-    "overflow": "ball retournée attend en file si le distributeur est plein",
-    "note": "portée utile visée : 12 à 15 m ; au-delà, lob ou balle spéciale"
+    "ballGravityFactor": 0.3,
+    "neutralBallExemptFromFlightLimit": true,
+    "overflow": "une balle retournée attend en file si le distributeur est plein",
+    "note": "portée utile visée : 12 à 20 m ; au-delà de ~20 m, uniquement par rebond sur les murs"
+  },
+  "rules": {
+    "roundWin": "3 vies par joueur ; la manche va à l'équipe qui élimine tous les adversaires, sinon à celle qui a le plus de vies au temps",
+    "stuckBallReturnSeconds": 3,
+    "friendlyFire": false,
+    "invulnerableAfterHitSeconds": 1.5,
+    "catchReward": "un attrapé fait perdre une vie au lanceur adverse ou rend une vie à l'attrapeur",
+    "eliminatedPlayer": "retour après 5 s ; 0 vie = spectateur jusqu'à la fin de la manche",
+    "returnedBallDispenser": "distributeur de l'équipe adverse du dernier lanceur dont le stock est le plus bas",
+    "expiredBall": "une balle expirée retourne comme une balle perdue",
+    "coverPhasing": "une balle ne traverse pas un couvert ; si la tête du joueur entre dans un couvert, fondu, il reste touchable"
   },
   "levels": [
     {
@@ -243,9 +260,9 @@
       "x": -13.0,
       "y": 1.0,
       "z": -5.0,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z1",
@@ -254,9 +271,9 @@
       "x": 13.0,
       "y": 1.0,
       "z": -5.0,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z2",
@@ -265,9 +282,9 @@
       "x": -13.0,
       "y": 1.0,
       "z": 5.0,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z3",
@@ -276,9 +293,9 @@
       "x": 13.0,
       "y": 1.0,
       "z": 5.0,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "centre",
@@ -287,8 +304,11 @@
       "x": 0,
       "y": 3.4,
       "z": 0,
-      "intervalSeconds": 20,
+      "intervalSeconds": 15,
       "rule": "lob vers l'équipe menée (égalité : alterné)"
     }
-  ]
+  ],
+  "devChoices": {
+    "note": "Choix du dev (voir docs/CHOIX-REGLES.md) : 6 balles au lieu de 4 et gravité 0,3 au lieu de 0,6 pour tenir 12 à 20 m en tir tendu ; vies et retour des KO restent ceux de MatchRules (2 vies, retour 3 s)."
+  }
 }
