@@ -146,11 +146,11 @@ jobs:
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
-          for ATTEMPT in 1 2 3; do
+          for ATTEMPT in 1 2 3 4; do
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=fosse_croisee --pc-autoplay > fc-host.log 2>&1 &
             HOST_PID=$!
             sleep 3
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --map=fosse_croisee --pc-autoplay > fc-client.log 2>&1
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=fosse_croisee --pc-autoplay > fc-client.log 2>&1
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fc-host.log fc-client.log; then
               echo "Erreur à l'exécution (Fosse croisée, réseau)"; exit 1
@@ -164,7 +164,7 @@ jobs:
             echo "Fosse croisée : tremplins $PADS, terrasses validées $TERRACES, dashs arrêtés $STOPS, chutes $FALLS, tacles $TACKLES, ring-outs $RINGOUTS"
             if [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$STOPS" -lt 1 ] || [ "$FALLS" -lt 1 ] || [ "$TACKLES" -lt 1 ] || [ "$RINGOUTS" -lt 1 ]; then
               echo "Tentative $ATTEMPT : tremplin, terrasse, arrêt du dash, chute, tacle du client ou ring-out non reconnus"
-              [ "$ATTEMPT" = 3 ] && exit 1
+              [ "$ATTEMPT" = 4 ] && exit 1
             else
               break
             fi

@@ -192,11 +192,6 @@ public partial class NetSession : Node
             bool dashNew = dashCount != remote.LastDashCount;   // compteur de dashs : insensible aux paquets perdus
             remote.LastDashCount = dashCount;
             if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
-            if (remote.PendingTackle is { } pt)
-            {
-                remote.PendingTackle = null;
-                if (now <= pt.until && now <= remote.DashUntil + 0.1) Gameplay.MatchController.RequestTackle(remote.PlayerId, pt.victim, pt.dir);
-            }
             if (now < remote.DashUntil) cap = FreeDashCap;
             else if (now < remote.PushUntil) cap = 14f;   // poussée de 8 m/s : marge sans autoriser de téléportation
             ArmFlight(remote, head, now);
@@ -228,7 +223,7 @@ public partial class NetSession : Node
         remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
         // Jeu libre : la hauteur de tête est absolue (la terrasse ne la décale pas) ; au-dessus de la fosse elle peut descendre (chute).
-        float lowY = FreeRoam ? (Map != null && Map.OverPit(head.X, head.Z, 0.3f) ? -8f : 0.8f) : 0.8f + elevation;
+        float lowY = FreeRoam ? (Map != null && Map.OverPit(head.X, head.Z, 0.1f) ? -8f : 0.8f) : 0.8f + elevation;
         bool airborne = FreeRoam && PadMap && (Time.GetTicksMsec() / 1000.0 < remote.FlightUntil || elevation > 0f);
         head.Y = Mathf.Clamp(head.Y, lowY, FreeRoam ? (airborne ? FlightCeiling : HeadCeiling) : HeadCeiling + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
@@ -243,6 +238,11 @@ public partial class NetSession : Node
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
         remote.SetPose(new PoseData(head, yaw, left, right, elevation));
+        if (FreeRoam && remote.PendingTackle is { } pt)
+        {
+            remote.PendingTackle = null;
+            if (now <= pt.until && now <= remote.DashUntil + 0.1) Gameplay.MatchController.RequestTackle(remote.PlayerId, pt.victim, pt.dir);
+        }
     }
 
     /// <summary>
@@ -252,13 +252,13 @@ public partial class NetSession : Node
     /// <summary>Tremplin (PC) : le vol n'est accordé que tête au-dessus d'un tremplin de son camp, hors recharge ; il relève le plafond de tête 2,2 s.</summary>
     void ArmFlight(RemotePlayer remote, Vector3 head, double now)
     {
-        if (!PadMap || now < remote.FlightReadyAt || head.Y > 2.3f || IsEliminated(remote.PlayerId) || Map?.Pc == null) return;
+        if (!PadMap || head.Y > 2.3f || IsEliminated(remote.PlayerId) || Map?.Pc == null) return;
         int team = Map.Zones.Find(z => z.Id == remote.PlayerId)?.Team ?? -1;
         foreach (var pad in Map.Pc.JumpPads)
         {
             if (Map.Zones.Find(z => z.Id == pad.Zone)?.Team != team) continue;
             if (new Vector2(head.X - pad.X, head.Z - pad.Z).Length() > pad.Radius + 1.0f) continue;
-            remote.FlightUntil = now + 2.2; remote.FlightReadyAt = now + 6.0; remote.FlightZone = pad.Zone;
+            remote.FlightUntil = now + 2.2; remote.FlightZone = pad.Zone;   // renouvelé à chaque pose au sol près du tremplin : le lancer est toujours couvert
             return;
         }
     }
@@ -324,14 +324,8 @@ public partial class NetSession : Node
     void TackleRpc(int victimId, Vector2 dir)
     {
         if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote) || !dir.IsFinite()) return;
-        double now = Time.GetTicksMsec() / 1000.0;
-        if (now > remote.DashUntil + 0.1)
-        {
-            // Le RPC (fiable) peut devancer la pose (non fiable) qui annonce le dash : on garde le tacle 0,25 s, il part dès que le dash est validé.
-            remote.PendingTackle = (victimId, dir, now + 0.25);
-            return;
-        }
-        Gameplay.MatchController.RequestTackle(remote.PlayerId, victimId, dir);
+        // Le RPC (fiable) peut devancer la pose (non fiable) : le tacle attend la prochaine pose (dash validé, position à jour), 0,3 s au plus.
+        remote.PendingTackle = (victimId, dir, Time.GetTicksMsec() / 1000.0 + 0.3);
     }
 
     /// <summary>Hôte : pousse un joueur distant (tacle validé). Le plafond de vitesse de sa copie s'élargit 0,45 s.</summary>

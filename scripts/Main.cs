@@ -41,6 +41,7 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         bool xrActive = XrBootstrap.Start(GetViewport());
+        pcProfile = !xrActive;
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
@@ -190,10 +191,13 @@ public partial class Main : Node3D
 
     // ------------------------------------------------------------------ hôte / hors ligne
 
+    bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
+
     void BuildHost(ZoneDef localZone)
     {
         match = new MatchController { Name = "MatchController" };
         AddChild(match);
+        match.PcProfile = pcProfile;
         match.ConfigureMap(map);
         match.ZoneElevation = ZoneElevation;
         match.PlatformsMove = !(map.IsRing && xrOrigin == null);

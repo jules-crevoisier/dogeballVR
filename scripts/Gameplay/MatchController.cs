@@ -66,7 +66,7 @@ public partial class MatchController : Node3D
     readonly Dictionary<int, double> overPitSince = new();
     readonly Dictionary<int, double> ringGraceUntil = new();   // juste après un retour, la copie de l'hôte n'a pas encore rejoint le point d'apparition
     const double PushCreditSeconds = 3.0;       // une chute dans les 3 s après une poussée compte pour le pousseur
-    const float TackleReach = 2.2f;             // distance maximale tacleur/victime vue par l'hôte (marge de latence comprise)
+    const float TackleReach = 3.2f;             // distance maximale tacleur/victime vue par l'hôte (marge de latence comprise)
 
     /// <summary>Demande de tacle (dash qui touche un adversaire) : tacleur, victime, direction du dash. Jugée ici, par l'hôte ou hors ligne.</summary>
     public static event System.Action<int, int, Vector2>? TackleRequested;
@@ -155,6 +155,8 @@ public partial class MatchController : Node3D
     int neutralFlip;
 
     /// <summary>Lit les zones et les emplacements de balles de la map (distributeurs, lâcher neutre, retour des balles perdues).</summary>
+    public bool PcProfile { get; set; } = true;
+
     public void ConfigureMap(MapData map)
     {
         foreach (var zone in map.Zones) SpawnZones.Add(zone.Center);
@@ -164,8 +166,8 @@ public partial class MatchController : Node3D
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
         heartRegenSeconds = map.Rules.HeartRegenSeconds;
-        ringMap = map.PitRect != null ? map : null;
-        terraceBonus = map.IsRing && map.Pc?.Terraces.Count > 0;
+        ringMap = PcProfile && map.PitRect != null ? map : null;
+        terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
         HandThrower.MinLaunchSpeed = map.BallRules.ThrowAssist.MinLaunchSpeed;
         foreach (var def in map.BallSpawns)

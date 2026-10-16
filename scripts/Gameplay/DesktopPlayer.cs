@@ -482,7 +482,7 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Un dash qui touche un adversaire le tacle : il lâche sa balle et est poussé de 2 m dans la direction du dash. L'hôte juge (distance, invulnérabilité).</summary>
     void TryTackle()
     {
-        if (tackledDash == dashCount || Hurtbox.Eliminated) return;
+        if (tackledDash == dashCount || Hurtbox.Eliminated || Zones.Map.PitRect == null) return;   // le tacle n'existe que sur les cartes à fosse
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
         {
             if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated || h.DashInvulnerable) continue;
