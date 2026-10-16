@@ -5,14 +5,17 @@ namespace DogeballVR.Rules;
 
 /// <summary>
 /// Règles pures (sans Godot) : vies, manches, score. Exécutées côté serveur, testables à part.
-/// 2v2 : 3 vies par joueur, élimination 5 s puis retour, 3 manches de 3 min, 2 manches gagnantes.
+/// 2v2 nerveux : 2 vies par joueur, retour 3 s après élimination (pas de temps mort),
+/// partie de 5 min = 5 manches de 1 min, 3 manches gagnantes. Une manche se termine quand une équipe
+/// n'a plus personne en jeu ou que la minute est écoulée (victoire à l'équipe avec le plus de vies).
 /// </summary>
 public class MatchRules
 {
-    public int LivesPerPlayer { get; init; } = 3;
-    public float RespawnSeconds { get; init; } = 5f;
-    public float RoundSeconds { get; init; } = 180f;
-    public int RoundsToWin { get; init; } = 2;
+    public int LivesPerPlayer { get; init; } = 2;
+    public float RespawnSeconds { get; init; } = 3f;
+    public float RoundSeconds { get; init; } = 60f;
+    public int RoundsToWin { get; init; } = 3;
+    public int MaxRounds { get; init; } = 5;
 
     readonly Dictionary<int, int> lives = new();
     readonly Dictionary<int, int> teamOf = new();
@@ -43,6 +46,26 @@ public class MatchRules
     public void RegisterPerfectCatch(int catcherId)
     {
         if (lives[catcherId] > 0 && lives[catcherId] < LivesPerPlayer) lives[catcherId]++;
+    }
+
+    public int TeamLives(int team)
+    {
+        int total = 0;
+        foreach (var (id, t) in teamOf)
+            if (t == team) total += lives[id];
+        return total;
+    }
+
+    /// <summary>Fin de manche au temps : l'équipe avec le plus de vies gagne, -1 en cas d'égalité.</summary>
+    public int ResolveTimeout()
+    {
+        int a = TeamLives(0), b = TeamLives(1);
+        return a == b ? -1 : (a > b ? 0 : 1);
+    }
+
+    public void ResetLives()
+    {
+        foreach (var id in new List<int>(lives.Keys)) lives[id] = LivesPerPlayer;
     }
 
     public void EndRound(int winningTeam)
