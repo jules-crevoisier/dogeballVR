@@ -26,7 +26,7 @@ public partial class RemotePlayer : Node3D
     public float HostElevation { get; set; }
     public double LiftHighSince { get; set; }
     public double CrouchOnPadSince { get; set; }
-    /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, front montant du signal, saut de retour de KO toléré.</summary>
+    /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, compteur de dashs du client, saut de retour de KO toléré.</summary>
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
     public int LastDashCount { get; set; }

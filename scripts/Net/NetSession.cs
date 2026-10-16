@@ -183,12 +183,13 @@ public partial class NetSession : Node
         {
             // Dash : l'hôte tient le compte des charges (2, une toutes les 1,6 s) ; sans charge le signal est ignoré.
             remote.DashBudget = Mathf.Min(2f, remote.DashBudget + (float)((remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0) / DashRecharge));
+            if (remote.LastPoseAt <= 0) remote.LastDashCount = dashCount;   // première pose : on se cale sur le compteur du client
             bool dashNew = dashCount != remote.LastDashCount;   // compteur de dashs : insensible aux paquets perdus
             remote.LastDashCount = dashCount;
             if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
             if (now < remote.DashUntil) cap = FreeDashCap;
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
-            if (IsEliminated(remote.PlayerId)) remote.TeleportPending = true;
+            if (IsEliminated(remote.PlayerId)) { remote.TeleportPending = true; remote.TeleportDeadline = 0; }
             else if (remote.TeleportPending)
             {
                 // Retour de KO : l'hôte remet la copie au point d'apparition et ignore les poses encore anciennes du client (au plus 1,5 s).

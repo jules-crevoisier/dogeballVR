@@ -25,7 +25,7 @@ public partial class DesktopPlayer : Node3D
     const float DodgeSpeed = 10f, DodgeTime = 0.18f, DodgeCooldown = 1.2f;
     const float DashSpeed = 21.5f, DashTime = 0.2f, DashRecharge = 1.6f;   // 4 m en 0,2 s (la dernière image est ramenée à la course), 2 charges
     const int DashMaxCharges = 2;
-    const double DashGap = 0.35;         // délai minimal entre deux dashs : le signal réseau d'un dash reste lisible pour l'hôte
+    const double DashGap = 0.35;         // délai minimal entre deux dashs
     const float PlayerRadius = 0.3f;
     const float CameraDistance = 3.0f;   // 3e personne : distance de la caméra derrière la tête
     const float EyeHeight = 1.6f;
