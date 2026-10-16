@@ -208,8 +208,11 @@ public partial class Main : Node3D
         if (desktopPlayer != null) desktopPlayer.MoveToPlate(to);
         else if (xrOrigin != null)
         {
-            xrOrigin.Position = new Vector3(to.X, xrOrigin.Position.Y - from.Y + to.Y, to.Z);
+            // On tourne autour de la tête (pas de l'origine) : elle se retrouve au même endroit relatif de la plaque d'arrivée.
+            var wanted = PlateSwap.Remap(xrCamera!.GlobalPosition, from, to);
             xrOrigin.RotateY(PlateSwap.YawDelta(from, to));
+            var shift = wanted - xrCamera.GlobalPosition;
+            xrOrigin.GlobalPosition += new Vector3(shift.X, 0, shift.Z);
             zones.LocalZoneId = to.Id;
         }
         var tween = CreateTween();
@@ -238,12 +241,11 @@ public partial class Main : Node3D
         for (int i = 0; i < lastPlates.Length; i++) lastPlates[i] = i;
         match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
-        match.PlatesChanged += plates =>
+        match.PlatesChanged += (plates, targets) =>
         {
-            var old = lastPlates;
             lastPlates = plates;
             ApplyPlates(plates);
-            net?.BroadcastPlates(plates, old);
+            net?.BroadcastPlates(plates, targets);
         };
 
         targets.Add(localMarker);
@@ -263,7 +265,7 @@ public partial class Main : Node3D
             net.IsEliminated = id => match.IsEliminated(id);
             net.IsBot = id => bots.ContainsKey(id);
             net.FreeRoam = map.IsRing && xrOrigin == null;
-            net.SpawnOf = id => map.Pc?.Spawns.Find(sp => sp.Zone == id) is { } s ? new Vector3(s.X, 0, s.Z) : null;
+            net.SpawnOf = id => map.Pc?.Spawns.Find(sp => sp.Zone == match.PlateOf(id)) is { } s ? new Vector3(s.X, 0, s.Z) : null;
             net.ZoneRect = id =>
             {
                 if (net.FreeRoam) return net.ArenaXZ;

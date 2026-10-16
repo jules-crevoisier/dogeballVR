@@ -837,6 +837,8 @@ public partial class DesktopPlayer : Node3D
             var p = PlateSwap.Remap(new Vector3(worldPos.X, 0, worldPos.Y), from, to);
             worldPos = new Vector2(p.X, p.Z);
             velocity = Vector2.Zero;
+            var spawn = Zones.Map.Pc?.Spawns.Find(sp => sp.Zone == to.Id);   // retour de KO ou de chute : sur la place de la plaque occupée
+            if (spawn != null) spawnPos = new Vector2(spawn.X, spawn.Z);
         }
         yaw += PlateSwap.YawDelta(from, to);
         GD.Print($"[PC] Échange de plaques : plaque {from.Id} -> {to.Id}, en {worldPos.X:0.0} / {worldPos.Y:0.0}");
