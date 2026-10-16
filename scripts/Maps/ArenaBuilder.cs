@@ -1,23 +1,43 @@
 using Godot;
+using DogeballVR.Visual;
 
 namespace DogeballVR.Maps;
 
 /// <summary>
-/// Construit l'arène en greybox à partir d'une <see cref="MapData"/> : sol teinté par équipe, lignes de zone,
-/// murs et plafond invisibles, puis les props du level design. Aucune géométrie n'est codée en dur dans les scènes.
+/// Construit l'arène en greybox à partir d'une <see cref="MapData"/> : sol à grille, zones teintées par équipe,
+/// mur de limite autour de la zone locale, murs et plafond invisibles, puis les props du level design.
+/// Les couleurs viennent de <see cref="Palette"/> (provisoire). Aucune géométrie n'est codée en dur dans les scènes.
 /// </summary>
 public static class ArenaBuilder
 {
-    static readonly Color[] TeamColors = { new(0.15f, 0.45f, 0.95f), new(0.95f, 0.3f, 0.2f) };
+    const float LimitWallHeight = 3f;
 
-    public static Node3D Build(MapData map)
+    public static Node3D Build(MapData map, int localZoneId)
     {
         var root = new Node3D { Name = "Arena" };
+        AddEnvironment(root);
         AddFloor(root, map);
         AddZones(root, map);
+        var local = map.Zones.Find(z => z.Id == localZoneId);
+        if (local != null) AddLimitWall(root, map, local);
         AddBounds(root, map);
         foreach (var prop in map.Props) AddProp(root, prop);
         return root;
+    }
+
+    static void AddEnvironment(Node3D root)
+    {
+        // Nuit bleutée, ambiance indigo, aucun post-traitement (pas de glow, pas de SSAO) pour tenir sur Quest.
+        var env = new Godot.Environment
+        {
+            BackgroundMode = Godot.Environment.BGMode.Color,
+            BackgroundColor = Palette.Night,
+            AmbientLightSource = Godot.Environment.AmbientSource.Color,
+            AmbientLightColor = new Color(0.55f, 0.6f, 0.85f),
+            AmbientLightEnergy = 0.7f,
+        };
+        root.AddChild(new WorldEnvironment { Environment = env });
+        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0), LightEnergy = 0.5f });
     }
 
     static void AddFloor(Node3D root, MapData map)
@@ -29,7 +49,7 @@ public static class ArenaBuilder
         {
             Mesh = new BoxMesh { Size = size },
             Position = new Vector3(0, -0.1f, 0),
-            MaterialOverride = Flat(new Color(0.18f, 0.19f, 0.22f)),
+            MaterialOverride = Materials.Grid(Palette.Night, Palette.Indigo.Lightened(0.15f)),
         });
         root.AddChild(floor);
     }
@@ -38,19 +58,18 @@ public static class ArenaBuilder
     {
         foreach (var zone in map.Zones)
         {
-            var color = TeamColors[zone.Team % TeamColors.Length];
+            var color = Palette.Team(zone.Team);
             var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
-            // Dalle teintée un peu au-dessus du sol (pas de collision : le sol sert de support).
-            var tile = new MeshInstance3D
+            // Dalle teintée un peu au-dessus du sol (sans collision : le sol sert de support).
+            root.AddChild(new MeshInstance3D
             {
                 Name = $"Zone{zone.Id}",
                 Mesh = new BoxMesh { Size = new Vector3(map.ZoneWidth - 0.1f, 0.02f, map.ZoneDepth - 0.1f) },
                 Basis = basis,
                 Position = zone.Center + new Vector3(0, 0.01f, 0),
-                MaterialOverride = Flat(color.Darkened(0.55f)),
-            };
-            root.AddChild(tile);
-            // Liseré lumineux sur le contour : on voit où s'arrête sa zone.
+                MaterialOverride = Materials.Grid(Palette.Night.Lerp(color, 0.14f), color.Darkened(0.4f)),
+            });
+            // Contour de zone au sol, en couleur d'équipe.
             AddEdge(root, zone, basis, color, map.ZoneWidth, 0.06f, new Vector3(0, 0, -map.ZoneDepth * 0.5f));
             AddEdge(root, zone, basis, color, map.ZoneWidth, 0.06f, new Vector3(0, 0, map.ZoneDepth * 0.5f));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(-map.ZoneWidth * 0.5f, 0, 0));
@@ -74,8 +93,31 @@ public static class ArenaBuilder
             Mesh = new BoxMesh { Size = new Vector3(sx, 0.03f, sz) },
             Basis = basis,
             Position = zone.Center + basis * offset + new Vector3(0, 0.02f, 0),
-            MaterialOverride = Glow(color),
+            MaterialOverride = Materials.Glow(color),
         });
+    }
+
+    /// <summary>
+    /// Mur de lumière magenta sur le pourtour de la zone du joueur : invisible de loin, il apparaît à l'approche
+    /// du bord (le fondu par distance est dans le shader, qui lit la position de la caméra).
+    /// </summary>
+    static void AddLimitWall(Node3D root, MapData map, ZoneDef zone)
+    {
+        var material = Materials.LimitWall(Palette.Danger);
+        var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
+        float hw = map.ZoneWidth * 0.5f, hd = map.ZoneDepth * 0.5f;
+        void Wall(float sx, float sz, Vector3 offset) => root.AddChild(new MeshInstance3D
+        {
+            Name = "LimitWall",
+            Mesh = new BoxMesh { Size = new Vector3(sx, LimitWallHeight, sz) },
+            Basis = basis,
+            Position = zone.Center + basis * offset + new Vector3(0, LimitWallHeight * 0.5f, 0),
+            MaterialOverride = material,
+        });
+        Wall(map.ZoneWidth, 0.02f, new Vector3(0, 0, -hd));
+        Wall(map.ZoneWidth, 0.02f, new Vector3(0, 0, hd));
+        Wall(0.02f, map.ZoneDepth, new Vector3(-hw, 0, 0));
+        Wall(0.02f, map.ZoneDepth, new Vector3(hw, 0, 0));
     }
 
     /// <summary>Murs et plafond invisibles : les balles restent dans l'arène.</summary>
@@ -96,23 +138,18 @@ public static class ArenaBuilder
         root.AddChild(wall);
     }
 
+    /// <summary>Prop de level design. Couleur avec alpha (« #rrggbbaa ») : voile de lumière additif, traversable si Solid est faux.</summary>
     static void AddProp(Node3D root, PropDef prop)
     {
         var size = new Vector3(prop.SizeX, prop.SizeY, prop.SizeZ);
         var color = Color.FromString(prop.Color, new Color(0.54f, 0.56f, 0.6f));
         var body = new StaticBody3D { Name = "Prop", Position = new Vector3(prop.X, prop.Y, prop.Z) };
-        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Flat(color) });
+        body.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = size },
+            MaterialOverride = color.A < 1f ? Materials.Additive(color) : Materials.Flat(color),
+        });
         if (prop.Solid) body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
     }
-
-    static StandardMaterial3D Flat(Color c) => new() { AlbedoColor = c, Roughness = 1f };
-
-    static StandardMaterial3D Glow(Color c) => new()
-    {
-        AlbedoColor = c,
-        EmissionEnabled = true,
-        Emission = c,
-        EmissionEnergyMultiplier = 1.5f,
-    };
 }

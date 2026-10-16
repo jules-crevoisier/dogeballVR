@@ -13,6 +13,6 @@
     { "id": 3, "team": 1, "x":  7.5, "y": 0.0, "z":  4.0, "facingDegrees": 0 }
   ],
   "props": [
-    { "type": "box", "x": 0.0, "y": 0.6, "z": 0.0, "sizeX": 30.0, "sizeY": 1.2, "sizeZ": 0.05, "color": "#ffffff", "solid": false }
+    { "type": "box", "x": 0.0, "y": 1.5, "z": 0.0, "sizeX": 30.0, "sizeY": 3.0, "sizeZ": 0.05, "color": "#ffffff14", "solid": false }
   ]
 }

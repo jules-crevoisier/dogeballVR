@@ -78,8 +78,7 @@ public partial class Main : Node3D
         }
         foreach (var b in bots) { b.Targets = targets; b.TargetTeams = teams; }
 
-        AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0) });
-        AddChild(ArenaBuilder.Build(map));
+        AddChild(ArenaBuilder.Build(map, localZone.Id));
         match.StartMatch();
     }
 

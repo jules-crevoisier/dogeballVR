@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Maps;
+using DogeballVR.Visual;
 using DogeballVR.Zones;
 
 namespace DogeballVR.Gameplay;
@@ -35,11 +36,7 @@ public partial class Bot : Node3D
         rng.Randomize();
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
-        AddChild(new MeshInstance3D
-        {
-            Mesh = new CapsuleMesh { Radius = 0.3f, Height = 1.7f },
-            Position = new Vector3(0, 0.85f, 0),
-        });
+        AddChild(Avatar.Create(Hurtbox.Team, bot: true));
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);
     }

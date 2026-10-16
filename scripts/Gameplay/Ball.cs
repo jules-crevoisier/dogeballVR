@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Godot;
+using DogeballVR.Visual;
 
 namespace DogeballVR.Gameplay;
 
@@ -11,10 +13,12 @@ public partial class Ball : RigidBody3D
     public const int MaxCharge = 3;
     public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
 
-    static readonly Color[] ChargeColors =
-    {
-        new(0.9f, 0.9f, 0.9f), new(1f, 0.9f, 0.2f), new(1f, 0.5f, 0.1f), new(1f, 0.1f, 0.1f),
-    };
+    // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
+    static readonly float[] HaloScale = { 1.0f, 1.15f, 1.35f, 1.6f };
+    static readonly float[] HaloAlpha = { 0.25f, 0.4f, 0.55f, 0.75f };
+    static readonly float[] PulseHz = { 0f, 1f, 2f, 2.5f };   // sous les 3 Hz (confort)
+    const int TrailPoints = 10;
+    const float TrailMinSpeed = 6f;                            // = seuil de blessure
 
     public int OwnerPlayerId { get; private set; } = -1;
     public int OwnerTeam { get; private set; } = -1;
@@ -24,7 +28,13 @@ public partial class Ball : RigidBody3D
     /// <summary>Temps passé immobile au sol (s) : au-delà, la balle est recyclée et réapparaît dans une autre zone.</summary>
     public double RestTime { get; private set; }
 
-    StandardMaterial3D material = null!;
+    StandardMaterial3D haloMaterial = null!;
+    MeshInstance3D halo = null!;
+    MeshInstance3D shadow = null!;
+    MeshInstance3D trail = null!;
+    ImmediateMesh trailMesh = null!;
+    readonly List<Vector3> trailPoints = new();
+    double visualTime;
 
     /// <summary>Effet de courbe : vitesse angulaire du poignet au lâcher (rad/s, axe vertical).</summary>
     float curveSpin;
@@ -33,12 +43,30 @@ public partial class Ball : RigidBody3D
     {
         var ball = new Ball { Name = "Ball" };
         ball.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.11f } });
-        ball.material = new StandardMaterial3D { EmissionEnabled = true };
+        // Cœur blanc chaud toujours visible, halo additif à la couleur de l'équipe qui a lancé.
         ball.AddChild(new MeshInstance3D
         {
             Mesh = new SphereMesh { Radius = 0.11f, Height = 0.22f },
-            MaterialOverride = ball.material,
+            MaterialOverride = Materials.Glow(Palette.BallCore, 1f),
         });
+        ball.haloMaterial = Materials.Additive(Palette.BallCore);
+        ball.halo = new MeshInstance3D
+        {
+            Mesh = new SphereMesh { Radius = 0.16f, Height = 0.32f, RadialSegments = 16, Rings = 8 },
+            MaterialOverride = ball.haloMaterial,
+        };
+        ball.AddChild(ball.halo);
+        // Ombre portée simplifiée : un disque lumineux au sol sous la balle (indice de hauteur).
+        ball.shadow = new MeshInstance3D
+        {
+            Mesh = new CylinderMesh { TopRadius = 0.14f, BottomRadius = 0.14f, Height = 0.005f, RadialSegments = 16, Rings = 1 },
+            MaterialOverride = Materials.Additive(new Color(1f, 1f, 1f, 0.22f)),
+            TopLevel = true,
+        };
+        ball.AddChild(ball.shadow);
+        ball.trailMesh = new ImmediateMesh();
+        ball.trail = new MeshInstance3D { Mesh = ball.trailMesh, MaterialOverride = Materials.Additive(Colors.White), TopLevel = true };
+        ball.AddChild(ball.trail);
         ball.UpdateLook();
         return ball;
     }
@@ -68,6 +96,7 @@ public partial class Ball : RigidBody3D
         FreezeMode = FreezeModeEnum.Kinematic;
         Reparent(hand, false);
         Position = Vector3.Zero;
+        UpdateLook();
     }
 
     public void Release(Vector3 velocity, float spin)
@@ -88,6 +117,7 @@ public partial class Ball : RigidBody3D
         OwnerPlayerId = -1;
         OwnerTeam = -1;
         ResetCharge();
+        UpdateLook();
     }
 
     public void AddCharge()
@@ -104,10 +134,49 @@ public partial class Ball : RigidBody3D
 
     void UpdateLook()
     {
-        var c = ChargeColors[Charge];
-        material.AlbedoColor = c;
-        material.Emission = c;
-        material.EmissionEnergyMultiplier = 0.3f + Charge * 0.9f;
+        var c = Palette.Team(OwnerTeam);
+        c.A = HaloAlpha[Charge];
+        haloMaterial.AlbedoColor = c;
+    }
+
+    public override void _Process(double delta)
+    {
+        visualTime += delta;
+        float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
+        halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
+
+        var p = GlobalPosition;
+        shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
+        float h = Mathf.Clamp(1f - p.Y / 4f, 0.2f, 1f);
+        shadow.Scale = new Vector3(h, 1f, h);
+
+        UpdateTrail(p);
+    }
+
+    /// <summary>Traînée en ruban : longueur proportionnelle à la vitesse, aucune sous le seuil de blessure.</summary>
+    void UpdateTrail(Vector3 p)
+    {
+        bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
+        if (fast) trailPoints.Add(p);
+        if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        trailMesh.ClearSurfaces();
+        var cam = GetViewport().GetCamera3D();
+        if (trailPoints.Count < 2 || cam == null) return;
+        var color = Palette.Team(OwnerTeam);
+        trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
+        for (int i = 0; i < trailPoints.Count; i++)
+        {
+            float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
+            var a = trailPoints[i];
+            var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
+            var prev = trailPoints[Mathf.Max(i - 1, 0)];
+            var dir = (next - prev).Normalized();
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t;
+            var vc = new Color(color, 0.6f * t);
+            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
+            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
+        }
+        trailMesh.SurfaceEnd();
     }
 
     public override void _PhysicsProcess(double delta)
