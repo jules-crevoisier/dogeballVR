@@ -110,13 +110,14 @@ public partial class DesktopHud : CanvasLayer
         help = MakeLabel(new Vector2(0, 0), 16);
         help.Text = Help;
         help.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        help.Position = new Vector2(-470, 20);
+        help.OffsetLeft = -470; help.OffsetRight = -20; help.OffsetTop = 20;
         help.HorizontalAlignment = HorizontalAlignment.Right;
         help.CustomMinimumSize = new Vector2(450, 0);
 
         toast = MakeLabel(new Vector2(0, 0), 26);
         toast.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        toast.Position = new Vector2(-150, 120);
+        toast.OffsetLeft = -300; toast.OffsetRight = 300; toast.OffsetTop = 120;
+        toast.HorizontalAlignment = HorizontalAlignment.Center;
 
         MatchController.HitScored += OnHitScored;
     }
@@ -158,7 +159,7 @@ public partial class DesktopHud : CanvasLayer
         var ball = Player.HeldBall;
         state.Text = ball == null
             ? (Player.CatchState == 1 ? "Attrape !" : "Cherche une balle : passe dessus, ou clic droit pour attraper")
-            : $"Balle chargée x{ball.Charge}   |   clic gauche : lancer (maintenir = plus fort)";
+            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : "Balle en main") + "   |   clic gauche : lancer (maintenir = plus fort)";
         float c = Player.ThrowCharge01;
         barBack.Visible = ball != null;
         bar.Size = new Vector2(240 * c, 14);

@@ -86,6 +86,7 @@ public partial class DesktopPlayer : Node3D
     double scoopUntil;               // la main droite se baisse vers une balle à ramasser (pour que l'hôte valide)
     double pickupBlockedUntil;
     bool prevJump, prevDodge, prevCatch;
+    bool ignoreClicksUntilRelease;
     float fov = 90f;
     double time;
 
@@ -114,6 +115,14 @@ public partial class DesktopPlayer : Node3D
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
         ApplyTransform();
+        CallDeferred(nameof(HideVrLimitWall));
+    }
+
+    /// <summary>Le mur lumineux de bord de zone protège un joueur VR qui marche ; au clavier la zone est déjà bloquée, il ne ferait qu'aveugler.</summary>
+    void HideVrLimitWall()
+    {
+        foreach (var n in GetTree().Root.FindChildren("LimitWall*", "MeshInstance3D", true, false))
+            ((MeshInstance3D)n).Visible = false;
     }
 
     void LoadSettings()
@@ -150,6 +159,7 @@ public partial class DesktopPlayer : Node3D
         else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
         {
             Input.MouseMode = Input.MouseModeEnum.Captured;   // le premier clic reprend la souris et ne lance pas
+            ignoreClicksUntilRelease = true;
             GetViewport().SetInputAsHandled();
         }
     }
@@ -166,7 +176,16 @@ public partial class DesktopPlayer : Node3D
         time += delta;
         float dt = (float)delta;
         var input = autoplay ? AutoplayInput(delta) : ReadInput();
-        if (!autoplay && Input.MouseMode != Input.MouseModeEnum.Captured) input = default;   // souris libérée : plus de réaction aux clics
+        if (!autoplay && Input.MouseMode != Input.MouseModeEnum.Captured)
+        {
+            input = default;                                   // souris libérée : plus de réaction aux clics
+            charging = false; chargeTime = 0;                  // Échap en pleine charge annule le lancer au lieu de le déclencher
+        }
+        if (ignoreClicksUntilRelease)
+        {
+            if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) { input.Fire = false; input.Catch = false; }
+            else ignoreClicksUntilRelease = false;
+        }
 
         UpdateMotion(input, dt);
         if (BallActions.IsClient)
@@ -249,7 +268,7 @@ public partial class DesktopPlayer : Node3D
             if (jumpY <= 0) { jumpY = 0; jumpVel = 0; }
         }
 
-        eyeY = Mathf.MoveToward(eyeY, input.Crouch ? CrouchHeight : EyeHeight, EyeSpeed * dt);
+        if (jumpY <= 0f) eyeY = Mathf.MoveToward(eyeY, input.Crouch ? CrouchHeight : EyeHeight, EyeSpeed * dt);   // pas d'accroupi en l'air : la vitesse verticale reste sous le plafond de l'hôte
 
         // Déplacement monde -> repère de la zone, borné à la zone.
         var world = new Vector3(velocity.X, 0, velocity.Y) * dt;
@@ -273,7 +292,8 @@ public partial class DesktopPlayer : Node3D
         bool moved = false;
         foreach (var o in Zones.Map.Obstacles)
         {
-            if (o.Kind == "pit" || o.Y > Elevation + 1.5f || o.Y + o.Sy < Elevation + 0.3f) continue;
+            float baseY = o.Y + (o.Zone == Zones.LocalZoneId ? Elevation : 0f);   // les couverts d'une zone montent avec son plateau
+            if (o.Kind == "pit" || baseY > Elevation + 1.5f || baseY + o.Sy < Elevation + 0.3f) continue;
             float rot = Mathf.DegToRad(o.RotY);
             var rel = (p - new Vector2(o.X, o.Z)).Rotated(rot);      // repère de l'obstacle
             var half = new Vector2(o.Sx, o.Sz) * 0.5f;
@@ -356,7 +376,7 @@ public partial class DesktopPlayer : Node3D
             {
                 float t = (float)(chargeTime / MaxChargeTime);
                 float speed = Mathf.Lerp(MinThrow, MaxThrow, t);
-                BallActions.Throw(held, 1, AimDirection() * speed, 0f);
+                BallActions.Throw(held, 1, ThrowVelocity(speed), 0f);
                 ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
                 held = null;
                 charging = false;
@@ -395,14 +415,27 @@ public partial class DesktopPlayer : Node3D
         return best;
     }
 
-    /// <summary>Direction du lancer : le regard, corrigé à moitié vers un adversaire presque aligné.</summary>
-    Vector3 AimDirection()
+    /// <summary>
+    /// Vitesse de lancer : le regard (corrigé à moitié vers un adversaire presque aligné), visé depuis la main et non depuis l'œil,
+    /// avec compensation de la chute de la balle. Le tir part donc là où pointe le viseur à la distance de la cible.
+    /// </summary>
+    Vector3 ThrowVelocity(float speed)
     {
-        var fwd = -camera.GlobalTransform.Basis.Z;
+        var fwd = (-camera.GlobalTransform.Basis.Z).Normalized();
         var enemy = BestEnemy(AssistCone);
-        if (enemy == null) return fwd;
-        var to = (enemy.GlobalPosition - camera.GlobalPosition).Normalized();
-        return fwd.Normalized().Lerp(to, AssistStrength).Normalized();   // petit angle : un mélange linéaire suffit (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
+        float dist = 20f;
+        if (enemy != null)
+        {
+            var to = enemy.GlobalPosition - camera.GlobalPosition;
+            dist = to.Length();
+            fwd = fwd.Lerp(to / dist, AssistStrength).Normalized();   // petit angle : mélange linéaire (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
+        }
+        var aimPoint = camera.GlobalPosition + fwd * dist;
+        float t = dist / speed;
+        float gravity = 9.8f * Ball.GravityFactor;
+        aimPoint += Vector3.Up * (0.5f * gravity * t * t);             // la balle tombe pendant son vol : on vise au-dessus
+        var origin = holdPoint.GlobalPosition;
+        return (aimPoint - origin).Normalized() * speed;
     }
 
     void UpdateCamera(float dt)
@@ -417,6 +450,7 @@ public partial class DesktopPlayer : Node3D
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
         GlobalPosition = zone.Center + zoneBasis * new Vector3(localPos.X, 0, localPos.Y) + new Vector3(0, Elevation, 0);
         camera.Position = new Vector3(0, eyeY + jumpY, 0);
+        Hurtbox.Elevation = Elevation + jumpY;   // en sautant, les pieds quittent le sol : une balle basse passe dessous
         camera.Rotation = new Vector3(pitch, yaw, 0);
     }
 
