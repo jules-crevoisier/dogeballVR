@@ -66,7 +66,7 @@ public partial class Main : Node3D
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
         };
-        var arena = ArenaBuilder.Build(map, localZone.Id);
+        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
         AddChild(arena.Root);
         platforms = arena.Platforms;
 
@@ -79,7 +79,7 @@ public partial class Main : Node3D
 
         localHurtbox = new Hurtbox { Name = "LocalHurtbox", PlayerId = localZone.Id, Team = localZone.Team, Passive = client };
         BuildLocalPlayer(xrActive, localZone);
-        if (localZone.Lift != null) BuildLift(localZone);
+        if (localZone.Lift != null && !(map.IsRing && xrOrigin == null)) BuildLift(localZone);   // le lift est un geste VR ; au clavier, tremplins et terrasses
 
         if (client) BuildClient(localZone);
         else BuildHost(localZone);
@@ -183,7 +183,7 @@ public partial class Main : Node3D
     /// <summary>Altitude du plateau d'une zone : lift local, pose d'un joueur distant (hôte), snapshot (client), 0 pour un bot.</summary>
     float ZoneElevation(int zoneId)
     {
-        if (zoneId == localHurtbox.PlayerId) return lift?.Elevation ?? 0f;
+        if (zoneId == localHurtbox.PlayerId) return lift != null ? lift.Elevation : desktopPlayer?.Elevation ?? 0f;
         if (clientWorld != null) return clientWorld.ElevationOf(zoneId);
         return net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) && !bots.ContainsKey(zoneId) ? provider().Elevation : 0f;
     }
@@ -196,6 +196,12 @@ public partial class Main : Node3D
         AddChild(match);
         match.ConfigureMap(map);
         match.ZoneElevation = ZoneElevation;
+        match.PlatformsMove = !(map.IsRing && xrOrigin == null);
+        match.PushVictim = (victimId, dir) =>
+        {
+            if (victimId == localZone.Id) desktopPlayer?.ApplyPush(dir);
+            else net?.SendPush(victimId, dir);
+        };
         match.Register(localHurtbox);
 
         targets.Add(localMarker);
@@ -223,7 +229,8 @@ public partial class Main : Node3D
                 return z == null ? net.ArenaXZ : new Rect2(z.X - map.ZoneWidth / 2 - 0.5f, z.Z - map.ZoneDepth / 2 - 0.5f, map.ZoneWidth + 1f, map.ZoneDepth + 1f);
             };
             net.MaxElevation = map.MaxElevation;
-            net.LiftOf = id => map.Zones.Find(zz => zz.Id == id)?.Lift;
+            net.Map = map;
+            net.LiftOf = id => net.FreeRoam ? null : map.Zones.Find(zz => zz.Id == id)?.Lift;
             net.TeammateHigh = id =>
             {
                 if (!map.LiftRules.OneHighZonePerTeam) return false;
@@ -329,6 +336,7 @@ public partial class Main : Node3D
             Name = "ClientWorld", Net = net!, Map = map, LocalPlayerId = localZone.Id, LocalHurtbox = localHurtbox, Hud = hud,
         };
         AddChild(world);
+        if (net != null) net.PushReceived = dir => desktopPlayer?.ApplyPush(dir);
         clientWorld = world;
         net!.LocalPose = localPose;
         if (localBody is DesktopPlayer desktop)
@@ -359,6 +367,7 @@ public partial class Main : Node3D
             if (hostDeniedFor > 1.0) { lift.ForceDown(); hostDeniedFor = 0; }
         }
         localMarker.GlobalPosition = new Vector3(p.X, elevation, p.Z);
+        if (map.IsRing && xrOrigin == null) return;   // clavier-souris en moulinet : pas de plateaux de lift
         foreach (var (id, platform) in platforms)
         {
             float e = ZoneElevation(id);

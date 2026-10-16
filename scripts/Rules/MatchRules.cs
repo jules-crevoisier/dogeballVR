@@ -59,6 +59,18 @@ public class MatchRules
         }
     }
 
+    /// <summary>Chute dans la fosse sans pousseur : un cœur en moins ; à 0 c'est un KO crédité à l'équipe adverse.</summary>
+    public void RegisterFall(int playerId)
+    {
+        if (lives[playerId] <= 0) return;
+        lives[playerId]--;
+        if (lives[playerId] == 0)
+        {
+            Kos[1 - teamOf[playerId]]++;
+            PlayerEliminated?.Invoke(playerId);
+        }
+    }
+
     /// <summary>Attrapé parfait : le receveur gagne une vie (plafonnée).</summary>
     public void RegisterPerfectCatch(int catcherId)
     {

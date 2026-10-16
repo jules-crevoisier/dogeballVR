@@ -78,3 +78,17 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 - **Règles** de la carte : un cœur revient après 10 s sans être touché, la manche s'arrête à 6 KO.
 - **Flèches** : une balle ennemie rapide (≥ 12 m/s) à moins de 25 m et hors de l'écran est signalée par une flèche au bord.
 - **Limites** : les passes ne sont pas interceptables (même par une attrape parfaite) ; les bots ne passent pas ; verrouillage de l'aide à la visée absent sur l'effet ; ressenti non testé à la souris.
+
+## Fosse croisée : fosse, tremplins, terrasses, tacle (phase 3a de la refonte Knockout City)
+
+Source : `v3/maps/map_b_fosse_croisee.json` (copie : `maps/fosse_croisee.json`, avec les règles de Croix Néon : cœur après 10 s, manche à 6 KO).
+
+- **Fosse** : trou carré de 9 m au centre (le pylône en sort), rebord clair de 0,3 m sans collision. Les balles qui y tombent reviennent par la règle des balles perdues.
+- **Chute (ring-out)** : l'hôte juge la hauteur de tête sous 0,5 m au-dessus de la fosse. Poussé par un adversaire dans les 3 s : KO pour la victime, point pour l'équipe du pousseur. Tombé seul : un cœur en moins, retour au point d'apparition après 1,5 s avec 1,5 s d'invulnérabilité (à 0 cœur c'est un KO normal, point pour l'adversaire).
+- **Dash** : s'arrête à 0,8 m du vide ; on tombe en courant dedans ou en étant poussé.
+- **Tacle** : un dash qui passe à moins de 1,1 m d'un adversaire le tacle. Le client l'annonce, l'hôte exige un dash validé, une distance de 2,2 m au plus, une victime vulnérable ; la victime lâche sa balle et est poussée de 2 m en 0,25 s ; un tacle par dash, 0,8 s entre deux tacles.
+- **Tremplin + terrasse** (PC) : le tremplin de son camp (disque lumineux) lance un vol guidé de 1,8 s, sommet 3 m, qui se pose au centre de la terrasse de la plaque (bloc de 1,6 m, parapet de 1 m pour les balles seulement). On y reste 8 s au plus puis on est ramené vers la plaque ; recharge du tremplin 10 s. Un tir parti dans les 3 s après l'arrivée, avec une balle au palier 0, gagne +1 palier. Un tacle subi sur la terrasse fait redescendre.
+- **Réseau** : sur une carte à tremplins l'hôte laisse 6,5 m/s en vertical et 5 m de hauteur de tête ; la tête peut descendre jusqu'à −8 m au-dessus de la fosse ; l'altitude de terrasse n'est accordée que tête au-dessus du bloc et assez haute (arrivée en vol), reprise après 9 s.
+- **VR** : lift et plaques inchangés, la fosse est visible ; terrasses et tremplins n'existent pas au casque.
+- **Test** : `--map=fosse_croisee --pc-autoplay` (hôte équipe 0 pousseur, client `--zone=1` appât au bord de la fosse, puis dash vers la fosse et chute volontaire). Étape CI « Test Fosse croisée ».
+- **Limites** : le parapet ne bloque pas le joueur (seulement les balles) ; l'hôte ne vérifie pas qu'un client arrive vraiment par le tremplin (il vérifie la hauteur de tête) ; le joueur local ne tombe pas si l'hôte est lent à juger (il remonte tout seul à −2,5 m une fois déclaré KO) ; les bots ne tacleront ni ne tomberont (ils restent sur leur plaque) ; pas de playtest à la souris.

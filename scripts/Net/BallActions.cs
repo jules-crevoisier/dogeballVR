@@ -24,6 +24,13 @@ public static class BallActions
         else ball.Release(velocity, spin, mode);
     }
 
+    /// <summary>Un dash touche un adversaire : le client le signale à l'hôte, l'hôte (ou le mode hors ligne) le juge.</summary>
+    public static void Tackle(int tacklerId, int victimId, Vector2 dir)
+    {
+        if (IsClient) Net!.RequestTackle(victimId, dir);
+        else MatchController.RequestTackle(tacklerId, victimId, dir);
+    }
+
     /// <summary>Côté client : la balle (marionnette) que l'hôte dit tenue par ce joueur.</summary>
     public static Ball? FindHeld(SceneTree tree, int playerId)
     {

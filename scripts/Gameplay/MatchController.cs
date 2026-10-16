@@ -56,6 +56,72 @@ public partial class MatchController : Node3D
     readonly Dictionary<int, double> lastDamageAt = new();   // dernier cœur perdu ou regagné : repart le délai de régénération
     float heartRegenSeconds;
 
+    // Fosse (ring-out), tacle et terrasses : cartes en moulinet du profil PC.
+    MapData? ringMap;
+    bool terraceBonus;
+    readonly Dictionary<int, (int by, double at)> lastPush = new();
+    readonly Dictionary<int, double> tackleReadyAt = new();
+    readonly Dictionary<int, double> highSince = new();
+    readonly HashSet<int> fallReturn = new();   // joueurs tombés avec des cœurs restants : ils reviennent vite, sans retrouver toutes leurs vies
+    readonly Dictionary<int, double> ringGraceUntil = new();   // juste après un retour, la copie de l'hôte n'a pas encore rejoint le point d'apparition
+    const double PushCreditSeconds = 3.0;       // une chute dans les 3 s après une poussée compte pour le pousseur
+    const float TackleReach = 2.2f;             // distance maximale tacleur/victime vue par l'hôte (marge de latence comprise)
+
+    /// <summary>Demande de tacle (dash qui touche un adversaire) : tacleur, victime, direction du dash. Jugée ici, par l'hôte ou hors ligne.</summary>
+    public static event System.Action<int, int, Vector2>? TackleRequested;
+    public static void RequestTackle(int tacklerId, int victimId, Vector2 dir) => TackleRequested?.Invoke(tacklerId, victimId, dir);
+    /// <summary>Tacle validé : la victime est poussée de 2 m dans la direction donnée (le joueur local l'applique, un joueur distant reçoit un message).</summary>
+    public System.Action<int, Vector2>? PushVictim { get; set; }
+
+    void OnTackle(int tacklerId, int victimId, Vector2 dir)
+    {
+        if (!inRound || !hurtboxes.TryGetValue(tacklerId, out var a) || !hurtboxes.TryGetValue(victimId, out var v)) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (a.Team == v.Team || a.Eliminated || v.Eliminated || v.DashInvulnerable || !dir.IsFinite() || dir.LengthSquared() < 0.01f) return;
+        if (v.Vulnerable != null && !v.Vulnerable()) return;   // invulnérable (après une touche, un retour de KO) : le tacle ne fait rien
+        if (tackleReadyAt.TryGetValue(tacklerId, out double ready) && now < ready) return;
+        var pa = a.GlobalPosition; var pv = v.GlobalPosition;
+        if (new Vector2(pa.X - pv.X, pa.Z - pv.Z).Length() > TackleReach) return;
+        tackleReadyAt[tacklerId] = now + 0.8;
+        lastPush[victimId] = (tacklerId, now);
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+            if (n is Ball { IsHeld: true } held && held.OwnerPlayerId == victimId) held.Release(Vector3.Zero, 0f);   // la victime lâche sa balle
+        PushVictim?.Invoke(victimId, dir.Normalized());
+        GD.Print($"[Match] Tacle du joueur {tacklerId} sur le joueur {victimId}");
+    }
+
+    /// <summary>Un joueur dont la tête passe sous le bord de la fosse est tombé : poussé récemment, KO pour le pousseur ; seul, un cœur en moins.</summary>
+    void CheckRingOut(double now)
+    {
+        if (ringMap == null) return;
+        foreach (var (id, h) in hurtboxes)
+        {
+            if (h.Eliminated || h.Head == null || !IsInstanceValid(h)) continue;
+            if (ringGraceUntil.TryGetValue(id, out double grace) && now < grace) continue;
+            var hp = h.Head.GlobalPosition;
+            if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
+            if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
+            {
+                while (Rules.LivesOf(id) > 0) Rules.RegisterHit(push.by, id);
+                HitScored?.Invoke(push.by, id, true);
+                GD.Print($"[Match] Ring-out : le joueur {id} est poussé dans la fosse par le joueur {push.by}");
+            }
+            else
+            {
+                Rules.RegisterFall(id);
+                lastDamageAt[id] = now;
+                if (Rules.LivesOf(id) > 0)
+                {
+                    h.Eliminated = true;
+                    respawnAt[id] = now + 1.5;
+                    fallReturn.Add(id);
+                }
+                GD.Print($"[Match] Chute dans la fosse : le joueur {id} perd un cœur ({Rules.LivesOf(id)} restant) en {hp.X:0.0} / {hp.Z:0.0} à t={Engine.GetPhysicsFrames() / 60.0:0.0} s");
+            }
+            lastPush.Remove(id);
+        }
+    }
+
     /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
     void OnCaughtThrow(int catcherId)
     {
@@ -65,6 +131,8 @@ public partial class MatchController : Node3D
     }
     /// <summary>Altitude actuelle du plateau d'une zone (lift) : le distributeur monte avec elle.</summary>
     public System.Func<int, float> ZoneElevation { get; set; } = _ => 0f;
+    /// <summary>Faux au clavier-souris en moulinet : l'altitude (terrasse) n'est pas celle d'un plateau de lift, les distributeurs restent au sol.</summary>
+    public bool PlatformsMove { get; set; } = true;
 
     int BallsInPlay()
     {
@@ -87,6 +155,8 @@ public partial class MatchController : Node3D
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
         heartRegenSeconds = map.Rules.HeartRegenSeconds;
+        ringMap = map.PitRect != null ? map : null;
+        terraceBonus = map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
         HandThrower.MinLaunchSpeed = map.BallRules.ThrowAssist.MinLaunchSpeed;
         foreach (var def in map.BallSpawns)
@@ -146,7 +216,8 @@ public partial class MatchController : Node3D
         Rules.PlayerEliminated += OnEliminated;
         Ball.Released += OnBallReleased;
         Ball.CaughtThrow += OnCaughtThrow;
-        TreeExiting += () => { Ball.Released -= OnBallReleased; Ball.CaughtThrow -= OnCaughtThrow; };
+        TackleRequested += OnTackle;
+        TreeExiting += () => { Ball.Released -= OnBallReleased; Ball.CaughtThrow -= OnCaughtThrow; TackleRequested -= OnTackle; };
     }
 
     /// <summary>À appeler quand tous les joueurs sont enregistrés.</summary>
@@ -162,6 +233,8 @@ public partial class MatchController : Node3D
         Rules.StartRound();
         foreach (var h in hurtboxes.Values) h.Eliminated = false;
         respawnAt.Clear();
+        fallReturn.Clear();
+        lastPush.Clear();
         ClearBalls();
         pendingReturns.Clear();
         neutralTimer = 0;
@@ -186,7 +259,10 @@ public partial class MatchController : Node3D
         // Tir plongeant : la première balle lancée depuis le plateau haut est chargée +1 (une fois par montée).
         int thrower = ball.OwnerPlayerId;
         if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
-        { ball.AddCharge(); ball.AddCharge(); }   // charge 2 : dégâts doubles dès le premier tir
+        {
+            if (!terraceBonus) { ball.AddCharge(); ball.AddCharge(); }   // lift VR : charge 2, dégâts doubles dès le premier tir
+            else if (ball.Charge == 0 && highSince.TryGetValue(thrower, out double since) && Time.GetTicksMsec() / 1000.0 - since <= 3.0) ball.AddCharge();   // terrasse PC : +1 palier dans les 3 s après l'arrivée
+        }
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));
@@ -245,10 +321,18 @@ public partial class MatchController : Node3D
         foreach (var id in new List<int>(respawnAt.Keys))
         {
             if (now < respawnAt[id]) continue;
-            Rules.Respawn(id);
+            if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
+            else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
             hurtboxes[id].Eliminated = false;
+            ringGraceUntil[id] = now + 0.8;
             respawnAt.Remove(id);
         }
+        CheckRingOut(now);
+        if (terraceBonus)
+            foreach (var id in hurtboxes.Keys)
+            {
+                if (ZoneElevation(id) > 0.1f) highSince.TryAdd(id, now); else highSince.Remove(id);
+            }
         if (heartRegenSeconds > 0)
             foreach (var id in hurtboxes.Keys)
             {
@@ -330,7 +414,7 @@ public partial class MatchController : Node3D
         highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
         foreach (var d in dispensers)
         {
-            var pedestal = new Vector3(d.Def.X, d.Def.Y + ZoneElevation(d.Def.Zone), d.Def.Z);
+            var pedestal = new Vector3(d.Def.X, d.Def.Y + (PlatformsMove ? ZoneElevation(d.Def.Zone) : 0f), d.Def.Z);
             if (d.OnPedestal != null && (!IsInstanceValid(d.OnPedestal) || d.OnPedestal.IsHeld || d.OnPedestal.GlobalPosition.DistanceTo(pedestal) > 0.6f))
                 d.OnPedestal = null;
             if (d.OnPedestal == null && d.Stored > 0 && RoomForBall())

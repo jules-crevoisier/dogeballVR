@@ -29,6 +29,7 @@ public partial class RemotePlayer : Node3D
     /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, compteur de dashs du client, saut de retour de KO toléré.</summary>
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
+    public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;
     public bool TeleportPending { get; set; }
