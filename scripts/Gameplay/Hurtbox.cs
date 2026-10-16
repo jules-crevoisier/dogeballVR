@@ -20,6 +20,9 @@ public partial class Hurtbox : Area3D
     /// <summary>Côté client : la touche est jugée par l'hôte, cette zone ne détecte rien.</summary>
     public bool Passive { get; set; }
 
+    /// <summary>Dash en cours : les balles passent à travers.</summary>
+    public bool DashInvulnerable { get; set; }
+
     /// <summary>Altitude des pieds (plateau haut du lift) : la capsule va des pieds à la tête.</summary>
     public float Elevation { get; set; }
 
@@ -50,7 +53,7 @@ public partial class Hurtbox : Area3D
 
     void OnBodyEntered(Node3D body)
     {
-        if (Eliminated || body is not Ball ball || ball.IsHeld) return;
+        if (Eliminated || DashInvulnerable || body is not Ball ball || ball.IsHeld) return;
         if (ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;          // neutre ou tir allié
         if (ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;       // trop lente
         if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée

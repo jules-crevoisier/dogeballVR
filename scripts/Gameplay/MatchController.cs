@@ -86,6 +86,7 @@ public partial class MatchController : Node3D
         foreach (var def in map.BallSpawns)
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
+            else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); }
             else if (def.Kind == "dispenser")
             {
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
@@ -93,6 +94,10 @@ public partial class MatchController : Node3D
             }
         }
     }
+
+    BallSpawnDef? hubLauncher;
+    readonly List<ZoneDef> hubZones = new();
+    double hubTimer;
 
     bool UsesDispensers => dispensers.Count > 0;
 
@@ -346,6 +351,16 @@ public partial class MatchController : Node3D
             pendingReturns.RemoveAt(i);
         }
 
+        if (hubLauncher != null)
+        {
+            hubTimer += delta;
+            if (hubTimer >= hubLauncher.IntervalSeconds && RoomForBall())
+            {
+                hubTimer = 0;
+                LaunchFromHub(hubLauncher);
+            }
+        }
+
         if (neutralDrop != null)
         {
             neutralTimer += delta;
@@ -355,6 +370,33 @@ public partial class MatchController : Node3D
                 DropNeutral(neutralDrop);
             }
         }
+    }
+
+    /// <summary>
+    /// Lanceur du moyeu : lob lent (1,6 s de vol) vers la plaque qui a le moins de balles (à égalité, celle d'une équipe
+    /// qui perd) ; on la voit arriver et on l'attrape.
+    /// </summary>
+    void LaunchFromHub(BallSpawnDef def)
+    {
+        ZoneDef? target = null;
+        int fewest = int.MaxValue;
+        int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
+        foreach (var z in hubZones)
+        {
+            int count = 0;
+            foreach (var n in GetTree().GetNodesInGroup("balls"))
+                if (n is Ball b && new Vector2(b.GlobalPosition.X - z.X, b.GlobalPosition.Z - z.Z).Length() < 7f) count++;
+            // La plaque d'une équipe qui perd passe devant à nombre de balles égal.
+            if (count < fewest || (count == fewest && target != null && z.Team == trailing && target.Team != trailing)) { fewest = count; target = z; }
+        }
+        if (target == null) return;
+        var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
+        var to = new Vector3(target.X + rng.RandfRange(-2f, 2f), 1.2f, target.Z + rng.RandfRange(-1.5f, 1.5f));
+        const float flight = 1.6f;
+        float g = 9.8f * Ball.GravityFactor;
+        var d = to - from;
+        var ball = SpawnBallAt(from);
+        ball.LinearVelocity = new Vector3(d.X / flight, d.Y / flight + 0.5f * g * flight, d.Z / flight);
     }
 
     /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>

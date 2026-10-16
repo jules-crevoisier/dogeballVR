@@ -34,6 +34,11 @@ public partial class NetSession : Node
     public bool IsHost => Mode == NetMode.Host;
     public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
     public int ZoneId { get; set; }
+    /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
+    public bool FreeRoam { get; set; }
+    float MoveSpeedCap => FreeRoam ? 24f : MaxMoveSpeed;
+    float VerticalSpeedCap => FreeRoam ? 7f : 4f;
+    float HeadCeiling => FreeRoam ? 3.0f : 2.3f;
     /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
     public double SimulatedLag { get; set; }
     readonly Queue<(double due, Action action)> delayed = new();
@@ -169,7 +174,7 @@ public partial class NetSession : Node
         head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), head.Y, Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourue depuis la dernière pose acceptée (temps réel écoulé).
         var last = remote.GetPose().Head;
-        float allowed = MaxMoveSpeed * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
+        float allowed = MoveSpeedCap * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
         if (horizontal.Length() > allowed)
         {
@@ -182,13 +187,13 @@ public partial class NetSession : Node
             && new Vector2(head.X - liftDef.Pad.X, head.Z - liftDef.Pad.Z).Length() < liftDef.Pad.Radius + 0.8f;
         remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
-        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation);
+        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, HeadCeiling + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
         var lastPose = remote.GetPose();
         float lastRel = last.Y - lastPose.Elevation;
-        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - 4f * dt, lastRel + 4f * dt) + elevation;
+        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - VerticalSpeedCap * dt, lastRel + VerticalSpeedCap * dt) + elevation;
         remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);

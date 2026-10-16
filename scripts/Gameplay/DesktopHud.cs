@@ -17,9 +17,9 @@ public partial class DesktopHud : CanvasLayer
 
     const string Help =
         "ZQSD / WASD   bouger\n" +
-        "Maj   sprinter      Espace   sauter\n" +
+        "Maj   dash (2 charges)      Espace   sauter\n" +
         "Ctrl / C   s'accroupir (ramasser, ascenseur)\n" +
-        "E   esquive\n" +
+        "E   esquive (cartes en zones)\n" +
         "Clic gauche   lancer (maintenir = plus fort)\n" +
         "Clic droit   attraper (0,5 s)\n" +
         "PgHaut / PgBas   sensibilité\n" +
@@ -103,7 +103,7 @@ public partial class DesktopHud : CanvasLayer
         barBack.AddChild(bar);
 
         catchBack = MakeGauge(new Vector2(-150, -40), 120, out catchFill, out catchLabel, "Clic D");
-        dodgeBack = MakeGauge(new Vector2(70, -40), 60, out dodgeFill, out dodgeLabel, "E");
+        dodgeBack = MakeGauge(new Vector2(70, -40), 60, out dodgeFill, out dodgeLabel, "Maj");
 
         help = MakeLabel(new Vector2(0, 0), 16);
         help.Text = Help;
@@ -200,8 +200,10 @@ public partial class DesktopHud : CanvasLayer
         // Attrape : verte quand prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge.
         catchFill.Size = new Vector2(120 * Player.CatchCooldown01, 12);
         catchFill.Color = ball != null ? new Color(0.3f, 0.32f, 0.38f) : Player.CatchState switch { 1 => Palette.BallCore, 2 => new Color(0.55f, 0.58f, 0.66f), _ => new Color(0.45f, 0.9f, 0.55f) };
-        dodgeFill.Size = new Vector2(60 * Player.DodgeCooldown01, 12);
-        dodgeFill.Color = Player.DodgeCooldown01 >= 1f ? new Color(0.45f, 0.9f, 0.55f) : new Color(0.55f, 0.58f, 0.66f);
+        // Dash : deux segments (une charge chacun), le suivant se remplit pendant la recharge.
+        float dash = Player.DashCharges + (Player.DashCharges < 2 ? Player.DashRecharge01 : 0f);
+        dodgeFill.Size = new Vector2(60 * Mathf.Min(dash, 2f) / 2f, 12);
+        dodgeFill.Color = Player.DashCharges >= 1 ? new Color(0.45f, 0.9f, 0.55f) : new Color(0.55f, 0.58f, 0.66f);
 
         hitMarkerLeft = Mathf.Max(0, hitMarkerLeft - delta);
         help.Visible = age < helpHideAt;
