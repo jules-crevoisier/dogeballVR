@@ -52,6 +52,7 @@ public partial class Main : Node3D
             var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = local };
             AddChild(desktop);
             localBody = desktop;
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Match = match, PlayerId = localZone.Id });
         }
 
         // Cibles des bots : le joueur local (marqueur qui suit son corps) puis les autres zones.
@@ -77,31 +78,8 @@ public partial class Main : Node3D
         }
         foreach (var b in bots) { b.Targets = targets; b.TargetTeams = teams; }
 
-        AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0) });
-        AddFloor();
+        AddChild(ArenaBuilder.Build(map, localZone.Id));
         match.StartMatch();
-    }
-
-    void AddFloor()
-    {
-        var floor = new StaticBody3D { Name = "Floor" };
-        floor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(60, 0.2f, 40) }, Position = new Vector3(0, -0.1f, 0) });
-        floor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(60, 0.2f, 40) }, Position = new Vector3(0, -0.1f, 0) });
-        AddChild(floor);
-
-        // Murs et plafond invisibles : les balles restent dans l'arène (30 x 16 m).
-        AddWall(new Vector3(0.4f, 8, 17), new Vector3(-15.2f, 4, 0));
-        AddWall(new Vector3(0.4f, 8, 17), new Vector3(15.2f, 4, 0));
-        AddWall(new Vector3(31, 8, 0.4f), new Vector3(0, 4, -8.2f));
-        AddWall(new Vector3(31, 8, 0.4f), new Vector3(0, 4, 8.2f));
-        AddWall(new Vector3(31, 0.4f, 17), new Vector3(0, 7f, 0));
-    }
-
-    void AddWall(Vector3 size, Vector3 position)
-    {
-        var wall = new StaticBody3D { Position = position };
-        wall.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-        AddChild(wall);
     }
 
     public override void _Process(double delta)
