@@ -7,23 +7,25 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Joueur PC (clavier-souris), pensé comme un jeu PC à part entière, inspiré des commandes de Knockout City :
-/// ZQSD/WASD bouger, Maj dash (2 charges en jeu libre), Espace sauter, Ctrl/C s'accroupir, E esquive (cartes en zones), souris viser,
+/// ZQSD/WASD bouger, Espace sauter, Ctrl/C s'accroupir, souris viser ; en jeu libre Maj = dash (2 charges), sur les cartes en zones Maj = sprint et E = esquive,
 /// clic gauche maintenu puis relâché : lancer (tap = lancer rapide, maintenu = lancer chargé),
 /// clic droit : fenêtre d'attrape (0,5 s) suivie d'une courte recharge. Les balles lentes qui passent
 /// près des pieds sont ramassées automatiquement. PageHaut/PageBas : sensibilité. Échap : libérer la souris.
-/// Le joueur ne peut pas sortir de sa zone. Option de test : <c>--pc-autoplay</c> fait jouer le joueur seul.
+/// Sur les cartes en zones le joueur ne sort pas de sa zone (en jeu libre : de l'arène). Option de test : <c>--pc-autoplay</c> fait jouer le joueur seul.
 /// </summary>
 public partial class DesktopPlayer : Node3D
 {
     // Déplacement
+    const float WalkSpeed = 5.5f;        // cartes en zones : marche, Maj sprint à RunSpeed
     const float RunSpeed = 7.5f;         // course constante en jeu libre (pas de sprint : Maj = dash)
     const float ChargeSpeed = 3.8f;      // on ralentit en armant un lancer : choix tactique
     const float AccelUp = 45f, AccelDown = 60f;
     const float JumpSpeed = 3.5f, Gravity = 12f;
-    const float FreeJumpSpeed = 5.0f;    // jeu libre : saut d'environ 1 m (l'hôte laisse 7 m/s en lobby PC)   // ~0,5 m de saut ; sous le plafond vertical de l'hôte (4 m/s)
+    const float FreeJumpSpeed = 5.0f;    // jeu libre : saut d'environ 1 m (l'hôte laisse 5,5 m/s en lobby PC)
     const float DodgeSpeed = 10f, DodgeTime = 0.18f, DodgeCooldown = 1.2f;
     const float DashSpeed = 20f, DashTime = 0.2f, DashRecharge = 1.6f;   // 4 m en 0,2 s, 2 charges
     const int DashMaxCharges = 2;
+    const double DashGap = 0.35;         // délai minimal entre deux dashs : le signal réseau d'un dash reste lisible pour l'hôte
     const float PlayerRadius = 0.3f;
     const float CameraDistance = 3.0f;   // 3e personne : distance de la caméra derrière la tête
     const float EyeHeight = 1.6f;
@@ -75,7 +77,7 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Pose envoyée aux autres joueurs : tête, cap, main gauche (repos) et main droite (tendue, ramassage ou tenue).</summary>
     public PoseData Pose => new(head.GlobalPosition, head.GlobalRotation.Y,
-        head.GlobalPosition + head.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), RightHand(), Elevation);
+        head.GlobalPosition + head.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), RightHand(), Elevation, FreeRoam && time - dashStartedAt < 0.25);
 
     Ball? held;
     Vector2 worldPos;                // libre : position monde (x, z)
@@ -95,10 +97,14 @@ public partial class DesktopPlayer : Node3D
     Vector2 spawnPos;
     bool wasEliminated;
     readonly System.Collections.Generic.List<(Vector2 center, Vector2 half)> fixedBoxes = new();   // décor plein hors liste d'obstacles (pylône)
+    float camFraction = 1f;          // part de la distance caméra libre de décor
     int dashCharges = DashMaxCharges;
-    double dashRechargeLeft;
+    double dashRechargeLeft, dashStartedAt = -10;
+    int MaxCharges => FreeRoam ? DashMaxCharges : 1;
+    double RechargeTime => FreeRoam ? DashRecharge : DodgeCooldown;
     public int DashCharges => dashCharges;
-    public float DashRecharge01 => dashCharges >= DashMaxCharges ? 1f : (float)(1 - dashRechargeLeft / DashRecharge);
+    public int DashMax => MaxCharges;
+    public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
     bool prevJump, prevDodge, prevCatch;
     bool ignoreClicksUntilRelease, fireLatch;
     float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
@@ -109,7 +115,7 @@ public partial class DesktopPlayer : Node3D
     readonly RandomNumberGenerator rng = new();
     double apFireStart = -1, apNextJump = 2, apNextDodge = 4, apCrouchUntil;
 
-    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch; }
+    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint; }
 
     public override void _Ready()
     {
@@ -255,13 +261,14 @@ public partial class DesktopPlayer : Node3D
         if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) m.Y += 1;
         if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) m.X -= 1;
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) m.X += 1;
-        bool jump = Input.IsKeyPressed(Key.Space), dash = Input.IsKeyPressed(Key.Shift), catchDown = Input.IsMouseButtonPressed(MouseButton.Right);
+        bool jump = Input.IsKeyPressed(Key.Space), dash = Input.IsKeyPressed(FreeRoam ? Key.Shift : Key.E), catchDown = Input.IsMouseButtonPressed(MouseButton.Right);
         var input = new PcInput
         {
             Move = m.LimitLength(1f),
             Crouch = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.C),
             Jump = jump && !prevJump,
             Dodge = dash && !prevDodge,
+            Sprint = !FreeRoam && Input.IsKeyPressed(Key.Shift),
             Catch = catchDown && !prevCatch,
             Fire = Input.IsMouseButtonPressed(MouseButton.Left),
         };
@@ -277,22 +284,24 @@ public partial class DesktopPlayer : Node3D
 
         // Dash (Maj) : 4 m en 0,2 s dans la direction voulue (ou vers l'avant), 2 charges qui reviennent une par une,
         // invulnérable pendant l'impulsion. Les cartes en zones (sans jeu libre) gardent une esquive plus courte.
-        if (dashCharges < DashMaxCharges)
+        if (Hurtbox.Eliminated) wish = Vector2.Zero;   // KO : on ne bouge plus jusqu'au retour
+        if (dashCharges < MaxCharges)
         {
             dashRechargeLeft -= dt;
-            if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = DashRecharge; }
+            if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = RechargeTime; }
         }
-        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && !Hurtbox.Eliminated)
+        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated)
         {
             dodgeDir = wish.LengthSquared() > 0.01f ? wish.Normalized() : forward;
             dodgeLeft = FreeRoam ? DashTime : DodgeTime;
-            if (dashCharges == DashMaxCharges) dashRechargeLeft = DashRecharge;
+            if (dashCharges == MaxCharges) dashRechargeLeft = RechargeTime;
             dashCharges--;
+            dashStartedAt = time;
         }
-        Hurtbox.DashInvulnerable = dodgeLeft > 0;
+        Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
-        float top = charging ? ChargeSpeed : RunSpeed;
+        float top = charging ? ChargeSpeed : FreeRoam || input.Sprint ? RunSpeed : WalkSpeed;
         if (crouched) top *= 0.6f;
 
         Vector2 target = wish * top;
@@ -300,6 +309,7 @@ public partial class DesktopPlayer : Node3D
         {
             dodgeLeft -= dt;
             velocity = dodgeDir * (FreeRoam ? DashSpeed : DodgeSpeed);
+            if (dodgeLeft <= 0) velocity = dodgeDir * Mathf.Min(velocity.Length(), RunSpeed);   // fin du dash : pas de glissade, la distance reste celle annoncée (4 m)
         }
         else
         {
@@ -545,11 +555,27 @@ public partial class DesktopPlayer : Node3D
     void PlaceCamera()
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
-        var pos = head.GlobalPosition + basis * new Vector3(0.75f, 0.25f, CameraDistance);
+        var from = head.GlobalPosition;
+        var ideal = from + basis * new Vector3(0.75f, 0.25f, CameraDistance);
+        ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
+        // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.
+        float full = from.DistanceTo(ideal);
+        float allowed = full;
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, ideal, 0xFFFFFFFF, exclude));
+            if (hit.Count == 0) break;
+            if (hit["collider"].AsGodotObject() is StaticBody3D) { allowed = Mathf.Max(0.5f, from.DistanceTo(hit["position"].AsVector3()) - 0.25f); break; }
+            exclude.Add(hit["rid"].AsRid());
+        }
+        float f = allowed / full;
+        camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 0.15f);
+        var pos = from.Lerp(ideal, camFraction);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
-        pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         camera.GlobalTransform = new Transform3D(basis, pos);
     }
 

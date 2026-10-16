@@ -26,6 +26,11 @@ public partial class RemotePlayer : Node3D
     public float HostElevation { get; set; }
     public double LiftHighSince { get; set; }
     public double CrouchOnPadSince { get; set; }
+    /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, front montant du signal, saut de retour de KO toléré.</summary>
+    public float DashBudget { get; set; } = 2f;
+    public double DashUntil { get; set; }
+    public bool PrevDash { get; set; }
+    public double TeleportUntil { get; set; }
     PoseData target, current;
     bool hasPose;
 
@@ -71,6 +76,7 @@ public partial class RemotePlayer : Node3D
         Avatar.Pose(current.Head, current.Yaw, current.Left, current.Right);
         Body.Position = new Vector3(current.Head.X, current.Elevation, current.Head.Z);
         Hurtbox.Elevation = current.Elevation;
+        Hurtbox.DashInvulnerable = Time.GetTicksMsec() / 1000.0 < DashUntil;
         Avatar.Visible = !Hurtbox.Eliminated;
         if (Hurtbox.Eliminated)
             DropBalls();

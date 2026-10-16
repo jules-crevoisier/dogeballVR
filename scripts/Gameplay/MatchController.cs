@@ -86,7 +86,7 @@ public partial class MatchController : Node3D
         foreach (var def in map.BallSpawns)
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
-            else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); }
+            else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); hubObstacles = map.Obstacles; }
             else if (def.Kind == "dispenser")
             {
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
@@ -97,6 +97,7 @@ public partial class MatchController : Node3D
 
     BallSpawnDef? hubLauncher;
     readonly List<ZoneDef> hubZones = new();
+    IEnumerable<ObstacleDef> hubObstacles = System.Array.Empty<ObstacleDef>();
     double hubTimer;
 
     bool UsesDispensers => dispensers.Count > 0;
@@ -385,13 +386,22 @@ public partial class MatchController : Node3D
         {
             int count = 0;
             foreach (var n in GetTree().GetNodesInGroup("balls"))
-                if (n is Ball b && new Vector2(b.GlobalPosition.X - z.X, b.GlobalPosition.Z - z.Z).Length() < 7f) count++;
+                if (n is Ball { IsHeld: false } b && new Vector2(b.GlobalPosition.X - z.X, b.GlobalPosition.Z - z.Z).Length() < 5.5f) count++;
             // La plaque d'une équipe qui perd passe devant à nombre de balles égal.
             if (count < fewest || (count == fewest && target != null && z.Team == trailing && target.Team != trailing)) { fewest = count; target = z; }
         }
         if (target == null) return;
         var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
-        var to = new Vector3(target.X + rng.RandfRange(-2f, 2f), 1.2f, target.Z + rng.RandfRange(-1.5f, 1.5f));
+        var to = new Vector3(target.X, 0.6f, target.Z);
+        for (int attempt = 0; attempt < 8; attempt++)   // pas sur un couvert : la balle roulerait hors de portée
+        {
+            var c = new Vector3(target.X + rng.RandfRange(-2f, 2f), 0.6f, target.Z + rng.RandfRange(-1.5f, 1.5f));
+            bool blocked = false;
+            foreach (var o in hubObstacles)
+                if (o.Kind != "pit" && o.Y < 1.5f && Mathf.Abs(c.X - o.X) < o.Sx * 0.5f + 0.6f && Mathf.Abs(c.Z - o.Z) < o.Sz * 0.5f + 0.6f) { blocked = true; break; }
+            to = c;
+            if (!blocked) break;
+        }
         const float flight = 1.6f;
         float g = 9.8f * Ball.GravityFactor;
         var d = to - from;

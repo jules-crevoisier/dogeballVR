@@ -61,6 +61,6 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 - **PC libre** : caméra à la 3e personne (épaule droite, 3 m), course constante 7,5 m/s sans sprint, saut d'environ 1 m, déplacement sur toute l'arène (bornes ±0,5 m), pylône central plein.
 - **Dash** : Maj, 4 m en 0,2 s, 2 charges, 1,6 s de recharge par charge, invulnérable pendant l'impulsion (`Hurtbox.DashInvulnerable`).
 - **Moyeu** : un lanceur envoie une balle neutre toutes les 6 s vers le plateau qui en a le moins (l'équipe menée gagne les égalités).
-- **Réseau** : l'hôte valide la pose avec les bornes de l'arène entière, vitesse 11 m/s, vitesse verticale 4 m/s, tête sous 2,3 m (`NetSession.FreeRoam`). Les valeurs VR gardent leurs plafonds.
+- **Réseau** : l'hôte valide la pose avec les bornes de l'arène entière, course 9 m/s (30 m/s pendant un dash validé : 2 charges tenues par l’hôte, 1,6 s chacune, invulnérabilité côté hôte), vitesse verticale 5,5 m/s, tête sous 2,9 m ; saut de retour de KO toléré 1 s (`NetSession.FreeRoam`). Les valeurs VR gardent leurs plafonds.
 - **Pas encore fait** (phases suivantes) : passes, feinte, effet, lob, attrape parfaite, KO au palier 2, gouffre et tremplins (cartes B et C), rotor, échanges de plateaux, balles spéciales. Les bots restent des tireurs fixes sur leur plateau.
 - **Test** : `--map=croix_neon --pc-autoplay` en solo et en réseau (étape CI « jeu libre Croix Néon »).

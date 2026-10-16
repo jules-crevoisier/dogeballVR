@@ -126,7 +126,11 @@ jobs:
           fi
           CATCHES=$(grep -c "attrapée par la zone 2" ring-host.log || true)
           THROWS=$(grep -c "Balle [0-9]* lancée par la zone 2" ring-host.log || true)
-          echo "Croix Néon, client PC libre : prises $CATCHES, lancers $THROWS"
+          DASHES=$(grep -c "Dash validé pour la zone 2" ring-host.log || true)
+          echo "Croix Néon, client PC libre : prises $CATCHES, lancers $THROWS, dashs $DASHES"
+          if [ "$DASHES" -lt 1 ]; then
+            echo "Le dash du client n'est pas reconnu par l'hôte"; exit 1
+          fi
           if [ "$CATCHES" -lt 4 ] || [ "$THROWS" -lt 4 ]; then
             echo "Le joueur libre client n'est pas accepté par l'hôte"; exit 1
           fi
