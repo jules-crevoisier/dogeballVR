@@ -520,6 +520,8 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>Les couverts, plots et le pylône sont solides : on glisse le long (cercle de 0,3 m contre le rectangle de l'obstacle).</summary>
+    double lastRotorLog = -10;
+
     void PushOutOfObstacles()
     {
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
@@ -553,6 +555,13 @@ public partial class DesktopPlayer : Node3D
         if (FreeRoam && Zones.Map.Pc != null && Elevation + jumpY < 99f)
             foreach (var t in Zones.Map.Pc.Terraces)
                 if (Elevation + jumpY < t.Sy - 0.25f) Collide(new Vector2(t.X, t.Z), new Vector2(t.Sx, t.Sz) * 0.5f, 0f);   // la terrasse est un bloc : on y monte par le tremplin
+        if (FreeRoam && Maps.Rotor.Current is { } rotor && Elevation + jumpY < rotor.YMax && Elevation + jumpY + 1.6f > rotor.YMin)
+        {
+            var hubPos = new Vector2(rotor.GlobalPosition.X, rotor.GlobalPosition.Z);
+            var before = p;
+            Collide(hubPos, new Vector2(rotor.ArmLength, rotor.Thickness * 0.5f), rotor.Angle);   // la barre entière (deux bras), repère tourné
+            if (p != before && time - lastRotorLog > 1.0) { lastRotorLog = time; GD.Print("[PC] Poussé par le rotor"); }
+        }
         if (!moved) return;
         if (FreeRoam)
         {
@@ -1074,6 +1083,19 @@ public partial class DesktopPlayer : Node3D
     {
         var map = Zones.Map;
         if (Hurtbox.Eliminated && apDashedToVoid) apFell = true;   // le scénario s'arrête après la chute volontaire
+        if (FreeRoam && map.PitRect == null && map.Hub?.Rotor != null && !Hurtbox.Eliminated && time >= 8 && time < 30)
+        {
+            // Test du rotor : on se poste à 2,6 m du centre, sur la trajectoire d'un bras (chaque joueur sur un axe différent), sans tirer.
+            float a = Hurtbox.PlayerId * Mathf.Pi / 2f;
+            var post = new Vector2(map.Hub.X + Mathf.Cos(a) * 2.6f, map.Hub.Z + Mathf.Sin(a) * 2.6f);
+            input.Fire = false; input.Dodge = false; input.Jump = false;
+            if (SteerTo(post, ref input, 0.3f, dt, false))
+            {
+                var look = new Vector2(map.Hub.X, map.Hub.Z) - worldPos;
+                yaw = Mathf.Atan2(-look.X, -look.Y);
+            }
+            return;
+        }
         if (!FreeRoam || map.PitRect is not { } pit || Hurtbox.Eliminated || apFell || time < 8 || time >= 62) return;
         var center = new Vector2(pit.X, pit.Z);
         if (time < 22)

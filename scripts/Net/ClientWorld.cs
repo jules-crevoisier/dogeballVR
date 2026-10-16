@@ -42,6 +42,8 @@ public partial class ClientWorld : Node3D
     void OnSnapshot(float[] data)
     {
         var (players, snapBalls) = NetSession.Decode(data);
+        float rotorAngle = NetSession.RotorAngleOf(data);
+        if (rotorAngle >= 0f && Maps.Rotor.Current is { } rotor) { rotor.Authority = false; rotor.SetRemoteAngle(rotorAngle); }
         foreach (var p in players)
         {
             lives[p.Id] = p.Lives;

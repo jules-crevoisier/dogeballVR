@@ -265,6 +265,7 @@ public static class ArenaBuilder
                 });
         if (map.Hub == null) return;
         var h = map.Hub;
+        if (h.Rotor != null) root.AddChild(Rotor.Create(h));
         // Le pylône est l'obstacle « pylone » du JSON (déjà construit avec les couverts) : ici seulement le lanceur.
         root.AddChild(new MeshInstance3D
         {
