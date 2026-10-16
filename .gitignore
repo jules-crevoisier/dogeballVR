@@ -1,0 +1,12 @@
+.godot/
+.mono/
+data_*/
+*.translation
+mono_crash.*.json
+bin/
+obj/
+*.apk
+*.aab
+export_presets.cfg
+.vs/
+.idea/

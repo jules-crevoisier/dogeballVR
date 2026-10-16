@@ -1,0 +1,12 @@
+{
+  "name": "demo_2v2",
+  "zoneWidth": 15.0,
+  "zoneDepth": 8.0,
+  "edgeWarningDistance": 1.0,
+  "zones": [
+    { "id": 0, "team": 0, "x": -8.0, "y": 0.0, "z": -5.0, "facingDegrees": 90 },
+    { "id": 1, "team": 0, "x": -8.0, "y": 0.0, "z":  5.0, "facingDegrees": 90 },
+    { "id": 2, "team": 1, "x":  8.0, "y": 0.0, "z": -5.0, "facingDegrees": -90 },
+    { "id": 3, "team": 1, "x":  8.0, "y": 0.0, "z":  5.0, "facingDegrees": -90 }
+  ]
+}
