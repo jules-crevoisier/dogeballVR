@@ -14,6 +14,9 @@ public partial class Hurtbox : Area3D
     public int Team { get; set; }
     public bool Eliminated { get; set; }
 
+    /// <summary>Côté client : la touche est jugée par l'hôte, cette zone ne détecte rien.</summary>
+    public bool Passive { get; set; }
+
     /// <summary>Caméra à suivre (joueur). Si null, la hurtbox reste là où elle est (bot).</summary>
     public Node3D? Head { get; set; }
 
@@ -22,6 +25,7 @@ public partial class Hurtbox : Area3D
     public override void _Ready()
     {
         AddChild(new CollisionShape3D { Shape = capsule });
+        Monitoring = !Passive;
         BodyEntered += OnBodyEntered;
         if (Head == null) Position = new Vector3(Position.X, 0.85f, Position.Z);
     }

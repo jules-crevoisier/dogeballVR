@@ -2,84 +2,224 @@ using System.Collections.Generic;
 using Godot;
 using DogeballVR.Gameplay;
 using DogeballVR.Maps;
+using DogeballVR.Net;
 using DogeballVR.Xr;
 using DogeballVR.Zones;
 
 namespace DogeballVR;
 
 /// <summary>
-/// Scène principale de la démo 2v2 sur 4 zones. Zone 0 = joueur local (VR ou clavier-souris),
-/// les 3 autres zones sont tenues par des bots tant que le réseau n'est pas branché.
+/// Scène principale de la démo 2v2 sur 4 zones. Trois modes (voir <see cref="NetConfig"/>) :
+/// hors ligne (le joueur local tient la zone 0, des bots les autres), hôte (idem, et un joueur distant peut prendre
+/// une zone à la place d'un bot), client (affiche le monde de l'hôte et ne simule rien).
 /// </summary>
 public partial class Main : Node3D
 {
+    const string MapPath = "res://maps/demo_2v2.json";
+
+    readonly NetConfig cfg = NetConfig.Parse();
+    MapData map = null!;
+    ZoneManager zones = null!;
+    MatchController match = null!;
+    NetSession? net;
     Node3D? localBody;
     Node3D localMarker = null!;
+    Hurtbox localHurtbox = null!;
+    System.Func<PoseData>? localPose;
+
+    // Hôte : bots par zone, et listes de cibles partagées avec les bots.
+    readonly Dictionary<int, Bot> bots = new();
+    readonly List<Node3D> targets = new();
+    readonly List<int> targetTeams = new();
+    readonly Dictionary<int, int> targetIndexOfZone = new();
 
     public override void _Ready()
     {
         bool xrActive = XrBootstrap.Start(GetViewport());
+        bool client = cfg.Mode == NetMode.Client;
 
-        var map = MapData.Load("res://maps/demo_2v2.json");
-        var zones = new ZoneManager { Name = "ZoneManager" };
+        map = MapData.Load(MapPath);
+        int localZoneId = client ? cfg.Zone : 0;
+        var localZone = map.Zones.Find(z => z.Id == localZoneId)
+            ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
+
+        zones = new ZoneManager { Name = "ZoneManager" };
         AddChild(zones);
-        zones.Setup(map, localZoneId: 0);
+        zones.Setup(map, localZone.Id);
         zones.EdgeWarning += d => GD.Print($"Bord de zone à {d:0.00} m");
+        AddChild(ArenaBuilder.Build(map, localZone.Id));
 
-        var match = new MatchController { Name = "MatchController" };
-        AddChild(match);
+        if (cfg.Mode != NetMode.Offline)
+        {
+            net = new NetSession { Name = "NetSession" };
+            AddChild(net);
+            if (client) BallActions.Net = net;
+        }
 
-        foreach (var zone in map.Zones) match.SpawnZones.Add(zone.Center);
+        localHurtbox = new Hurtbox { Name = "LocalHurtbox", PlayerId = localZone.Id, Team = localZone.Team, Passive = client };
+        BuildLocalPlayer(xrActive, localZone);
 
-        var localZone = map.Zones[0];
-        var local = new Hurtbox { Name = "LocalHurtbox", PlayerId = localZone.Id, Team = localZone.Team };
-        match.Register(local);
+        if (client) BuildClient(localZone);
+        else BuildHost(localZone);
+    }
+
+    // ------------------------------------------------------------------ joueur local
+
+    void BuildLocalPlayer(bool xrActive, ZoneDef localZone)
+    {
         if (xrActive)
         {
             var origin = new XROrigin3D { Name = "XROrigin3D", Position = localZone.Center };
             var camera = new XRCamera3D { Name = "XRCamera3D" };
+            var left = new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = localHurtbox };
+            var right = new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = localHurtbox };
             origin.AddChild(camera);
-            origin.AddChild(new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = local });
-            origin.AddChild(new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = local });
-            local.Head = camera;
-            origin.AddChild(local);
+            origin.AddChild(left);
+            origin.AddChild(right);
+            localHurtbox.Head = camera;
+            origin.AddChild(localHurtbox);
             AddChild(origin);
             localBody = camera;
+            localPose = () => new PoseData(camera.GlobalPosition, camera.GlobalRotation.Y, left.GlobalPosition, right.GlobalPosition);
         }
         else
         {
             // Pas de casque : joueur clavier-souris pour tester (voir DesktopPlayer).
-            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = local };
+            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = localHurtbox };
             AddChild(desktop);
             localBody = desktop;
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Match = match, PlayerId = localZone.Id });
+            localPose = () => desktop.Pose;
         }
-
-        // Cibles des bots : le joueur local (marqueur qui suit son corps) puis les autres zones.
         localMarker = new Node3D { Name = "LocalMarker" };
         AddChild(localMarker);
-        var targets = new List<Node3D> { localMarker };
-        var teams = new List<int> { localZone.Team };
-        var bots = new List<Bot>();
-        foreach (var z in map.Zones)
-        {
-            if (z.Id == localZone.Id) continue;
-            var hurtbox = new Hurtbox { Name = $"Hurtbox{z.Id}", PlayerId = z.Id, Team = z.Team };
-            match.Register(hurtbox);
-            var bot = new Bot
-            {
-                Name = $"Bot{z.Id}", Zone = z, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
-                Hurtbox = hurtbox, Position = z.Center,
-            };
-            AddChild(bot);
-            bots.Add(bot);
-            targets.Add(bot);
-            teams.Add(z.Team);
-        }
-        foreach (var b in bots) { b.Targets = targets; b.TargetTeams = teams; }
+    }
 
-        AddChild(ArenaBuilder.Build(map, localZone.Id));
+    // ------------------------------------------------------------------ hôte / hors ligne
+
+    void BuildHost(ZoneDef localZone)
+    {
+        match = new MatchController { Name = "MatchController" };
+        AddChild(match);
+        foreach (var zone in map.Zones) match.SpawnZones.Add(zone.Center);
+        match.Register(localHurtbox);
+
+        targets.Add(localMarker);
+        targetTeams.Add(localZone.Team);
+        targetIndexOfZone[localZone.Id] = 0;
+        foreach (var z in map.Zones)
+            if (z.Id != localZone.Id) SpawnBot(z);
+
+        if (localBody is DesktopPlayer desktop)
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer });
+
+        if (net != null)
+        {
+            net.PoseProviders[localZone.Id] = () => localPose!();
+            net.LivesOf = id => match.Rules.LivesOf(id);
+            net.IsEliminated = id => match.IsEliminated(id);
+            net.HudText = () => match.HudText;
+            net.PeerHello += OnPeerHello;
+            net.PeerLeft += OnPeerLeft;
+            if (cfg.Mode == NetMode.Host)
+            {
+                var err = net.Host(cfg.Port);
+                if (err != Error.Ok) GD.PrintErr($"[Net] Impossible d'héberger : {err}");
+            }
+        }
         match.StartMatch();
+    }
+
+    void SpawnBot(ZoneDef z)
+    {
+        var hurtbox = new Hurtbox { Name = $"Hurtbox{z.Id}", PlayerId = z.Id, Team = z.Team };
+        match.Register(hurtbox);
+        var bot = new Bot
+        {
+            Name = $"Bot{z.Id}", Zone = z, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
+            Hurtbox = hurtbox, Position = z.Center, Targets = targets, TargetTeams = targetTeams,
+        };
+        AddChild(bot);
+        bots[z.Id] = bot;
+        if (!targetIndexOfZone.TryGetValue(z.Id, out int index))
+        {
+            index = targets.Count;
+            targets.Add(bot);
+            targetTeams.Add(z.Team);
+            targetIndexOfZone[z.Id] = index;
+        }
+        else targets[index] = bot;
+        if (net != null)
+        {
+            net.PoseProviders[z.Id] = () => BotPose(bot, z);
+        }
+    }
+
+    static PoseData BotPose(Bot bot, ZoneDef z)
+    {
+        var a = bot.Avatar!;
+        return new PoseData(a.Head.GlobalPosition, Mathf.DegToRad(z.FacingDegrees), a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
+    }
+
+    /// <summary>Un joueur distant prend la place du bot de sa zone.</summary>
+    void OnPeerHello(int peerId, int zoneId)
+    {
+        var zone = map.Zones.Find(z => z.Id == zoneId);
+        if (zone == null || zoneId == localHurtbox.PlayerId || !bots.TryGetValue(zoneId, out var bot))
+        {
+            GD.Print($"[Net] Zone {zoneId} refusée pour le pair {peerId}");
+            return;
+        }
+        bots.Remove(zoneId);
+        bot.QueueFree();
+        match.Unregister(zoneId);
+
+        var remote = new RemotePlayer { Name = $"Remote{peerId}", PeerId = peerId, PlayerId = zoneId, Team = zone.Team };
+        AddChild(remote);
+        match.Register(remote.Hurtbox);
+        net!.Remotes[peerId] = remote;
+        net.PoseProviders[zoneId] = () => remote.GetPose();
+        targets[targetIndexOfZone[zoneId]] = remote.Body;
+        GD.Print($"[Net] Joueur distant en zone {zoneId}");
+    }
+
+    /// <summary>Un joueur part : un bot reprend sa zone.</summary>
+    void OnPeerLeft(int peerId)
+    {
+        if (!net!.Remotes.Remove(peerId, out var remote)) return;
+        int zoneId = remote.PlayerId;
+        match.Unregister(zoneId);
+        remote.QueueFree();
+        SpawnBot(map.Zones.Find(z => z.Id == zoneId)!);
+        GD.Print($"[Net] Joueur de la zone {zoneId} parti, un bot reprend");
+    }
+
+    // ------------------------------------------------------------------ client
+
+    void BuildClient(ZoneDef localZone)
+    {
+        var hud = new Label3D
+        {
+            Name = "Hud", Position = new Vector3(0, 4f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+            FontSize = 96, PixelSize = 0.004f, NoDepthTest = true,
+        };
+        AddChild(hud);
+        var world = new ClientWorld
+        {
+            Name = "ClientWorld", Net = net!, Map = map, LocalPlayerId = localZone.Id, LocalHurtbox = localHurtbox, Hud = hud,
+        };
+        AddChild(world);
+        net!.LocalPose = localPose;
+        if (localBody is DesktopPlayer desktop)
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id) });
+
+        if (cfg.SelfTest)
+        {
+            // Le joueur automatique remplace les entrées : il vise le centre de la zone adverse.
+            var enemy = map.Zones.Find(z => z.Team != localZone.Team)!;
+            AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up });
+        }
+        var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
+        if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
     }
 
     public override void _Process(double delta)
