@@ -210,6 +210,13 @@ public partial class Main : Node3D
                 return z == null ? net.ArenaXZ : new Rect2(z.X - map.ZoneWidth / 2 - 0.5f, z.Z - map.ZoneDepth / 2 - 0.5f, map.ZoneWidth + 1f, map.ZoneDepth + 1f);
             };
             net.MaxElevation = map.MaxElevation;
+            net.LiftOf = id => map.Zones.Find(zz => zz.Id == id)?.Lift;
+            net.TeammateHigh = id =>
+            {
+                if (!map.LiftRules.OneHighZonePerTeam) return false;
+                var me = map.Zones.Find(zz => zz.Id == id);
+                return me != null && map.Zones.Exists(zz => zz.Team == me.Team && zz.Id != id && ZoneElevation(zz.Id) > 0.1f);
+            };
             var bnds = map.Bounds;
             net.ArenaXZ = new Rect2(bnds.MinX, bnds.MinZ, bnds.MaxX - bnds.MinX, bnds.MaxZ - bnds.MinZ);
             net.HudText = () => match.HudText;
@@ -316,7 +323,7 @@ public partial class Main : Node3D
             // Le joueur automatique remplace les entrées : il vise le centre de la zone adverse.
             var enemy = map.Zones.Find(z => z.Team != localZone.Team)!;
             AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up,
-                ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
+                Lift = localZone.Lift, ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
         net.SimulatedLag = cfg.LagMs / 1000.0;
         var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
@@ -330,6 +337,15 @@ public partial class Main : Node3D
         float elevation = lift?.Elevation ?? 0f;
         localMarker.GlobalPosition = new Vector3(p.X, elevation, p.Z);
         foreach (var (id, platform) in platforms)
-            platform.Position = new Vector3(0, ZoneElevation(id), 0);
+        {
+            float e = ZoneElevation(id);
+            platform.Position = new Vector3(0, e, 0);
+            // Garde-corps : seulement en haut.
+            if (platform.GetNodeOrNull<StaticBody3D>("GardeCorps") is { } rail)
+            {
+                rail.Visible = e > 0.1f;
+                rail.CollisionLayer = e > 0.1f ? 1u : 0u;
+            }
+        }
     }
 }

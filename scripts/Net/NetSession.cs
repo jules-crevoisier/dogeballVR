@@ -54,6 +54,10 @@ public partial class NetSession : Node
     public Func<int, Rect2> ZoneRect { get; set; } = _ => new Rect2(-100, -100, 200, 200);
     /// <summary>Altitude maximale d'un plateau (lift) : borne la hauteur acceptée pour un joueur distant.</summary>
     public float MaxElevation { get; set; }
+    /// <summary>Lift de la zone d'un joueur (null : pas de lift) : l'hôte tient la machine d'états, le client ne fait que demander.</summary>
+    public Func<int, Maps.LiftDef?> LiftOf { get; set; } = _ => null;
+    /// <summary>Vrai si un coéquipier est déjà en haut (une seule zone haute par équipe).</summary>
+    public Func<int, bool> TeammateHigh { get; set; } = _ => false;
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
@@ -147,7 +151,7 @@ public partial class NetSession : Node
         if (!IsHost) return;
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw) || !float.IsFinite(elevation)) return;
-        elevation = Mathf.Clamp(elevation, 0f, MaxElevation);
+        elevation = ValidateElevation(remote, head, elevation);
         // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
         head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f + elevation, 3.5f + elevation),
@@ -174,6 +178,34 @@ public partial class NetSession : Node
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
         remote.SetPose(new PoseData(head, yaw, left, right, elevation));
+    }
+
+    /// <summary>
+    /// Le client demande à être en haut ; l'hôte accorde l'altitude du lift seulement si la tête est sur le pad, hors recharge,
+    /// sans coéquipier déjà en haut, et la reprend après la durée maximale ou à l'élimination.
+    /// </summary>
+    float ValidateElevation(RemotePlayer remote, Vector3 head, float requested)
+    {
+        double t = Time.GetTicksMsec() / 1000.0;
+        var lift = LiftOf(remote.PlayerId);
+        float accepted = remote.HostElevation;
+        if (lift == null) accepted = 0f;
+        else if (accepted > 0f)
+        {
+            if (requested <= 0.1f || t - remote.LiftHighSince > lift.MaxHighSeconds + 0.6 || IsEliminated(remote.PlayerId))
+            {
+                accepted = 0f;
+                remote.LiftReadyAt = t + lift.CooldownSeconds;
+            }
+        }
+        else if (requested > 0.1f && t >= remote.LiftReadyAt && !IsEliminated(remote.PlayerId) && !TeammateHigh(remote.PlayerId)
+                 && new Vector2(head.X - lift.Pad.X, head.Z - lift.Pad.Z).Length() < lift.Pad.Radius + 0.8f)
+        {
+            accepted = lift.HighElevation;
+            remote.LiftHighSince = t;
+        }
+        remote.HostElevation = accepted;
+        return accepted;
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

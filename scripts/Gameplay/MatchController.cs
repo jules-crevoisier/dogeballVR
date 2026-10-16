@@ -172,7 +172,7 @@ public partial class MatchController : Node3D
         // Tir plongeant : la première balle lancée depuis le plateau haut est chargée +1 (une fois par montée).
         int thrower = ball.OwnerPlayerId;
         if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
-            ball.AddCharge();
+        { ball.AddCharge(); ball.AddCharge(); }   // charge 2 : dégâts doubles dès le premier tir
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));

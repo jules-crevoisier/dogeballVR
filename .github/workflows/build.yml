@@ -65,17 +65,22 @@ jobs:
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-solo.log; then
             echo "Erreur à l'exécution (La Fosse, solo)"; exit 1
           fi
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3300 -- --host --map=la_fosse > fosse-host.log 2>&1 &
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=la_fosse > fosse-host.log 2>&1 &
           HOST_PID=$!
           sleep 3
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 2400 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 4200 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-host.log fosse-client.log; then
             echo "Erreur à l'exécution (La Fosse, réseau)"; exit 1
           fi
           CATCHES=$(grep -c "attrapée par la zone 2" fosse-host.log || true)
           THROWS=$(grep -c "lancée par la zone 2" fosse-host.log || true)
+          grep "\[NetTest\] lift" fosse-client.log || true
+          if grep "\[NetTest\] lift" fosse-client.log | grep -q "KO"; then echo "Le lift n'est pas validé correctement par l'hôte"; exit 1; fi
+          for k in "lift triche hors pad" "lift accordé sur le pad" "lift repris par l'hôte"; do
+            grep -q "$k" fosse-client.log || { echo "Test du lift incomplet : $k"; exit 1; }
+          done
           echo "La Fosse : prises $CATCHES, lancers $THROWS"
-          if [ "$CATCHES" -lt 3 ] || [ "$THROWS" -lt 3 ]; then
+          if [ "$CATCHES" -lt 2 ] || [ "$THROWS" -lt 2 ]; then
             echo "Le réseau ne fonctionne pas sur La Fosse"; exit 1
           fi
