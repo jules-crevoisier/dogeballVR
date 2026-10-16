@@ -1029,6 +1029,30 @@ public partial class DesktopPlayer : Node3D
         return finalDist <= stop;
     }
 
+    bool SpotBlocked(Vector2 q)
+    {
+        foreach (var o in Zones.Map.Obstacles)
+        {
+            if (o.Kind == "pit" || o.Y > 1.0f) continue;
+            if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.9f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.9f) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Place de l'appât à 1,5 m du bord, décalée le long du bord tant que sa place ou celle du pousseur (2 m derrière) tombe dans un couvert.</summary>
+    Vector2 BaitSpot(Vector2 center, Vector2 edge, Vector2 dirOut)
+    {
+        var tangent = new Vector2(-dirOut.Y, dirOut.X);
+        for (int i = 0; i < 16; i++)
+        {
+            var p = edge + dirOut * 1.5f + tangent * (i % 2 == 0 ? 1 : -1) * 1.0f * ((i + 1) / 2);
+            var back = p + (p - center).Normalized() * 2.0f;
+            if (!SpotBlocked(p) && !SpotBlocked(back) && PitGap(p) is > 0.5f and < 1.8f) return p;   // assez près du bord pour qu'un tacle suffise à tomber
+        }
+        GD.Print("[PC] Test : aucune place d'appât libre, repli sur le bord");
+        return edge + dirOut * 1.5f;
+    }
+
     /// <summary>Décale un point de test le long de `tangent` tant qu'il tombe dans un couvert ou un pilier.</summary>
     Vector2 FreeSpot(Vector2 p, Vector2 tangent)
     {
@@ -1072,7 +1096,7 @@ public partial class DesktopPlayer : Node3D
                 var dirOut = (spawnPos - center).Normalized();
                 var edge = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));   // point du bord sur la demi-droite centre -> apparition
                 input.Fire = false; input.Dodge = false;
-                if (SteerTo(edge + dirOut * 1.5f, ref input, 0.4f, dt))
+                if (SteerTo(BaitSpot(center, edge, dirOut), ref input, 0.4f, dt))
                 {
                     var look = center - worldPos;
                     yaw = Mathf.Atan2(-look.X, -look.Y);
@@ -1083,7 +1107,7 @@ public partial class DesktopPlayer : Node3D
             Hurtbox? prey = null; float bestGap = 3.2f;
             foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
             {
-                if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated) continue;
+                if (node is not Hurtbox h || h.Team == Hurtbox.Team || h.Eliminated || h.PlayerId != 0) continue;   // le tacle ne vise qu'un humain : l'appât est le joueur 0 (les autres zones peuvent être des bots)
                 float gap = PitGap(new Vector2(h.GlobalPosition.X, h.GlobalPosition.Z));
                 if (gap > 0.2f && gap < bestGap) { bestGap = gap; prey = h; }
             }
