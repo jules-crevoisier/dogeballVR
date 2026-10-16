@@ -159,7 +159,8 @@ jobs:
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 2400 -- --map=croix_neon --rotor-test --rotor-off 2>&1 | tee rotor-off.log
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" rotor.log rotor-off.log; then echo "Erreur à l'exécution (rotor)"; exit 1; fi
           STOPPED=$(grep -o "test balles : [0-9]*" rotor.log | grep -o "[0-9]*$" || echo 0)
-          CONTROL=$(grep -o "test balles : [0-9]*" rotor-off.log | grep -o "[0-9]*$" || echo 0)
+          grep -q "test balles" rotor.log && grep -q "test balles" rotor-off.log || { echo "Le test du rotor ou son témoin n'a pas rendu de résultat"; exit 1; }
+          CONTROL=$(grep -o "test balles : [0-9]*" rotor-off.log | grep -o "[0-9]*$" || echo 99)
           echo "Rotor : balles arrêtées $STOPPED, témoin sans rotor $CONTROL"
           if [ "${STOPPED:-0}" -lt 10 ] || [ "${CONTROL:-99}" -gt 8 ]; then echo "Le rotor n'arrête pas les balles (ou le témoin en arrête déjà trop)"; exit 1; fi
 
