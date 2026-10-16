@@ -6,7 +6,7 @@ using DogeballVR.Rules;
 namespace DogeballVR.Gameplay;
 
 /// <summary>
-/// Chef d'orchestre de la partie (côté hôte) : manches de 1 min, apparition continue des balles, KO et retours,
+/// Chef d'orchestre de la partie (côté hôte) : manches de 75 s, apparition continue des balles, KO et retours,
 /// affichage du score. Les règles pures sont dans <see cref="MatchRules"/>.
 /// </summary>
 public partial class MatchController : Node3D

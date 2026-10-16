@@ -12,7 +12,7 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class Bot : Node3D
 {
-    const float Speed = 3.8f;
+    const float Speed = 3.0f;
     const float CatchRadius = 1.6f;
 
     public ZoneDef Zone { get; set; } = null!;
@@ -165,7 +165,7 @@ public partial class Bot : Node3D
         float speed = rng.RandfRange(16f, 24f);
         // Anticipation : on vise là où la cible sera à l'arrivée de la balle.
         var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
-        var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.3f, rng.RandfRange(-0.1f, 0.1f));
+        var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.1f, rng.RandfRange(-0.1f, 0.1f));
         var dir = (aim - holdPoint.GlobalPosition).Normalized();
         held.Release(dir * speed + Vector3.Up * 1.2f, 0f);
         held = null;

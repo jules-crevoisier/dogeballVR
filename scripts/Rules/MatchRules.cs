@@ -26,7 +26,13 @@ public class MatchRules
     public int[] Kos { get; } = new int[2];
 
     /// <summary>Prolongation à mort subite : le premier KO met fin à la manche.</summary>
-    public bool InOvertime { get; set; }
+    public bool InOvertime
+    {
+        get => inOvertime;
+        set { inOvertime = value; if (value) { overtimeStartKos[0] = Kos[0]; overtimeStartKos[1] = Kos[1]; } }
+    }
+    bool inOvertime;
+    readonly int[] overtimeStartKos = new int[2];
 
     public event Action<int>? PlayerEliminated;
     public event Action<int>? RoundWon;
@@ -70,10 +76,16 @@ public class MatchRules
     /// <summary>Équipe qui a atteint le nombre de KO cible, ou -1.</summary>
     public int KoTargetReached()
     {
-        int target = InOvertime ? 1 : KoTarget;
-        if (target <= 0) return -1;
-        if (Kos[0] >= target) return 0;
-        if (Kos[1] >= target) return 1;
+        if (InOvertime)
+        {
+            // Mort subite : le premier KO depuis le début de la prolongation (les KO de la manche restent comptés).
+            if (Kos[0] > overtimeStartKos[0]) return 0;
+            if (Kos[1] > overtimeStartKos[1]) return 1;
+            return -1;
+        }
+        if (KoTarget <= 0) return -1;
+        if (Kos[0] >= KoTarget) return 0;
+        if (Kos[1] >= KoTarget) return 1;
         return -1;
     }
 
@@ -95,7 +107,7 @@ public class MatchRules
         InOvertime = false;
     }
 
-    /// <summary>La partie est finie quand les 5 manches sont jouées et que les équipes sont départagées.</summary>
+    /// <summary>La partie est finie dès 2 manches gagnées (ou après les 3 manches si départagées).</summary>
     public bool IsMatchOver(int roundsPlayed) =>
         Math.Max(RoundsWon[0], RoundsWon[1]) > MaxRounds / 2 || (roundsPlayed >= MaxRounds && RoundsWon[0] != RoundsWon[1]);
 
