@@ -444,6 +444,8 @@ public partial class NetSession : Node
         var balls = new List<Ball>();
         foreach (var n in GetTree().GetNodesInGroup("balls"))
             if (n is Ball b && IsInstanceValid(b) && !b.IsQueuedForDeletion()) balls.Add(b);
+        foreach (var n in GetTree().GetNodesInGroup("exploded_balls"))   // bombes explosées : type 3 pendant 0,15 s
+            if (n is Ball b && IsInstanceValid(b) && !b.IsQueuedForDeletion()) balls.Add(b);
 
         var data = new List<float> { PoseProviders.Count, balls.Count };
         foreach (var (id, provider) in PoseProviders)

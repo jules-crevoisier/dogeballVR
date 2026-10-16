@@ -212,6 +212,7 @@ public partial class Ball : RigidBody3D
         LinearDampMode = mode == 0 ? DampMode.Combine : DampMode.Replace;   // en cloche : aucun frottement (le défaut du projet s'ajouterait sinon)
         LinearDamp = mode == 0 ? 0.1f : 0f;
         GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
+        if (kind == KindBomb && velocity.Length() < LobHitMinSpeed) Spent();   // lâchée sans élan (tacle, KO) : bombe neutre, pas d'explosion aux pieds
         Released?.Invoke(this);
     }
 
@@ -248,8 +249,9 @@ public partial class Ball : RigidBody3D
         exploded = true;
         Spent();
         kind = KindExploded;
-        Freeze = true;
-        FreezeMode = FreezeModeEnum.Static;
+        RemoveFromGroup("balls");   // plus ramassable ni comptée ; le snapshot l'envoie encore via le groupe « exploded_balls »
+        AddToGroup("exploded_balls");
+        SetDeferred(RigidBody3D.PropertyName.Freeze, true);   // différé : on est dans un callback physique
         Visible = false;
         Exploded?.Invoke(GlobalPosition, team, shooter, exceptId);
     }
