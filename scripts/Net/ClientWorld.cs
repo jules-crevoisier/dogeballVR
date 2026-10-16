@@ -83,7 +83,7 @@ public partial class ClientWorld : Node3D
                 balls[b.NetId] = ball;
             }
             ball.ApplyNet(b.Position, b.Velocity, b.Team, b.OwnerId, b.Charge, b.Held, b.Pass, b.Kind);
-            if (b.Kind == Ball.KindExploded && explodedSeen.Add(b.NetId)) DogeballVR.Visual.Explosion.Spawn(this, b.Position, Ball.BombRadius);
+            if (b.Kind == Ball.KindExploded && explodedSeen.Add(b.NetId)) { DogeballVR.Visual.Explosion.Spawn(this, b.Position, Ball.BombRadius); GD.Print("[Client] Onde de choc de bombe reçue"); }
             if (b.Kind != 0 && loggedKinds.Add(b.NetId)) GD.Print($"[Client] Balle spéciale reçue : type {b.Kind}");
         }
         foreach (var id in new List<int>(balls.Keys))
@@ -91,8 +91,7 @@ public partial class ClientWorld : Node3D
             if (seen.Contains(id)) continue;
             if (IsInstanceValid(balls[id]))
             {
-                var gone = balls[id];
-                gone.QueueFree();
+                balls[id].QueueFree();
             }
             balls.Remove(id);
         }

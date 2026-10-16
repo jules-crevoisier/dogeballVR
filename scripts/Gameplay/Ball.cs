@@ -35,7 +35,7 @@ public partial class Ball : RigidBody3D
     double sinceRelease;
     bool exploded;
     double explodedFor;
-    public bool HasExploded => exploded;
+    public bool HasExploded => exploded || kind == KindExploded;   // client : la marionnette de type 3 compte aussi
     public int Kind
     {
         get => kind;
@@ -298,7 +298,8 @@ public partial class Ball : RigidBody3D
         }
         else if (IsPuppet)
         {
-            if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
+            if (kind == KindExploded) Visible = false;
+            else if (!Visible) Visible = true;      // masquée à l'envoi d'un lancer, visible dès que l'hôte l'a lâchée
             if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
             // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
             netTarget += LinearVelocity * (float)delta;
