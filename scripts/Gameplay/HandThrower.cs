@@ -15,6 +15,9 @@ public partial class HandThrower : XRController3D
     [Export] public float ThrowSpeedScale = 1.4f;
     [Export] public float MaxThrowSpeed = 30f;
 
+    /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
+    public Hurtbox Hurtbox { get; set; } = null!;
+
     Area3D catchArea = null!;
     Ball? held;
     double lastGripPressTime = -10;
@@ -39,7 +42,7 @@ public partial class HandThrower : XRController3D
 
     void OnButtonPressed(string name)
     {
-        if (name != "grip_click") return;
+        if (name != "grip_click" || Hurtbox.Eliminated) return;
         gripDown = true;
         lastGripPressTime = Time.GetTicksMsec() / 1000.0;
         TryCatchOverlapping();
@@ -54,7 +57,7 @@ public partial class HandThrower : XRController3D
 
     void OnBodyEntered(Node3D body)
     {
-        if (body is Ball ball && gripDown && held == null && !ball.IsHeld) Catch(ball);
+        if (body is Ball ball && gripDown && held == null && !ball.IsHeld && !Hurtbox.Eliminated) Catch(ball);
     }
 
     void TryCatchOverlapping()
@@ -68,7 +71,7 @@ public partial class HandThrower : XRController3D
         double now = Time.GetTicksMsec() / 1000.0;
         bool perfect = now - lastGripPressTime <= PerfectCatchWindow && ball.LinearVelocity.Length() > 8f;
         held = ball;
-        ball.Hold(this);
+        ball.Hold(this, Hurtbox.PlayerId, Hurtbox.Team);
         if (perfect)
             GD.Print("Attrapé parfait ! (ralenti + gain de vie à brancher)"); // TODO : Engine.TimeScale court, MatchRules.RegisterPerfectCatch
     }

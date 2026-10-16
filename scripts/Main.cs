@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using DogeballVR.Gameplay;
 using DogeballVR.Maps;
@@ -7,14 +8,13 @@ using DogeballVR.Zones;
 namespace DogeballVR;
 
 /// <summary>
-/// Scène de départ (étape « balle seule ») : origine XR, deux mains, un sol, une balle qui réapparaît.
-/// Les zones, le réseau et les règles sont branchés ensuite.
+/// Scène principale de la démo 2v2 sur 4 zones. Zone 0 = joueur local (VR ou clavier-souris),
+/// les 3 autres zones sont tenues par des bots tant que le réseau n'est pas branché.
 /// </summary>
 public partial class Main : Node3D
 {
-    PackedScene? ballScene;
-    Ball? ball;
-    double respawnTimer;
+    Node3D? localBody;
+    Node3D localMarker = null!;
 
     public override void _Ready()
     {
@@ -26,24 +26,58 @@ public partial class Main : Node3D
         zones.Setup(map, localZoneId: 0);
         zones.EdgeWarning += d => GD.Print($"Bord de zone à {d:0.00} m");
 
+        var match = new MatchController { Name = "MatchController" };
+        AddChild(match);
+
+        var localZone = map.Zones[0];
+        var local = new Hurtbox { Name = "LocalHurtbox", PlayerId = localZone.Id, Team = localZone.Team };
+        match.Register(local);
         if (xrActive)
         {
-            // Joueur local en VR : placé au centre de sa zone.
-            var origin = new XROrigin3D { Name = "XROrigin3D", Position = map.Zones[0].Center };
-            origin.AddChild(new XRCamera3D { Name = "XRCamera3D" });
-            origin.AddChild(new HandThrower { Name = "LeftHand", Tracker = "left_hand" });
-            origin.AddChild(new HandThrower { Name = "RightHand", Tracker = "right_hand" });
+            var origin = new XROrigin3D { Name = "XROrigin3D", Position = localZone.Center };
+            var camera = new XRCamera3D { Name = "XRCamera3D" };
+            origin.AddChild(camera);
+            origin.AddChild(new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = local });
+            origin.AddChild(new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = local });
+            local.Head = camera;
+            origin.AddChild(local);
             AddChild(origin);
+            localBody = camera;
         }
         else
         {
             // Pas de casque : joueur clavier-souris pour tester (voir DesktopPlayer).
-            AddChild(new DesktopPlayer { Name = "DesktopPlayer", Zones = zones });
+            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = local };
+            AddChild(desktop);
+            localBody = desktop;
         }
+
+        // Cibles des bots : le joueur local (marqueur qui suit son corps) puis les autres zones.
+        localMarker = new Node3D { Name = "LocalMarker" };
+        AddChild(localMarker);
+        var targets = new List<Node3D> { localMarker };
+        var teams = new List<int> { localZone.Team };
+        var bots = new List<Bot>();
+        foreach (var z in map.Zones)
+        {
+            if (z.Id == localZone.Id) continue;
+            var hurtbox = new Hurtbox { Name = $"Hurtbox{z.Id}", PlayerId = z.Id, Team = z.Team };
+            match.Register(hurtbox);
+            var bot = new Bot
+            {
+                Name = $"Bot{z.Id}", Zone = z, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
+                Hurtbox = hurtbox, Position = z.Center,
+            };
+            AddChild(bot);
+            bots.Add(bot);
+            targets.Add(bot);
+            teams.Add(z.Team);
+        }
+        foreach (var b in bots) { b.Targets = targets; b.TargetTeams = teams; }
 
         AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0) });
         AddFloor();
-        SpawnBall(map.Zones[0].Center + new Vector3(0, 1.4f, -1.0f));
+        match.StartMatch();
     }
 
     void AddFloor()
@@ -54,24 +88,10 @@ public partial class Main : Node3D
         AddChild(floor);
     }
 
-    void SpawnBall(Vector3 position)
-    {
-        ball?.QueueFree();
-        ball = new Ball { Name = "Ball" };
-        ball.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.11f } });
-        ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.11f, Height = 0.22f } });
-        AddChild(ball);
-        ball.GlobalPosition = position;
-    }
-
     public override void _Process(double delta)
     {
-        // Banc d'essai : une balle neuve toutes les 8 s si la précédente est tombée loin.
-        respawnTimer += delta;
-        if (ball != null && ball.GlobalPosition.Y < -5f || respawnTimer > 30)
-        {
-            respawnTimer = 0;
-            SpawnBall(new Vector3(-8, 1.4f, -6));
-        }
+        if (localBody == null) return;
+        var p = localBody.GlobalPosition;
+        localMarker.GlobalPosition = new Vector3(p.X, 0, p.Z);
     }
 }
