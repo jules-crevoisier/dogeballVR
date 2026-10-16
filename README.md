@@ -13,10 +13,9 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 |---|---|
 | `scripts/Zones` | Zones de jeu, distance au bord |
 | `scripts/Maps` | Maps décrites en données (`maps/*.json`) |
-| `scripts/Gameplay` | Balle, mains (attraper / lancer) |
+| `scripts/Gameplay` | Balle, mains VR, joueur PC, bots, hurtbox, chef de partie |
 | `scripts/Rules` | Règles pures : vies, manches, score |
 | `scripts/Net` | Session réseau |
-| `scripts/Bots` | Bots (à venir) |
 
 ## Lancer
 1. Ouvrir le dossier avec Godot 4.3 .NET, puis *Build* (C#).
@@ -24,7 +23,7 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 3. Quest : installer le « Godot OpenXR Vendors » (AssetLib), créer un preset d'export Android avec *XR Mode = OpenXR*, export APK, `adb install`.
 
 ## Format de partie (nerveux)
-Partie de 5 min = 5 manches de 1 min, 3 manches gagnantes. 2 vies par joueur, retour 3 s après élimination. Fin de manche si une équipe n'a plus personne ou à la minute (plus de vies gagne). Paramètres dans `scripts/Rules/MatchRules.cs`.
+Partie de 5 min = 5 manches de 1 min, 3 manches gagnantes. 2 vies par joueur, retour 3 s après élimination. Un joueur à 0 vie est KO et revient 3 s plus tard. Fin de manche à 5 KO pour une équipe ou à la minute (plus de KO gagne, égalité = manche nulle). Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
 
 ## État
 Squelette non compilé ni testé sur casque (écrit sans Godot installé). Premier travail : faire tourner `Main.tscn` sur Quest, puis régler le lancer (`HandThrower`).

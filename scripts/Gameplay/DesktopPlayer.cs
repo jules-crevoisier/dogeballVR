@@ -18,6 +18,7 @@ public partial class DesktopPlayer : Node3D
     const float CrouchHeight = 0.9f;
 
     public ZoneManager Zones { get; set; } = null!;
+    public Hurtbox Hurtbox { get; set; } = null!;
 
     Camera3D camera = null!;
     Area3D catchArea = null!;
@@ -39,6 +40,9 @@ public partial class DesktopPlayer : Node3D
 
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.25f, -0.6f) };
         camera.AddChild(holdPoint);
+
+        Hurtbox.Head = camera;
+        AddChild(Hurtbox);
 
         Input.MouseMode = Input.MouseModeEnum.Captured;
         var zone = Zones.Map.Zones.Find(z => z.Id == Zones.LocalZoneId)!;
@@ -67,7 +71,11 @@ public partial class DesktopPlayer : Node3D
     {
         float dt = (float)delta;
         MoveInZone(dt);
-        HandleCatchAndThrow(delta);
+        if (Hurtbox.Eliminated)
+        {
+            if (held != null) { held.Release(Vector3.Zero, 0f); held = null; charging = false; chargeTime = 0; }
+        }
+        else HandleCatchAndThrow(delta);
         ApplyTransform();
     }
 
@@ -103,7 +111,7 @@ public partial class DesktopPlayer : Node3D
         if (catching && held == null)
         {
             foreach (var body in catchArea.GetOverlappingBodies())
-                if (body is Ball ball && !ball.IsHeld) { held = ball; ball.Hold(holdPoint); break; }
+                if (body is Ball ball && !ball.IsHeld) { held = ball; ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team); break; }
         }
 
         if (held != null)
