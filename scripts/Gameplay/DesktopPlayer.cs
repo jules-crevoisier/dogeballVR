@@ -1043,12 +1043,13 @@ public partial class DesktopPlayer : Node3D
     Vector2 BaitSpot(Vector2 center, Vector2 edge, Vector2 dirOut)
     {
         var tangent = new Vector2(-dirOut.Y, dirOut.X);
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 16; i++)
         {
             var p = edge + dirOut * 1.5f + tangent * (i % 2 == 0 ? 1 : -1) * 1.0f * ((i + 1) / 2);
             var back = p + (p - center).Normalized() * 2.0f;
-            if (!SpotBlocked(p) && !SpotBlocked(back) && PitGap(p) > 0.5f) return p;
+            if (!SpotBlocked(p) && !SpotBlocked(back) && PitGap(p) is > 0.5f and < 1.8f) return p;   // assez près du bord pour qu'un tacle suffise à tomber
         }
+        GD.Print("[PC] Test : aucune place d'appât libre, repli sur le bord");
         return edge + dirOut * 1.5f;
     }
 

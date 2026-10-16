@@ -9,7 +9,7 @@ using DogeballVR.Zones;
 namespace DogeballVR;
 
 /// <summary>
-/// Scène principale de la démo 2v2 sur 4 zones. Trois modes (voir <see cref="NetConfig"/>) :
+/// Scène principale de la démo 2v2 sur 4 zones (la Tour 4v4 en a huit). Trois modes (voir <see cref="NetConfig"/>) :
 /// hors ligne (le joueur local tient la zone 0, des bots les autres), hôte (idem, et un joueur distant peut prendre
 /// une zone à la place d'un bot), client (affiche le monde de l'hôte et ne simule rien).
 /// </summary>
