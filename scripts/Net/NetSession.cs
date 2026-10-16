@@ -23,7 +23,7 @@ public partial class NetSession : Node
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
     const double HelloTimeout = 5.0;          // un pair sans Hello est déconnecté
-    const int PlayerFloats = 14;
+    const int PlayerFloats = 15;
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
     const float MaxSpin = 12f;
     const int BallFloats = 11;
@@ -52,6 +52,8 @@ public partial class NetSession : Node
     public Rect2 ArenaXZ { get; set; } = new(-100, -100, 200, 200);
     /// <summary>Rectangle (x, z) de la zone d'un joueur, marge comprise : un client ne sort pas de sa zone.</summary>
     public Func<int, Rect2> ZoneRect { get; set; } = _ => new Rect2(-100, -100, 200, 200);
+    /// <summary>Altitude maximale d'un plateau (lift) : borne la hauteur acceptée pour un joueur distant.</summary>
+    public float MaxElevation { get; set; }
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
@@ -114,7 +116,7 @@ public partial class NetSession : Node
         if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
         poseTimer = 0;
         var p = LocalPose();
-        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right));
+        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation));
     }
 
     public void RequestCatch(int ballId, int hand)
@@ -140,14 +142,15 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right)
+    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation)
     {
         if (!IsHost) return;
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
-        if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw)) return;
+        if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw) || !float.IsFinite(elevation)) return;
+        elevation = Mathf.Clamp(elevation, 0f, MaxElevation);
         // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
         var zone = ZoneRect(remote.PlayerId);
-        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f, 3.5f),
+        head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), Mathf.Clamp(head.Y, 0.8f + elevation, 3.5f + elevation),
             Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourable depuis la dernière pose acceptée.
         double now = Time.GetTicksMsec() / 1000.0;
@@ -163,11 +166,14 @@ public partial class NetSession : Node
         }
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
-        head.Y = Mathf.Clamp(head.Y, last.Y - 4f * dt, last.Y + 4f * dt);
+        // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
+        var lastPose = remote.GetPose();
+        float lastRel = last.Y - lastPose.Elevation;
+        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - 4f * dt, lastRel + 4f * dt) + elevation;
         remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
-        remote.SetPose(new PoseData(head, yaw, left, right));
+        remote.SetPose(new PoseData(head, yaw, left, right, elevation));
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -242,7 +248,7 @@ public partial class NetSession : Node
             data.AddRange(new[]
             {
                 id, p.Head.X, p.Head.Y, p.Head.Z, p.Yaw, p.Left.X, p.Left.Y, p.Left.Z, p.Right.X, p.Right.Y, p.Right.Z,
-                IsEliminated(id) ? 1f : 0f, LivesOf(id), IsBot(id) ? 1f : 0f,
+                IsEliminated(id) ? 1f : 0f, LivesOf(id), IsBot(id) ? 1f : 0f, p.Elevation,
             });
         }
         foreach (var b in balls)
@@ -277,7 +283,7 @@ public partial class NetSession : Node
         if (d.Length < 2 + np * PlayerFloats + nb * BallFloats) return (players, balls);
         for (int k = 0; k < np; k++, i += PlayerFloats)
             players.Add(new SnapshotPlayer((int)d[i],
-                new PoseData(new Vector3(d[i + 1], d[i + 2], d[i + 3]), d[i + 4], new Vector3(d[i + 5], d[i + 6], d[i + 7]), new Vector3(d[i + 8], d[i + 9], d[i + 10])),
+                new PoseData(new Vector3(d[i + 1], d[i + 2], d[i + 3]), d[i + 4], new Vector3(d[i + 5], d[i + 6], d[i + 7]), new Vector3(d[i + 8], d[i + 9], d[i + 10]), d[i + 14]),
                 d[i + 11] > 0.5f, (int)d[i + 12], d[i + 13] > 0.5f));
         for (int k = 0; k < nb; k++, i += BallFloats)
             balls.Add(new SnapshotBall((int)d[i], new Vector3(d[i + 1], d[i + 2], d[i + 3]), new Vector3(d[i + 4], d[i + 5], d[i + 6]),

@@ -24,6 +24,9 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Charge du lancer en cours (0 à 1), pour la jauge du HUD.</summary>
     public float ThrowCharge01 => charging ? (float)(chargeTime / MaxChargeTime) : 0f;
+    /// <summary>Altitude du plateau (lift) : le joueur et sa caméra montent avec.</summary>
+    public float Elevation { get; set; }
+    public float HeadHeight => camera.Position.Y;
     public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
 
     Camera3D camera = null!;
@@ -32,7 +35,7 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Pose envoyée aux autres joueurs : tête, cap, main gauche (repos) et main droite (là où la balle est tenue).</summary>
     public PoseData Pose => new(camera.GlobalPosition, camera.GlobalRotation.Y,
-        camera.GlobalPosition + camera.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), holdPoint.GlobalPosition);
+        camera.GlobalPosition + camera.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), holdPoint.GlobalPosition, Elevation);
     Ball? held;
     Vector2 localPos;                // position dans le repère de la zone (centre = 0)
     float yaw, pitch;
@@ -155,7 +158,7 @@ public partial class DesktopPlayer : Node3D
     {
         var zone = Zones.Map.Zones.Find(z => z.Id == Zones.LocalZoneId)!;
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
-        GlobalPosition = zone.Center + zoneBasis * new Vector3(localPos.X, 0, localPos.Y);
+        GlobalPosition = zone.Center + zoneBasis * new Vector3(localPos.X, 0, localPos.Y) + new Vector3(0, Elevation, 0);
         camera.Position = new Vector3(0, Input.IsKeyPressed(Key.Shift) ? CrouchHeight : EyeHeight, 0);
         camera.Rotation = new Vector3(pitch, yaw, 0);
     }

@@ -23,6 +23,10 @@ public partial class ClientWorld : Node3D
     readonly Dictionary<int, PoseData> poseTargets = new();
     readonly Dictionary<int, int> lives = new();
 
+    readonly Dictionary<int, float> elevations = new();
+    /// <summary>Altitude du plateau d'une zone (lift), d'après le dernier snapshot.</summary>
+    public float ElevationOf(int playerId) => elevations.TryGetValue(playerId, out float e) ? e : 0f;
+
     public int Lives(int playerId) => lives.TryGetValue(playerId, out int n) ? n : 0;
     public int BallCount => balls.Count;
     public int AvatarCount => avatars.Count;
@@ -39,6 +43,7 @@ public partial class ClientWorld : Node3D
         foreach (var p in players)
         {
             lives[p.Id] = p.Lives;
+            elevations[p.Id] = p.Pose.Elevation;
             if (p.Id == LocalPlayerId) { LocalHurtbox.Eliminated = p.Eliminated; continue; }
             if (!avatars.TryGetValue(p.Id, out var avatar))
             {

@@ -57,6 +57,8 @@ public partial class MatchController : Node3D
     {
         if (inRound && hurtboxes.ContainsKey(catcherId)) Rules.RegisterPerfectCatch(catcherId);
     }
+    /// <summary>Altitude actuelle du plateau d'une zone (lift) : le distributeur monte avec elle.</summary>
+    public System.Func<int, float> ZoneElevation { get; set; } = _ => 0f;
 
     int BallsInPlay()
     {
@@ -289,7 +291,7 @@ public partial class MatchController : Node3D
         ballsCached = -1;
         foreach (var d in dispensers)
         {
-            var pedestal = new Vector3(d.Def.X, d.Def.Y, d.Def.Z);
+            var pedestal = new Vector3(d.Def.X, d.Def.Y + ZoneElevation(d.Def.Zone), d.Def.Z);
             if (d.OnPedestal != null && (!IsInstanceValid(d.OnPedestal) || d.OnPedestal.IsHeld || d.OnPedestal.GlobalPosition.DistanceTo(pedestal) > 0.6f))
                 d.OnPedestal = null;
             if (d.OnPedestal == null && d.Stored > 0 && RoomForBall())
@@ -309,7 +311,7 @@ public partial class MatchController : Node3D
         {
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
-            if (b.GlobalPosition.Y > -5f && b.RestTime <= BallRecycleSeconds) continue;
+            if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);
             pendingReturns.Add((now + returnSeconds, team));

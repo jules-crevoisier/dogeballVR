@@ -65,7 +65,8 @@ public partial class RemotePlayer : Node3D
         if (!hasPose) return;
         current = current.Lerp(target, 1f - Mathf.Exp(-25f * (float)delta));
         Avatar.Pose(current.Head, current.Yaw, current.Left, current.Right);
-        Body.Position = new Vector3(current.Head.X, 0, current.Head.Z);
+        Body.Position = new Vector3(current.Head.X, current.Elevation, current.Head.Z);
+        Hurtbox.Elevation = current.Elevation;
         Avatar.Visible = !Hurtbox.Eliminated;
         if (Hurtbox.Eliminated)
             DropBalls();

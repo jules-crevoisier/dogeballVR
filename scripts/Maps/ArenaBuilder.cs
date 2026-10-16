@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using DogeballVR.Visual;
 
@@ -12,19 +13,31 @@ public static class ArenaBuilder
 {
     const float LimitWallHeight = 3f;
 
-    public static Node3D Build(MapData map, int localZoneId)
+    /// <summary>L'arène construite et, par zone, le plateau qui monte avec le lift (zone, couverts, distributeur, pad).</summary>
+    public record Result(Node3D Root, Dictionary<int, Node3D> Platforms);
+
+    public static Result Build(MapData map, int localZoneId)
     {
         var root = new Node3D { Name = "Arena" };
+        var platforms = new Dictionary<int, Node3D>();
+        foreach (var z in map.Zones)
+        {
+            var platform = new Node3D { Name = $"Platform{z.Id}" };
+            root.AddChild(platform);
+            platforms[z.Id] = platform;
+        }
+        Node3D ParentOf(int zone) => platforms.TryGetValue(zone, out var p) ? p : root;
+
         AddEnvironment(root);
         AddFloor(root, map);
-        AddZones(root, map);
+        AddZones(map, platforms);
         var local = map.Zones.Find(z => z.Id == localZoneId);
-        if (local != null) AddLimitWall(root, map, local);
+        if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
         foreach (var prop in map.Props) AddProp(root, prop);
-        foreach (var o in map.Obstacles) AddObstacle(root, o);
-        foreach (var def in map.BallSpawns) AddPedestal(root, def);
-        return root;
+        foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o);
+        foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
+        return new Result(root, platforms);
     }
 
     static void AddEnvironment(Node3D root)
@@ -42,25 +55,37 @@ public static class ArenaBuilder
         root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0), LightEnergy = 0.5f });
     }
 
+    /// <summary>Sol. Une fosse (obstacle « pit ») coupe le sol en deux dalles épaisses : les balles qui y tombent sont perdues.</summary>
     static void AddFloor(Node3D root, MapData map)
     {
         var b = map.Bounds;
-        var size = new Vector3(b.MaxX - b.MinX + 6f, 0.2f, b.MaxZ - b.MinZ + 6f);
+        float x0 = b.MinX - 3f, x1 = b.MaxX + 3f, z0 = b.MinZ - 3f, z1 = b.MaxZ + 3f;
+        var pit = map.Obstacles.Find(o => o.Kind == "pit");
+        if (pit == null) { AddSlab(root, x0, x1, z0, z1, 0.2f); return; }
+        AddSlab(root, x0, x1, z0, pit.Z - pit.Sz / 2f, 4.2f);
+        AddSlab(root, x0, x1, pit.Z + pit.Sz / 2f, z1, 4.2f);
+    }
+
+    static void AddSlab(Node3D root, float x0, float x1, float z0, float z1, float thickness)
+    {
+        var size = new Vector3(x1 - x0, thickness, z1 - z0);
+        var center = new Vector3((x0 + x1) / 2f, -thickness / 2f, (z0 + z1) / 2f);
         var floor = new StaticBody3D { Name = "Floor" };
-        floor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Position = new Vector3(0, -0.1f, 0) });
+        floor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Position = center });
         floor.AddChild(new MeshInstance3D
         {
             Mesh = new BoxMesh { Size = size },
-            Position = new Vector3(0, -0.1f, 0),
+            Position = center,
             MaterialOverride = Materials.Grid(Palette.Night, Palette.Indigo.Lightened(0.15f)),
         });
         root.AddChild(floor);
     }
 
-    static void AddZones(Node3D root, MapData map)
+    static void AddZones(MapData map, Dictionary<int, Node3D> platforms)
     {
         foreach (var zone in map.Zones)
         {
+            var root = platforms[zone.Id];
             var color = Palette.Team(zone.Team);
             var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
             // Dalle teintée un peu au-dessus du sol (sans collision : le sol sert de support).
@@ -77,6 +102,7 @@ public static class ArenaBuilder
             AddEdge(root, zone, basis, color, map.ZoneWidth, 0.06f, new Vector3(0, 0, map.ZoneDepth * 0.5f));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(-map.ZoneWidth * 0.5f, 0, 0));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(map.ZoneWidth * 0.5f, 0, 0));
+            if (zone.Lift != null) AddLift(root, map, zone);
             root.AddChild(new Label3D
             {
                 Text = $"ÉQUIPE {zone.Team + 1}",
@@ -87,6 +113,24 @@ public static class ArenaBuilder
                 Modulate = color,
             });
         }
+    }
+
+    /// <summary>Plateau qui monte avec le lift : dalle sous la zone (visible et solide seulement quand elle est haute) et pad rond.</summary>
+    static void AddLift(Node3D platform, MapData map, ZoneDef zone)
+    {
+        var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
+        var size = new Vector3(map.ZoneWidth, 0.3f, map.ZoneDepth);
+        var slab = new StaticBody3D { Name = "Plateau", Position = zone.Center + new Vector3(0, -0.17f, 0), Basis = basis };
+        slab.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(Palette.Indigo) });
+        slab.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        platform.AddChild(slab);
+        platform.AddChild(new MeshInstance3D
+        {
+            Name = "LiftPad",
+            Mesh = new CylinderMesh { TopRadius = zone.Lift!.Pad.Radius, BottomRadius = zone.Lift.Pad.Radius, Height = 0.03f },
+            Position = new Vector3(zone.Lift.Pad.X, 0.03f, zone.Lift.Pad.Z),
+            MaterialOverride = Materials.Glow(Palette.UiGrey, 1.2f),
+        });
     }
 
     static void AddEdge(Node3D root, ZoneDef zone, Basis basis, Color color, float sx, float sz, Vector3 offset)
