@@ -10,11 +10,11 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Récompense de rattrapage parfait (`RegisterPerfectCatch`) : adoptée.
 - Non implémentés : traversée des couvertures, bonus de hauteur (high ground).
 - `arenaBounds` est lu depuis la map chargée ; la fosse est dans le sol, seuil de recyclage des balles sous y=-4.
-- Partie : meilleur des 5 manches, fin dès 3 manches gagnées (revue 3 : 10 min était trop long pour une borne d'arcade).
+- Partie : 5 manches de 2 min toutes jouées (Jules : 5 min minimum, manches plus longues et prolongation). Le raccourcissement à 3 manches de 75 s décidé après la revue 3 est annulé.
 - Invulnérabilité après un coup : la balle traverse sans être consommée.
 - Anti-triche resserré : vitesse de déplacement 8 m/s, vitesse verticale 4 m/s, main à 1 m de la tête, spin plafonné à 12.
 - Limites connues : pas de compensation de latence pour les prises (l'hôte garde un léger avantage), pas de validation de la direction des lancers, portée jamais mesurée avec une vraie main sur casque.
-- Revue 4 : partie raccourcie en meilleur des 3 manches de 75 s, manche finie à 3 KO.
+- Revue 4 : manche finie à 3 KO (durée de partie inchangée, ~10 min).
 - Bots : un tir ennemi rapide n'est attrapé qu'une fois sur trois ; visée à 1,3 m.
 - Prises côté hôte : tolérance de latence = vitesse de la balle x 0,12 s (2 m maximum) ; tête client au minimum à 0,8 m.
 - Revue 5 : la mort subite compte maintenant les KO depuis le début de la prolongation ; bots plus lents à l'esquive (3 m/s), visée à 1,1 m.
