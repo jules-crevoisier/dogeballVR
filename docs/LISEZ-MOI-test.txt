@@ -1,0 +1,20 @@
+DogeballVR : version de test (PC)
+
+Lancer : double-clic sur DogeballVR.exe (Windows peut afficher un avertissement car le fichier n'est pas signé : "Informations complémentaires" puis "Exécuter quand même").
+Garde le dossier data_DogeballVR_windows_x86_64 à côté du .exe.
+
+Tu es en 2 contre 2. Ton allié et les deux adversaires sont des bots.
+Parties de 10 minutes : 5 manches de 2 minutes, prolongation de 30 s à mort subite en cas d'égalité.
+
+Contrôles
+  ZQSD / WASD     se déplacer dans ta zone (tu ne peux pas en sortir)
+  Souris          viser
+  Maj             s'accroupir (esquive)
+  Clic droit      attraper une balle à portée de bras (même au sol)
+  Clic gauche     maintenir pour charger, relâcher pour lancer (plus long = plus fort)
+  Échap           libérer la souris (clic pour la reprendre)
+
+Règles : 2 vies par joueur, KO = retour au bout de 3 s. Une balle passée à ton allié devient plus lumineuse ;
+à 2 charges ou plus elle retire 2 vies. Le score s'affiche au-dessus de l'arène.
+
+Si quelque chose ne va pas (trop rapide, trop lent, bots trop forts ou trop faibles), dis-le : tout est réglable.
