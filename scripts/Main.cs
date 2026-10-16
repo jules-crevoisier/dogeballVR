@@ -197,6 +197,7 @@ public partial class Main : Node3D
         match.ConfigureMap(map);
         match.ZoneElevation = ZoneElevation;
         match.PlatformsMove = !(map.IsRing && xrOrigin == null);
+        match.IsBot = id => bots.ContainsKey(id);
         match.PushVictim = (victimId, dir) =>
         {
             if (victimId == localZone.Id) desktopPlayer?.ApplyPush(dir);

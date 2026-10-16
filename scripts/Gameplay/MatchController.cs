@@ -63,6 +63,7 @@ public partial class MatchController : Node3D
     readonly Dictionary<int, double> tackleReadyAt = new();
     readonly Dictionary<int, double> highSince = new();
     readonly HashSet<int> fallReturn = new();   // joueurs tombés avec des cœurs restants : ils reviennent vite, sans retrouver toutes leurs vies
+    readonly Dictionary<int, double> overPitSince = new();
     readonly Dictionary<int, double> ringGraceUntil = new();   // juste après un retour, la copie de l'hôte n'a pas encore rejoint le point d'apparition
     const double PushCreditSeconds = 3.0;       // une chute dans les 3 s après une poussée compte pour le pousseur
     const float TackleReach = 2.2f;             // distance maximale tacleur/victime vue par l'hôte (marge de latence comprise)
@@ -72,6 +73,7 @@ public partial class MatchController : Node3D
     public static void RequestTackle(int tacklerId, int victimId, Vector2 dir) => TackleRequested?.Invoke(tacklerId, victimId, dir);
     /// <summary>Tacle validé : la victime est poussée de 2 m dans la direction donnée (le joueur local l'applique, un joueur distant reçoit un message).</summary>
     public System.Action<int, Vector2>? PushVictim { get; set; }
+    public System.Func<int, bool>? IsBot { get; set; }
 
     void OnTackle(int tacklerId, int victimId, Vector2 dir)
     {
@@ -81,7 +83,10 @@ public partial class MatchController : Node3D
         if (v.Vulnerable != null && !v.Vulnerable()) return;   // invulnérable (après une touche, un retour de KO) : le tacle ne fait rien
         if (tackleReadyAt.TryGetValue(tacklerId, out double ready) && now < ready) return;
         var pa = a.GlobalPosition; var pv = v.GlobalPosition;
-        if (new Vector2(pa.X - pv.X, pa.Z - pv.Z).Length() > TackleReach) return;
+        var toVictim = new Vector2(pv.X - pa.X, pv.Z - pa.Z);
+        if (toVictim.Length() > TackleReach || Mathf.Abs(pv.Y - pa.Y) > 1.5f) return;
+        if (toVictim.Length() > 0.4f && Mathf.RadToDeg(toVictim.AngleTo(dir)) > 70f) return;   // on pousse dans le sens du dash, pas où l'on veut
+        if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true) return;        // un bot ne se déplace pas : pas de tacle sans poussée
         tackleReadyAt[tacklerId] = now + 0.8;
         lastPush[victimId] = (tacklerId, now);
         foreach (var n in GetTree().GetNodesInGroup("balls"))
@@ -99,6 +104,10 @@ public partial class MatchController : Node3D
             if (h.Eliminated || h.Head == null || !IsInstanceValid(h)) continue;
             if (ringGraceUntil.TryGetValue(id, out double grace) && now < grace) continue;
             var hp = h.Head.GlobalPosition;
+            // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
+            bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
+            if (!above) overPitSince.Remove(id);
+            else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 1.8) { overPitSince.Remove(id); hp.Y = 0f; }
             if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
             if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
             {
@@ -235,6 +244,10 @@ public partial class MatchController : Node3D
         respawnAt.Clear();
         fallReturn.Clear();
         lastPush.Clear();
+        overPitSince.Clear();
+        tackleReadyAt.Clear();
+        highSince.Clear();
+        foreach (var rid in hurtboxes.Keys) ringGraceUntil[rid] = Time.GetTicksMsec() / 1000.0 + 1.5;
         ClearBalls();
         pendingReturns.Clear();
         neutralTimer = 0;

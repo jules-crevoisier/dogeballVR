@@ -113,6 +113,7 @@ public partial class DesktopPlayer : Node3D
     Vector2 padVel;
     double padReadyAt, terraceSince, evictUntil, pushUntil;
     Vector2 evictDir, pushDir;
+    double fallenFor;
     int tackledDash = -1;            // numéro du dash qui a déjà tacle (un seul tacle par dash)
     int MaxCharges => FreeRoam ? DashMaxCharges : 1;
     double RechargeTime => FreeRoam ? DashRecharge : DodgeCooldown;
@@ -372,7 +373,7 @@ public partial class DesktopPlayer : Node3D
         if (FreeRoam)
         {
             var step = velocity * dt;
-            bool dashing = velocity.Length() > RunSpeed + 1f && Elevation + jumpY < 0.3f && !padFlight && time >= pushUntil;
+            bool dashing = velocity.Length() > RunSpeed + 1f && !padFlight && time >= pushUntil;
             if (dashing)
             {
                 if (PitGap(worldPos + step) < VoidMargin && PitGap(worldPos + step) < PitGap(worldPos) && PitGap(worldPos) > 0f)
@@ -381,7 +382,7 @@ public partial class DesktopPlayer : Node3D
                     step = Vector2.Zero; velocity = Vector2.Zero; dodgeLeft = 0; Hurtbox.DashInvulnerable = false;
                     GD.Print("[PC] Dash arrêté avant le vide");
                 }
-                else TryTackle();
+                else if (Elevation + jumpY < 0.3f) TryTackle();
             }
             worldPos += step;
             var b = Zones.Map.Bounds;
@@ -826,6 +827,9 @@ public partial class DesktopPlayer : Node3D
                 worldPos = spawnPos; velocity = Vector2.Zero;
                 jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; pushUntil = 0; evictUntil = 0;
             }
+            // Tombé et jamais jugé (pause entre deux manches…) : après 1,5 s au fond on remonte au point d'apparition.
+            fallenFor = !Hurtbox.Eliminated && Elevation + jumpY < -2.5f ? fallenFor + 1.0 / 60.0 : 0;
+            if (fallenFor > 1.5) { fallenFor = 0; worldPos = spawnPos; velocity = Vector2.Zero; jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; GD.Print("[PC] Remonté au point d'apparition (chute non jugée)"); }
             if (Hurtbox.Eliminated && Elevation + jumpY < -2.5f)
             {
                 // Tombé dans la fosse et déclaré KO : on remonte au point d'apparition tout de suite (invisible, immobile) pour que la copie de l'hôte suive avant le retour.
@@ -944,7 +948,7 @@ public partial class DesktopPlayer : Node3D
         if (FreeRoam && Zones.Map.PitRect != null && input.Move.LengthSquared() > 0.01f)
         {
             var wish = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw)) * input.Move.X - new Vector2(-Mathf.Sin(yaw), -Mathf.Cos(yaw)) * input.Move.Y;
-            if (PitGap(worldPos + wish.Normalized() * 1.6f) < 0.3f) input.Move = Vector2.Zero;
+            if (PitGap(worldPos + wish.Normalized() * 1.6f) < 0.3f || PitGap(worldPos + velocity.Normalized() * 2.4f) < 0.2f && velocity.Length() > 4f) input.Move = Vector2.Zero;   // freinage : à 7,5 m/s l'inertie porte à près de 2 m
         }
         ScriptedMoves(ref input, (float)delta);
         return input;
@@ -980,16 +984,66 @@ public partial class DesktopPlayer : Node3D
         return best ?? to;
     }
 
+    bool CoverBlocks(Vector2 a, Vector2 b, out ObstacleDef? hit)
+    {
+        hit = null;
+        float len = a.DistanceTo(b);
+        for (float d = 0.7f; d <= len; d += 0.25f)
+        {
+            var q = a.Lerp(b, len < 0.01f ? 0f : d / len);
+            foreach (var o in Zones.Map.Obstacles)
+            {
+                if (o.Kind == "pit" || o.Y > 1.0f) continue;
+                if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.55f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.55f) { hit = o; return true; }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Le scénario n'a pas de pathfinding : contourne par le coin le plus court le premier couvert qui barre la route.</summary>
+    Vector2 AroundCover(Vector2 from, Vector2 to)
+    {
+        if (!CoverBlocks(from, to, out var o) || o == null) return to;
+        Vector2? best = null; float bestLen = float.MaxValue;
+        foreach (var sx in new[] { -1f, 1f })
+            foreach (var sz in new[] { -1f, 1f })
+            {
+                var corner = new Vector2(o.X + sx * (o.Sx / 2f + 0.9f), o.Z + sz * (o.Sz / 2f + 0.9f));
+                if (CoverBlocks(from, corner, out _) || SegmentHitsPit(from, corner, 0.5f)) continue;
+                float len = from.DistanceTo(corner) + corner.DistanceTo(to);
+                if (len < bestLen) { bestLen = len; best = corner; }
+            }
+        return best ?? to;
+    }
+
     bool SteerTo(Vector2 target, ref PcInput input, float stop, float dt, bool avoidPit = true)
     {
         float finalDist = (target - worldPos).Length();
         if (avoidPit) target = AroundPit(worldPos, target);
+        target = AroundCover(worldPos, target);
         var to = target - worldPos;
         float want = Mathf.Atan2(-to.X, -to.Y);
         yaw += Mathf.Clamp(Mathf.AngleDifference(yaw, want), -8f * dt, 8f * dt);
         pitch = Mathf.MoveToward(pitch, 0f, 4f * dt);
         input.Move = finalDist > stop ? new Vector2(0, -1) : Vector2.Zero;
         return finalDist <= stop;
+    }
+
+    /// <summary>Décale un point de test le long de `tangent` tant qu'il tombe dans un couvert ou un pilier.</summary>
+    Vector2 FreeSpot(Vector2 p, Vector2 tangent)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            var q = p + tangent * (i % 2 == 0 ? 1 : -1) * 1.4f * ((i + 1) / 2);
+            bool blocked = false;
+            foreach (var o in Zones.Map.Obstacles)
+            {
+                if (o.Kind == "pit" || o.Y > 1.0f) continue;
+                if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.9f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.9f) { blocked = true; break; }
+            }
+            if (!blocked) return q;
+        }
+        return p;
     }
 
     void ScriptedMoves(ref PcInput input, float dt)
@@ -1012,11 +1066,11 @@ public partial class DesktopPlayer : Node3D
         if (time < 47)
         {
             input.Jump = false; input.Pass = false; input.Lob = false; input.Feint = false;
-            if (Hurtbox.Team == 1)
+            if (Hurtbox.Team == 0)
             {
                 // Appât : debout à 1,5 m du bord, du côté de son point d'apparition, sans bouger ni tirer.
                 var dirOut = (spawnPos - center).Normalized();
-                var edge = center + dirOut * (Mathf.Max(pit.Sx, pit.Sz) / 2f / Mathf.Max(Mathf.Abs(dirOut.X), Mathf.Abs(dirOut.Y)));
+                var edge = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));   // point du bord sur la demi-droite centre -> apparition
                 input.Fire = false; input.Dodge = false;
                 if (SteerTo(edge + dirOut * 1.5f, ref input, 0.4f, dt))
                 {
@@ -1046,14 +1100,15 @@ public partial class DesktopPlayer : Node3D
             }
             return;
         }
-        // Phase 2 : à 5 m du bord, dash vers la fosse (il doit s'arrêter), puis on court dedans.
+        // Phase 2 : à 3,4 m du bord, dash vers la fosse (il doit s'arrêter), puis on court dedans.
         {
             input.Fire = false; input.Jump = false; input.Pass = false; input.Lob = false; input.Feint = false; input.Dodge = false;
             float gap = PitGap(worldPos);
             if (!apDashedToVoid)
             {
                 var dirOut = (spawnPos - center).Normalized();
-                var start = center + dirOut * (Mathf.Max(pit.Sx, pit.Sz) / 2f + 4.6f);
+                var rim = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));
+                var start = FreeSpot(rim + dirOut * 3.4f, new Vector2(-dirOut.Y, dirOut.X));
                 if (SteerTo(start, ref input, 0.3f, dt))
                 {
                     var look = center - worldPos;

@@ -46,7 +46,7 @@ public partial class NetSession : Node
     bool PadMap => FreeRoam && Map?.Pc?.JumpPads.Count > 0;
     float VerticalSpeedCap => FreeRoam ? (PadMap ? 6.5f : 5.5f) : 4f;
     float HeadCeiling => FreeRoam ? (PadMap ? 5.0f : 2.9f) : 2.3f;
-    const double TerraceMaxStay = 8.0, TerraceCooldown = 10.0;
+    const double TerraceMaxStay = 8.0, TerraceCooldown = 7.5;   // recharge comptée depuis l'acceptation de l'hôte : le client compte 10 s depuis le lancer, ~2 s avant l'arrivée
     /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
     public double SimulatedLag { get; set; }
     readonly Queue<(double due, Action action)> delayed = new();
@@ -271,17 +271,17 @@ public partial class NetSession : Node
         float accepted = remote.HostElevation;
         if (terrace == null || requested <= 0.1f || IsEliminated(remote.PlayerId))
         {
-            if (accepted > 0f) liftReadyAtByZone[remote.PlayerId] = t + TerraceCooldown;
             accepted = 0f;
         }
         else if (accepted > 0f)
         {
-            if (t - remote.LiftHighSince > TerraceMaxStay + 1.0) { accepted = 0f; liftReadyAtByZone[remote.PlayerId] = t + TerraceCooldown; }
+            if (t - remote.LiftHighSince > TerraceMaxStay + 1.0) accepted = 0f;
         }
         else if (head.Y >= terrace.Sy + 0.6f && t >= (liftReadyAtByZone.TryGetValue(remote.PlayerId, out double readyAt) ? readyAt : 0))
         {
             accepted = terrace.Sy;
             remote.LiftHighSince = t;
+            liftReadyAtByZone[remote.PlayerId] = t + TerraceCooldown;
             GD.Print($"[Net] Terrasse {terrace.Id} atteinte par la zone {remote.PlayerId}");
         }
         remote.HostElevation = accepted;
@@ -391,7 +391,6 @@ public partial class NetSession : Node
                 if (clock - remote.LiftHighSince <= TerraceMaxStay + 1.0 && !IsEliminated(remote.PlayerId)) continue;
                 var tp = remote.GetPose();
                 remote.HostElevation = 0f;
-                liftReadyAtByZone[remote.PlayerId] = clock + TerraceCooldown;
                 remote.SetPose(new PoseData(tp.Head, tp.Yaw, tp.Left, tp.Right, 0f, tp.DashCount));
             }
         // Le lift se reprend au tick de l'hôte (durée maximale, élimination), même si le client ne dit plus rien.
