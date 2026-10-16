@@ -1,0 +1,62 @@
+name: Export test PC
+
+# Produit un build Windows jouable au clavier-souris à chaque merge sur main.
+# Téléchargement : onglet Releases du dépôt, version « build-latest ».
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export-windows:
+    runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: 4.3-stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Installer Godot et ses modèles d'export
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_export_templates.tpz"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable.mono"
+          unzip -q templates.tpz -d tpl
+          mv tpl/templates/* "$HOME/.local/share/godot/export_templates/4.3.stable.mono/"
+
+      - name: Exporter pour Windows
+        run: |
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          mkdir -p build/windows
+          "$GODOT" --headless --path . --build-solutions --quit
+          "$GODOT" --headless --path . --export-release "Windows Desktop" build/windows/DogeballVR.exe
+          test -f build/windows/DogeballVR.exe
+
+      - name: Empaqueter
+        run: |
+          mkdir -p dist/DogeballVR-test-windows
+          cp -r build/windows/DogeballVR.exe build/windows/data_DogeballVR_windows_x86_64 dist/DogeballVR-test-windows/
+          cp docs/LISEZ-MOI-test.txt dist/DogeballVR-test-windows/
+          (cd dist && zip -qr ../DogeballVR-test-windows.zip DogeballVR-test-windows)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DogeballVR-test-windows
+          path: DogeballVR-test-windows.zip
+
+      - name: Publier la release build-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete build-latest --yes --cleanup-tag || true
+          gh release create build-latest DogeballVR-test-windows.zip \
+            --title "Build de test (PC)" \
+            --notes "Build Windows jouable au clavier-souris, généré automatiquement depuis main. Voir LISEZ-MOI-test.txt dans le zip." \
+            --target "${{ github.sha }}"
