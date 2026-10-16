@@ -63,12 +63,15 @@ public partial class Ball : RigidBody3D
     {
         var ball = new Ball { Name = "Ball" };
         ball.AddChild(new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.11f } });
-        // Cœur blanc chaud toujours visible, halo additif à la couleur de l'équipe qui a lancé.
+        // DA v3 : sphère de 0,30 m (hitbox 0,22 m), contour sombre de 1,8 cm, halo additif à la couleur de l'équipe qui a lancé.
         ball.AddChild(new MeshInstance3D
         {
-            Mesh = new SphereMesh { Radius = 0.11f, Height = 0.22f },
+            Mesh = new SphereMesh { Radius = 0.15f, Height = 0.30f },
             MaterialOverride = Materials.Glow(Palette.BallCore, 1f),
         });
+        var outline = Materials.Flat(Palette.Panel);
+        outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
+        ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {

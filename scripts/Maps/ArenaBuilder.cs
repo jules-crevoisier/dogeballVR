@@ -42,17 +42,17 @@ public static class ArenaBuilder
 
     static void AddEnvironment(Node3D root)
     {
-        // Nuit bleutée, ambiance indigo, aucun post-traitement (pas de glow, pas de SSAO) pour tenir sur Quest.
+        // Arène sombre et calme (DA v3), ambiance indigo, aucun post-traitement (pas de glow, pas de SSAO) pour tenir sur Quest.
         var env = new Godot.Environment
         {
             BackgroundMode = Godot.Environment.BGMode.Color,
             BackgroundColor = Palette.Night,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
-            AmbientLightColor = new Color(0.55f, 0.6f, 0.85f),
-            AmbientLightEnergy = 0.7f,
+            AmbientLightColor = new Color(0.62f, 0.68f, 0.85f),
+            AmbientLightEnergy = 0.8f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
-        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0), LightEnergy = 0.5f });
+        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-60, 30, 0), LightEnergy = 0.45f, ShadowEnabled = false });
     }
 
     /// <summary>Sol. Une fosse (obstacle « pit ») coupe le sol en deux dalles épaisses : les balles qui y tombent sont perdues.</summary>
@@ -76,7 +76,7 @@ public static class ArenaBuilder
         {
             Mesh = new BoxMesh { Size = size },
             Position = center,
-            MaterialOverride = Materials.Grid(Palette.Night, Palette.Indigo.Lightened(0.15f)),
+            MaterialOverride = Materials.Grid(Palette.Floor, Palette.Lines.Darkened(0.55f)),
         });
         root.AddChild(floor);
     }
@@ -95,7 +95,7 @@ public static class ArenaBuilder
                 Mesh = new BoxMesh { Size = new Vector3(map.ZoneWidth - 0.1f, 0.02f, map.ZoneDepth - 0.1f) },
                 Basis = basis,
                 Position = zone.Center + new Vector3(0, 0.01f, 0),
-                MaterialOverride = Materials.Grid(Palette.Night.Lerp(color, 0.14f), color.Darkened(0.4f)),
+                MaterialOverride = Materials.Grid(zone.Team == 0 ? Palette.FloorTeamA : Palette.FloorTeamB, color.Darkened(0.4f)),
             });
             // Contour de zone au sol, en couleur d'équipe.
             AddEdge(root, zone, basis, color, map.ZoneWidth, 0.06f, new Vector3(0, 0, -map.ZoneDepth * 0.5f));

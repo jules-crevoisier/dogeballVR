@@ -1,4 +1,5 @@
 using Godot;
+using DogeballVR.Visual;
 
 namespace DogeballVR.Gameplay;
 
@@ -40,7 +41,7 @@ public partial class DesktopHud : CanvasLayer
         lives = MakeLabel(new Vector2(24, 20), 34);
         state = MakeLabel(new Vector2(24, 64), 20);
 
-        barBack = new ColorRect { Color = new Color(0, 0, 0, 0.5f), Size = new Vector2(240, 14) };
+        barBack = new ColorRect { Color = new Color(Palette.Panel, 0.75f), Size = new Vector2(240, 14) };
         barBack.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         barBack.Position = new Vector2(-120, -70);
         root.AddChild(barBack);
