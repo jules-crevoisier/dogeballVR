@@ -1029,6 +1029,29 @@ public partial class DesktopPlayer : Node3D
         return finalDist <= stop;
     }
 
+    bool SpotBlocked(Vector2 q)
+    {
+        foreach (var o in Zones.Map.Obstacles)
+        {
+            if (o.Kind == "pit" || o.Y > 1.0f) continue;
+            if (Mathf.Abs(q.X - o.X) < o.Sx / 2f + 0.9f && Mathf.Abs(q.Y - o.Z) < o.Sz / 2f + 0.9f) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Place de l'appât à 1,5 m du bord, décalée le long du bord tant que sa place ou celle du pousseur (2 m derrière) tombe dans un couvert.</summary>
+    Vector2 BaitSpot(Vector2 center, Vector2 edge, Vector2 dirOut)
+    {
+        var tangent = new Vector2(-dirOut.Y, dirOut.X);
+        for (int i = 0; i < 10; i++)
+        {
+            var p = edge + dirOut * 1.5f + tangent * (i % 2 == 0 ? 1 : -1) * 1.0f * ((i + 1) / 2);
+            var back = p + (p - center).Normalized() * 2.0f;
+            if (!SpotBlocked(p) && !SpotBlocked(back) && PitGap(p) > 0.5f) return p;
+        }
+        return edge + dirOut * 1.5f;
+    }
+
     /// <summary>Décale un point de test le long de `tangent` tant qu'il tombe dans un couvert ou un pilier.</summary>
     Vector2 FreeSpot(Vector2 p, Vector2 tangent)
     {
@@ -1072,7 +1095,7 @@ public partial class DesktopPlayer : Node3D
                 var dirOut = (spawnPos - center).Normalized();
                 var edge = center + dirOut / Mathf.Max(Mathf.Abs(dirOut.X) / (pit.Sx / 2f), Mathf.Abs(dirOut.Y) / (pit.Sz / 2f));   // point du bord sur la demi-droite centre -> apparition
                 input.Fire = false; input.Dodge = false;
-                if (SteerTo(edge + dirOut * 1.5f, ref input, 0.4f, dt))
+                if (SteerTo(BaitSpot(center, edge, dirOut), ref input, 0.4f, dt))
                 {
                     var look = center - worldPos;
                     yaw = Mathf.Atan2(-look.X, -look.Y);

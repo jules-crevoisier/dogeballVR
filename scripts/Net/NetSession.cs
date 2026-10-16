@@ -13,7 +13,7 @@ namespace DogeballVR.Net;
 public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
-    public const int MaxPlayers = 4;
+    public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
     const float CatchReach = 1.2f;    // tolérance de l'hôte : la main (déjà bornée près de la tête) doit être près de la balle
