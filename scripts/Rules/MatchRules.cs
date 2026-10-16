@@ -34,7 +34,8 @@ public class MatchRules
     public void AddPlayer(int playerId, int team)
     {
         teamOf[playerId] = team;
-        lives[playerId] = LivesPerPlayer;
+        // Un joueur qui change de main (bot remplacé par un humain, reconnexion) garde ses vies.
+        if (!lives.ContainsKey(playerId)) lives[playerId] = LivesPerPlayer;
     }
 
     public int LivesOf(int playerId) => lives[playerId];

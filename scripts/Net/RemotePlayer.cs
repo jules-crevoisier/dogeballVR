@@ -13,6 +13,8 @@ public partial class RemotePlayer : Node3D
     public int PeerId { get; set; }
     public int PlayerId { get; set; }
     public int Team { get; set; }
+    /// <summary>Pose avant le premier paquet reçu : le centre de sa zone (pas de flash à l'origine du monde).</summary>
+    public PoseData StartPose { get; set; }
     public Hurtbox Hurtbox { get; private set; } = null!;
     public Avatar Avatar { get; private set; } = null!;
     /// <summary>Point au sol sous le joueur : cible des bots.</summary>
@@ -27,6 +29,8 @@ public partial class RemotePlayer : Node3D
         AddChild(Avatar);
         Body = new Node3D { Name = "Body" };
         AddChild(Body);
+        SetPose(StartPose);
+        Avatar.Pose(StartPose.Head, StartPose.Yaw, StartPose.Left, StartPose.Right);
         Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head };
         AddChild(Hurtbox);
     }
@@ -37,6 +41,12 @@ public partial class RemotePlayer : Node3D
     {
         target = pose;
         if (!hasPose) { current = pose; hasPose = true; }
+    }
+
+    /// <summary>Lâche les balles tenues (départ du joueur, KO) : elles retombent au sol.</summary>
+    public void DropBalls()
+    {
+        for (int hand = 0; hand < 2; hand++) HeldBall(hand)?.Release(Vector3.Zero, 0f);
     }
 
     public Node3D HandNode(int hand) => hand == 0 ? Avatar.LeftHand : Avatar.RightHand;
@@ -56,6 +66,6 @@ public partial class RemotePlayer : Node3D
         Body.Position = new Vector3(current.Head.X, 0, current.Head.Z);
         Avatar.Visible = !Hurtbox.Eliminated;
         if (Hurtbox.Eliminated)
-            for (int hand = 0; hand < 2; hand++) HeldBall(hand)?.Release(Vector3.Zero, 0f);
+            DropBalls();
     }
 }

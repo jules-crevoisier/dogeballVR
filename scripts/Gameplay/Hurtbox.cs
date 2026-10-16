@@ -8,11 +8,14 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class Hurtbox : Area3D
 {
-    [Signal] public delegate void HitEventHandler(int playerId, int shooterId, int charge);
+    [Signal] public delegate void HitEventHandler(int playerId, int shooterId, int charge, float throwDistance);
 
     public int PlayerId { get; set; }
     public int Team { get; set; }
     public bool Eliminated { get; set; }
+
+    /// <summary>Main (0 gauche, 1 droite) qui tient une balle, -1 sinon : un joueur ne tient qu'une balle à la fois.</summary>
+    public int HeldHand { get; set; } = -1;
 
     /// <summary>Côté client : la touche est jugée par l'hôte, cette zone ne détecte rien.</summary>
     public bool Passive { get; set; }
@@ -45,7 +48,8 @@ public partial class Hurtbox : Area3D
         if (ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;       // trop lente
         int shooter = ball.OwnerPlayerId;
         int charge = ball.Charge;
+        float distance = ball.ThrowDistance;
         ball.Spent();
-        EmitSignal(SignalName.Hit, PlayerId, shooter, charge);
+        EmitSignal(SignalName.Hit, PlayerId, shooter, charge, distance);
     }
 }

@@ -15,8 +15,6 @@ namespace DogeballVR;
 /// </summary>
 public partial class Main : Node3D
 {
-    const string MapPath = "res://maps/demo_2v2.json";
-
     readonly NetConfig cfg = NetConfig.Parse();
     MapData map = null!;
     ZoneManager zones = null!;
@@ -38,7 +36,7 @@ public partial class Main : Node3D
         bool xrActive = XrBootstrap.Start(GetViewport());
         bool client = cfg.Mode == NetMode.Client;
 
-        map = MapData.Load(MapPath);
+        map = MapData.Load($"res://maps/{cfg.Map}.json");
         int localZoneId = client ? cfg.Zone : 0;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
@@ -100,7 +98,7 @@ public partial class Main : Node3D
     {
         match = new MatchController { Name = "MatchController" };
         AddChild(match);
-        foreach (var zone in map.Zones) match.SpawnZones.Add(zone.Center);
+        match.ConfigureMap(map);
         match.Register(localHurtbox);
 
         targets.Add(localMarker);
@@ -117,6 +115,9 @@ public partial class Main : Node3D
             net.PoseProviders[localZone.Id] = () => localPose!();
             net.LivesOf = id => match.Rules.LivesOf(id);
             net.IsEliminated = id => match.IsEliminated(id);
+            net.IsBot = id => bots.ContainsKey(id);
+            var bnds = map.Bounds;
+            net.ArenaXZ = new Rect2(bnds.MinX, bnds.MinZ, bnds.MaxX - bnds.MinX, bnds.MaxZ - bnds.MinZ);
             net.HudText = () => match.HudText;
             net.PeerHello += OnPeerHello;
             net.PeerLeft += OnPeerLeft;
@@ -170,10 +171,12 @@ public partial class Main : Node3D
             return;
         }
         bots.Remove(zoneId);
+        bot.DropHeld();
         bot.QueueFree();
         match.Unregister(zoneId);
 
-        var remote = new RemotePlayer { Name = $"Remote{peerId}", PeerId = peerId, PlayerId = zoneId, Team = zone.Team };
+        var remote = new RemotePlayer { Name = $"Remote{peerId}", PeerId = peerId, PlayerId = zoneId, Team = zone.Team,
+            StartPose = new PoseData(zone.Center + Vector3.Up * 1.6f, Mathf.DegToRad(zone.FacingDegrees), zone.Center + new Vector3(-0.3f, 1.0f, 0), zone.Center + new Vector3(0.3f, 1.0f, 0)) };
         AddChild(remote);
         match.Register(remote.Hurtbox);
         net!.Remotes[peerId] = remote;
@@ -188,6 +191,7 @@ public partial class Main : Node3D
         if (!net!.Remotes.Remove(peerId, out var remote)) return;
         int zoneId = remote.PlayerId;
         match.Unregister(zoneId);
+        remote.DropBalls();
         remote.QueueFree();
         SpawnBot(map.Zones.Find(z => z.Id == zoneId)!);
         GD.Print($"[Net] Joueur de la zone {zoneId} parti, un bot reprend");
