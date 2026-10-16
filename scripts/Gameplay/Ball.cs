@@ -154,7 +154,7 @@ public partial class Ball : RigidBody3D
         var world = GetTree().CurrentScene;
         var xf = GlobalTransform;
         Reparent(world, false);
-        GlobalTransform = xf;
+        GlobalTransform = xf.Orthonormalized();   // la main du joueur PC est réduite : la balle lâchée reprend sa taille
         IsHeld = false;
         Freeze = false;
         curveSpin = spin;

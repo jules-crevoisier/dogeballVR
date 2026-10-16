@@ -64,7 +64,8 @@ public partial class DesktopHud : CanvasLayer
 
     Control root = null!;
     Crosshair crosshair = null!;
-    Label score = null!, resume = null!;
+    Label score = null!, resume = null!, dodgeLabel = null!;
+    ColorRect dodgeBack = null!, dodgeFill = null!;
     Label lives = null!, state = null!, help = null!, toast = null!, catchLabel = null!;
     ColorRect bar = null!, barBack = null!, catchBack = null!, catchFill = null!, flash = null!;
     double hitMarkerLeft;
@@ -101,17 +102,8 @@ public partial class DesktopHud : CanvasLayer
         bar = new ColorRect { Color = Colors.White, Size = new Vector2(0, 14) };
         barBack.AddChild(bar);
 
-        catchBack = new ColorRect { Color = new Color(Palette.Panel, 0.75f), Size = new Vector2(240, 10) };
-        catchBack.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        catchBack.Position = new Vector2(-120, -44);
-        root.AddChild(catchBack);
-        catchFill = new ColorRect { Color = Colors.White, Size = new Vector2(240, 10) };
-        catchBack.AddChild(catchFill);
-        catchLabel = new Label { Text = "ATTRAPER", Position = new Vector2(250, -7) };
-        catchLabel.AddThemeFontSizeOverride("font_size", 14);
-        catchLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
-        catchLabel.AddThemeConstantOverride("outline_size", 4);
-        catchBack.AddChild(catchLabel);
+        catchBack = MakeGauge(new Vector2(-120, -44), 150, out catchFill, out catchLabel, "Clic D");
+        dodgeBack = MakeGauge(new Vector2(40, -44), 80, out dodgeFill, out dodgeLabel, "E");
 
         help = MakeLabel(new Vector2(0, 0), 16);
         help.Text = Help;
@@ -154,6 +146,22 @@ public partial class DesktopHud : CanvasLayer
             helpHideAt = help.Visible ? 0 : age + 1e9;
     }
 
+    ColorRect MakeGauge(Vector2 pos, float width, out ColorRect fill, out Label label, string text)
+    {
+        var back = new ColorRect { Color = new Color(Palette.Panel, 0.75f), Size = new Vector2(width, 12) };
+        back.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        back.Position = pos;
+        root.AddChild(back);
+        fill = new ColorRect { Color = Colors.White, Size = new Vector2(width, 12) };
+        back.AddChild(fill);
+        label = new Label { Text = text, Position = new Vector2(4, -22) };
+        label.AddThemeFontSizeOverride("font_size", 16);
+        label.AddThemeColorOverride("font_outline_color", Colors.Black);
+        label.AddThemeConstantOverride("outline_size", 5);
+        back.AddChild(label);
+        return back;
+    }
+
     Label MakeLabel(Vector2 pos, int size)
     {
         var label = new Label { Position = pos };
@@ -174,18 +182,20 @@ public partial class DesktopHud : CanvasLayer
         flash.Color = new Color(flash.Color, Mathf.Max(0, flash.Color.A - (float)delta * 1.2f));
 
         var ball = Player.HeldBall;
+        bool tips = age < 12;
         state.Text = ball == null
-            ? (Player.CatchState == 1 ? "Attrape !" : "Cherche une balle : passe dessus, ou clic droit pour attraper")
-            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : "Balle en main") + "   |   clic gauche : lancer (maintenir = plus fort)";
+            ? (Player.CatchState == 1 ? "Attrape !" : tips ? "Passe sur une balle pour la ramasser, ou clic droit pour l'attraper" : "")
+            : (ball.Charge > 0 ? $"Balle chargée x{ball.Charge}" : tips ? "Clic gauche : lancer (maintenir = plus fort)" : "");
         float c = Player.ThrowCharge01;
         barBack.Visible = ball != null;
         bar.Size = new Vector2(240 * c, 14);
         bar.Color = ball != null ? ChargeColors[ball.Charge] : Colors.White;
 
         // Attrape : verte quand prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge.
-        catchFill.Size = new Vector2(240 * Player.CatchCooldown01, 10);
+        catchFill.Size = new Vector2(150 * Player.CatchCooldown01, 12);
         catchFill.Color = ball != null ? new Color(0.3f, 0.32f, 0.38f) : Player.CatchState switch { 1 => Palette.BallCore, 2 => new Color(0.55f, 0.58f, 0.66f), _ => new Color(0.45f, 0.9f, 0.55f) };
-        catchLabel.Text = Player.DodgeCooldown01 >= 1f ? "ATTRAPER   |   E : esquive prête" : "ATTRAPER   |   esquive…";
+        dodgeFill.Size = new Vector2(80 * Player.DodgeCooldown01, 12);
+        dodgeFill.Color = Player.DodgeCooldown01 >= 1f ? new Color(0.45f, 0.9f, 0.55f) : new Color(0.55f, 0.58f, 0.66f);
 
         hitMarkerLeft = Mathf.Max(0, hitMarkerLeft - delta);
         help.Visible = age < helpHideAt;

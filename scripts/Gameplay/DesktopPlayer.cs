@@ -87,7 +87,7 @@ public partial class DesktopPlayer : Node3D
     double scoopUntil;               // la main droite se baisse vers une balle à ramasser (pour que l'hôte valide)
     double pickupBlockedUntil;
     bool prevJump, prevDodge, prevCatch;
-    bool ignoreClicksUntilRelease;
+    bool ignoreClicksUntilRelease, fireLatch;
     float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
     double time;
 
@@ -103,7 +103,7 @@ public partial class DesktopPlayer : Node3D
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
         AddChild(camera);
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f) };
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.55f };   // balle tenue réduite : elle ne masque pas l'écran
         camera.AddChild(holdPoint);
 
         Hurtbox.Head = camera;
@@ -368,10 +368,13 @@ public partial class DesktopPlayer : Node3D
         }
 
         AimingAtEnemy = BestEnemy(3.5f) != null;
+        if (!input.Fire) fireLatch = false;
+        else if (held == null) fireLatch = true;          // clic déjà enfoncé au ramassage : il faut relâcher avant d'armer un lancer
+        bool fire = input.Fire && !fireLatch;
 
         if (held != null)
         {
-            if (input.Fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
             else if (charging)
             {
                 float t = (float)(chargeTime / MaxChargeTime);
@@ -415,6 +418,24 @@ public partial class DesktopPlayer : Node3D
         return best;
     }
 
+    /// <summary>Distance du point visé : premier décor touché par le regard (30 m maximum), pour que la compensation de chute vise juste de près comme de loin.</summary>
+    float AimDistance()
+    {
+        var from = camera.GlobalPosition;
+        var to = from + (-camera.GlobalTransform.Basis.Z) * 30f;
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var query = PhysicsRayQueryParameters3D.Create(from, to, 0xFFFFFFFF, exclude);
+            var hit = space.IntersectRay(query);
+            if (hit.Count == 0) return 30f;
+            if (hit["collider"].AsGodotObject() is StaticBody3D) return Mathf.Clamp(from.DistanceTo(hit["position"].AsVector3()), 3f, 30f);
+            exclude.Add(hit["rid"].AsRid());   // balle, hurtbox : on regarde derrière
+        }
+        return 30f;
+    }
+
     /// <summary>
     /// Vitesse de lancer : le regard (corrigé à moitié vers un adversaire presque aligné), visé depuis la main et non depuis l'œil,
     /// avec compensation de la chute de la balle. Le tir part donc là où pointe le viseur à la distance de la cible.
@@ -423,7 +444,7 @@ public partial class DesktopPlayer : Node3D
     {
         var fwd = (-camera.GlobalTransform.Basis.Z).Normalized();
         var enemy = BestEnemy(AssistCone);
-        float dist = 20f;
+        float dist = AimDistance();
         if (enemy != null)
         {
             var to = enemy.GlobalPosition - camera.GlobalPosition;
