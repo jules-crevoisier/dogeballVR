@@ -13,6 +13,15 @@ public partial class Ball : RigidBody3D
     public const int MaxCharge = 3;
     public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
 
+    /// <summary>Réglages de la map (voir BallRulesDef) : gravité, et durée de vol après laquelle la balle ne blesse plus.</summary>
+    public static float GravityFactor { get; set; } = 0.6f;
+    public static float MaxFlightSeconds { get; set; }
+
+    /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
+    public float ThrowDistance { get; set; } = -1f;
+    public static event System.Action<Ball>? Released;
+    double flightTime;
+
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
     static readonly float[] HaloScale = { 1.0f, 1.15f, 1.35f, 1.6f };
     static readonly float[] HaloAlpha = { 0.25f, 0.4f, 0.55f, 0.75f };
@@ -29,6 +38,8 @@ public partial class Ball : RigidBody3D
 
     public int OwnerPlayerId { get; private set; } = -1;
     public int OwnerTeam { get; private set; } = -1;
+    /// <summary>Dernière équipe à avoir tenu la balle (reste valable après une touche) : une balle perdue revient à l'autre camp.</summary>
+    public int LastTeam { get; private set; } = -1;
     public int Charge { get; private set; }
     public bool IsHeld { get; private set; }
 
@@ -107,7 +118,7 @@ public partial class Ball : RigidBody3D
     {
         AddToGroup("balls");
         Mass = 0.6f;
-        GravityScale = 0.6f; // un peu flottante, plus lisible en VR
+        GravityScale = GravityFactor; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
         LinearDamp = 0.3f;
         AngularDamp = 2f;
@@ -121,6 +132,7 @@ public partial class Ball : RigidBody3D
         else if (OwnerTeam != team) ResetCharge();
         OwnerPlayerId = playerId;
         OwnerTeam = team;
+        LastTeam = team;
         IsHeld = true;
         LinearVelocity = Vector3.Zero;
         AngularVelocity = Vector3.Zero;
@@ -141,6 +153,8 @@ public partial class Ball : RigidBody3D
         Freeze = false;
         curveSpin = spin;
         LinearVelocity = velocity;
+        flightTime = 0;
+        Released?.Invoke(this);
     }
 
     /// <summary>La balle a touché : elle devient neutre (plus personne n'est blessé tant qu'elle n'est pas reprise).</summary>
@@ -174,7 +188,12 @@ public partial class Ball : RigidBody3D
     public override void _Process(double delta)
     {
         visualTime += delta;
-        if (IsPuppet) GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
+        if (IsPuppet)
+        {
+            // Extrapolation entre deux snapshots (vitesse reçue), puis lissage vers la cible.
+            netTarget += LinearVelocity * (float)delta;
+            GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
+        }
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
 
@@ -215,6 +234,8 @@ public partial class Ball : RigidBody3D
     public override void _PhysicsProcess(double delta)
     {
         if (IsPuppet) return;
+        // Vol plafonné : au-delà de MaxFlightSeconds la balle devient neutre et retombe.
+        if (!IsHeld && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.

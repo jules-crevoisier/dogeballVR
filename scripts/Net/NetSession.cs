@@ -7,18 +7,20 @@ namespace DogeballVR.Net;
 
 /// <summary>
 /// Session réseau (ENet). L'hôte est seul maître des balles, des touches et du score ; il diffuse un snapshot
-/// de l'état (joueurs, balles) 20 fois par seconde. Les clients n'envoient que leur pose (tête et mains) et des
+/// de l'état (joueurs, balles) 30 fois par seconde. Les clients n'envoient que leur pose (tête et mains) et des
 /// demandes d'attraper / de lancer. Même principe qu'un serveur dédié plus tard (4v4, inter-lieux).
 /// </summary>
 public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     public const int MaxPlayers = 4;
-    const float SnapshotInterval = 1f / 20f;
+    const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
     const float CatchReach = 3f;      // tolérance de l'hôte : la main doit être près de la balle
     const float MaxThrowSpeed = 35f;
-    const int PlayerFloats = 13;
+    const int PlayerFloats = 14;
+    const float MaxHandReach = 1.2f;   // une main reste près de la tête
+    const float MaxSpin = 30f;
     const int BallFloats = 11;
 
     public NetMode Mode { get; private set; } = NetMode.Offline;
@@ -31,6 +33,9 @@ public partial class NetSession : Node
     public Dictionary<int, Func<PoseData>> PoseProviders { get; } = new();
     public Func<int, int> LivesOf { get; set; } = _ => 0;
     public Func<int, bool> IsEliminated { get; set; } = _ => false;
+    public Func<int, bool> IsBot { get; set; } = _ => false;
+    /// <summary>Limites de l'arène (x, z) : l'hôte n'accepte aucune pose en dehors.</summary>
+    public Rect2 ArenaXZ { get; set; } = new(-100, -100, 200, 200);
     public Func<string> HudText { get; set; } = () => "";
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
@@ -72,8 +77,8 @@ public partial class NetSession : Node
             GD.Print($"[Net] Connecté à l'hôte, zone {zoneId}");
             RpcId(1, MethodName.HelloRpc, zoneId);
         };
-        Multiplayer.ServerDisconnected += () => GD.Print("[Net] Hôte déconnecté");
-        Multiplayer.ConnectionFailed += () => GD.Print("[Net] Connexion impossible");
+        Multiplayer.ServerDisconnected += () => { GD.Print("[Net] Hôte déconnecté"); HudReceived?.Invoke("HÔTE DÉCONNECTÉ"); };
+        Multiplayer.ConnectionFailed += () => { GD.Print("[Net] Connexion impossible"); HudReceived?.Invoke("CONNEXION IMPOSSIBLE"); };
         return err;
     }
 
@@ -110,23 +115,31 @@ public partial class NetSession : Node
         if (!IsHost) return;
         int peer = Multiplayer.GetRemoteSenderId();
         GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
+        if (Remotes.ContainsKey(peer)) return;   // un seul Hello par pair
         PeerHello?.Invoke(peer, zoneId);
-        RpcId(peer, MethodName.HudRpc, HudText());
+        if (!Remotes.ContainsKey(peer)) RpcId(peer, MethodName.HudRpc, "ZONE REFUSÉE : DÉJÀ PRISE OU INCONNUE");
+        else RpcId(peer, MethodName.HudRpc, HudText());
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right)
     {
         if (!IsHost) return;
-        if (Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote))
-            remote.SetPose(new PoseData(head, yaw, left, right));
+        if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw)) return;
+        // Bornes de l'hôte : la tête reste dans l'arène, les mains près de la tête (pas de téléportation hors de portée).
+        head = new Vector3(Mathf.Clamp(head.X, ArenaXZ.Position.X, ArenaXZ.End.X), Mathf.Clamp(head.Y, 0.2f, 3.5f),
+            Mathf.Clamp(head.Z, ArenaXZ.Position.Y, ArenaXZ.End.Y));
+        left = head + (left - head).LimitLength(MaxHandReach);
+        right = head + (right - head).LimitLength(MaxHandReach);
+        remote.SetPose(new PoseData(head, yaw, left, right));
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void CatchRpc(int ballId, int hand)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
-        if (remote.Hurtbox.Eliminated || remote.HeldBall(hand) != null || remote.HeldBall(1 - hand) != null) return;
+        if (hand is < 0 or > 1 || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.NetId != ballId) continue;
@@ -142,8 +155,8 @@ public partial class NetSession : Node
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         var ball = remote.HeldBall(hand);
-        if (ball == null) return;
-        ball.Release(velocity.LimitLength(MaxThrowSpeed), spin);
+        if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
+        ball.Release(velocity.LimitLength(MaxThrowSpeed), Mathf.Clamp(spin, -MaxSpin, MaxSpin));
         GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s");
     }
 
@@ -174,7 +187,7 @@ public partial class NetSession : Node
             data.AddRange(new[]
             {
                 id, p.Head.X, p.Head.Y, p.Head.Z, p.Yaw, p.Left.X, p.Left.Y, p.Left.Z, p.Right.X, p.Right.Y, p.Right.Z,
-                IsEliminated(id) ? 1f : 0f, LivesOf(id),
+                IsEliminated(id) ? 1f : 0f, LivesOf(id), IsBot(id) ? 1f : 0f,
             });
         }
         foreach (var b in balls)
@@ -210,7 +223,7 @@ public partial class NetSession : Node
         for (int k = 0; k < np; k++, i += PlayerFloats)
             players.Add(new SnapshotPlayer((int)d[i],
                 new PoseData(new Vector3(d[i + 1], d[i + 2], d[i + 3]), d[i + 4], new Vector3(d[i + 5], d[i + 6], d[i + 7]), new Vector3(d[i + 8], d[i + 9], d[i + 10])),
-                d[i + 11] > 0.5f, (int)d[i + 12]));
+                d[i + 11] > 0.5f, (int)d[i + 12], d[i + 13] > 0.5f));
         for (int k = 0; k < nb; k++, i += BallFloats)
             balls.Add(new SnapshotBall((int)d[i], new Vector3(d[i + 1], d[i + 2], d[i + 3]), new Vector3(d[i + 4], d[i + 5], d[i + 6]),
                 (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f));
@@ -218,6 +231,6 @@ public partial class NetSession : Node
     }
 }
 
-public record SnapshotPlayer(int Id, PoseData Pose, bool Eliminated, int Lives);
+public record SnapshotPlayer(int Id, PoseData Pose, bool Eliminated, int Lives, bool Bot);
 
 public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held);

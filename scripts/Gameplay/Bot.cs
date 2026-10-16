@@ -54,6 +54,13 @@ public partial class Bot : Node3D
         else ThinkThrow(delta);
     }
 
+    /// <summary>Le bot disparaît (remplacé par un joueur) : il lâche sa balle au lieu de l'emporter.</summary>
+    public void DropHeld()
+    {
+        if (held != null && IsInstanceValid(held)) held.Release(Vector3.Zero, 0f);
+        held = null;
+    }
+
     void Dodge(double delta)
     {
         var basis = new Basis(Vector3.Up, Mathf.DegToRad(Zone.FacingDegrees));

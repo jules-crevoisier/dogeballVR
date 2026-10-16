@@ -22,6 +22,8 @@ public static class ArenaBuilder
         if (local != null) AddLimitWall(root, map, local);
         AddBounds(root, map);
         foreach (var prop in map.Props) AddProp(root, prop);
+        foreach (var o in map.Obstacles) AddObstacle(root, o);
+        foreach (var def in map.BallSpawns) AddPedestal(root, def);
         return root;
     }
 
@@ -42,7 +44,8 @@ public static class ArenaBuilder
 
     static void AddFloor(Node3D root, MapData map)
     {
-        var size = new Vector3(map.ArenaWidth + 6f, 0.2f, map.ArenaDepth + 6f);
+        var b = map.Bounds;
+        var size = new Vector3(b.MaxX - b.MinX + 6f, 0.2f, b.MaxZ - b.MinZ + 6f);
         var floor = new StaticBody3D { Name = "Floor" };
         floor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Position = new Vector3(0, -0.1f, 0) });
         floor.AddChild(new MeshInstance3D
@@ -120,22 +123,59 @@ public static class ArenaBuilder
         Wall(0.02f, map.ZoneDepth, new Vector3(hw, 0, 0));
     }
 
-    /// <summary>Murs et plafond invisibles : les balles restent dans l'arène.</summary>
+    /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>
     static void AddBounds(Node3D root, MapData map)
     {
-        float w = map.ArenaWidth, d = map.ArenaDepth, h = map.ArenaHeight;
-        AddWall(root, new Vector3(0.4f, h, d + 1), new Vector3(-w / 2 - 0.2f, h / 2, 0));
-        AddWall(root, new Vector3(0.4f, h, d + 1), new Vector3(w / 2 + 0.2f, h / 2, 0));
-        AddWall(root, new Vector3(w + 1, h, 0.4f), new Vector3(0, h / 2, -d / 2 - 0.2f));
-        AddWall(root, new Vector3(w + 1, h, 0.4f), new Vector3(0, h / 2, d / 2 + 0.2f));
-        AddWall(root, new Vector3(w + 1, 0.4f, d + 1), new Vector3(0, h + 0.2f, 0));
+        var b = map.Bounds;
+        float w = b.MaxX - b.MinX, d = b.MaxZ - b.MinZ, cx = (b.MaxX + b.MinX) / 2, cz = (b.MaxZ + b.MinZ) / 2;
+        float ch = b.CeilingHeight;
+        var mat = b.WallKind == "rebound" ? new PhysicsMaterial { Bounce = 0.8f, Friction = 0.2f } : null;
+        AddWall(root, new Vector3(0.4f, ch, d + 1), new Vector3(b.MinX - 0.2f, ch / 2, cz), mat);
+        AddWall(root, new Vector3(0.4f, ch, d + 1), new Vector3(b.MaxX + 0.2f, ch / 2, cz), mat);
+        AddWall(root, new Vector3(w + 1, ch, 0.4f), new Vector3(cx, ch / 2, b.MinZ - 0.2f), mat);
+        AddWall(root, new Vector3(w + 1, ch, 0.4f), new Vector3(cx, ch / 2, b.MaxZ + 0.2f), mat);
+        AddWall(root, new Vector3(w + 1, 0.4f, d + 1), new Vector3(cx, ch + 0.2f, cz), mat);
     }
 
-    static void AddWall(Node3D root, Vector3 size, Vector3 position)
+    static void AddWall(Node3D root, Vector3 size, Vector3 position, PhysicsMaterial? material = null)
     {
-        var wall = new StaticBody3D { Position = position };
+        var wall = new StaticBody3D { Position = position, PhysicsMaterialOverride = material };
         wall.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(wall);
+    }
+
+    /// <summary>
+    /// Obstacles du level design : couverts (gris), plots de rebond (gris clair, balle très rebondissante), sol de fosse.
+    /// Le centre est en x et z, la base en y. Les bots ne les contournent pas (greybox).
+    /// </summary>
+    static void AddObstacle(Node3D root, ObstacleDef o)
+    {
+        var size = new Vector3(o.Sx, o.Sy, o.Sz);
+        var color = o.Kind switch { "bumper" => new Color("b7bcc8"), "pit" => new Color("14161b"), _ => new Color("7d838f") };
+        var body = new StaticBody3D
+        {
+            Name = o.Id,
+            Position = new Vector3(o.X, o.Y + o.Sy / 2f, o.Z),
+            RotationDegrees = new Vector3(0, o.RotY, 0),
+            PhysicsMaterialOverride = o.Kind == "bumper" ? new PhysicsMaterial { Bounce = 0.95f, Friction = 0.1f } : null,
+        };
+        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(color) });
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        root.AddChild(body);
+    }
+
+    /// <summary>Piédestal d'un distributeur de balles : cylindre dont le sommet est à la hauteur indiquée par la map.</summary>
+    static void AddPedestal(Node3D root, BallSpawnDef def)
+    {
+        if (def.Kind != "dispenser") return;
+        var body = new StaticBody3D { Name = def.Id, Position = new Vector3(def.X, def.Y / 2f, def.Z) };
+        body.AddChild(new MeshInstance3D
+        {
+            Mesh = new CylinderMesh { TopRadius = 0.28f, BottomRadius = 0.32f, Height = def.Y },
+            MaterialOverride = Materials.Flat(new Color("5b616d")),
+        });
+        body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.3f, Height = def.Y } });
+        root.AddChild(body);
     }
 
     /// <summary>Prop de level design. Couleur avec alpha (« #rrggbbaa ») : voile de lumière additif, traversable si Solid est faux.</summary>
