@@ -1,32 +1,223 @@
+using System;
+using System.Collections.Generic;
 using Godot;
+using DogeballVR.Gameplay;
 
 namespace DogeballVR.Net;
 
 /// <summary>
-/// Session réseau de la démo : un joueur héberge (autorité sur les balles, les touches et les scores),
-/// les 3 autres rejoignent. Même principe que pour un serveur dédié plus tard (4v4, inter-lieux).
-/// TODO : synchroniser les balles (MultiplayerSynchronizer) et les mains/têtes des avatars.
+/// Session réseau (ENet). L'hôte est seul maître des balles, des touches et du score ; il diffuse un snapshot
+/// de l'état (joueurs, balles) 20 fois par seconde. Les clients n'envoient que leur pose (tête et mains) et des
+/// demandes d'attraper / de lancer. Même principe qu'un serveur dédié plus tard (4v4, inter-lieux).
 /// </summary>
 public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     public const int MaxPlayers = 4;
+    const float SnapshotInterval = 1f / 20f;
+    const float PoseInterval = 1f / 30f;
+    const float CatchReach = 3f;      // tolérance de l'hôte : la main doit être près de la balle
+    const float MaxThrowSpeed = 35f;
+    const int PlayerFloats = 13;
+    const int BallFloats = 11;
 
-    public bool IsHost => Multiplayer.IsServer();
+    public NetMode Mode { get; private set; } = NetMode.Offline;
+    public bool IsClient => Mode == NetMode.Client;
+    public bool IsHost => Mode == NetMode.Host;
+    public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+    public int ZoneId { get; set; }
+
+    // Hôte : qui sont les joueurs et où ils sont (fournisseurs de pose), état de vie, texte du tableau.
+    public Dictionary<int, Func<PoseData>> PoseProviders { get; } = new();
+    public Func<int, int> LivesOf { get; set; } = _ => 0;
+    public Func<int, bool> IsEliminated { get; set; } = _ => false;
+    public Func<string> HudText { get; set; } = () => "";
+    public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
+
+    // Client.
+    public Func<PoseData>? LocalPose { get; set; }
+
+    public event Action<int, int>? PeerHello;       // pair, zone demandée
+    public event Action<int>? PeerLeft;
+    public event Action<float[]>? SnapshotReceived;
+    public event Action<string>? HudReceived;
+
+    double snapshotTimer, poseTimer;
+    string lastHud = "";
+    public int SnapshotsSent { get; private set; }
+    public int SnapshotsReceived { get; private set; }
 
     public Error Host(int port = DefaultPort)
     {
         var peer = new ENetMultiplayerPeer();
         var err = peer.CreateServer(port, MaxPlayers - 1);
-        if (err == Error.Ok) Multiplayer.MultiplayerPeer = peer;
+        if (err != Error.Ok) return err;
+        Multiplayer.MultiplayerPeer = peer;
+        Mode = NetMode.Host;
+        Multiplayer.PeerDisconnected += id => PeerLeft?.Invoke((int)id);
+        GD.Print($"[Net] Hôte en écoute sur le port {port}");
         return err;
     }
 
-    public Error Join(string address, int port = DefaultPort)
+    public Error Join(string address, int port, int zoneId)
     {
         var peer = new ENetMultiplayerPeer();
         var err = peer.CreateClient(address, port);
-        if (err == Error.Ok) Multiplayer.MultiplayerPeer = peer;
+        if (err != Error.Ok) return err;
+        Multiplayer.MultiplayerPeer = peer;
+        Mode = NetMode.Client;
+        ZoneId = zoneId;
+        Multiplayer.ConnectedToServer += () =>
+        {
+            GD.Print($"[Net] Connecté à l'hôte, zone {zoneId}");
+            RpcId(1, MethodName.HelloRpc, zoneId);
+        };
+        Multiplayer.ServerDisconnected += () => GD.Print("[Net] Hôte déconnecté");
+        Multiplayer.ConnectionFailed += () => GD.Print("[Net] Connexion impossible");
         return err;
     }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (Mode == NetMode.Host) HostTick(delta);
+        else if (Mode == NetMode.Client) ClientTick(delta);
+    }
+
+    // ---------------------------------------------------------------- client -> hôte
+
+    void ClientTick(double delta)
+    {
+        poseTimer += delta;
+        if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
+        poseTimer = 0;
+        var p = LocalPose();
+        RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right);
+    }
+
+    public void RequestCatch(int ballId, int hand)
+    {
+        if (Connected) RpcId(1, MethodName.CatchRpc, ballId, hand);
+    }
+
+    public void RequestThrow(int hand, Vector3 velocity, float spin)
+    {
+        if (Connected) RpcId(1, MethodName.ThrowRpc, hand, velocity, spin);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void HelloRpc(int zoneId)
+    {
+        if (!IsHost) return;
+        int peer = Multiplayer.GetRemoteSenderId();
+        GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
+        PeerHello?.Invoke(peer, zoneId);
+        RpcId(peer, MethodName.HudRpc, HudText());
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right)
+    {
+        if (!IsHost) return;
+        if (Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote))
+            remote.SetPose(new PoseData(head, yaw, left, right));
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void CatchRpc(int ballId, int hand)
+    {
+        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (remote.Hurtbox.Eliminated || remote.HeldBall(hand) != null || remote.HeldBall(1 - hand) != null) return;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball { IsHeld: false } ball || ball.NetId != ballId) continue;
+            if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach) return;
+            ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team);
+            GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
+            return;
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void ThrowRpc(int hand, Vector3 velocity, float spin)
+    {
+        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        var ball = remote.HeldBall(hand);
+        if (ball == null) return;
+        ball.Release(velocity.LimitLength(MaxThrowSpeed), spin);
+        GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s");
+    }
+
+    // ---------------------------------------------------------------- hôte -> clients
+
+    void HostTick(double delta)
+    {
+        if (Multiplayer.GetPeers().Length == 0) return;
+        string hud = HudText();
+        if (hud != lastHud) { lastHud = hud; Rpc(MethodName.HudRpc, hud); }
+        snapshotTimer += delta;
+        if (snapshotTimer < SnapshotInterval) return;
+        snapshotTimer = 0;
+        Rpc(MethodName.SnapshotRpc, BuildSnapshot());
+        SnapshotsSent++;
+    }
+
+    float[] BuildSnapshot()
+    {
+        var balls = new List<Ball>();
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+            if (n is Ball b && IsInstanceValid(b) && !b.IsQueuedForDeletion()) balls.Add(b);
+
+        var data = new List<float> { PoseProviders.Count, balls.Count };
+        foreach (var (id, provider) in PoseProviders)
+        {
+            var p = provider();
+            data.AddRange(new[]
+            {
+                id, p.Head.X, p.Head.Y, p.Head.Z, p.Yaw, p.Left.X, p.Left.Y, p.Left.Z, p.Right.X, p.Right.Y, p.Right.Z,
+                IsEliminated(id) ? 1f : 0f, LivesOf(id),
+            });
+        }
+        foreach (var b in balls)
+        {
+            var pos = b.GlobalPosition;
+            var vel = b.IsHeld ? Vector3.Zero : b.LinearVelocity;
+            data.AddRange(new[]
+            {
+                b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : 0f,
+            });
+        }
+        return data.ToArray();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+    void SnapshotRpc(float[] data)
+    {
+        SnapshotsReceived++;
+        SnapshotReceived?.Invoke(data);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    /// <summary>Décode un snapshot : renvoie les joueurs et les balles. Partagé avec les tests.</summary>
+    public static (List<SnapshotPlayer> players, List<SnapshotBall> balls) Decode(float[] d)
+    {
+        var players = new List<SnapshotPlayer>();
+        var balls = new List<SnapshotBall>();
+        if (d.Length < 2) return (players, balls);
+        int np = (int)d[0], nb = (int)d[1], i = 2;
+        if (d.Length < 2 + np * PlayerFloats + nb * BallFloats) return (players, balls);
+        for (int k = 0; k < np; k++, i += PlayerFloats)
+            players.Add(new SnapshotPlayer((int)d[i],
+                new PoseData(new Vector3(d[i + 1], d[i + 2], d[i + 3]), d[i + 4], new Vector3(d[i + 5], d[i + 6], d[i + 7]), new Vector3(d[i + 8], d[i + 9], d[i + 10])),
+                d[i + 11] > 0.5f, (int)d[i + 12]));
+        for (int k = 0; k < nb; k++, i += BallFloats)
+            balls.Add(new SnapshotBall((int)d[i], new Vector3(d[i + 1], d[i + 2], d[i + 3]), new Vector3(d[i + 4], d[i + 5], d[i + 6]),
+                (int)d[i + 7], (int)d[i + 8], (int)d[i + 9], d[i + 10] > 0.5f));
+        return (players, balls);
+    }
 }
+
+public record SnapshotPlayer(int Id, PoseData Pose, bool Eliminated, int Lives);
+
+public record SnapshotBall(int NetId, Vector3 Position, Vector3 Velocity, int Team, int OwnerId, int Charge, bool Held);

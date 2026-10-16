@@ -29,6 +29,19 @@ public partial class MatchController : Node3D
     bool inRound;
     string banner = "";
 
+    /// <summary>Texte du tableau de score (envoyé aux clients).</summary>
+    public string HudText => hud.Text;
+    int nextBallId;
+
+    public bool IsEliminated(int playerId) => hurtboxes.TryGetValue(playerId, out var h) && h.Eliminated;
+
+    /// <summary>Retire une hurtbox (joueur remplacé par un bot ou l'inverse). Ses vies restent à jour au prochain Register.</summary>
+    public void Unregister(int playerId)
+    {
+        hurtboxes.Remove(playerId);
+        respawnAt.Remove(playerId);
+    }
+
     public void Register(Hurtbox hurtbox)
     {
         hurtboxes[hurtbox.PlayerId] = hurtbox;
@@ -162,6 +175,7 @@ public partial class MatchController : Node3D
     void SpawnBall()
     {
         var ball = Ball.Create();
+        ball.NetId = ++nextBallId;
         AddChild(ball);
         var center = SpawnZones.Count > 0 ? SpawnZones[nextZone++ % SpawnZones.Count] : Vector3.Zero;
         ball.GlobalPosition = center + new Vector3(rng.RandfRange(-3f, 3f), 3f, rng.RandfRange(-2f, 2f));

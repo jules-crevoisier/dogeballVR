@@ -20,6 +20,13 @@ public partial class Ball : RigidBody3D
     const int TrailPoints = 10;
     const float TrailMinSpeed = 6f;                            // = seuil de blessure
 
+    /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
+    public int NetId { get; set; }
+
+    /// <summary>Côté client : simple image de la balle de l'hôte, sans physique.</summary>
+    public bool IsPuppet { get; private set; }
+    Vector3 netTarget;
+
     public int OwnerPlayerId { get; private set; } = -1;
     public int OwnerTeam { get; private set; } = -1;
     public int Charge { get; private set; }
@@ -69,6 +76,31 @@ public partial class Ball : RigidBody3D
         ball.AddChild(ball.trail);
         ball.UpdateLook();
         return ball;
+    }
+
+    /// <summary>Balle marionnette (client) : gelée, déplacée uniquement par les snapshots de l'hôte.</summary>
+    public static Ball CreatePuppet(int netId)
+    {
+        var ball = Create();
+        ball.NetId = netId;
+        ball.IsPuppet = true;
+        ball.Freeze = true;
+        ball.FreezeMode = FreezeModeEnum.Static;
+        return ball;
+    }
+
+    /// <summary>Applique l'état envoyé par l'hôte (position lissée dans _Process).</summary>
+    public void ApplyNet(Vector3 position, Vector3 velocity, int team, int ownerId, int charge, bool held)
+    {
+        bool first = netTarget == Vector3.Zero;
+        netTarget = position;
+        if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
+        LinearVelocity = velocity;
+        OwnerTeam = team;
+        OwnerPlayerId = ownerId;
+        Charge = charge;
+        IsHeld = held;
+        UpdateLook();
     }
 
     public override void _Ready()
@@ -142,6 +174,7 @@ public partial class Ball : RigidBody3D
     public override void _Process(double delta)
     {
         visualTime += delta;
+        if (IsPuppet) GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
 
@@ -181,6 +214,7 @@ public partial class Ball : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (IsPuppet) return;
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
         if (IsHeld || curveSpin == 0f) return;
         // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.

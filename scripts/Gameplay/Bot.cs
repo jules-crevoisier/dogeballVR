@@ -19,6 +19,7 @@ public partial class Bot : Node3D
     public float ZoneWidth { get; set; } = 15f;
     public float ZoneDepth { get; set; } = 8f;
     public Hurtbox Hurtbox { get; set; } = null!;
+    public Avatar? Avatar { get; private set; }
     /// <summary>Positions des autres joueurs (visées).</summary>
     public IList<Node3D> Targets { get; set; } = new List<Node3D>();
     public IList<int> TargetTeams { get; set; } = new List<int>();
@@ -36,7 +37,8 @@ public partial class Bot : Node3D
         rng.Randomize();
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
-        AddChild(Avatar.Create(Hurtbox.Team, bot: true));
+        Avatar = Avatar.Create(Hurtbox.Team, bot: true);
+        AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);
     }

@@ -1,5 +1,7 @@
 using Godot;
 
+using DogeballVR.Net;
+
 namespace DogeballVR.Gameplay;
 
 /// <summary>
@@ -18,6 +20,8 @@ public partial class HandThrower : XRController3D
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
 
+    int HandIndex => Tracker == "left_hand" ? 0 : 1;
+    double ignoreHeldUntil;
     Area3D catchArea = null!;
     Ball? held;
     double lastGripPressTime = -10;
@@ -70,8 +74,8 @@ public partial class HandThrower : XRController3D
     {
         double now = Time.GetTicksMsec() / 1000.0;
         bool perfect = now - lastGripPressTime <= PerfectCatchWindow && ball.LinearVelocity.Length() > 8f;
-        held = ball;
-        ball.Hold(this, Hurtbox.PlayerId, Hurtbox.Team);
+        if (!BallActions.IsClient) held = ball;
+        BallActions.Catch(ball, this, HandIndex, Hurtbox.PlayerId, Hurtbox.Team);
         if (perfect)
             GD.Print("Attrapé parfait ! (ralenti + gain de vie à brancher)"); // TODO : Engine.TimeScale court, MatchRules.RegisterPerfectCatch
     }
@@ -80,13 +84,20 @@ public partial class HandThrower : XRController3D
     {
         var (vel, spin) = EstimateHandMotion();
         vel = (vel * ThrowSpeedScale).LimitLength(MaxThrowSpeed);
-        held!.Release(vel, spin);
+        BallActions.Throw(held!, HandIndex, vel, spin);
+        ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
         held = null;
     }
 
     public override void _PhysicsProcess(double delta)
     {
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
+        if (BallActions.IsClient && Time.GetTicksMsec() / 1000.0 >= ignoreHeldUntil)
+        {
+            // Client : la balle tenue est celle que l'hôte place dans notre main.
+            var mine = BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
+            held = mine != null && mine.GlobalPosition.DistanceTo(GlobalPosition) < 0.4f ? mine : null;
+        }
 
         // Historique glissant de la position / rotation de la main.
         for (int i = HistorySize - 1; i > 0; i--)

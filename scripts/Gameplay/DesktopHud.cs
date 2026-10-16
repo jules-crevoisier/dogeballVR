@@ -14,8 +14,9 @@ public partial class DesktopHud : CanvasLayer
     };
 
     public DesktopPlayer Player { get; set; } = null!;
-    public MatchController Match { get; set; } = null!;
-    public int PlayerId { get; set; }
+    /// <summary>Vies restantes du joueur local (hôte : règles ; client : snapshot de l'hôte).</summary>
+    public System.Func<int> Lives { get; set; } = null!;
+    public int MaxLives { get; set; } = 2;
 
     Control root = null!;
     Label lives = null!;
@@ -59,8 +60,8 @@ public partial class DesktopHud : CanvasLayer
 
     public override void _Process(double delta)
     {
-        int n = Match.Rules.LivesOf(PlayerId);
-        lives.Text = n > 0 ? new string('♥', n) + new string('♡', Match.Rules.LivesPerPlayer - n) : "KO : retour dans quelques secondes";
+        int n = Lives();
+        lives.Text = n > 0 ? new string('♥', n) + new string('♡', MaxLives - n) : "KO : retour dans quelques secondes";
         var ball = Player.HeldBall;
         state.Text = ball == null
             ? "Clic droit : attraper   |   Maj : s'accroupir"
