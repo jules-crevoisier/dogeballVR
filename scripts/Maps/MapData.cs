@@ -41,6 +41,8 @@ public class LiftRulesDef
     public float HoldCrouchSeconds { get; set; } = 1f;
     public bool LockWhenHoldingChargedBall { get; set; } = true;
     public bool DownOnElimination { get; set; } = true;
+    public bool OneHighZonePerTeam { get; set; } = true;
+    public float RailingHeight { get; set; } = 0.9f;
 }
 
 /// <summary>Un élément de décor (greybox) : boîte pleine, centre en x et z, base en y.</summary>

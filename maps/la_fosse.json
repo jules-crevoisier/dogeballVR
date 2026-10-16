@@ -14,18 +14,18 @@
       "facingDegrees": 180,
       "lift": {
         "pad": {
-          "x": -2.1,
-          "z": -7.5,
-          "radius": 0.8
+          "x": -2.9,
+          "z": -7.4,
+          "radius": 0.6
         },
         "levelElevations": [
           0.0,
-          2.4
+          1.6
         ],
         "fadeSeconds": 0.4,
-        "maxHighSeconds": 8,
-        "cooldownSeconds": 12,
-        "trigger": "debout sur le pad + s'accroupir"
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
       }
     },
     {
@@ -37,18 +37,18 @@
       "facingDegrees": 180,
       "lift": {
         "pad": {
-          "x": 2.1,
-          "z": -7.5,
-          "radius": 0.8
+          "x": 2.9,
+          "z": -7.4,
+          "radius": 0.6
         },
         "levelElevations": [
           0.0,
-          2.4
+          1.6
         ],
         "fadeSeconds": 0.4,
-        "maxHighSeconds": 8,
-        "cooldownSeconds": 12,
-        "trigger": "debout sur le pad + s'accroupir"
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
       }
     },
     {
@@ -60,18 +60,18 @@
       "facingDegrees": 0,
       "lift": {
         "pad": {
-          "x": -2.1,
-          "z": 7.5,
-          "radius": 0.8
+          "x": -2.9,
+          "z": 7.4,
+          "radius": 0.6
         },
         "levelElevations": [
           0.0,
-          2.4
+          1.6
         ],
         "fadeSeconds": 0.4,
-        "maxHighSeconds": 8,
-        "cooldownSeconds": 12,
-        "trigger": "debout sur le pad + s'accroupir"
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
       }
     },
     {
@@ -83,33 +83,55 @@
       "facingDegrees": 0,
       "lift": {
         "pad": {
-          "x": 2.1,
-          "z": 7.5,
-          "radius": 0.8
+          "x": 2.9,
+          "z": 7.4,
+          "radius": 0.6
         },
         "levelElevations": [
           0.0,
-          2.4
+          1.6
         ],
         "fadeSeconds": 0.4,
-        "maxHighSeconds": 8,
-        "cooldownSeconds": 12,
-        "trigger": "debout sur le pad + s'accroupir"
+        "maxHighSeconds": 6,
+        "cooldownSeconds": 18,
+        "trigger": "debout sur le pad + s'accroupir 1 s"
       }
     }
   ],
   "ballRules": {
     "maxBallsInPlay": 6,
+    "throwAssist": {
+      "speedMultiplier": 1.4,
+      "minLaunchSpeed": 9.0,
+      "note": "multiplicateur de vitesse de main (ThrowSpeedScale du dépôt) ; la main Quest serait vers 10 m/s (à mesurer)"
+    },
     "maxFlightSeconds": 1.5,
-    "ballGravityFactor": 0.5,
-    "overflow": "ball retournée attend en file si le distributeur est plein",
-    "note": "portée utile visée : 12 à 15 m ; au-delà, lob ou balle spéciale"
+    "ballGravityFactor": 0.3,
+    "neutralBallExemptFromFlightLimit": true,
+    "overflow": "une balle retournée attend en file si le distributeur est plein",
+    "note": "portée utile visée : 12 à 20 m ; au-delà de ~20 m, uniquement par rebond sur les murs"
+  },
+  "rules": {
+    "roundWin": "3 vies par joueur ; la manche va à l'équipe qui élimine tous les adversaires, sinon à celle qui a le plus de vies au temps",
+    "stuckBallReturnSeconds": 3,
+    "friendlyFire": false,
+    "invulnerableAfterHitSeconds": 1.5,
+    "catchReward": "un attrapé fait perdre une vie au lanceur adverse ou rend une vie à l'attrapeur",
+    "eliminatedPlayer": "retour après 5 s ; 0 vie = spectateur jusqu'à la fin de la manche",
+    "returnedBallDispenser": "distributeur de l'équipe adverse du dernier lanceur dont le stock est le plus bas",
+    "expiredBall": "une balle expirée retourne comme une balle perdue",
+    "coverPhasing": "une balle ne traverse pas un couvert ; si la tête du joueur entre dans un couvert, fondu, il reste touchable"
   },
   "liftRules": {
     "holdCrouchSeconds": 1.0,
     "oneHighZonePerTeam": true,
     "lockWhenHoldingChargedBall": true,
-    "railingHeight": 1.1,
+    "railingHeight": 0.9,
+    "railingEdges": [
+      "front"
+    ],
+    "coverWhenHigh": "les couverts de la zone sont remplacés par un garde-corps de 0,9 m sur le bord avant une fois en haut",
+    "highGroundBonus": "la première balle lancée du haut est chargée +1 (tir plongeant)",
     "followsZone": "obstacles et distributeurs de la zone montent avec elle ; une balle au sol est réinjectée au distributeur",
     "downOnElimination": true
   },
@@ -120,7 +142,7 @@
     },
     {
       "id": 1,
-      "elevation": 2.4
+      "elevation": 1.6
     }
   ],
   "arenaBounds": {
@@ -339,7 +361,7 @@
       "x": 0,
       "y": -4,
       "z": 0,
-      "sx": 30,
+      "sx": 32,
       "sy": 0.1,
       "sz": 3,
       "rotY": 0,
@@ -354,9 +376,9 @@
       "x": -13.3,
       "y": 1.0,
       "z": -7.5,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z1",
@@ -365,9 +387,9 @@
       "x": 13.3,
       "y": 1.0,
       "z": -7.5,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z2",
@@ -376,9 +398,9 @@
       "x": -13.3,
       "y": 1.0,
       "z": 7.5,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "dist_z3",
@@ -387,9 +409,9 @@
       "x": 13.3,
       "y": 1.0,
       "z": 7.5,
-      "intervalSeconds": 10,
-      "maxStored": 2,
-      "startBalls": 2
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
     },
     {
       "id": "centre",
@@ -398,8 +420,9 @@
       "x": 0,
       "y": 5.8,
       "z": 0,
-      "intervalSeconds": 20,
+      "intervalSeconds": 15,
       "rule": "lob vers l'équipe menée (égalité : alterné)"
     }
-  ]
+  ],
+  "devChoices": "Choix dev (voir docs/CHOIX-REGLES.md) : 6 balles en jeu, gravité 0,3, 2 vies et retour à 3 s (valeurs du code), le reste du JSON est lu tel quel."
 }

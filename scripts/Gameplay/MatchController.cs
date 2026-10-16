@@ -165,8 +165,14 @@ public partial class MatchController : Node3D
     readonly int[] hitsByRange = new int[4];
     static int RangeBucket(float d) { int i = 0; while (i < RangeEdges.Length && d >= RangeEdges[i]) i++; return i; }
 
+    readonly HashSet<int> highBonusUsed = new();
+
     void OnBallReleased(Ball ball)
     {
+        // Tir plongeant : la première balle lancée depuis le plateau haut est chargée +1 (une fois par montée).
+        int thrower = ball.OwnerPlayerId;
+        if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
+            ball.AddCharge();
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));
@@ -226,7 +232,7 @@ public partial class MatchController : Node3D
         else
         {
             foreach (var n in GetTree().GetNodesInGroup("balls"))
-                if (n is Ball { IsHeld: false } b && (b.GlobalPosition.Y < -5f || b.RestTime > BallRecycleSeconds)) b.QueueFree();
+                if (n is Ball { IsHeld: false } b && (b.GlobalPosition.Y < -3f || b.RestTime > BallRecycleSeconds)) b.QueueFree();
 
             ballTimer += delta;
             if (ballTimer >= BallSpawnInterval && GetTree().GetNodesInGroup("balls").Count < BallsOnField)
@@ -289,6 +295,7 @@ public partial class MatchController : Node3D
     void UpdateDispensers(double delta, double now)
     {
         ballsCached = -1;
+        highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
         foreach (var d in dispensers)
         {
             var pedestal = new Vector3(d.Def.X, d.Def.Y + ZoneElevation(d.Def.Zone), d.Def.Z);

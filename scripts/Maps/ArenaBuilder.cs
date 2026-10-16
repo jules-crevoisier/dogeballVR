@@ -124,6 +124,16 @@ public static class ArenaBuilder
         slab.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(Palette.Indigo) });
         slab.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         platform.AddChild(slab);
+        // Garde-corps du bord avant (côté adverse) : 0,9 m, il retient les balles et sert d'appui visuel en hauteur.
+        float rail = map.LiftRules.RailingHeight;
+        if (rail > 0f)
+        {
+            var railSize = new Vector3(map.ZoneWidth, rail, 0.06f);
+            var railing = new StaticBody3D { Name = "GardeCorps", Basis = basis, Position = zone.Center + basis * new Vector3(0, rail * 0.5f, -map.ZoneDepth * 0.5f) };
+            railing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = railSize }, MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+            railing.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = railSize } });
+            platform.AddChild(railing);
+        }
         platform.AddChild(new MeshInstance3D
         {
             Name = "LiftPad",

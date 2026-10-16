@@ -56,3 +56,26 @@ jobs:
             echo "Le réseau ne fonctionne pas (trop peu de prises / lancers)"; exit 1
           fi
           grep -E "balles=[1-9]" client.log > /dev/null || { echo "Le client ne voit pas les balles"; exit 1; }
+
+      - name: Test réseau sur La Fosse (lift, plateaux)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 3000 -- --map=la_fosse 2>&1 | tee fosse-solo.log
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-solo.log; then
+            echo "Erreur à l'exécution (La Fosse, solo)"; exit 1
+          fi
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 3300 -- --host --map=la_fosse > fosse-host.log 2>&1 &
+          HOST_PID=$!
+          sleep 3
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 2400 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1
+          wait $HOST_PID || true
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-host.log fosse-client.log; then
+            echo "Erreur à l'exécution (La Fosse, réseau)"; exit 1
+          fi
+          CATCHES=$(grep -c "attrapée par la zone 2" fosse-host.log || true)
+          THROWS=$(grep -c "lancée par la zone 2" fosse-host.log || true)
+          echo "La Fosse : prises $CATCHES, lancers $THROWS"
+          if [ "$CATCHES" -lt 3 ] || [ "$THROWS" -lt 3 ]; then
+            echo "Le réseau ne fonctionne pas sur La Fosse"; exit 1
+          fi

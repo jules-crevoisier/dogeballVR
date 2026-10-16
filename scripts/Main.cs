@@ -125,7 +125,12 @@ public partial class Main : Node3D
             {
                 var ball = desktopPlayer?.HeldBall;
                 foreach (var h in hands) ball ??= h.HeldBall;
-                return map.LiftRules.LockWhenHoldingChargedBall && ball is { Charge: >= 2 };
+                if (map.LiftRules.LockWhenHoldingChargedBall && ball is { Charge: >= 2 }) return true;
+                // Une seule zone haute par équipe : verrouillé tant qu'un coéquipier est en haut.
+                if (map.LiftRules.OneHighZonePerTeam)
+                    foreach (var z in map.Zones)
+                        if (z.Team == zone.Team && z.Id != zone.Id && ZoneElevation(z.Id) > 0.1f) return true;
+                return false;
             },
             Eliminated = () => localHurtbox.Eliminated,
             Apply = e =>
