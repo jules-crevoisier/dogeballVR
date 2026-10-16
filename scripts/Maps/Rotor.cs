@@ -71,39 +71,51 @@ public partial class Rotor : AnimatableBody3D
     }
 }
 
-/// <summary>Test headless (--rotor-test) : des balles tendues visent le moyeu à hauteur de bras ; on compte celles que le rotor arrête.</summary>
+/// <summary>
+/// Test headless (--rotor-test) : toutes les 0,4 s une balle tendue part à 22 m/s vers le moyeu, à 1,5 m de l'axe (hors du pylône : seul un bras
+/// peut la gêner). 1,3 s plus tard on la juge : passée si elle est de l'autre côté du moyeu, arrêtée ou renvoyée sinon. Avec --rotor-off le rotor
+/// n'a plus de collision : le test doit alors compter 0 balle arrêtée.
+/// </summary>
 public partial class RotorBallTest : Node
 {
-    readonly System.Collections.Generic.List<(Gameplay.Ball ball, float angle)> shots = new();
-    double timer;
-    int fired;
+    readonly System.Collections.Generic.List<(Gameplay.Ball ball, double at)> shots = new();
+    double timer, clock;
+    int fired, stopped, passed;
     bool reported;
+
+    public override void _Ready()
+    {
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--rotor-off") >= 0 && Rotor.Current != null) Rotor.Current.CollisionLayer = 0;
+    }
 
     public override void _PhysicsProcess(double delta)
     {
         var rotor = Rotor.Current;
         if (rotor == null || reported) return;
-        timer += delta;
+        clock += delta; timer += delta;
+        var c = rotor.GlobalPosition;
         if (fired < 30 && timer >= 0.4)
         {
-            timer = 0; fired++;
+            timer = 0;
             var ball = Gameplay.Ball.Create();
             GetTree().CurrentScene.AddChild(ball);
-            var c = rotor.GlobalPosition;
-            ball.GlobalPosition = new Vector3(c.X + 7f, 1.8f, c.Z + 0.6f);
+            ball.GlobalPosition = new Vector3(c.X + 7f, 1.8f, c.Z + (fired % 2 == 0 ? 1.5f : -1.5f));
             ball.GravityScale = 0f;
             ball.LinearVelocity = new Vector3(-22f, 0, 0);
-            shots.Add((ball, rotor.Angle));
+            shots.Add((ball, clock));
+            fired++;
         }
-        if (fired >= 30 && timer > 1.0)
+        for (int i = shots.Count - 1; i >= 0; i--)
+        {
+            var (b, at) = shots[i];
+            if (clock - at < 1.3) continue;
+            if (b.GlobalPosition.X < c.X - 1.0f) passed++; else stopped++;
+            b.QueueFree();
+            shots.RemoveAt(i);
+        }
+        if (fired >= 30 && shots.Count == 0)
         {
             reported = true;
-            int stopped = 0, passed = 0;
-            foreach (var (b, _) in shots)
-            {
-                float rel = b.GlobalPosition.X - rotor.GlobalPosition.X;
-                if (rel > 3.2f) stopped++; else passed++;
-            }
             GD.Print($"[Rotor] test balles : {stopped} arrêtées ou renvoyées par un bras, {passed} passées");
         }
     }
