@@ -43,7 +43,6 @@ public partial class Ball : RigidBody3D
         {
             kind = value;
             if (core != null) core.MaterialOverride = Materials.Glow(KindColor() ?? Palette.BallCore, 1f);
-            if (PhysicsMaterialOverride != null) PhysicsMaterialOverride.Bounce = kind == KindBounce ? 0.95f : 0.55f;
             UpdateLook();
         }
     }
@@ -166,7 +165,7 @@ public partial class Ball : RigidBody3D
         ContinuousCd = true;
         LinearDamp = 0.1f;   // faible : la portée vient surtout de la gravité réduite et du vol limité
         AngularDamp = 2f;
-        PhysicsMaterialOverride = new PhysicsMaterial { Bounce = kind == KindBounce ? 0.95f : 0.55f, Friction = 1.2f };
+        PhysicsMaterialOverride = new PhysicsMaterial { Bounce = 0.55f, Friction = 1.2f };
         if (!IsPuppet)
         {
             ContactMonitor = true;   // bombe : explose au contact du décor
@@ -253,6 +252,8 @@ public partial class Ball : RigidBody3D
         AddToGroup("exploded_balls");
         SetDeferred(RigidBody3D.PropertyName.Freeze, true);   // différé : on est dans un callback physique
         Visible = false;
+        SetDeferred(CollisionObject3D.PropertyName.CollisionLayer, 0u);
+        SetDeferred(CollisionObject3D.PropertyName.CollisionMask, 0u);
         Exploded?.Invoke(GlobalPosition, team, shooter, exceptId);
     }
 
@@ -279,6 +280,7 @@ public partial class Ball : RigidBody3D
 
     void UpdateLook()
     {
+        if (PhysicsMaterialOverride != null) PhysicsMaterialOverride.Bounce = kind == KindBounce && OwnerTeam >= 0 ? 0.95f : 0.55f;   // rebond seulement une fois lancée : neutre, elle reste sur la plaque
         var c = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
         c.A = HaloAlpha[Charge];
         haloMaterial.AlbedoColor = c;

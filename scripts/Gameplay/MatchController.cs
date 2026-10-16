@@ -400,7 +400,7 @@ public partial class MatchController : Node3D
     int specialLaunched;
     string specialBanner = "", bannerBeforeSpecial = "";
 
-    bool bombTestDone;
+    int bombTests;
 
     /// <summary>Test headless (--special-test) : une bombe de l'équipe 0 tombe à 1,2 m d'un joueur de l'équipe 1 et doit le toucher par le souffle.</summary>
     void BombTest()
@@ -426,7 +426,7 @@ public partial class MatchController : Node3D
     {
         if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
-        if (!bombTestDone && specialClock >= 8 && System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0) { bombTestDone = true; BombTest(); }
+        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
