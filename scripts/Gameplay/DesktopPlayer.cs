@@ -77,7 +77,7 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Pose envoyée aux autres joueurs : tête, cap, main gauche (repos) et main droite (tendue, ramassage ou tenue).</summary>
     public PoseData Pose => new(head.GlobalPosition, head.GlobalRotation.Y,
-        head.GlobalPosition + head.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), RightHand(), Elevation, FreeRoam && time - dashStartedAt < 0.25);
+        head.GlobalPosition + head.GlobalTransform.Basis * new Vector3(-0.3f, -0.25f, -0.6f), RightHand(), Elevation, dashCount);
 
     Ball? held;
     Vector2 worldPos;                // libre : position monde (x, z)
@@ -99,6 +99,7 @@ public partial class DesktopPlayer : Node3D
     float camFraction = 1f;          // part de la distance caméra libre de décor
     int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
+    int dashCount;                   // compteur envoyé à l'hôte : chaque dash le fait avancer d'un cran
     int MaxCharges => FreeRoam ? DashMaxCharges : 1;
     double RechargeTime => FreeRoam ? DashRecharge : DodgeCooldown;
     public int DashCharges => dashCharges;
@@ -282,7 +283,7 @@ public partial class DesktopPlayer : Node3D
 
         // Dash (Maj) : 4 m en 0,2 s dans la direction voulue (ou vers l'avant), 2 charges qui reviennent une par une,
         // invulnérable pendant l'impulsion. Les cartes en zones (sans jeu libre) gardent une esquive plus courte.
-        if (Hurtbox.Eliminated) wish = Vector2.Zero;   // KO : on ne bouge plus jusqu'au retour
+        if (FreeRoam && Hurtbox.Eliminated) wish = Vector2.Zero;   // KO : on ne bouge plus jusqu'au retour
         if (dashCharges < MaxCharges)
         {
             dashRechargeLeft -= dt;
@@ -295,6 +296,7 @@ public partial class DesktopPlayer : Node3D
             if (dashCharges == MaxCharges) dashRechargeLeft = RechargeTime;
             dashCharges--;
             dashStartedAt = time;
+            dashCount++;
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
 
@@ -663,6 +665,7 @@ public partial class DesktopPlayer : Node3D
         else apFireStart = -1;
 
         if (time > apNextJump) { input.Jump = true; apNextJump = time + rng.RandfRange(2.5f, 5f); }
+        input.Sprint = !FreeRoam;
         if (time > apNextDodge) { input.Dodge = true; apNextDodge = time + rng.RandfRange(5f, 8f); }
         if (time < apCrouchUntil) input.Crouch = true;
         else if (rng.Randf() < 0.002f) apCrouchUntil = time + 1.0;

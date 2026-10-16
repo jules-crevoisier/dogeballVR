@@ -29,7 +29,7 @@ public partial class RemotePlayer : Node3D
     /// <summary>Dash (jeu libre) : charges restantes tenues par l'hôte, fin de l'invulnérabilité, front montant du signal, saut de retour de KO toléré.</summary>
     public float DashBudget { get; set; } = 2f;
     public double DashUntil { get; set; }
-    public bool PrevDash { get; set; }
+    public int LastDashCount { get; set; }
     public bool TeleportPending { get; set; }
     public double TeleportDeadline { get; set; }
     /// <summary>Dernière pose acceptée par l'hôte (non lissée) : référence de la vérification de vitesse.</summary>
@@ -79,7 +79,7 @@ public partial class RemotePlayer : Node3D
         Avatar.Pose(current.Head, current.Yaw, current.Left, current.Right);
         Body.Position = new Vector3(current.Head.X, current.Elevation, current.Head.Z);
         Hurtbox.Elevation = current.Elevation;
-        Hurtbox.DashInvulnerable = Time.GetTicksMsec() / 1000.0 < DashUntil + 0.1;   // marge de latence : le client voit son dash protégé dès le départ
+        Hurtbox.DashInvulnerable = Time.GetTicksMsec() / 1000.0 < DashUntil;
         Avatar.Visible = !Hurtbox.Eliminated;
         if (Hurtbox.Eliminated)
             DropBalls();

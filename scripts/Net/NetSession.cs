@@ -139,7 +139,7 @@ public partial class NetSession : Node
         if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
         poseTimer = 0;
         var p = LocalPose();
-        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.Dash));
+        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.DashCount));
     }
 
     public void RequestCatch(int ballId, int hand)
@@ -165,7 +165,7 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation, bool dash)
+    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation, int dashCount)
     {
         if (!IsHost) return;
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
@@ -183,8 +183,9 @@ public partial class NetSession : Node
         {
             // Dash : l'hôte tient le compte des charges (2, une toutes les 1,6 s) ; sans charge le signal est ignoré.
             remote.DashBudget = Mathf.Min(2f, remote.DashBudget + (float)((remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0) / DashRecharge));
-            if (dash && !remote.PrevDash && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
-            remote.PrevDash = dash;
+            bool dashNew = dashCount != remote.LastDashCount;   // compteur de dashs : insensible aux paquets perdus
+            remote.LastDashCount = dashCount;
+            if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
             if (now < remote.DashUntil) cap = FreeDashCap;
             // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
             if (IsEliminated(remote.PlayerId)) remote.TeleportPending = true;
@@ -195,10 +196,9 @@ public partial class NetSession : Node
                 if (spawn is Vector3 sp)
                 {
                     if (remote.TeleportDeadline <= 0) { remote.TeleportDeadline = now + 1.5; remote.SetPose(new PoseData(sp + Vector3.Up * 1.6f, yaw, sp + new Vector3(-0.3f, 1.0f, 0), sp + new Vector3(0.3f, 1.0f, 0))); }
-                    if (new Vector2(head.X - sp.X, head.Z - sp.Z).Length() > 3f && now < remote.TeleportDeadline) return;
+                    if (new Vector2(head.X - sp.X, head.Z - sp.Z).Length() > 3f && now < remote.TeleportDeadline) { remote.LastPoseAt = now; return; }
                 }
                 remote.TeleportPending = false; remote.TeleportDeadline = 0;
-                remote.PrevDash = false;
             }
         }
         float allowed = cap * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
