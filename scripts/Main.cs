@@ -57,7 +57,14 @@ public partial class Main : Node3D
         zones = new ZoneManager { Name = "ZoneManager" };
         AddChild(zones);
         zones.Setup(map, localZone.Id);
-        zones.EdgeWarning += d => GD.Print($"Bord de zone à {d:0.00} m");
+        double lastEdgeLog = -10;
+        zones.EdgeWarning += d =>
+        {
+            double now = Time.GetTicksMsec() / 1000.0;
+            if (now - lastEdgeLog < 2.0) return;   // pas un message par image contre le bord
+            lastEdgeLog = now;
+            GD.Print($"Bord de zone à {d:0.00} m");
+        };
         var arena = ArenaBuilder.Build(map, localZone.Id);
         AddChild(arena.Root);
         platforms = arena.Platforms;
@@ -197,7 +204,8 @@ public partial class Main : Node3D
             if (z.Id != localZone.Id) SpawnBot(z);
 
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer });
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
+        if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
 
         if (net != null)
         {
@@ -318,7 +326,8 @@ public partial class Main : Node3D
         clientWorld = world;
         net!.LocalPose = localPose;
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id) });
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
+        if (localBody is DesktopPlayer) hud.Visible = false;
 
         if (cfg.SelfTest)
         {

@@ -32,6 +32,8 @@ public partial class MatchController : Node3D
 
     /// <summary>Texte du tableau de score (envoyé aux clients).</summary>
     public string HudText => hud.Text;
+    /// <summary>Le tableau flottant est caché pour le joueur PC, qui a son propre score à l'écran.</summary>
+    public bool FloatingHudVisible { set => hud.Visible = value; }
     int nextBallId;
 
     sealed class Dispenser

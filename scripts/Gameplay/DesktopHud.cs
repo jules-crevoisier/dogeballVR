@@ -29,6 +29,8 @@ public partial class DesktopHud : CanvasLayer
     /// <summary>Vies restantes du joueur local (hôte : règles ; client : snapshot de l'hôte).</summary>
     public System.Func<int> Lives { get; set; } = null!;
     public int MaxLives { get; set; } = 2;
+    /// <summary>Texte du score (manche, KO, chrono), fourni par l'hôte.</summary>
+    public System.Func<string>? Score { get; set; }
 
     /// <summary>Marqueur de touche : vrai quand on vient de toucher un adversaire (hôte et hors ligne).</summary>
     public static bool ShowHitMarkers { get; set; } = true;
@@ -62,6 +64,7 @@ public partial class DesktopHud : CanvasLayer
 
     Control root = null!;
     Crosshair crosshair = null!;
+    Label score = null!, resume = null!;
     Label lives = null!, state = null!, help = null!, toast = null!, catchLabel = null!;
     ColorRect bar = null!, barBack = null!, catchBack = null!, catchFill = null!, flash = null!;
     double hitMarkerLeft;
@@ -86,7 +89,10 @@ public partial class DesktopHud : CanvasLayer
         root.AddChild(crosshair);
 
         lives = MakeLabel(new Vector2(24, 20), 34);
-        state = MakeLabel(new Vector2(24, 64), 20);
+        state = MakeLabel(new Vector2(0, 0), 20);
+        state.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        state.OffsetLeft = -400; state.OffsetRight = 400; state.OffsetTop = -112; state.OffsetBottom = -80;
+        state.HorizontalAlignment = HorizontalAlignment.Center;
 
         barBack = new ColorRect { Color = new Color(Palette.Panel, 0.75f), Size = new Vector2(240, 14) };
         barBack.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
@@ -118,6 +124,17 @@ public partial class DesktopHud : CanvasLayer
         toast.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         toast.OffsetLeft = -300; toast.OffsetRight = 300; toast.OffsetTop = 120;
         toast.HorizontalAlignment = HorizontalAlignment.Center;
+
+        score = MakeLabel(new Vector2(0, 0), 22);
+        score.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        score.OffsetLeft = -300; score.OffsetRight = 300; score.OffsetTop = 12;
+        score.HorizontalAlignment = HorizontalAlignment.Center;
+
+        resume = MakeLabel(new Vector2(0, 0), 40);
+        resume.SetAnchorsPreset(Control.LayoutPreset.Center);
+        resume.OffsetLeft = -400; resume.OffsetRight = 400; resume.OffsetTop = -40; resume.OffsetBottom = 40;
+        resume.HorizontalAlignment = HorizontalAlignment.Center;
+        resume.Text = "Souris libérée : clique pour reprendre";
 
         MatchController.HitScored += OnHitScored;
     }
@@ -167,12 +184,14 @@ public partial class DesktopHud : CanvasLayer
 
         // Attrape : verte quand prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge.
         catchFill.Size = new Vector2(240 * Player.CatchCooldown01, 10);
-        catchFill.Color = Player.CatchState switch { 1 => Palette.BallCore, 2 => new Color(0.55f, 0.58f, 0.66f), _ => new Color(0.45f, 0.9f, 0.55f) };
+        catchFill.Color = ball != null ? new Color(0.3f, 0.32f, 0.38f) : Player.CatchState switch { 1 => Palette.BallCore, 2 => new Color(0.55f, 0.58f, 0.66f), _ => new Color(0.45f, 0.9f, 0.55f) };
         catchLabel.Text = Player.DodgeCooldown01 >= 1f ? "ATTRAPER   |   E : esquive prête" : "ATTRAPER   |   esquive…";
 
         hitMarkerLeft = Mathf.Max(0, hitMarkerLeft - delta);
         help.Visible = age < helpHideAt;
         toast.Text = Player.Time01 < Player.ToastUntil ? Player.Toast : "";
+        score.Text = Score?.Invoke() ?? "";
+        resume.Visible = Input.MouseMode != Input.MouseModeEnum.Captured && !Player.Autoplay;
         crosshair.QueueRedraw();
     }
 }

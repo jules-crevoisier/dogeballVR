@@ -56,6 +56,7 @@ public partial class DesktopPlayer : Node3D
     public float CatchCooldown01 => CatchState == 2 ? (float)(1 - catchCooldownLeft / CatchRecovery) : 1f;
     public float DodgeCooldown01 => (float)Mathf.Clamp(1 - dodgeCooldownLeft / DodgeCooldown, 0, 1);
     public bool Sprinting { get; private set; }
+    public bool Autoplay => autoplay;
     public float Sensitivity => sensitivity;
     /// <summary>Message bref à afficher (changement de sensibilité…).</summary>
     public string Toast { get; private set; } = "";
@@ -87,7 +88,7 @@ public partial class DesktopPlayer : Node3D
     double pickupBlockedUntil;
     bool prevJump, prevDodge, prevCatch;
     bool ignoreClicksUntilRelease;
-    float fov = 90f;
+    float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
     double time;
 
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
@@ -99,10 +100,10 @@ public partial class DesktopPlayer : Node3D
 
     public override void _Ready()
     {
-        camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f };
+        camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
         AddChild(camera);
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.28f, -0.28f, -0.85f) };
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f) };
         camera.AddChild(holdPoint);
 
         Hurtbox.Head = camera;
@@ -121,8 +122,7 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Le mur lumineux de bord de zone protège un joueur VR qui marche ; au clavier la zone est déjà bloquée, il ne ferait qu'aveugler.</summary>
     void HideVrLimitWall()
     {
-        foreach (var n in GetTree().Root.FindChildren("LimitWall*", "MeshInstance3D", true, false))
-            ((MeshInstance3D)n).Visible = false;
+        foreach (var n in GetTree().GetNodesInGroup("limit_wall")) ((MeshInstance3D)n).Visible = false;
     }
 
     void LoadSettings()
@@ -382,7 +382,7 @@ public partial class DesktopPlayer : Node3D
                 charging = false;
                 chargeTime = 0;
                 pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
-                fov = Mathf.Min(fov + 6f, 100f);      // petit coup de FOV : le lancer se sent
+                fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
             }
         }
         else { charging = false; chargeTime = 0; }
@@ -392,7 +392,7 @@ public partial class DesktopPlayer : Node3D
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
-        var rest = new Vector3(0.28f, Mathf.Lerp(-0.28f, -0.5f, crouch), Mathf.Lerp(-0.85f, -0.7f, crouch));
+        var rest = new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch));
         rest.Z += ThrowCharge01 * 0.15f;       // la balle se recule en armant le lancer
         return rest;
     }
@@ -440,7 +440,7 @@ public partial class DesktopPlayer : Node3D
 
     void UpdateCamera(float dt)
     {
-        float target = charging ? 82f : Sprinting ? 96f : 90f;
+        float target = charging ? 94f : 100f;
         fov = Mathf.Lerp(fov, target, 1f - Mathf.Exp(-10f * dt));
         camera.Fov = fov;
     }
