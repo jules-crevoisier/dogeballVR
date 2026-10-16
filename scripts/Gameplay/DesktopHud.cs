@@ -64,14 +64,14 @@ public partial class DesktopHud : CanvasLayer
 
     Control root = null!;
     Crosshair crosshair = null!;
-    Label score = null!, resume = null!, dodgeLabel = null!;
+    Label score = null!, resume = null!, dodgeLabel = null!, koLabel = null!;
     ColorRect dodgeBack = null!, dodgeFill = null!;
     Label lives = null!, state = null!, help = null!, toast = null!, catchLabel = null!;
     ColorRect bar = null!, barBack = null!, catchBack = null!, catchFill = null!, flash = null!;
     double hitMarkerLeft;
     bool hitMarkerKill;
     int lastLives = -1;
-    double helpHideAt = 25;
+    double helpHideAt = 12;
     double age;
 
     public override void _Ready()
@@ -92,7 +92,7 @@ public partial class DesktopHud : CanvasLayer
         lives = MakeLabel(new Vector2(24, 20), 34);
         state = MakeLabel(new Vector2(0, 0), 20);
         state.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        state.OffsetLeft = -400; state.OffsetRight = 400; state.OffsetTop = -112; state.OffsetBottom = -80;
+        state.OffsetLeft = -600; state.OffsetRight = 200; state.OffsetTop = -112; state.OffsetBottom = -80;
         state.HorizontalAlignment = HorizontalAlignment.Center;
 
         barBack = new ColorRect { Color = new Color(Palette.Panel, 0.75f), Size = new Vector2(240, 14) };
@@ -102,8 +102,8 @@ public partial class DesktopHud : CanvasLayer
         bar = new ColorRect { Color = Colors.White, Size = new Vector2(0, 14) };
         barBack.AddChild(bar);
 
-        catchBack = MakeGauge(new Vector2(-120, -44), 150, out catchFill, out catchLabel, "Clic D");
-        dodgeBack = MakeGauge(new Vector2(40, -44), 80, out dodgeFill, out dodgeLabel, "E");
+        catchBack = MakeGauge(new Vector2(-150, -40), 120, out catchFill, out catchLabel, "Clic D");
+        dodgeBack = MakeGauge(new Vector2(70, -40), 60, out dodgeFill, out dodgeLabel, "E");
 
         help = MakeLabel(new Vector2(0, 0), 16);
         help.Text = Help;
@@ -121,6 +121,11 @@ public partial class DesktopHud : CanvasLayer
         score.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         score.OffsetLeft = -300; score.OffsetRight = 300; score.OffsetTop = 12;
         score.HorizontalAlignment = HorizontalAlignment.Center;
+
+        koLabel = MakeLabel(new Vector2(0, 0), 28);
+        koLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        koLabel.OffsetLeft = -300; koLabel.OffsetRight = 300; koLabel.OffsetTop = 170;
+        koLabel.HorizontalAlignment = HorizontalAlignment.Center;
 
         resume = MakeLabel(new Vector2(0, 0), 40);
         resume.SetAnchorsPreset(Control.LayoutPreset.Center);
@@ -154,7 +159,7 @@ public partial class DesktopHud : CanvasLayer
         root.AddChild(back);
         fill = new ColorRect { Color = Colors.White, Size = new Vector2(width, 12) };
         back.AddChild(fill);
-        label = new Label { Text = text, Position = new Vector2(4, -22) };
+        label = new Label { Text = text, Position = new Vector2(width + 6, -6) };
         label.AddThemeFontSizeOverride("font_size", 16);
         label.AddThemeColorOverride("font_outline_color", Colors.Black);
         label.AddThemeConstantOverride("outline_size", 5);
@@ -176,7 +181,8 @@ public partial class DesktopHud : CanvasLayer
     {
         age += delta;
         int n = Lives();
-        lives.Text = n > 0 ? new string('♥', n) + new string('♡', Mathf.Max(0, MaxLives - n)) : "KO : retour dans quelques secondes";
+        lives.Text = n > 0 ? new string('♥', n) + new string('♡', Mathf.Max(0, MaxLives - n)) : "♡♡";
+        koLabel.Text = n > 0 ? "" : "KO : retour dans quelques secondes";
         if (lastLives >= 0 && n < lastLives) flash.Color = new Color(0.9f, 0.1f, 0.1f, 0.45f);    // touché : l'écran rougit
         lastLives = n;
         flash.Color = new Color(flash.Color, Mathf.Max(0, flash.Color.A - (float)delta * 1.2f));
@@ -192,9 +198,9 @@ public partial class DesktopHud : CanvasLayer
         bar.Color = ball != null ? ChargeColors[ball.Charge] : Colors.White;
 
         // Attrape : verte quand prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge.
-        catchFill.Size = new Vector2(150 * Player.CatchCooldown01, 12);
+        catchFill.Size = new Vector2(120 * Player.CatchCooldown01, 12);
         catchFill.Color = ball != null ? new Color(0.3f, 0.32f, 0.38f) : Player.CatchState switch { 1 => Palette.BallCore, 2 => new Color(0.55f, 0.58f, 0.66f), _ => new Color(0.45f, 0.9f, 0.55f) };
-        dodgeFill.Size = new Vector2(80 * Player.DodgeCooldown01, 12);
+        dodgeFill.Size = new Vector2(60 * Player.DodgeCooldown01, 12);
         dodgeFill.Color = Player.DodgeCooldown01 >= 1f ? new Color(0.45f, 0.9f, 0.55f) : new Color(0.55f, 0.58f, 0.66f);
 
         hitMarkerLeft = Mathf.Max(0, hitMarkerLeft - delta);

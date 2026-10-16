@@ -189,7 +189,12 @@ public partial class DesktopPlayer : Node3D
 
         UpdateMotion(input, dt);
         if (BallActions.IsClient)
+        {
+            var before = held;
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
+            if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
+            if (held != null) held.LocalHoldOverride = holdPoint;
+        }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
         {
