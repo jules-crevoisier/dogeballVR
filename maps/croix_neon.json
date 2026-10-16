@@ -1,0 +1,669 @@
+{
+  "name": "croix_neon",
+  "schemaVersion": 3,
+  "layout": "ring",
+  "zoneWidth": 15,
+  "zoneDepth": 8,
+  "edgeWarningDistance": 1.5,
+  "zones": [
+    {
+      "id": 0,
+      "slot": "N",
+      "team": 0,
+      "x": -4,
+      "y": 0.0,
+      "z": -8.5,
+      "facingDegrees": 180
+    },
+    {
+      "id": 1,
+      "slot": "E",
+      "team": 1,
+      "x": 8.5,
+      "y": 0.0,
+      "z": -4,
+      "facingDegrees": 90
+    },
+    {
+      "id": 2,
+      "slot": "S",
+      "team": 0,
+      "x": 4,
+      "y": 0.0,
+      "z": 8.5,
+      "facingDegrees": 0
+    },
+    {
+      "id": 3,
+      "slot": "W",
+      "team": 1,
+      "x": -8.5,
+      "y": 0.0,
+      "z": 4,
+      "facingDegrees": 270
+    }
+  ],
+  "hub": {
+    "x": 0,
+    "z": 0,
+    "pylon": {
+      "size": 1.6,
+      "topY": 3.4
+    },
+    "launcher": {
+      "y": 4.0,
+      "intervalSeconds": 6,
+      "target": "plaque avec le moins de balles",
+      "shot": "lob lent, à attraper"
+    },
+    "rotor": {
+      "armLength": 4.0,
+      "thickness": 0.4,
+      "yMin": 0.6,
+      "yMax": 3.0,
+      "degPerSecond": 60,
+      "effect": "repousse sans dégât (profil PC) ; dévie les balles tendues",
+      "note": "2 bras de 4 m : un couloir de tir s'ouvre toutes les 3 s ; les passes montent à 4,2 m, au-dessus du rotor"
+    }
+  },
+  "pc": {
+    "note": "Profil clavier-souris : le joueur circule sur toute l'arène ; ignoré en VR/EVA (le joueur reste sur sa plaque).",
+    "spawns": [
+      {
+        "zone": 0,
+        "x": -4.5,
+        "z": -10.7
+      },
+      {
+        "zone": 1,
+        "x": 10.7,
+        "z": -4.5
+      },
+      {
+        "zone": 2,
+        "x": 4.5,
+        "z": 10.7
+      },
+      {
+        "zone": 3,
+        "x": -10.7,
+        "z": 4.5
+      }
+    ],
+    "joints": [
+      {
+        "id": "joint_N_E",
+        "x": 4.0,
+        "z": -8.0,
+        "sx": 1.0,
+        "sz": 7.0
+      },
+      {
+        "id": "joint_N_W",
+        "x": -8.0,
+        "z": -4.0,
+        "sx": 7.0,
+        "sz": 1.0
+      },
+      {
+        "id": "joint_E_S",
+        "x": 8.0,
+        "z": 4.0,
+        "sx": 7.0,
+        "sz": 1.0
+      },
+      {
+        "id": "joint_S_W",
+        "x": -4.0,
+        "z": 8.0,
+        "sx": 1.0,
+        "sz": 7.0
+      }
+    ],
+    "jumpPads": [],
+    "terraces": [],
+    "tuning": {
+      "note": "valeurs de départ à régler en playtest ; les timings exacts de Knockout City n'ont pas été trouvés",
+      "runSpeed": 7.5,
+      "sprint": "aucun : course constante à 7,5 m/s (Maj = dash)",
+      "jumpHeight": 1.1,
+      "crouchEyeHeight": 1.0,
+      "eyeHeight": 1.6,
+      "camera": {
+        "view": "3e personne par-dessus l épaule",
+        "fov": 100,
+        "offscreenBallArrows": {
+          "range": 25,
+          "minBallSpeed": 12
+        },
+        "chargeMarker": "balle lumineuse sur l ennemi qui charge"
+      },
+      "keys": {
+        "use": "codes physiques des touches (AZERTY = QWERTY), tout reconfigurable",
+        "dash": "Maj",
+        "crouch": "C ou Ctrl",
+        "curve": "E maintenu + gauche/droite",
+        "lob": "R",
+        "pass_": "clic molette ou X",
+        "ballForm": "Alt",
+        "fake": "F"
+      },
+      "dash": {
+        "distance": 4.0,
+        "charges": 2,
+        "cooldownSecondsPerCharge": 1.6,
+        "stopsBeforeVoidMeters": 0.8,
+        "invulnerableSeconds": 0.2,
+        "effect": "esquive une balle ; sur un adversaire = tacle (lui fait lâcher sa balle)"
+      },
+      "catch": {
+        "windowSeconds": 0.45,
+        "perfectWindowSeconds": 0.18,
+        "reach": 2.2,
+        "missLockSeconds": 0.6,
+        "rule": "appui dans les 0,45 s avant impact = catch, sinon parade ; un appui raté bloque le bouton 0,6 s"
+      },
+      "throw": {
+        "minSpeed": 9,
+        "maxSpeed": 24,
+        "chargeSeconds": 0.8,
+        "lockOnConeDegrees": 8,
+        "lockOnRange": 18,
+        "lockOnMode": "aide à la visée au lâcher uniquement, balle non guidée en vol",
+        "throwAssistApplies": false,
+        "curveWithMouseMove": false,
+        "curveKey": "E"
+      },
+      "pass_": {
+        "key": "clic molette",
+        "note": "passe auto-chargée vers l'allié visé"
+      },
+      "fakeThrow": "F",
+      "glide": "non retenu en v3 (jump pads uniquement)"
+    }
+  },
+  "teamPattern": {
+    "start": "N=A,E=B,S=A,W=B (alternance : un ennemi de chaque côté, l'allié en face)",
+    "swaps": [
+      [
+        "N",
+        "E"
+      ],
+      [
+        "S",
+        "W"
+      ],
+      [
+        "N",
+        "E"
+      ],
+      [
+        "S",
+        "W"
+      ]
+    ]
+  },
+  "arenaBounds": {
+    "minX": -18,
+    "maxX": 18,
+    "minZ": -15,
+    "maxZ": 15,
+    "wallHeight": 5.0,
+    "ceilingHeight": 8.0,
+    "wallKind": "rebound"
+  },
+  "levels": [
+    {
+      "id": 0,
+      "elevation": 0.0
+    }
+  ],
+  "ballReturn": {
+    "vr": {
+      "seconds": 3,
+      "target": "plaque adverse du dernier lanceur au stock le plus bas"
+    },
+    "pc": "la balle reste au sol 8 s où elle s'arrête, puis disparaît",
+    "neutralBallExpiresSeconds": 8
+  },
+  "ballRules": {
+    "maxBallsInPlay": 6,
+    "throwAssist": {
+      "speedMultiplier": 1.4,
+      "minLaunchSpeed": 9.0,
+      "maxLaunchSpeedVR": 20.0,
+      "applies": "VR seulement"
+    },
+    "maxFlightSeconds": 1.5,
+    "ballGravityFactor": 0.25,
+    "neutralBallExemptFromFlightLimit": true,
+    "ballMagnetRadius": 0.5,
+    "passLob": {
+      "shot": "lob SCRIPTÉ (courbe de Bézier, pas de la physique) vers l'allié, 18 m/s, sommet à 4,2 m (au-dessus du rotor 3,0 m et du pylône 3,4 m)",
+      "maxFlightSeconds": 2.2,
+      "exemptFromFlightLimit": true,
+      "chargeAdded": 1
+    },
+    "vrAimAssist": {
+      "coneDegrees": 5,
+      "range": 20,
+      "note": "VR seulement, très léger"
+    },
+    "pcLockOn": {
+      "coneDegrees": 8,
+      "range": 18
+    },
+    "note": "aimant : une balle à moins de 0,5 m de la main se colle quand on ferme la main"
+  },
+  "rules": {
+    "hearts": 2,
+    "hitCost": "une balle retire 1 cœur ; une balle de palier 2 met KO (le dépôt double les dégâts à 2 charges)",
+    "friendlyFire": false,
+    "heldBallMaxSeconds": 10,
+    "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
+    "heartRegen": "remis à 2 au respawn ; +1 cœur après 10 s sans être touché",
+    "invulnerableAfterHitSeconds": 1.5,
+    "catchReward": "un attrapé rend un cœur à l'attrapeur (règle du dépôt) ; un perfect catch ajoute en plus 1 palier",
+    "respawnSeconds": 3,
+    "chargeByPass": "paliers 0 à 2 : chaque passe d'allié et chaque perfect catch ajoutent 1 palier ; palier 2 = KO direct ; au palier 0 ou 1, 1 cœur",
+    "passInterception": "une passe ne peut être interceptée que par un perfect catch",
+    "specialBallTarget": "l'équipe menée, pas la plaque (survit aux échanges)",
+    "roundFormat": "5 manches de 2 min ; une manche s'arrête aussi quand une équipe atteint le seuil de KO ; égalité en fin de manche = mort subite (premier KO) ; équipe menée à 0-0 = tirage au sort",
+    "parry": "paume ouverte (VR) ou clic droit pressé tôt (PC) : dévie une balle sans charge",
+    "stuckBallReturnSeconds": 3,
+    "coverPhasing": "une balle ne traverse pas un couvert ; en VR, tête dans un couvert = fondu, reste touchable"
+  },
+  "modes": {
+    "team_ko": {
+      "players": "2v2",
+      "koToWinRound": 6,
+      "rounds": "premier à 3 manches sur 5",
+      "roundNote": "manche de 2 min, fin anticipée au seuil de KO",
+      "note": "1 KO = 1 point, comme Knockout City (10 KO par manche en 3v3)"
+    },
+    "diamond_dash": {
+      "note": "un joueur KO lâche un diamant ; il faut le ramasser pour valider le point, l'équipe adverse peut le voler (30 points)"
+    }
+  },
+  "specialBalls": {
+    "types": [
+      "bombe",
+      "rebond",
+      "sonar",
+      "cage"
+    ],
+    "perMatch": 1,
+    "spawn": "lancée en lob par le moyeu vers la plaque (PC : la zone) de l'équipe menée, annoncée 5 s avant, toutes les 45 s",
+    "note": "une seule spéciale tirée au sort par match, comme Knockout City"
+  },
+  "swapEvents": {
+    "firstAtSeconds": 20,
+    "everySeconds": 25,
+    "warnSeconds": 3,
+    "fadeSeconds": 0.4,
+    "scope": "VR/EVA seulement",
+    "sequence": [
+      [
+        "N",
+        "E"
+      ],
+      [
+        "S",
+        "W"
+      ],
+      [
+        "N",
+        "E"
+      ],
+      [
+        "S",
+        "W"
+      ]
+    ],
+    "note": "un échange à la fois, dans l'ordre de la séquence, en boucle ; échanges à 20, 45, 70 et 95 s de chaque manche (l'ordre des paires tourne d'une manche à l'autre), placement initial rétabli au début de chaque manche ; une balle tenue suit son joueur ; les deux plaques échangent leurs joueurs, donc les voisins changent (alliés côte à côte une fois sur deux)"
+  },
+  "obstacles": [
+    {
+      "id": "abri_g_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": 0.3,
+      "y": 0.0,
+      "z": -7.2,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L gauche : face"
+    },
+    {
+      "id": "abri_g2_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": 1.8,
+      "y": 0.0,
+      "z": -8.5,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L gauche : flanc"
+    },
+    {
+      "id": "abri_d_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -8.3,
+      "y": 0.0,
+      "z": -7.2,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L droit : face"
+    },
+    {
+      "id": "abri_d2_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -9.8,
+      "y": 0.0,
+      "z": -8.5,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L droit : flanc"
+    },
+    {
+      "id": "pilier_z0",
+      "kind": "cover",
+      "zone": 0,
+      "x": -4.0,
+      "y": 0.0,
+      "z": -9.0,
+      "sx": 0.8,
+      "sy": 2.2,
+      "sz": 0.8,
+      "rotY": 0,
+      "note": "pilier central, on se penche"
+    },
+    {
+      "id": "abri_g_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 7.2,
+      "y": 0.0,
+      "z": 0.3,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L gauche : face"
+    },
+    {
+      "id": "abri_g2_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 8.5,
+      "y": 0.0,
+      "z": 1.8,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L gauche : flanc"
+    },
+    {
+      "id": "abri_d_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 7.2,
+      "y": 0.0,
+      "z": -8.3,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L droit : face"
+    },
+    {
+      "id": "abri_d2_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 8.5,
+      "y": 0.0,
+      "z": -9.8,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L droit : flanc"
+    },
+    {
+      "id": "pilier_z1",
+      "kind": "cover",
+      "zone": 1,
+      "x": 9.0,
+      "y": 0.0,
+      "z": -4.0,
+      "sx": 0.8,
+      "sy": 2.2,
+      "sz": 0.8,
+      "rotY": 0,
+      "note": "pilier central, on se penche"
+    },
+    {
+      "id": "abri_g_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": -0.3,
+      "y": 0.0,
+      "z": 7.2,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L gauche : face"
+    },
+    {
+      "id": "abri_g2_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": -1.8,
+      "y": 0.0,
+      "z": 8.5,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L gauche : flanc"
+    },
+    {
+      "id": "abri_d_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": 8.3,
+      "y": 0.0,
+      "z": 7.2,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L droit : face"
+    },
+    {
+      "id": "abri_d2_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": 9.8,
+      "y": 0.0,
+      "z": 8.5,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L droit : flanc"
+    },
+    {
+      "id": "pilier_z2",
+      "kind": "cover",
+      "zone": 2,
+      "x": 4.0,
+      "y": 0.0,
+      "z": 9.0,
+      "sx": 0.8,
+      "sy": 2.2,
+      "sz": 0.8,
+      "rotY": 0,
+      "note": "pilier central, on se penche"
+    },
+    {
+      "id": "abri_g_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": -7.2,
+      "y": 0.0,
+      "z": -0.3,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L gauche : face"
+    },
+    {
+      "id": "abri_g2_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": -8.5,
+      "y": 0.0,
+      "z": -1.8,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L gauche : flanc"
+    },
+    {
+      "id": "abri_d_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": -7.2,
+      "y": 0.0,
+      "z": 8.3,
+      "sx": 0.25,
+      "sy": 1.3,
+      "sz": 3.2,
+      "rotY": 0,
+      "note": "L droit : face"
+    },
+    {
+      "id": "abri_d2_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": -8.5,
+      "y": 0.0,
+      "z": 9.8,
+      "sx": 3.2,
+      "sy": 1.3,
+      "sz": 0.25,
+      "rotY": 0,
+      "note": "L droit : flanc"
+    },
+    {
+      "id": "pilier_z3",
+      "kind": "cover",
+      "zone": 3,
+      "x": -9.0,
+      "y": 0.0,
+      "z": 4.0,
+      "sx": 0.8,
+      "sy": 2.2,
+      "sz": 0.8,
+      "rotY": 0,
+      "note": "pilier central, on se penche"
+    },
+    {
+      "id": "pylone",
+      "kind": "bumper",
+      "zone": -1,
+      "x": 0,
+      "y": 0.0,
+      "z": 0,
+      "sx": 1.6,
+      "sy": 3.4,
+      "sz": 1.6,
+      "rotY": 0,
+      "note": "pylône du moyeu (sommet 3,4 m)"
+    },
+    {
+      "id": "sol_moyeu",
+      "kind": "hubfloor",
+      "zone": -1,
+      "x": 0,
+      "y": 0.0,
+      "z": 0,
+      "sx": 9,
+      "sy": 0.1,
+      "sz": 9,
+      "rotY": 0,
+      "note": "sol praticable du moyeu (profil PC)"
+    }
+  ],
+  "ballSpawns": [
+    {
+      "id": "dist_z0",
+      "kind": "dispenser",
+      "zone": 0,
+      "x": -1.5,
+      "y": 1.0,
+      "z": -10.0,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z1",
+      "kind": "dispenser",
+      "zone": 1,
+      "x": 10.0,
+      "y": 1.0,
+      "z": -1.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z2",
+      "kind": "dispenser",
+      "zone": 2,
+      "x": 1.5,
+      "y": 1.0,
+      "z": 10.0,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "dist_z3",
+      "kind": "dispenser",
+      "zone": 3,
+      "x": -10.0,
+      "y": 1.0,
+      "z": 1.5,
+      "intervalSeconds": 25,
+      "maxStored": 1,
+      "startBalls": 1
+    },
+    {
+      "id": "moyeu",
+      "kind": "neutral_launcher",
+      "zone": -1,
+      "x": 0,
+      "y": 4.0,
+      "z": 0,
+      "intervalSeconds": 6,
+      "rule": "lob lent vers la plaque qui a le moins de balles ; une balle spéciale annoncée toutes les 45 s"
+    }
+  ]
+}

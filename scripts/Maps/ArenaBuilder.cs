@@ -34,6 +34,7 @@ public static class ArenaBuilder
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
+        if (map.IsRing) AddRingExtras(root, map);
         foreach (var prop in map.Props) AddProp(root, prop);
         foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
@@ -180,6 +181,30 @@ public static class ArenaBuilder
         Wall(map.ZoneWidth, 0.02f, new Vector3(0, 0, hd));
         Wall(0.02f, map.ZoneDepth, new Vector3(-hw, 0, 0));
         Wall(0.02f, map.ZoneDepth, new Vector3(hw, 0, 0));
+    }
+
+    /// <summary>Maps en moulinet : joints entre plaques (sol continu), pylône central plein et lanceur lumineux au sommet.</summary>
+    static void AddRingExtras(Node3D root, MapData map)
+    {
+        if (map.Pc != null)
+            foreach (var j in map.Pc.Joints)
+                root.AddChild(new MeshInstance3D
+                {
+                    Name = j.Id,
+                    Mesh = new BoxMesh { Size = new Vector3(j.Sx, 0.02f, j.Sz) },
+                    Position = new Vector3(j.X, 0.012f, j.Z),
+                    MaterialOverride = Materials.Grid(Palette.Indigo, Palette.Lines.Darkened(0.5f)),
+                });
+        if (map.Hub == null) return;
+        var h = map.Hub;
+        // Le pylône est l'obstacle « pylone » du JSON (déjà construit avec les couverts) : ici seulement le lanceur.
+        root.AddChild(new MeshInstance3D
+        {
+            Name = "Lanceur",
+            Mesh = new SphereMesh { Radius = 0.35f, Height = 0.7f },
+            Position = new Vector3(h.X, h.Launcher.Y, h.Z),
+            MaterialOverride = Materials.Glow(Palette.BallCore, 1.4f),
+        });
     }
 
     /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>

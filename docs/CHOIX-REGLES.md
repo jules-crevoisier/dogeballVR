@@ -52,3 +52,18 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Revue clavier-souris 4 (6/10) corrigée : côté client réseau la balle tenue suit la main locale sans attendre les snapshots et garde sa taille réduite, message KO sous le score (plus de chevauchement), étiquettes des jauges à côté des jauges, texte d'astuce décalé hors de la balle tenue, aide F1 limitée à 12 s.
 - Connus : l'aide à la visée ignore la ligne de vue ; le rayon d'aide part de l'œil, pas de la main ; aucun test avec une vraie souris. Plafond atteint : 4 relectures (6, 6,5, 6,5, 6) sans atteindre 8/10 faute de pouvoir jouer à la main.
 - Revue clavier-souris 5 (7/10, dernier tour) : balle fantôme dans la main d'un client après un lancer masquée, vue qui suit la souris à chaque image. La Fosse avec un client PC : 18 prises et 18 lancers validés par l'hôte. Verdict final de la boucle : 6, 6,5, 6,5, 6, 7 ; 8/10 non atteint, les relecteurs ne peuvent juger le feeling sans souris réelle.
+
+## Croix Néon : jeu libre au clavier-souris (phase 1 de la refonte Knockout City)
+
+Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/maps/map_a_croix_neon.json`.
+
+- **Carte** : `maps/croix_neon.json` (4 plateaux N/E/S/W autour d'un moyeu central, `layout: "ring"`). Les cartes en zones (`neon_court`, `la_fosse`) gardent la vue à la 1re personne.
+- **PC libre** : caméra à la 3e personne (épaule droite, 3 m), course constante 7,5 m/s sans sprint, saut d'environ 1 m, déplacement sur toute l'arène (bornes ±0,5 m), pylône central plein.
+- **Dash** : Maj, 4 m en 0,2 s, 2 charges, 1,6 s de recharge par charge, invulnérable pendant l'impulsion (`Hurtbox.DashInvulnerable`).
+- **Moyeu** : un lanceur envoie une balle neutre toutes les 6 s vers le plateau qui en a le moins (l'équipe menée gagne les égalités).
+- **Réseau** : l'hôte valide la pose avec les bornes de l'arène entière, course 9 m/s (26 m/s pendant un dash validé : 2 charges tenues par l’hôte, 1,6 s chacune, compteur de dashs dans la pose, invulnérabilité côté hôte 0,3 s), vitesse verticale 5,5 m/s, tête sous 2,9 m ; retour de KO : l’hôte remet la copie au point d’apparition et ignore les poses du client éloignées de plus de 3 m pendant 1,5 s au plus (`NetSession.FreeRoam`). Les valeurs VR gardent leurs plafonds.
+- **Pas encore fait** (phases suivantes) : passes, feinte, effet, lob, attrape parfaite, KO au palier 2, gouffre et tremplins (cartes B et C), rotor, échanges de plateaux, balles spéciales. Les bots restent des tireurs fixes sur leur plateau.
+- **Test** : `--map=croix_neon --pc-autoplay` en solo et en réseau (étape CI « jeu libre Croix Néon »).
+- **Limites connues (phase 1)** : pas de lobby mixte VR/PC sur les cartes en anneau (le mode libre suit la plateforme de l'hôte, conformément au cahier des charges) ; pas de collision joueur-joueur ; tir 3e personne sans raycast main→cible (collé à un couvert, la balle peut partir dans l'abri) ; le ressenti n'a pas été testé à la souris ni au casque.
+- **Choix assumés** : un joueur KO est immobilisé en jeu libre seulement ; la caméra 3e personne suit le pas physique (60 Hz) sans interpolation, à vérifier sur écran 144 Hz ; accroupi 0,9 m et attrape 0,5 s (le cahier des charges dit 1,0 m et 0,45 s) ne sont pas encore alignés.
+- **Limites réseau connues** (revue 5) : l'hôte ne contrôle pas les obstacles (un client modifié pourrait se tenir dans le pylône) ; un client modifié peut réclamer une invulnérabilité de 0,3 s par dash sans bouger (budget de 2 charges) ; la fenêtre d'invulnérabilité de l'hôte démarre à la réception du compteur, donc décalée de la latence ; pas de test CI de retour de KO.

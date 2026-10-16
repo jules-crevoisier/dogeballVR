@@ -61,6 +61,7 @@ public partial class Main : Node3D
         zones.EdgeWarning += d =>
         {
             double now = Time.GetTicksMsec() / 1000.0;
+            if (map.IsRing && xrOrigin == null) return;   // jeu libre au clavier : pas de bord de zone
             if (now - lastEdgeLog < 2.0) return;   // pas un message par image contre le bord
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
@@ -108,7 +109,7 @@ public partial class Main : Node3D
         else
         {
             // Pas de casque : joueur clavier-souris pour tester (voir DesktopPlayer).
-            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = localHurtbox };
+            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = localHurtbox, FreeRoam = map.IsRing };
             AddChild(desktop);
             localBody = desktop;
             desktopPlayer = desktop;
@@ -213,8 +214,11 @@ public partial class Main : Node3D
             net.LivesOf = id => match.Rules.LivesOf(id);
             net.IsEliminated = id => match.IsEliminated(id);
             net.IsBot = id => bots.ContainsKey(id);
+            net.FreeRoam = map.IsRing && xrOrigin == null;
+            net.SpawnOf = id => map.Pc?.Spawns.Find(sp => sp.Zone == id) is { } s ? new Vector3(s.X, 0, s.Z) : null;
             net.ZoneRect = id =>
             {
+                if (net.FreeRoam) return net.ArenaXZ;
                 var z = map.Zones.Find(zz => zz.Id == id);
                 return z == null ? net.ArenaXZ : new Rect2(z.X - map.ZoneWidth / 2 - 0.5f, z.Z - map.ZoneDepth / 2 - 0.5f, map.ZoneWidth + 1f, map.ZoneDepth + 1f);
             };
@@ -285,8 +289,10 @@ public partial class Main : Node3D
         bot.QueueFree();
         match.Unregister(zoneId);
 
+        var start = zone.Center;
+        if (net != null && net.FreeRoam && map.Pc?.Spawns.Find(sp => sp.Zone == zoneId) is { } sp0) start = new Vector3(sp0.X, 0, sp0.Z);   // jeu libre : le client apparaît à son point d'apparition
         var remote = new RemotePlayer { Name = $"Remote{peerId}", PeerId = peerId, PlayerId = zoneId, Team = zone.Team,
-            StartPose = new PoseData(zone.Center + Vector3.Up * 1.6f, Mathf.DegToRad(zone.FacingDegrees), zone.Center + new Vector3(-0.3f, 1.0f, 0), zone.Center + new Vector3(0.3f, 1.0f, 0)) };
+            StartPose = new PoseData(start + Vector3.Up * 1.6f, Mathf.DegToRad(zone.FacingDegrees), start + new Vector3(-0.3f, 1.0f, 0), start + new Vector3(0.3f, 1.0f, 0)) };
         AddChild(remote);
         match.Register(remote.Hurtbox);
         net!.Remotes[peerId] = remote;

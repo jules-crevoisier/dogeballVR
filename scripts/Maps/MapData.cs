@@ -130,6 +130,50 @@ public class BallReturnDef
     public float Seconds { get; set; } = 3f;
 }
 
+/// <summary>Lanceur et pylône du moyeu central (maps en moulinet, schéma v3).</summary>
+public class HubDef
+{
+    public float X { get; set; }
+    public float Z { get; set; }
+    public HubPylonDef Pylon { get; set; } = new();
+    public HubLauncherDef Launcher { get; set; } = new();
+}
+
+public class HubPylonDef
+{
+    public float Size { get; set; } = 1.6f;
+    public float TopY { get; set; } = 3.4f;
+}
+
+public class HubLauncherDef
+{
+    public float Y { get; set; } = 4f;
+    public float IntervalSeconds { get; set; } = 6f;
+}
+
+public class PcSpawnDef
+{
+    public int Zone { get; set; }
+    public float X { get; set; }
+    public float Z { get; set; }
+}
+
+public class PcJointDef
+{
+    public string Id { get; set; } = "";
+    public float X { get; set; }
+    public float Z { get; set; }
+    public float Sx { get; set; } = 1f;
+    public float Sz { get; set; } = 1f;
+}
+
+/// <summary>Profil clavier-souris (schéma v3) : apparitions et joints entre plaques. Ignoré en VR.</summary>
+public class PcDef
+{
+    public List<PcSpawnDef> Spawns { get; set; } = new();
+    public List<PcJointDef> Joints { get; set; } = new();
+}
+
 /// <summary>Description d'une map en données (aucune zone codée en dur dans les scènes).</summary>
 public class MapData
 {
@@ -138,6 +182,10 @@ public class MapData
     public float ZoneWidth { get; set; } = 15f;
     public float ZoneDepth { get; set; } = 8f;
     public float EdgeWarningDistance { get; set; } = 1f;
+    /// <summary>« ring » : plaques en moulinet autour d'un moyeu (schéma v3) ; le joueur PC y circule librement.</summary>
+    public string Layout { get; set; } = "zones";
+    public HubDef? Hub { get; set; }
+    public PcDef? Pc { get; set; }
     /// <summary>Ancien format (v1) : volume de l'arène centré sur l'origine. Le v2 utilise ArenaBounds.</summary>
     public float ArenaWidth { get; set; } = 30f;
     public float ArenaDepth { get; set; } = 16f;
@@ -151,6 +199,8 @@ public class MapData
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();
+
+    public bool IsRing => Layout == "ring";
 
     public bool HasLifts => Zones.Exists(z => z.Lift != null);
 

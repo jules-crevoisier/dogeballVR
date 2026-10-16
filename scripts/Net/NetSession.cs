@@ -34,6 +34,15 @@ public partial class NetSession : Node
     public bool IsHost => Mode == NetMode.Host;
     public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
     public int ZoneId { get; set; }
+    /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
+    public bool FreeRoam { get; set; }
+    /// <summary>Point d'apparition d'un joueur en jeu libre (retour de KO).</summary>
+    public Func<int, Vector3?> SpawnOf { get; set; } = _ => null;
+    const float FreeRunCap = 9f, FreeDashCap = 26f;     // course 7,5 m/s + marge ; dash 20 m/s pendant 0,2 s
+    const double DashSlack = 0.25, DashRecharge = 1.6;   // fenêtre d'un dash validé (latence comprise) ; recharge d'une charge
+    float MoveSpeedCap => FreeRoam ? FreeRunCap : MaxMoveSpeed;
+    float VerticalSpeedCap => FreeRoam ? 5.5f : 4f;
+    float HeadCeiling => FreeRoam ? 2.9f : 2.3f;
     /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
     public double SimulatedLag { get; set; }
     readonly Queue<(double due, Action action)> delayed = new();
@@ -130,7 +139,7 @@ public partial class NetSession : Node
         if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
         poseTimer = 0;
         var p = LocalPose();
-        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation));
+        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.DashCount));
     }
 
     public void RequestCatch(int ballId, int hand)
@@ -156,7 +165,7 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation)
+    void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation, int dashCount)
     {
         if (!IsHost) return;
         if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
@@ -168,8 +177,32 @@ public partial class NetSession : Node
         var zone = ZoneRect(remote.PlayerId);
         head = new Vector3(Mathf.Clamp(head.X, zone.Position.X, zone.End.X), head.Y, Mathf.Clamp(head.Z, zone.Position.Y, zone.End.Y));
         // Vitesse maximale : on ramène la tête sur la distance parcourue depuis la dernière pose acceptée (temps réel écoulé).
-        var last = remote.GetPose().Head;
-        float allowed = MaxMoveSpeed * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
+        var last = remote.TargetPose.Head;
+        float cap = MoveSpeedCap;
+        if (FreeRoam)
+        {
+            // Dash : l'hôte tient le compte des charges (2, une toutes les 1,6 s) ; sans charge le signal est ignoré.
+            remote.DashBudget = Mathf.Min(2f, remote.DashBudget + (float)((remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0) / DashRecharge));
+            if (remote.LastPoseAt <= 0) remote.LastDashCount = dashCount;   // première pose : on se cale sur le compteur du client
+            bool dashNew = dashCount != remote.LastDashCount;   // compteur de dashs : insensible aux paquets perdus
+            remote.LastDashCount = dashCount;
+            if (dashNew && remote.DashBudget >= 0.6f && !IsEliminated(remote.PlayerId)) { remote.DashBudget -= 1f; remote.DashUntil = now + DashSlack + 0.05; GD.Print($"[Net] Dash validé pour la zone {remote.PlayerId}"); }
+            if (now < remote.DashUntil) cap = FreeDashCap;
+            // Retour de KO : le client est ramené à son point d'apparition, l'hôte accepte ce saut une fois.
+            if (IsEliminated(remote.PlayerId)) { remote.TeleportPending = true; remote.TeleportDeadline = 0; }
+            else if (remote.TeleportPending)
+            {
+                // Retour de KO : l'hôte remet la copie au point d'apparition et ignore les poses encore anciennes du client (au plus 1,5 s).
+                var spawn = SpawnOf(remote.PlayerId);
+                if (spawn is Vector3 sp)
+                {
+                    if (remote.TeleportDeadline <= 0) { remote.TeleportDeadline = now + 1.5; remote.SetPose(new PoseData(sp + Vector3.Up * 1.6f, yaw, sp + new Vector3(-0.3f, 1.0f, 0), sp + new Vector3(0.3f, 1.0f, 0))); }
+                    if (new Vector2(head.X - sp.X, head.Z - sp.Z).Length() > 3f && now < remote.TeleportDeadline) { remote.LastPoseAt = now; return; }
+                }
+                remote.TeleportPending = false; remote.TeleportDeadline = 0;
+            }
+        }
+        float allowed = cap * (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         var horizontal = new Vector3(head.X - last.X, 0, head.Z - last.Z);
         if (horizontal.Length() > allowed)
         {
@@ -182,13 +215,13 @@ public partial class NetSession : Node
             && new Vector2(head.X - liftDef.Pad.X, head.Z - liftDef.Pad.Z).Length() < liftDef.Pad.Radius + 0.8f;
         remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
-        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, 2.3f + elevation);
+        head.Y = Mathf.Clamp(head.Y, 0.8f + elevation, HeadCeiling + elevation);
         // Vitesse verticale plafonnée : pas de vol ni d'accroupi instantané pour réduire la cible.
         float dt = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
         // La vitesse verticale se mesure par rapport au plateau (le lift monte à part).
-        var lastPose = remote.GetPose();
+        var lastPose = remote.TargetPose;
         float lastRel = last.Y - lastPose.Elevation;
-        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - 4f * dt, lastRel + 4f * dt) + elevation;
+        head.Y = Mathf.Clamp(head.Y - elevation, lastRel - VerticalSpeedCap * dt, lastRel + VerticalSpeedCap * dt) + elevation;
         remote.LastPoseAt = now;
         left = head + (left - head).LimitLength(MaxHandReach);
         right = head + (right - head).LimitLength(MaxHandReach);
