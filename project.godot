@@ -7,6 +7,15 @@ config/name="DogeballVR"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.3", "C#", "Mobile")
 
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/window_width_override=1600
+window/size/window_height_override=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
 [dotnet]
 
 project/assembly_name="DogeballVR"

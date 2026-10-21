@@ -41,6 +41,23 @@ public partial class Main : Node3D
     /// <summary>Retour au menu principal demandé (pause, fin de partie) : la scène est rechargée et affiche le menu même si le jeu a été lancé avec des options.</summary>
     public static bool ReturnToMenu;
 
+    /// <summary>Partie d'entraînement guidée (tutoriel) : hors ligne, bots qui lancent doucement, consignes pas à pas.</summary>
+    public static bool Tutorial { get; private set; }
+
+    /// <summary>Le noir du menu se dissipe une fois la partie construite.</summary>
+    void FadeIn()
+    {
+        var layer = new CanvasLayer { Layer = 90 };
+        var rect = new ColorRect { Color = new Color(0, 0, 0, 1), MouseFilter = Control.MouseFilterEnum.Ignore };
+        rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        layer.AddChild(rect);
+        AddChild(layer);
+        var tw = rect.CreateTween();
+        tw.TweenInterval(0.15);
+        tw.TweenProperty(rect, "color:a", 0.0, 0.5);
+        tw.TweenCallback(Callable.From(layer.QueueFree));
+    }
+
     /// <summary>Recharge la scène sur le menu principal (ferme la connexion réseau).</summary>
     public void GoToMenu()
     {
@@ -63,11 +80,25 @@ public partial class Main : Node3D
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--tutorial") >= 0) Tutorial = true;
         // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
-        if (!xrActive && DisplayServer.GetName() != "headless" && (ReturnToMenu || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
+        if (!xrActive && DisplayServer.GetName() != "headless" && (ReturnToMenu || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0 || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
         {
-            var menu = new Visual.MainMenu { Name = "MainMenu" };
-            menu.Chosen += (mode, address) => { menu.QueueFree(); cfg.Choose(mode, address); StartMatch(xrActive); };
+            ReturnToMenu = false;
+            var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
+            AddChild(backdrop);
+            var menu = new UI.MainMenu { Name = "MainMenu" };
+            void Begin(NetMode mode, string address, bool tutorial)
+            {
+                menu.QueueFree();
+                backdrop.QueueFree();
+                cfg.Choose(mode, address);
+                Tutorial = tutorial;
+                StartMatch(xrActive);
+                FadeIn();
+            }
+            menu.Chosen += (mode, address) => Begin(mode, address, false);
+            menu.TutorialChosen += () => Begin(NetMode.Offline, "", true);
             AddChild(menu);
             return;
         }
