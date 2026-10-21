@@ -8,6 +8,7 @@ Les liens `partner.steamgames.com/apps/.../APPID` sont des liens types (remplace
 
 | # | Action | Durée | Lien |
 |---|---|---|---|
+| 0 | **Tester le jeu en ligne par Steam tout de suite, sans rien payer** : sur deux PC avec Steam ouvert et deux comptes amis, dézipper la release `build-latest` (elle contient `steam_appid.txt` = 480), lancer, « Partie rapide » sur les deux, ou « Créer un salon » puis « Inviter des amis » ; essayer aussi « Rejoindre la partie » depuis la liste d'amis. Me remonter le journal (`%APPDATA%/Godot/app_userdata/DogeballVR/logs/godot.log`) si quelque chose coince : cette partie n'a jamais tourné avec un vrai Steam | 20 min | docs/LISEZ-MOI-test.txt |
 | 1 | **Choisir le nom définitif** (3 propositions dans `PAGE-STORE.md` §1) et vérifier qu'il est libre (Steam, EUIPO/INPI, domaine). À faire avant de créer l'app : l'URL et les wishlists suivent le nom | 1 h | docs/steam/PAGE-STORE.md |
 | 2 | Choisir le statut : en nom propre ou via une société (micro-entreprise, SAS…) ; il fixe le nom légal, la banque et la fiscalité. Avis d'un comptable conseillé | 30 min | — |
 | 3 | **Inscription Steamworks** avec le compte Steam de jules (Steam Guard mobile actif) : nom légal exact, adresse, signature électronique du NDA et du Steam Distribution Agreement | 30 min | https://partner.steamgames.com/steamdirect |
@@ -36,4 +37,5 @@ Temps total devant l'écran : environ 9 h, réparties sur 5 à 6 semaines d'atte
 Remarques :
 - Étape 11 : le chemin `user://` de Godot est `%APPDATA%/Godot/app_userdata/DogeballVR/` sous Windows et `~/.local/share/godot/app_userdata/DogeballVR/` sous Linux tant que `application/config/use_custom_user_dir` est absent de `project.godot` (c'est le cas). Le dernier dossier est `application/config/name` : si le jeu est renommé, ce chemin change, il faut alors fixer un dossier (`use_custom_user_dir`) et corriger l'Auto-Cloud. Si le fil réseau sauvegarde par l'API Steam Remote Storage plutôt que par fichiers, ne pas configurer Auto-Cloud sur les mêmes fichiers.
 - `settings.cfg` contient aussi des réglages propres à la machine (résolution, qualité) : s'ils y sont, les synchroniser peut gêner entre deux PC ; à séparer côté code si besoin.
-- Étapes 12 et 13 : `docs/steam/achievements.csv` et `docs/steam/rich_presence_fr_en.vdf` sont produits par le fil réseau cette nuit ; si absents de `main`, attendre leur merge.
+- Étapes 12 et 13 : `docs/steam/achievements.csv` et `docs/steam/rich_presence_fr_en.vdf` sont dans le dépôt (PR #22) ; les noms API du CSV sont ceux qu'utilise le code, ne pas les changer.
+- Avant la sortie, remplacer `ShippedAppId = 0` par l'AppID dans `scripts/Online/Steam/SteamPlatform.cs` (une ligne ; un agent peut le faire) : le jeu se relance alors par Steam s'il est ouvert hors Steam.

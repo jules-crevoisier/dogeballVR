@@ -1,6 +1,6 @@
 # Checklist de sortie Steam
 
-État au 21/10/2026, branche `steam-release-kit`. Légende :
+État au 22/10/2026, branche `claude/project-thread-9jmtq8` (PR #22). Légende :
 
 - **[x]** fait dans le dépôt ; **[~]** en cours cette nuit (fil indiqué) ; **[ ]** à faire.
 - **Qui** : `code` (dépôt, agents), `jules` (compte Steamworks, décisions, argent), `art` (modèles, images, vidéo, son).
@@ -97,15 +97,17 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
-| [~] | Initialisation Steamworks.NET, `RestartAppIfNecessary(AppID)` en version Steam, repli propre sans Steam (LAN/IP) | code (fil réseau) | /doc/sdk/api#initialization_and_shutdown |
-| [~] | Lobbies Steam (créer, liste publique, rejoindre), invitations d'amis (overlay, `+connect_lobby` en ligne de commande) | code (fil réseau) | /doc/features/multiplayer/matchmaking |
-| [~] | Transport P2P par relais Steam (Steam Networking Sockets) à la place de l'IP directe | code (fil réseau) | /doc/features/multiplayer/steamdatagramrelay |
-| [~] | Succès et stats (`docs/steam/achievements.csv`) | code (fil réseau) | /doc/features/achievements |
-| [~] | Rich presence FR/EN (`docs/steam/rich_presence_fr_en.vdf`, clé `steam_display`) | code (fil réseau) | /doc/api/ISteamFriends#richpresencelocalization |
-| [~] | Steam Cloud pour `user://settings.cfg` et `user://progress.cfg` (Auto-Cloud) | code (fil réseau) + jules | /doc/features/cloud |
-| [~] | Journaux de crash (fichier local + envoi facultatif) | code (fil réseau) | |
+| [x] | Initialisation Steamworks.NET, `RestartAppIfNecessary(AppID)` dès que `ShippedAppId` est renseigné, repli propre sans Steam (une ligne « [Steam] indisponible », salle en LAN / code IP) | code | scripts/Online/Steam/SteamPlatform.cs ; /doc/sdk/api#initialization_and_shutdown |
+| [x] | Lobbies Steam : partie rapide (recherche filtrée par version puis création), salon privé (amis), invitations (overlay, « Rejoindre la partie », `+connect_lobby` au lancement) ; **jamais testé avec un vrai client Steam** : à valider avec l'AppID 480 sur deux PC | code + jules | scripts/Online/SteamBridge.cs ; /doc/features/multiplayer/matchmaking |
+| [x] | Transport P2P par relais Steam (ISteamNetworkingMessages, relais SDR de Valve, pas de port à ouvrir) ; même code testé en CI sur UDP local avec 10 % de perte | code | scripts/Online/Steam/SteamMultiplayerPeer.cs ; /doc/features/multiplayer/steamdatagramrelay |
+| [x] | Succès (`docs/steam/achievements.csv`), suivis sur l'hôte et sur les clients (touches relayées par l'hôte), repli local sans Steam | code | scripts/Online/Steam/AchievementTracker.cs ; /doc/features/achievements |
+| [x] | Rich presence FR/EN (`docs/steam/rich_presence_fr_en.vdf`, clé `steam_display`) : menu, salle, en partie, « Rejoindre » | code | scripts/Online/Steam/RichPresence.cs ; /doc/api/ISteamFriends#richpresencelocalization |
+| [~] | Steam Cloud pour `user://settings.cfg` et `user://progress.cfg` (Auto-Cloud, rien à coder : chemins à saisir par jules, voir ACTIONS-JULES.md) ; `identity.cfg`, `sessions/`, `crash/` restent locaux | jules | /doc/features/cloud |
+| [x] | Journaux de crash : au lancement suivant, le journal d'une session morte est copié dans `user://crash` (10 gardés), exceptions .NET non gérées comprises ; pas d'envoi (pas de politique de confidentialité à écrire) | code | scripts/Online/CrashReporter.cs ; |
+| [x] | Compatibilité vérifiée à la connexion : version du jeu et empreinte des messages réseau, refus clair « mettez le jeu à jour » | code | scripts/Net/NetHandshake.cs |
+| [x] | Ping affiché et bannière « connexion instable » / « reconnexion » | code | scripts/Online/NetStatusOverlay.cs |
 | [ ] | Overlay Steam : vérifier qu'il s'affiche (Maj+Tab) en mode écran avec le renderer Vulkan, et la pause quand il s'ouvre | code | /doc/features/overlay |
-| [ ] | Nom du joueur et avatar Steam dans le salon et au-dessus des avatars | code | ISteamFriends |
+| [~] | Nom Steam du joueur dans la salle (fait) ; avatar Steam et nom au-dessus des personnages (à faire) | code | ISteamFriends |
 | [ ] | Langue du jeu par défaut = langue de Steam (`GetCurrentGameLanguage`), FR sinon EN | code | /doc/store/localization/languages |
 | [ ] | Steam Input / glyphes manette (seulement si on vise le support manette) | code | /doc/features/steam_controller/getting_started_for_devs |
 
@@ -152,8 +154,8 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | Chemin des sauvegardes vérifié : `user://` = `%APPDATA%/Godot/app_userdata/DogeballVR/` sous Windows, `~/.local/share/godot/app_userdata/DogeballVR/` sous Linux (sans `use_custom_user_dir`) ; il dépend de `config/name` : si on renomme le jeu, activer `application/config/use_custom_user_dir` avec un nom fixe **avant** la sortie et mettre à jour Auto-Cloud | code | project.godot ; docs Godot « Data paths » |
 | [ ] | Pas d'alerte OpenXR au démarrage sans casque (réglage `xr/openxr/startup_alert` à vérifier dans Godot 4.3) et pas de lancement involontaire de SteamVR en mode écran | code | project.godot, scripts/Xr/XrBootstrap.cs |
 | [ ] | Performance mesurée : 60 i/s stables en mode écran sur la config minimale ; 90 i/s en VR (72 sur Quest Link) | code | |
-| [ ] | Prédiction / interpolation réseau pour jouer hors LAN (aujourd'hui aucun lissage, README « Limites connues ») | code | README.md |
-| [ ] | Déconnexions : hôte qui part (fin propre ou migration), client qui revient | code | |
+| [~] | Interpolation des autres joueurs sur l'horloge de l'hôte avec retard adaptatif à la gigue (fait, testé en CI à 80 ms et 5 % de perte) ; rembobinage côté hôte et prédiction du lancer côté client (à faire) | code | scripts/Net/ClientWorld.cs |
+| [x] | Déconnexions : client qui revient dans sa zone (coupure ou crash, secret émis par l'hôte, 45 s), bot qui reprend la place en attendant ; hôte qui ferme : les clients sont prévenus et reviennent au menu (pas de migration d'hôte) ; testé en CI | code | scripts/Net/NetSession.cs, scripts/Online/OnlineLobby.cs |
 | [ ] | Test de charge 4c4 avec 8 humains et latence réelle (100–150 ms) | code + jules | |
 | [ ] | Tests sur plusieurs PC (NVIDIA, AMD, Intel ; Windows 10 et 11 ; écran 144 Hz) | jules | |
 | [ ] | Test sur casques réels : Quest via Link / Air Link / Steam Link, Index ou Vive | jules | |
@@ -165,7 +167,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 |---|---|---|---|
 | [x] | Les textes du store ne citent aucun autre jeu ni aucune marque | code | docs/steam/PAGE-STORE.md |
 | [ ] | Nom définitif vérifié (Steam, EUIPO/INPI/USPTO classes 9 et 41, domaine) | jules | PAGE-STORE.md §1 |
-| [ ] | Retirer les mentions d'un autre jeu du contenu livré : `maps/croix_neon.json`, `fosse_croisee.json`, `tour_4v4.json` (copiés dans le build par `include_filter="maps/*"`) ; puis des commentaires de `scripts/` et de `README.md` / `docs/` avant de rendre le dépôt public | code | grep -ri knockout |
+| [~] | Mentions d'un autre jeu retirées du contenu livré (`maps/*.json`, fait) ; restent les commentaires de `scripts/` et `README.md` / `docs/`, à nettoyer avant de rendre le dépôt public | code | grep -ri knockout |
 | [ ] | Mentions de licences dans les crédits : Godot (MIT, texte de licence obligatoire), bibliothèques tierces de Godot (FreeType, ENet, mbedTLS… via `Engine.GetLicenseText`), Steamworks.NET (MIT) | code | docs Godot « Complying with licenses » |
 | [ ] | Accord Steamworks SDK accepté (couvre la redistribution de `steam_api64.dll`) | jules | partner.steamgames.com (accords) |
 | [ ] | Licences des polices, sons, musiques, modèles (garder les preuves) | art + jules | |
