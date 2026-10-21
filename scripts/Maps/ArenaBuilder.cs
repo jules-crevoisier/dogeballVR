@@ -410,6 +410,17 @@ public static class ArenaBuilder
     /// <summary>Prop de level design. Couleur avec alpha (« #rrggbbaa ») : voile de lumière additif, traversable si Solid est faux.</summary>
     static void AddProp(Node3D root, PropDef prop)
     {
+        if (prop.Model != null)
+        {
+            var model = ModelLibrary.Instance("props/" + prop.Model);
+            if (model == null) return;
+            var holder = new StaticBody3D { Name = prop.Model, Position = new Vector3(prop.X, prop.Y, prop.Z), RotationDegrees = new Vector3(0, prop.RotY, 0), Scale = Vector3.One * prop.Scale };
+            holder.AddChild(model);
+            if (prop.Solid && Bounds(model, Transform3D.Identity) is Aabb box)
+                holder.AddChild(new CollisionShape3D { Position = box.GetCenter(), Shape = new BoxShape3D { Size = box.Size } });
+            root.AddChild(holder);
+            return;
+        }
         var size = new Vector3(prop.SizeX, prop.SizeY, prop.SizeZ);
         var color = Color.FromString(prop.Color, new Color(0.54f, 0.56f, 0.6f));
         var body = new StaticBody3D { Name = "Prop", Position = new Vector3(prop.X, prop.Y, prop.Z) };
@@ -420,5 +431,16 @@ public static class ArenaBuilder
         });
         if (prop.Solid) body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
+    }
+
+    /// <summary>Boîte englobante des maillages d'un modèle, dans le repère du modèle.</summary>
+    static Aabb? Bounds(Node node, Transform3D xf)
+    {
+        Aabb? box = null;
+        if (node is Node3D n3 && node.GetParent() != null) xf *= n3.Transform;
+        if (node is MeshInstance3D mi && mi.Mesh != null) box = xf * mi.Mesh.GetAabb();
+        foreach (var child in node.GetChildren())
+            if (Bounds(child, xf) is Aabb b) box = box is Aabb a ? a.Merge(b) : b;
+        return box;
     }
 }
