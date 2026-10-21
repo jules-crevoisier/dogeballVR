@@ -54,6 +54,44 @@ public static class Juice
         tw.Chain().TweenCallback(Callable.From(g.QueueFree));
     }
 
+    /// <summary>Petit nuage de poussière au sol (départ de dash, réception de saut) : sphères grises qui s'étalent et s'effacent.</summary>
+    public static void Dust(Node context, Vector3 pos, int amount = 10, float spread = 1.6f)
+    {
+        if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree() || DisplayServer.GetName() == "headless") return;
+        var mat = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.92f, 0.9f, 0.96f, 0.55f), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha, VertexColorUseAsAlbedo = false,
+        };
+        var p = new CpuParticles3D
+        {
+            Amount = amount, Lifetime = 0.45, OneShot = true, Explosiveness = 0.95f, EmissionShape = CpuParticles3D.EmissionShapeEnum.Sphere,
+            EmissionSphereRadius = 0.15f, Direction = Vector3.Up, Spread = 80f, InitialVelocityMin = spread * 0.5f, InitialVelocityMax = spread,
+            Gravity = new Vector3(0, -1.5f, 0), DampingMin = 3f, DampingMax = 5f, ScaleAmountMin = 0.8f, ScaleAmountMax = 1.6f, Emitting = true,
+            ScaleAmountCurve = new Curve(), Mesh = new SphereMesh { Radius = 0.09f, Height = 0.18f, RadialSegments = 6, Rings = 3 }, MaterialOverride = mat,
+        };
+        p.ScaleAmountCurve.AddPoint(new Vector2(0, 0.6f));
+        p.ScaleAmountCurve.AddPoint(new Vector2(0.4f, 1f));
+        p.ScaleAmountCurve.AddPoint(new Vector2(1, 0f));
+        context.GetTree().CurrentScene.AddChild(p);
+        p.GlobalPosition = pos + Vector3.Up * 0.08f;
+        p.GetTree().CreateTimer(0.8).Timeout += p.QueueFree;
+    }
+
+    /// <summary>Silhouette fantôme (capsule additive) laissée pendant un dash : s'efface en 0,22 s.</summary>
+    public static void Afterimage(Node context, Vector3 feet, Color color)
+    {
+        if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree() || DisplayServer.GetName() == "headless") return;
+        var mat = Materials.Additive(new Color(color.R, color.G, color.B, 0.35f));
+        var g = new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.3f, Height = 1.7f }, MaterialOverride = mat };
+        context.GetTree().CurrentScene.AddChild(g);
+        g.GlobalPosition = feet + Vector3.Up * 0.85f;
+        var tw = g.CreateTween().SetParallel();
+        tw.TweenProperty(g, "scale", new Vector3(0.7f, 1f, 0.7f), 0.22);
+        tw.TweenProperty(mat, "albedo_color:a", 0.0, 0.22);
+        tw.Chain().TweenCallback(Callable.From(g.QueueFree));
+    }
+
     /// <summary>Ralentit le monde 60-90 ms à l'impact (temps réel, indépendant du ralenti). Aucun effet sur la caméra VR.</summary>
     public static void HitStop(Node context, float seconds = 0.07f, float scale = 0.12f)
     {

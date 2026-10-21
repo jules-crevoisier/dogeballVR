@@ -69,6 +69,8 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Un adversaire est sous le viseur (le HUD passe le viseur en rouge).</summary>
     public bool AimingAtEnemy { get; private set; }
+    /// <summary>Adversaire sur lequel le lancer sera corrigé (balle en main), ou null.</summary>
+    public Hurtbox? LockTarget { get; private set; }
     /// <summary>Attrape : 0 prête, 1 fenêtre ouverte, 2 recharge.</summary>
     public int CatchState => catchWindowLeft > 0 ? 1 : catchCooldownLeft > 0 ? 2 : 0;
     public float CatchCooldown01 => CatchState == 2 ? (float)(1 - catchCooldownLeft / CatchRecovery) : 1f;
@@ -76,6 +78,10 @@ public partial class DesktopPlayer : Node3D
     public float Sensitivity => GameSettings.Sensitivity;
     /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
     public bool Dashing => dodgeLeft > 0 && FreeRoam;
+    /// <summary>Compteurs d'actions du joueur (tutoriel, statistiques locales).</summary>
+    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups;
+    /// <summary>Rotation cumulée de la vue (radians) et distance parcourue (m) : tutoriel.</summary>
+    public float LookTravel, WalkTravel;
     /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
     public float GroundSpeed => velocity.Length();
     /// <summary>Message bref à afficher (changement de sensibilité…).</summary>
@@ -134,7 +140,8 @@ public partial class DesktopPlayer : Node3D
     double jumpPressedAt = -10, groundedAt = -10;   // tampon d'appui et « coyote time » du saut
     bool wasAirborne;
     float airVel;
-    int chargeTicks;    // paliers sonores de la charge du lancer (1/3, 2/3, plein)
+    int chargeTicks;
+    double lastGhostAt;    // paliers sonores de la charge du lancer (1/3, 2/3, plein)
     double time;
 
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
@@ -214,6 +221,7 @@ public partial class DesktopPlayer : Node3D
         {
             float sens = GameSettings.Sensitivity;
             yaw -= motion.Relative.X * sens;
+            LookTravel += Mathf.Abs(motion.Relative.X * sens) + Mathf.Abs(motion.Relative.Y * sens);
             pitch = Mathf.Clamp(pitch - motion.Relative.Y * sens * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);
         }
         else if (e is InputEventKey { Pressed: true, Echo: false } key)
@@ -335,9 +343,16 @@ public partial class DesktopPlayer : Node3D
             dashCharges--;
             dashStartedAt = time;
             dashCount++;
+            Dashes++;
             if (FreeRoam && !autoplay) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
+            if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
+        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.035)
+        {
+            lastGhostAt = time;
+            Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
+        }
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
         float top = charging ? ChargeSpeed : FreeRoam || (input.Sprint && input.Move.Y < -0.1f && !crouched) ? RunSpeed : WalkSpeed;
@@ -398,6 +413,7 @@ public partial class DesktopPlayer : Node3D
                 else if (Elevation + jumpY < 0.3f) TryTackle();
             }
             worldPos += step;
+            WalkTravel += step.Length();
             var b = Zones.Map.Bounds;
             var c = new Vector2(Mathf.Clamp(worldPos.X, b.MinX + 0.5f, b.MaxX - 0.5f), Mathf.Clamp(worldPos.Y, b.MinZ + 0.5f, b.MaxZ - 0.5f));
             if (c != worldPos) velocity = Vector2.Zero;
@@ -460,10 +476,11 @@ public partial class DesktopPlayer : Node3D
                 // Réception : la vue plonge un peu, plus fort après une grande chute ; son de pas lourd.
                 float impact = Mathf.Clamp(-airVel / 9f, 0f, 1f);
                 if (impact > 0.15f) { CameraFx.Kick(new Vector2(0, -2.5f * impact)); Sfx.Play(this, SfxKind.Land, null, 1f, -8f + 6f * impact); }
+                if (impact > 0.35f) Juice.Dust(this, new Vector3(worldPos.X, ground, worldPos.Y), 8 + (int)(10 * impact), 1.2f + impact);
             }
             wasAirborne = false;
             feet = ground; jumpVel = 0f; padFlight = false;
-            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
+            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; Jumps++; if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
             else if (!Hurtbox.Eliminated) TryPad();
         }
         else if (wantJump && !padFlight && jumpVel <= 0f && jumpVel > -3f && time - groundedAt <= 0.1 && ground > float.NegativeInfinity)
@@ -665,6 +682,8 @@ public partial class DesktopPlayer : Node3D
                 }
                 else if (perfect) perfectClaimAt = time;   // client : on annonce quand l'hôte a confirmé (balle tenue avec un palier)
                 if (ally) { GD.Print("[PC] Passe reçue"); pickupBlockedUntil = time + 0.3; }
+                if (viaCatch && !ally && hostileFast) { Catches++; if (perfect) PerfectCatches++; }
+                else if (!viaCatch) Pickups++;
                 if (viaCatch) { catchWindowLeft = 0; catchCooldownLeft = 0; }   // attrape réussie : pas de recharge
                 if (BallActions.IsClient) pickupBlockedUntil = time + 0.3;
                 break;
@@ -672,6 +691,8 @@ public partial class DesktopPlayer : Node3D
         }
 
         AimingAtEnemy = BestEnemy(3.5f) != null;
+        // Cible verrouillée (affichée par UI.LockOnMarker) : l'adversaire que l'aide à la visée corrigera si on lance maintenant.
+        LockTarget = held != null && GameSettings.AimAssist > 0.01f ? BestEnemy(AssistCone * Mathf.Lerp(0.6f, 1f, GameSettings.AimAssist)) : null;
         if (!input.Fire) fireLatch = false;
         else if (held == null) fireLatch = true;          // clic déjà enfoncé au ramassage : il faut relâcher avant d'armer un lancer
         bool fire = input.Fire && !fireLatch;
@@ -683,6 +704,7 @@ public partial class DesktopPlayer : Node3D
                 // Feinte : le bras part comme pour un tir, sans lâcher. Le clic doit être relâché avant de réarmer.
                 charging = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
+                Feints++;
                 ShowToast("Feinte !");
             }
             else if (input.Pass)
@@ -720,10 +742,16 @@ public partial class DesktopPlayer : Node3D
         }
         else { charging = false; chargeTime = 0; }
         holdPoint.Position = HoldLocalPosition();
+        // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
+        if (charging && chargeTime >= MaxChargeTime * 0.99)
+            holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
     }
 
     void Launch(Vector3 velocity, float spin, int mode)
     {
+        if (mode == Ball.ModePass) Passes++;
+        else if (mode == Ball.ModeLob) Lobs++;
+        else { Throws++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
         BallActions.Throw(held!, 1, velocity, spin, mode);
         if (spin != 0) apCurvePending = false; else if (mode == 0) apCurvePending = true;
         GD.Print($"[PC] Lancer {(mode == Ball.ModePass ? "passe" : mode == Ball.ModeLob ? "cloche" : spin != 0 ? "effet" : "tendu")} à {velocity.Length():0.0} m/s");

@@ -44,6 +44,17 @@ public partial class Main : Node3D
     /// <summary>Partie d'entraînement guidée (tutoriel) : hors ligne, bots qui lancent doucement, consignes pas à pas.</summary>
     public static bool Tutorial { get; private set; }
 
+    static bool PlayOfflineOnLoad;
+
+    void PlayForReal()
+    {
+        PlayOfflineOnLoad = true;
+        ReturnToMenu = false;
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
+        GetTree().ReloadCurrentScene();
+    }
+
     /// <summary>Le noir du menu se dissipe une fois la partie construite.</summary>
     void FadeIn()
     {
@@ -81,6 +92,16 @@ public partial class Main : Node3D
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--tutorial") >= 0) Tutorial = true;
+        if (PlayOfflineOnLoad)
+        {
+            // Fin du tutoriel : « vraie partie » recharge la scène et lance directement contre les bots.
+            PlayOfflineOnLoad = false;
+            Tutorial = false;
+            cfg.Choose(NetMode.Offline);
+            StartMatch(xrActive);
+            FadeIn();
+            return;
+        }
         // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
         if (!xrActive && DisplayServer.GetName() != "headless" && (ReturnToMenu || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0 || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
         {
@@ -319,6 +340,8 @@ public partial class Main : Node3D
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
+        if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
+            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
@@ -433,6 +456,9 @@ public partial class Main : Node3D
     /// <summary>Menu pause du joueur clavier-souris (Échap).</summary>
     void AddPauseMenu(bool canFreeze, System.Action? restart)
     {
+        var lockLayer = new CanvasLayer { Name = "LockOn", Layer = 5 };
+        lockLayer.AddChild(new UI.LockOnMarker { Player = desktopPlayer! });
+        AddChild(lockLayer);
         AddChild(new UI.PauseMenu { Name = "PauseMenu", CanFreeze = canFreeze, Restart = restart, QuitToMenu = GoToMenu });
     }
 
@@ -445,7 +471,7 @@ public partial class Main : Node3D
         if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
         AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
-        foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));
+        if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
         var left = hands.Find(h => h.Tracker == "left_hand");
         if (left != null)
