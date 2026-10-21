@@ -57,7 +57,7 @@ def head_point(x, z, out=0.0):
 
 
 def build_head(skin_hex, scalp_fn):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=44, ring_count=30, radius=1.0)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=26, radius=1.0)
     o = bpy.context.active_object
     for v in o.data.vertices:
         v.co = head_shape(v.co.normalized()) + Vector(J["tete"])
@@ -103,7 +103,7 @@ def face(team_iris, skin_hex, brow_hex):
         _paint_flat(hl, _c("#FFFFFF", 0.1), ao=0)
         p.append(hl)
         # paupière supérieure (regard assuré) et sourcil épais en biais
-        lid = sphere(0.031, tuple(cv + Vector((0, 0.0, 0.019))), None, f"H_Paupiere{s}", sub=3, scale=(1.08, 0.6, 0.45))
+        lid = sphere(0.031, tuple(cv + Vector((0, 0.0, 0.019))), None, f"H_Paupiere{s}", sub=2, scale=(1.08, 0.6, 0.45))
         _paint_flat(lid, _c(skin_hex, 0.55), ao=0)
         p.append(lid)
         brow = box((0.06, 0.016, 0.017), head_point(ex + s * 0.03, 0.33, 0.004), None, f"H_Sourcil{s}", 0.007,
@@ -171,12 +171,12 @@ def sneaker(s, upper_hex, accent_hex, sole_hex, glow):
     parts.append(upper)
     toe = sphere(0.06, (0, y0 + 0.125, 0.07), None, "b", sub=2, scale=(1.05, 0.9, 0.62))
     parts.append(toe)
-    collar = torus(0.058, 0.02, (0, -0.035, 0.205), None, "b", seg=20, rseg=8)
+    collar = torus(0.058, 0.02, (0, -0.035, 0.205), None, "b", seg=16, rseg=6)
     parts.append(collar)
-    tongue = box((0.06, 0.04, 0.09), (0, 0.02, 0.2), None, "b", 0.015, rot=(math.radians(-20), 0, 0))
+    tongue = box((0.06, 0.04, 0.09), (0, 0.02, 0.2), None, "b", 0.0, rot=(math.radians(-20), 0, 0))
     parts.append(tongue)
     for i in range(3):
-        lace = box((0.085, 0.016, 0.012), (0, 0.03 + i * 0.04, 0.16 - i * 0.025), None, "b", 0.005, rot=(math.radians(-25), 0, 0))
+        lace = box((0.085, 0.016, 0.012), (0, 0.03 + i * 0.04, 0.16 - i * 0.025), None, "b", 0.0, rot=(math.radians(-25), 0, 0))
         parts.append(lace)
     for o in parts:
         bpy.context.view_layer.objects.active = o
