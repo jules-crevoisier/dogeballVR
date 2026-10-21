@@ -250,12 +250,12 @@ def hero(team):
         r = {"bassin": (0.165, 0.13), "taille": (0.15, 0.125), "buste": (0.235, 0.165), "col": (0.145, 0.11), "basecou": (0.068, 0.066),
              "cou": (0.052, 0.052), "epaule": (0.098, 0.098), "coude": (0.08, 0.08), "avantbras": (0.078, 0.078), "poignet": (0.056, 0.056),
              "hanche": (0.105, 0.105), "cuisse": (0.115, 0.12), "genou": (0.082, 0.088), "mollet": (0.09, 0.095), "cheville": (0.05, 0.05)}
-        jacket, jacket_d, rib, pants, stripe, skin = "#FF6A1A", "#D9500E", "#23263A", "#2E3348", "#F2F4F8", "#C98B62"
+        jacket, jacket_d, rib, pants, stripe, skin = "#FF6A1A", "#D9500E", "#23263A", "#2A2840", "#F2F4F8", "#C98B62"
     else:        # « Nova » : hoodie oversize bleu, cargo gris, boucles argentées et gros casque audio
         r = {"bassin": (0.18, 0.14), "taille": (0.2, 0.16), "buste": (0.255, 0.185), "col": (0.15, 0.115), "basecou": (0.07, 0.068),
              "cou": (0.052, 0.052), "epaule": (0.115, 0.115), "coude": (0.1, 0.1), "avantbras": (0.095, 0.095), "poignet": (0.075, 0.075),
              "hanche": (0.11, 0.11), "cuisse": (0.12, 0.125), "genou": (0.088, 0.092), "mollet": (0.088, 0.092), "cheville": (0.05, 0.05)}
-        jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#4A5068", "#8FE3FF", "#F2C6A0"
+        jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#1E3A78", "#8FE3FF", "#F2C6A0"
     body = body_mesh(r)
     jc, jd, rb, pc, sc, sk = (_c(jacket, 0.45 if orange else 0.85), _c(jacket_d, 0.45 if orange else 0.85), _c(rib, 0.9),
                               _c(pants, 0.85), _c(stripe, 0.7), _c(skin, 0.55))

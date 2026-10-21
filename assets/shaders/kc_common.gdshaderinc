@@ -57,14 +57,14 @@ vec3 surface(vec3 p, vec3 n) {
         float gap = step(fract(uv.x / 0.22), 0.04);
         c = mix(c, alt_color.rgb * 0.5, gap);
     } else if (pattern == 4) {                // bande jaune et noire à 45 degrés
-        float s = fract((uv.x + uv.y) * 0.75);
+        float s = fract((uv.x + uv.y) * 1.6);
         c = s < 0.5 ? base_color.rgb : alt_color.rgb;
     } else if (pattern == 5) {                // façade : fenêtres éclairées de façon irrégulière
         vec2 w = vec2(uv.x / 3.0, uv.y / 3.6);
         vec2 id = floor(w);
         vec2 f = fract(w);
         float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.2, f.y) * step(f.y, 0.8);
-        float lit = step(0.45, hash(id));
+        float lit = step(0.65, hash(id));
         c = mix(base_color.rgb, mix(base_color.rgb * 1.5, alt_color.rgb, lit), win);
     } else if (pattern == 7) {                // asphalte : lavis sombre irrégulier, sans joints
         float a1 = vnoise(uv * 0.35) * 0.55 + vnoise(uv * 1.7) * 0.3 + vnoise(uv * 6.0) * 0.15;
