@@ -34,8 +34,6 @@ public static class Juice
         var scene = context.GetTree().CurrentScene;
         scene.AddChild(ring);
         ring.GlobalPosition = pos;
-        ring.LookAt(pos + Vector3.Up);
-        ring.RotateObjectLocal(Vector3.Right, Mathf.Pi / 2f);
         var tw = ring.CreateTween().SetParallel();
         tw.TweenProperty(ring, "scale", Vector3.One * radius, 0.3).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
         tw.TweenProperty(mat, "albedo_color:a", 0.0, 0.3);

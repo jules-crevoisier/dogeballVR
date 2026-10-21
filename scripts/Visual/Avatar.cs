@@ -22,10 +22,10 @@ public partial class Avatar : Node3D
         var dark = Materials.Flat(Palette.Panel);
         var white = Materials.Flat(Palette.Lines);
 
-        // Joueurs réels : modèles Blender (assets/models) ; bots ou fichiers absents : formes simples ci-dessous.
+        // Modèles Blender (assets/models) pour tout le monde, bots compris ; fichiers absents : formes simples ci-dessous.
         string team_ = team == 0 ? "orange" : "bleu";
-        var bodyModel = bot ? null : ModelLibrary.Instance($"avatar_{team_}_corps");
-        var headModel = bot ? null : ModelLibrary.Instance($"avatar_{team_}_tete");
+        var bodyModel = ModelLibrary.Instance($"avatar_{team_}_corps");
+        var headModel = ModelLibrary.Instance($"avatar_{team_}_tete");
         var gloveModel = ModelLibrary.Instance("main");
 
         avatar.torso = new Node3D { Name = "Torso" };
