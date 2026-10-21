@@ -132,6 +132,7 @@ public partial class DesktopPlayer : Node3D
     public int DashCharges => dashCharges;
     public int DashMax => MaxCharges;
     public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
+    bool padActive;
     bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint, prevCrouch, crouchToggled;
     double catchOpenedAt = -10, feintUntil, perfectClaimAt = -10;
     bool ignoreClicksUntilRelease, fireLatch;
@@ -214,6 +215,27 @@ public partial class DesktopPlayer : Node3D
 
     void ShowToast(string text) { Toast = text; ToastUntil = time + 1.5; }
 
+    public override void _Input(InputEvent e)
+    {
+        // Dernier périphérique utilisé : la manette joue même quand la souris n'est pas capturée.
+        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.4f) padActive = true;
+        else if (e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 4f || e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }) padActive = false;
+    }
+
+    /// <summary>Visée au stick droit : courbe cubique (précision au centre), un peu de friction sur un adversaire (aide manette uniquement).</summary>
+    void PadLook(float dt)
+    {
+        var look = Input.GetVector("look_left", "look_right", "look_up", "look_down");
+        if (look == Vector2.Zero) return;
+        float mag = look.Length();
+        look = look / mag * (mag * mag * mag);
+        float speed = Mathf.DegToRad(260f) * GameSettings.Sensitivity / GameSettings.DefaultSensitivity;   // degrés par seconde à fond
+        if (AimingAtEnemy && held != null) speed *= Mathf.Lerp(1f, 0.55f, GameSettings.AimAssist);
+        yaw -= look.X * speed * dt;
+        pitch = Mathf.Clamp(pitch - look.Y * speed * 0.7f * dt * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);
+        LookTravel += Mathf.Abs(look.X * speed * dt) + Mathf.Abs(look.Y * speed * dt);
+    }
+
     public override void _UnhandledInput(InputEvent e)
     {
         if (autoplay) return;
@@ -246,6 +268,7 @@ public partial class DesktopPlayer : Node3D
 
     public override void _Process(double delta)
     {
+        if (!autoplay && !PauseMenu.IsOpen) PadLook((float)delta);
         head.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
         // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
@@ -259,7 +282,7 @@ public partial class DesktopPlayer : Node3D
         time += delta;
         float dt = (float)delta;
         var input = autoplay ? AutoplayInput(delta) : ReadInput();
-        if (!autoplay && Input.MouseMode != Input.MouseModeEnum.Captured)
+        if (!autoplay && (PauseMenu.IsOpen || Input.MouseMode != Input.MouseModeEnum.Captured && !padActive))
         {
             input = default;                                   // souris libérée : plus de réaction aux clics
             charging = false; chargeTime = 0;                  // Échap en pleine charge annule le lancer au lieu de le déclencher
@@ -294,11 +317,7 @@ public partial class DesktopPlayer : Node3D
     {
         // Actions de l'InputMap (touches physiques réassignables, voir UI.InputSetup) : ZQSD sur AZERTY, WASD sur QWERTY.
         static bool A(string action) => Input.IsActionPressed(action);
-        var m = Vector2.Zero;
-        if (A("move_forward")) m.Y -= 1;
-        if (A("move_back")) m.Y += 1;
-        if (A("move_left")) m.X -= 1;
-        if (A("move_right")) m.X += 1;
+        var m = Input.GetVector("move_left", "move_right", "move_forward", "move_back");   // stick analogique ou touches
         bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
         bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
         if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }

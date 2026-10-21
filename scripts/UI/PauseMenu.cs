@@ -28,6 +28,18 @@ public partial class PauseMenu : CanvasLayer
         Layer = 60;
         ProcessMode = ProcessModeEnum.Always;
         IsOpen = false;
+        // Captures d'écran automatiques : --ui-test=pause | options | help ouvre l'écran au bout de 2 s.
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--ui-test="))
+            {
+                string what = arg["--ui-test=".Length..];
+                GetTree().CreateTimer(2.0).Timeout += () =>
+                {
+                    Open();
+                    if (what == "options") OpenSub(new OptionsMenu());
+                    else if (what == "help") ShowHelp();
+                };
+            }
     }
 
     public override void _ExitTree()
