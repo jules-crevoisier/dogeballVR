@@ -340,7 +340,7 @@ def avatar_rig(team):
     """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs)."""
     import hero
     import rig as rigmod
-    out = rigmod.rig_character(hero.hero(team), rigmod.HERO_BONES, arm_rest=-6)
+    out = rigmod.rig_character(hero.hero(team), rigmod.HERO_BONES, arm_rest=-14)
     return lambda: out
 
 
