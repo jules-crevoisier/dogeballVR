@@ -61,10 +61,10 @@ public partial class Hurtbox : Area3D
         if (ball.IsPass) return;                                           // une passe ne blesse personne
         if (ball.LinearVelocity.Length() < (ball.ThrowMode == Ball.ModeLob ? Ball.LobHitMinSpeed : Ball.HitMinSpeed)) return;       // trop lente
         if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée
-        if (HitGraceSeconds > 0f && !graceBalls.Contains(ball) && ball.LinearVelocity.Length() >= 10f)
+        if (HitGraceSeconds > 0f && !graceBalls.Contains(ball) && ball.Kind != Ball.KindBomb && ball.LinearVelocity.Length() >= 10f)
         {
             graceBalls.Add(ball);
-            GetTree().CreateTimer(HitGraceSeconds).Timeout += () => { graceBalls.Remove(ball); if (IsInstanceValid(ball)) Apply(ball); };
+            GetTree().CreateTimer(HitGraceSeconds).Timeout += () => { if (!IsInstanceValid(this)) return; graceBalls.Remove(ball); if (IsInstanceValid(ball)) Apply(ball); };
             return;
         }
         Apply(ball);
