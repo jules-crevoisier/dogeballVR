@@ -352,7 +352,7 @@ public partial class Ball : RigidBody3D
         {
             alertMarker = new MeshInstance3D
             {
-                Mesh = new SphereMesh { Radius = 0.3f, Height = 0.6f, RadialSegments = 16, Rings = 8 },
+                Mesh = new SphereMesh { Radius = 0.18f, Height = 0.36f, RadialSegments = 16, Rings = 8 },
                 MaterialOverride = Materials.Additive(color), TopLevel = false,
             };
             AddChild(alertMarker);

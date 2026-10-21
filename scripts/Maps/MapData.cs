@@ -106,7 +106,7 @@ public class BoundsDef
 public class ThrowAssistDef
 {
     public float SpeedMultiplier { get; set; } = 1.4f;
-    public float MinLaunchSpeed { get; set; } = 0f;
+    public float MinLaunchSpeed { get; set; } = 5.5f;
     /// <summary>Plafond de vitesse d'un lancer VR (m/s).</summary>
     public float MaxLaunchSpeedVR { get; set; } = 20f;
     /// <summary>Attrape parfaite : rapport minimal entre la vitesse de la balle et sa vitesse de lancer.</summary>

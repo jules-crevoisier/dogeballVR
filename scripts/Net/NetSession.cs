@@ -396,7 +396,7 @@ public partial class NetSession : Node
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
-            if (ball.OwnerTeam == remote.Hurtbox.Team || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
             if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
             remote.LastParryAt = now;
             GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");

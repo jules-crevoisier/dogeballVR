@@ -9,7 +9,7 @@ public partial class HeartsDisplay : Label3D
     public Func<int>? Lives { get; set; }
     public int Max { get; set; } = 2;
     public Node3D? Follow { get; set; }
-    public Vector3 Offset { get; set; } = new(0, 1.25f, 0);
+    public Vector3 FollowOffset { get; set; } = new(0, 1.25f, 0);
     string last = "";
 
     public static HeartsDisplay Create(Func<int> lives, int max, Color color, float pixelSize, bool billboard) => new()
@@ -23,7 +23,7 @@ public partial class HeartsDisplay : Label3D
         if (Follow != null)
         {
             if (!IsInstanceValid(Follow)) { QueueFree(); return; }
-            GlobalPosition = Follow.GlobalPosition + Offset;
+            GlobalPosition = Follow.GlobalPosition + FollowOffset;
         }
         int n = Mathf.Clamp(Lives?.Invoke() ?? 0, 0, Max);
         var t = new string('♥', n) + new string('♡', Max - n);

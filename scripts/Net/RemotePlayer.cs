@@ -54,7 +54,7 @@ public partial class RemotePlayer : Node3D
         AddChild(Body);
         SetPose(StartPose);
         Avatar.Pose(StartPose.Head, StartPose.Yaw, StartPose.Left, StartPose.Right);
-        Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head };
+        Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head, HitGraceSeconds = Assist.VrRules ? Assist.HitGraceSeconds : 0f };
         AddChild(Hurtbox);
     }
 

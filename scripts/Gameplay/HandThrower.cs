@@ -138,7 +138,7 @@ public partial class HandThrower : XRController3D
             {
                 var mine = BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
                 if (mine != null) held = mine;
-                else if (now > catchRequestedAt + 0.6) { held = null; Hurtbox.HeldHand = -1; } // refusée ou perdue (KO, manche)
+                else if (now > catchRequestedAt + 0.3) { held = null; Hurtbox.HeldHand = -1; } // refusée ou perdue (KO, manche)
             }
         }
         else if (held != null && Hurtbox.Eliminated)

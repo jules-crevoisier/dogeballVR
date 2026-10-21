@@ -59,6 +59,7 @@ public partial class ThreatIndicator : Node
         foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
             if (n is Hurtbox { Eliminated: false } h && !h.DashInvulnerable) targets.Add(h);
 
+        Vector3? alertPos = null;
         float localT = float.PositiveInfinity, shooterT = float.PositiveInfinity;
         int shooterTarget = -1;
         var current = new HashSet<Ball>();
@@ -72,7 +73,7 @@ public partial class ThreatIndicator : Node
                 if (h.Team == ball.OwnerTeam) continue;
                 float t = TimeToImpact(ball.GlobalPosition, ball.LinearVelocity, h.GlobalPosition);
                 if (t < best) { best = t; targetTeam = h.Team; }
-                if (h == Local && t < localT) localT = t;
+                if (h == Local && t < localT) { localT = t; alertPos = ball.GlobalPosition; }
             }
             if (best > WarnSeconds) continue;
             current.Add(ball);
@@ -89,7 +90,7 @@ public partial class ThreatIndicator : Node
             if (now >= nextBeep)
             {
                 nextBeep = now + Mathf.Lerp(0.18, 0.07, urgency);
-                Sfx.Play(this, SfxKind.Alert, null, Mathf.Lerp(0.9f, 1.5f, urgency));
+                Sfx.Play(this, SfxKind.Alert, alertPos, Mathf.Lerp(0.9f, 1.5f, urgency));
                 Haptic?.Invoke(Mathf.Lerp(0.25f, 1f, urgency), 0.08f);
             }
             Show(Palette.Team(Local.Team), now);
@@ -105,6 +106,7 @@ public partial class ThreatIndicator : Node
         bool on = now < edgeUntil;
         var size = GetViewport().GetVisibleRect().Size;
         const float w = 18f;
+        if (!on && !edges[0].Visible) return;
         var rects = new[] { new Rect2(0, 0, size.X, w), new Rect2(0, size.Y - w, size.X, w), new Rect2(0, 0, w, size.Y), new Rect2(size.X - w, 0, w, size.Y) };
         for (int i = 0; i < 4; i++)
         {

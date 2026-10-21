@@ -30,6 +30,8 @@ public static class Assist
     public static float CatchRadius { get; set; } = 0.3f;
     public static float MagnetRadius { get; set; } = 0.5f;
     /// <summary>Tolérance de l'hôte : la main doit être près de la balle (m) + marge de latence.</summary>
+    /// <summary>Joueur distant en VR : le coup est différé de ce délai (s) côté hôte pour laisser arriver une prise lancée ~80 ms plus tôt par le client.</summary>
+    public const float HitGraceSeconds = 0.1f;
     public const float CatchReach = 1.2f;
     public const float LatencyFactor = 0.12f, LatencyMaxSlack = 2.0f;
 

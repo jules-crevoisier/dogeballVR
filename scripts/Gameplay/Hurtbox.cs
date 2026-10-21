@@ -14,6 +14,9 @@ public partial class Hurtbox : Area3D
     public int Team { get; set; }
     public bool Eliminated { get; set; }
 
+    /// <summary>Hôte, joueur distant : délai avant d'appliquer un coup rapide, pendant lequel une prise valide (CatchRpc) l'annule.</summary>
+    public float HitGraceSeconds { get; set; }
+
     /// <summary>Main (0 gauche, 1 droite) qui tient une balle, -1 sinon : un joueur ne tient qu'une balle à la fois.</summary>
     public int HeldHand { get; set; } = -1;
 
@@ -58,6 +61,21 @@ public partial class Hurtbox : Area3D
         if (ball.IsPass) return;                                           // une passe ne blesse personne
         if (ball.LinearVelocity.Length() < (ball.ThrowMode == Ball.ModeLob ? Ball.LobHitMinSpeed : Ball.HitMinSpeed)) return;       // trop lente
         if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée
+        if (HitGraceSeconds > 0f && !graceBalls.Contains(ball) && ball.LinearVelocity.Length() >= 10f)
+        {
+            graceBalls.Add(ball);
+            GetTree().CreateTimer(HitGraceSeconds).Timeout += () => { graceBalls.Remove(ball); if (IsInstanceValid(ball)) Apply(ball); };
+            return;
+        }
+        Apply(ball);
+    }
+
+    readonly System.Collections.Generic.HashSet<Ball> graceBalls = new();
+
+    void Apply(Ball ball)
+    {
+        if (Eliminated || DashInvulnerable || ball.IsHeld || ball.HasExploded || ball.IsPass || ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;
+        if (Vulnerable != null && !Vulnerable()) return;
         int shooter = ball.OwnerPlayerId;
         int charge = ball.Charge;
         float distance = ball.ThrowDistance;
