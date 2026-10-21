@@ -154,11 +154,13 @@ public partial class PauseMenu : CanvasLayer
             col.AddChild(grid);
             foreach (var a in InputSetup.Actions)
             {
-                if (a.Name is "pause" or "help") continue;
-                var k = UiKit.Text(InputSetup.KeyName(a.Name), 24, UiKit.Yellow, 6, HorizontalAlignment.Right);
+                if (a.Name is "pause" or "help" or "move_back" or "move_left" or "move_right") continue;
+                bool move = a.Name == "move_forward";
+                string keys = move ? $"{InputSetup.KeyName("move_forward")} {InputSetup.KeyName("move_left")} {InputSetup.KeyName("move_back")} {InputSetup.KeyName("move_right")}" : InputSetup.KeyName(a.Name);
+                var k = UiKit.Text(keys, 24, UiKit.Yellow, 6, HorizontalAlignment.Right);
                 k.CustomMinimumSize = new Vector2(160, 0);
                 grid.AddChild(k);
-                grid.AddChild(UiKit.Text(a.Label, 24, Colors.White, 6));
+                grid.AddChild(UiKit.Text(move ? "Se déplacer" : a.Label, 24, Colors.White, 6));
             }
             if (Text != "") col.AddChild(UiKit.Text(Text, 20, UiKit.Sky, 5));
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
