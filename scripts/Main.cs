@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using DogeballVR.Gameplay;
 using DogeballVR.Maps;
@@ -15,7 +16,7 @@ namespace DogeballVR;
 /// </summary>
 public partial class Main : Node3D
 {
-    readonly NetConfig cfg = NetConfig.Parse();
+    readonly NetConfig cfg = Online.GameLaunch.Take();   // partie lancée par le lobby, sinon options de la ligne de commande
     MapData map = null!;
     ZoneManager zones = null!;
     MatchController match = null!;
@@ -44,6 +45,13 @@ public partial class Main : Node3D
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
+        if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
+        {
+            Online.GameLaunch.ShowLobby = false;
+            if (DisplayServer.GetName() != "headless") Online.OnlineLobby.Ensure(GetTree(), _ => AddChild(new Online.LobbyScreen { Name = "LobbyScreen" }));
+            return;
+        }
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
@@ -53,7 +61,7 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
-        int localZoneId = client ? cfg.Zone : 0;
+        int localZoneId = cfg.LocalZone;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
 
@@ -75,8 +83,9 @@ public partial class Main : Node3D
 
         if (cfg.Mode != NetMode.Offline)
         {
-            net = new NetSession { Name = "NetSession" };
+            net = new NetSession { Name = "NetSession", Token = cfg.Token };
             AddChild(net);
+            if (DisplayServer.GetName() != "headless") AddChild(new Online.NetStatusOverlay { Name = "NetStatus", Net = net });
             if (client) BallActions.Net = net;
         }
 
@@ -285,13 +294,28 @@ public partial class Main : Node3D
             net.HudText = () => match.HudText;
             net.PeerHello += OnPeerHello;
             net.PeerLeft += OnPeerLeft;
-            if (cfg.Mode == NetMode.Host)
+            net.ZoneAvailable = id => bots.ContainsKey(id) && id != localZone.Id;
+            net.PickZone = PickFreeZone;
+            if (cfg.Mode == NetMode.Host && cfg.Preconnected) net.AdoptHost();
+            else if (cfg.Mode == NetMode.Host)
             {
                 var err = net.Host(cfg.Port);
                 if (err != Error.Ok) GD.PrintErr($"[Net] Impossible d'héberger : {err}");
             }
         }
         match.StartMatch();
+        if (cfg.Preconnected) Online.OnlineLobby.Instance?.HostMatchReady();   // les joueurs de la salle peuvent entrer
+    }
+
+    /// <summary>Zone tenue par un bot pour un joueur qui entre : dans l'équipe demandée si possible, sinon dans celle qui a le moins d'humains.</summary>
+    int PickFreeZone(int preferredTeam)
+    {
+        int Humans(int team) => map.Zones.Count(z => z.Team == team && !bots.ContainsKey(z.Id));
+        var free = map.Zones.Where(z => bots.ContainsKey(z.Id) && z.Id != localHurtbox.PlayerId).ToList();
+        if (free.Count == 0) return -1;
+        var pick = free.Where(z => z.Team == preferredTeam).FirstOrDefault()
+            ?? free.OrderBy(z => Humans(z.Team)).ThenBy(z => z.Id).First();
+        return pick.Id;
     }
 
     void SpawnBot(ZoneDef z)
@@ -418,8 +442,20 @@ public partial class Main : Node3D
                 Lift = localZone.Lift, ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
         net.SimulatedLag = cfg.LagMs / 1000.0;
-        var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
-        if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
+        net.SimulatedLoss = cfg.LossRate;
+        if (Online.OnlineLobby.Instance is { } lobby)
+        {
+            // Partie lancée par le lobby : reconnexion automatique, zone corrigée par l'hôte, refus renvoyé au menu.
+            net.Disconnected += lobby.OnMatchConnectionLost;
+            net.Welcomed += zone => lobby.OnWelcomedZone(zone, localZone.Id);
+            net.Refused += lobby.OnMatchRefused;
+        }
+        if (cfg.Preconnected) net.AdoptClient(localZone.Id);
+        else
+        {
+            var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
+            if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
+        }
     }
 
     public override void _Process(double delta)

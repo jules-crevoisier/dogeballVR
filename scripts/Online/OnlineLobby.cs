@@ -1,0 +1,616 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
+using DogeballVR.Maps;
+using DogeballVR.Net;
+
+namespace DogeballVR.Online;
+
+public enum LobbyState { Idle, Searching, Connecting, InRoom, InMatch, Reconnecting }
+
+/// <summary>Un joueur de la salle (avant et pendant la partie).</summary>
+public class LobbyMember
+{
+    public int PeerId;
+    public string Name = "";
+    public string Token = "";
+    public int Team;
+    public bool Ready;
+    public bool Vr;
+    public bool Host => PeerId == 1;
+}
+
+/// <summary>
+/// Salle d'avant-match, persistante (nœud /root/OnlineLobby, il survit au rechargement de la scène de jeu).
+/// L'hôte ouvre la salle (ENet en LAN ou par IP, Steam si disponible), les joueurs entrent, choisissent leur équipe et se
+/// déclarent prêts ; l'hôte lance : chacun recharge la scène de jeu avec sa zone (<see cref="GameLaunch"/>), les places vides
+/// sont tenues par des bots. On peut entrer en cours de partie (à la place d'un bot) et revenir après une coupure : le jeton
+/// d'identité rend la même zone, avec ses vies et son score.
+/// Le menu appelle <see cref="QuickMatch"/>, <see cref="CreatePrivate"/>, <see cref="JoinByCode"/>, <see cref="HostLan"/>,
+/// <see cref="JoinAddress"/> puis affiche <see cref="LobbyScreen"/>.
+/// </summary>
+public partial class OnlineLobby : Node
+{
+    public static OnlineLobby? Instance { get; private set; }
+
+    const double JoinRequestTimeout = 10.0, ConnectTimeout = 10.0, ReconnectWindow = 45.0, ReconnectEvery = 3.0, SearchSeconds = 1.6;
+    static readonly string[] MapChoices = { "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
+
+    public LobbyState State { get; private set; } = LobbyState.Idle;
+    public bool IsHost { get; private set; }
+    public string Map { get; private set; } = "croix_neon";
+    /// <summary>Code à donner aux amis (IP:port encodé ou lobby Steam), vide tant qu'inconnu.</summary>
+    public string Code { get; private set; } = "";
+    /// <summary>Dernier message d'état ou d'erreur, pour l'écran du lobby et le menu.</summary>
+    public string Status { get; private set; } = "";
+    public IReadOnlyList<LobbyMember> Members => members.Values.OrderBy(m => m.PeerId == 1 ? 0 : 1).ThenBy(m => m.PeerId).ToList();
+    public int MaxPlayers => Math.Max(2, MapZoneCount(Map));
+    public LanDiscovery Lan { get; private set; } = null!;
+    public static IReadOnlyList<string> Maps => MapChoices;
+
+    public event Action? Changed;
+    /// <summary>Échec définitif (connexion impossible, refus, hôte parti) : le menu reprend la main avec ce message.</summary>
+    public event Action<string>? Failed;
+
+    readonly Dictionary<int, LobbyMember> members = new();
+    readonly Dictionary<int, double> pendingPeers = new();      // hôte : pair connecté sans demande d'entrée
+    readonly Dictionary<int, int> matchZones = new();           // hôte : zone attribuée au lancement, par pair
+    int port = NetSession.DefaultPort;
+    string address = "";
+    double stateClock, reconnectClock, nextReconnect;
+    int myTeam;
+    bool autoReady;
+    int autoStart;
+    Upnp? upnp;
+
+    // ------------------------------------------------------------------ création
+
+    /// <summary>Crée le nœud persistant s'il n'existe pas ; <paramref name="then"/> est appelé une fois qu'il est dans l'arbre.</summary>
+    public static void Ensure(SceneTree tree, Action<OnlineLobby>? then = null)
+    {
+        if (Instance != null && IsInstanceValid(Instance) && Instance.IsInsideTree()) { then?.Invoke(Instance); return; }
+        var lobby = new OnlineLobby { Name = "OnlineLobby" };
+        if (then != null) lobby.Ready += () => then(lobby);
+        tree.Root.CallDeferred(Node.MethodName.AddChild, lobby);
+    }
+
+    public override void _EnterTree() => Instance = this;
+
+    public override void _Ready()
+    {
+        Lan = new LanDiscovery { Name = "Lan" };
+        AddChild(Lan);
+        Multiplayer.PeerConnected += OnPeerConnected;
+        Multiplayer.PeerDisconnected += OnPeerDisconnected;
+        Multiplayer.ConnectedToServer += OnConnectedToServer;
+        Multiplayer.ConnectionFailed += OnConnectionFailed;
+        Multiplayer.ServerDisconnected += OnServerDisconnected;
+        var args = OS.GetCmdlineUserArgs();
+        autoReady = Array.IndexOf(args, "--auto-ready") >= 0;
+        foreach (var a in args)
+            if (a.StartsWith("--autostart=") && int.TryParse(a["--autostart=".Length..], out int n)) autoStart = n;
+    }
+
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+        ClosePortMapping();
+    }
+
+    /// <summary>Options de test de la ligne de commande (CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
+    /// avec <c>--auto-ready</c> et <c>--autostart=N</c> (l'hôte lance dès que N joueurs sont prêts). Vrai si une option a été trouvée.</summary>
+    public static bool RunCommandLine(SceneTree tree)
+    {
+        var cfg = NetConfig.Parse();
+        string? join = null;
+        bool host = false, quick = false;
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (a == "--lobby-host") host = true;
+            else if (a == "--lobby-quick") quick = true;
+            else if (a.StartsWith("--lobby-join=")) join = a["--lobby-join=".Length..];
+        }
+        if (!host && !quick && join == null) return false;
+        Ensure(tree, lobby =>
+        {
+            if (host) lobby.HostLan(cfg.Port, cfg.Map);
+            else if (quick) lobby.QuickMatch();
+            else lobby.JoinAddress(join!, cfg.Port);
+        });
+        return true;
+    }
+
+    // ------------------------------------------------------------------ API du menu
+
+    /// <summary>Partie rapide : une salle ouverte sur le réseau local (ou Steam), sinon on en ouvre une.</summary>
+    public void QuickMatch()
+    {
+        Reset();
+        if (SteamBridge.Available) { SteamBridge.QuickMatch(this); return; }
+        if (Lan.Listen() != Error.Ok) { HostLan(NetSession.DefaultPort, Map); return; }
+        SetState(LobbyState.Searching, "Recherche d'une partie sur le réseau local…");
+    }
+
+    /// <summary>Salle privée : invitation par Steam si disponible, sinon par code (adresse IP).</summary>
+    public void CreatePrivate(string? map = null)
+    {
+        Reset();
+        if (SteamBridge.Available) { SteamBridge.Host(this, publicLobby: false, map ?? Map); return; }
+        HostLan(NetSession.DefaultPort, map ?? Map);
+    }
+
+    public void JoinByCode(string code)
+    {
+        Reset();
+        if (!JoinCode.TryParse(code, out string ip, out int codePort, out ulong steamLobby)) { Fail("Code invalide"); return; }
+        if (steamLobby != 0)
+        {
+            if (!SteamBridge.Available) { Fail("Ce code demande Steam : lancez le jeu depuis Steam"); return; }
+            SteamBridge.Join(this, steamLobby);
+            return;
+        }
+        JoinAddress(ip, codePort);
+    }
+
+    /// <summary>Ouvre une salle ENet (réseau local ou Internet si le port est ouvert ; UPnP tenté hors mode headless).</summary>
+    public void HostLan(int listenPort = NetSession.DefaultPort, string? map = null)
+    {
+        Reset();
+        var peer = new ENetMultiplayerPeer();
+        var err = peer.CreateServer(listenPort, NetSession.MaxPlayers - 1);
+        if (err != Error.Ok) { Fail($"Impossible d'ouvrir la partie (port {listenPort} : {err})"); return; }
+        port = listenPort;
+        OpenRoomAsHost(peer, map ?? Map);
+        Code = JoinCode.FromAddress(LocalIPv4(), port);
+        Lan.Announcement = Announcement;
+        if (DisplayServer.GetName() != "headless" && Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-upnp") < 0) OpenPortMapping(port);
+        GD.Print($"[Lobby] Salle ouverte sur le port {port}, code {Code}");
+    }
+
+    /// <summary>Entre dans la salle d'un hôte ENet.</summary>
+    public void JoinAddress(string ip, int joinPort = NetSession.DefaultPort)
+    {
+        if (State != LobbyState.Reconnecting) Reset();
+        var peer = new ENetMultiplayerPeer();
+        var err = peer.CreateClient(ip, joinPort);
+        if (err != Error.Ok) { Fail($"Connexion impossible : {err}"); return; }
+        address = ip; port = joinPort;
+        SteamBridge.Target = 0;
+        Multiplayer.MultiplayerPeer = peer;
+        IsHost = false;
+        if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, $"Connexion à {ip}:{joinPort}…");
+    }
+
+    /// <summary>Utilisé par la couche Steam : la connexion est ouverte, la salle aussi.</summary>
+    internal void OpenRoomAsHost(MultiplayerPeer peer, string map)
+    {
+        Multiplayer.MultiplayerPeer = peer;
+        IsHost = true;
+        Map = MapChoices.Contains(map) ? map : Map;
+        members.Clear();
+        members[1] = new LobbyMember { PeerId = 1, Name = Identity.Name, Token = Identity.Token, Team = 0, Ready = true, Vr = IsVr };
+        SetState(LobbyState.InRoom, "Salle ouverte : en attente de joueurs");
+        BroadcastRoster();
+    }
+
+    /// <summary>Utilisé par la couche Steam : la connexion client est lancée vers l'hôte du lobby.</summary>
+    internal void ConnectAsClient(MultiplayerPeer peer, string description)
+    {
+        Multiplayer.MultiplayerPeer = peer;
+        IsHost = false;
+        if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, description);
+    }
+
+    internal void SetCode(string code) { Code = code; Changed?.Invoke(); }
+
+    public void SetReady(bool ready)
+    {
+        if (IsHost) { if (members.TryGetValue(1, out var me)) me.Ready = ready; BroadcastRoster(); }
+        else if (State == LobbyState.InRoom) RpcId(1, MethodName.SetReadyRpc, ready);
+    }
+
+    public void SetTeam(int team)
+    {
+        team = Mathf.Clamp(team, 0, 1);
+        myTeam = team;
+        if (IsHost) { if (members.TryGetValue(1, out var me)) { me.Team = team; BroadcastRoster(); } }
+        else if (State == LobbyState.InRoom) RpcId(1, MethodName.SetTeamRpc, team);
+    }
+
+    /// <summary>Hôte : choisit la carte (la salle ne peut pas dépasser son nombre de zones).</summary>
+    public void SetMap(string map)
+    {
+        if (!IsHost || State != LobbyState.InRoom || !MapChoices.Contains(map)) return;
+        if (members.Count > MapZoneCount(map)) { Status = "Trop de joueurs pour cette carte"; Changed?.Invoke(); return; }
+        Map = map;
+        BroadcastRoster();
+    }
+
+    public bool CanStart => IsHost && State == LobbyState.InRoom && members.Values.All(m => m.Ready);
+
+    /// <summary>Hôte : lance la partie. L'hôte recharge la scène d'abord ; les autres reçoivent leur zone quand il est prêt (<see cref="HostMatchReady"/>).</summary>
+    public void StartMatch()
+    {
+        if (!IsHost || State != LobbyState.InRoom) return;
+        var map = LoadMap(Map);
+        if (map == null) { Status = "Carte introuvable"; Changed?.Invoke(); return; }
+        matchZones.Clear();
+        var free = new[] { map.Zones.Where(z => z.Team == 0).Select(z => z.Id).ToList(), map.Zones.Where(z => z.Team == 1).Select(z => z.Id).ToList() };
+        foreach (var m in Members)
+        {
+            int team = m.Team;
+            if (free[team].Count == 0) team = 1 - team;   // équipe pleine : l'autre
+            if (free[team].Count == 0) continue;
+            matchZones[m.PeerId] = free[team][0];
+            free[team].RemoveAt(0);
+        }
+        var cfg = BaseConfig();
+        cfg.Mode = NetMode.Host;
+        cfg.Map = Map;
+        cfg.HostZone = matchZones.TryGetValue(1, out int hz) ? hz : 0;
+        cfg.Preconnected = true;
+        GD.Print($"[Lobby] Lancement : {Map}, {members.Count} joueur(s), zones {string.Join(", ", matchZones.Select(kv => $"{kv.Key}->{kv.Value}"))}");
+        Lan.Announcement = Announcement;
+        SetState(LobbyState.InMatch, "Partie en cours");
+        BroadcastRoster();
+        SteamBridge.OnMatchStarted(this);
+        GameLaunch.Set(cfg);
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    /// <summary>Hôte : la scène de jeu est construite et la session réseau écoute ; les joueurs de la salle peuvent entrer.</summary>
+    public void HostMatchReady()
+    {
+        if (!IsHost || State != LobbyState.InMatch) return;
+        foreach (var (peer, zone) in matchZones)
+            if (peer != 1 && members.ContainsKey(peer)) RpcId(peer, MethodName.StartRpc, Map, zone);
+    }
+
+    /// <summary>Hôte, fin de partie : tout le monde revient dans la salle (mêmes joueurs, mêmes équipes).</summary>
+    public void ReturnToLobby()
+    {
+        if (!IsHost || State != LobbyState.InMatch) return;
+        foreach (var m in members.Values) if (!m.Host) { m.Ready = false; RpcId(m.PeerId, MethodName.ReturnToLobbyRpc); }
+        SetState(LobbyState.InRoom, "De retour dans la salle");
+        BroadcastRoster();
+        GameLaunch.ShowLobby = true;
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    /// <summary>Quitte la salle (ou la partie) et ferme la connexion.</summary>
+    public void Leave()
+    {
+        bool wasConnected = State is LobbyState.InRoom or LobbyState.InMatch or LobbyState.Reconnecting;
+        Reset();
+        SetState(LobbyState.Idle, "");
+        if (wasConnected) GD.Print("[Lobby] Salle quittée");
+    }
+
+    // ------------------------------------------------------------------ partie : reconnexion et entrée tardive
+
+    /// <summary>Client en partie : la connexion à l'hôte est perdue. On retente pendant 45 s, puis retour au menu.</summary>
+    public void OnMatchConnectionLost()
+    {
+        if (IsHost || State is not (LobbyState.InMatch or LobbyState.InRoom)) return;
+        GD.Print("[Lobby] Connexion perdue : tentative de reconnexion");
+        Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
+        reconnectClock = 0;
+        nextReconnect = 1.0;
+        SetState(LobbyState.Reconnecting, "Connexion perdue : reconnexion…");
+    }
+
+    /// <summary>Client : l'hôte a attribué une autre zone que celle chargée (deux entrées simultanées) : on recharge avec la bonne.</summary>
+    public void OnWelcomedZone(int zone, int loadedZone)
+    {
+        if (IsHost || zone == loadedZone) return;
+        GD.Print($"[Lobby] L'hôte attribue la zone {zone} (chargée : {loadedZone}) : rechargement");
+        LaunchClient(Map, zone);
+    }
+
+    /// <summary>Client : l'hôte refuse l'entrée en partie.</summary>
+    public void OnMatchRefused(string reason)
+    {
+        if (IsHost) return;
+        Fail(reason);
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    // ------------------------------------------------------------------ boucle
+
+    public override void _Process(double delta)
+    {
+        stateClock += delta;
+        switch (State)
+        {
+            case LobbyState.Searching:
+                var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers).OrderByDescending(r => r.Players).FirstOrDefault();
+                if (room != null) { Lan.StopListening(); GD.Print($"[Lobby] Partie trouvée : {room.Name} ({room.Address}:{room.GamePort})"); JoinAddress(room.Address, room.GamePort); }
+                else if (stateClock > SearchSeconds) { Lan.StopListening(); GD.Print("[Lobby] Aucune partie trouvée : ouverture d'une salle"); HostLan(NetSession.DefaultPort, Map); }
+                break;
+            case LobbyState.Connecting:
+                if (stateClock > ConnectTimeout) Fail("L'hôte ne répond pas");
+                break;
+            case LobbyState.Reconnecting:
+                reconnectClock += delta;
+                if (reconnectClock > ReconnectWindow) { Fail("Reconnexion impossible : l'hôte a quitté la partie"); GameLaunch.ShowLobby = false; GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene); break; }
+                if (reconnectClock >= nextReconnect && Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer)
+                {
+                    nextReconnect = reconnectClock + ReconnectEvery;
+                    Status = $"Connexion perdue : reconnexion… ({(int)(ReconnectWindow - reconnectClock)} s)";
+                    Changed?.Invoke();
+                    if (SteamBridge.Target != 0) SteamBridge.Reconnect(this);
+                    else JoinAddress(address, port);
+                }
+                break;
+        }
+        if (IsHost)
+        {
+            double now = Time.GetTicksMsec() / 1000.0;
+            foreach (var (peer, since) in new Dictionary<int, double>(pendingPeers))
+                if (now - since > JoinRequestTimeout) { pendingPeers.Remove(peer); Multiplayer.MultiplayerPeer.DisconnectPeer(peer); }
+            if (autoStart > 0 && State == LobbyState.InRoom && members.Count >= autoStart + 1 && CanStart) StartMatch();
+        }
+    }
+
+    // ------------------------------------------------------------------ signaux réseau
+
+    void OnPeerConnected(long id)
+    {
+        if (!IsHost) return;
+        pendingPeers[(int)id] = Time.GetTicksMsec() / 1000.0;
+    }
+
+    void OnPeerDisconnected(long id)
+    {
+        if (!IsHost) return;
+        pendingPeers.Remove((int)id);
+        if (members.Remove((int)id, out var m))
+        {
+            GD.Print($"[Lobby] {m.Name} a quitté la salle");
+            BroadcastRoster();
+        }
+    }
+
+    void OnConnectedToServer()
+    {
+        if (IsHost || State is not (LobbyState.Connecting or LobbyState.Reconnecting)) return;
+        GD.Print("[Lobby] Connecté à l'hôte : demande d'entrée");
+        RpcId(1, MethodName.JoinRequestRpc, NetSession.ProtocolVersion, GameVersion, Identity.Name, Identity.Token, IsVr, myTeam);
+    }
+
+    void OnConnectionFailed()
+    {
+        if (IsHost) return;
+        if (State == LobbyState.Reconnecting) { Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer(); return; }   // on retentera
+        if (State == LobbyState.Connecting) Fail("Connexion impossible");
+    }
+
+    void OnServerDisconnected()
+    {
+        if (IsHost) return;
+        if (State == LobbyState.InMatch) return;   // la session de jeu prévient (OnMatchConnectionLost)
+        if (State == LobbyState.Reconnecting) { Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer(); return; }
+        if (State == LobbyState.InRoom) Fail("L'hôte a fermé la salle");
+    }
+
+    // ------------------------------------------------------------------ RPC
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void JoinRequestRpc(int protocol, string version, string name, string token, bool vr, int team)
+    {
+        if (!IsHost) return;
+        int peer = Multiplayer.GetRemoteSenderId();
+        pendingPeers.Remove(peer);
+        string? refusal = null;
+        if (protocol != NetSession.ProtocolVersion) refusal = $"Version différente (hôte {GameVersion}, vous {Identity.Clean(version)}) : mettez le jeu à jour";
+        else if (members.Count >= MaxPlayers && !members.ContainsKey(peer)) refusal = "Partie pleine";
+        else if (State == LobbyState.InMatch && NetSession.Current == null) refusal = "Partie en cours de chargement : réessayez";
+        if (refusal != null)
+        {
+            GD.Print($"[Lobby] Entrée refusée au pair {peer} : {refusal}");
+            RpcId(peer, MethodName.RefuseRpc, refusal);
+            return;
+        }
+        token = (token ?? "").Length > 64 ? token![..64] : token ?? "";
+        var member = new LobbyMember { PeerId = peer, Name = Identity.Clean(name), Token = token, Vr = vr, Team = Mathf.Clamp(team, 0, 1) };
+        // Équipes équilibrées par défaut.
+        int[] count = { members.Values.Count(m => m.Team == 0), members.Values.Count(m => m.Team == 1) };
+        if (count[member.Team] > count[1 - member.Team]) member.Team = 1 - member.Team;
+        members[peer] = member;
+        GD.Print($"[Lobby] {member.Name} entre dans la salle (pair {peer}, équipe {member.Team + 1})");
+        if (State == LobbyState.InMatch)
+        {
+            // Entrée en cours de partie ou retour après une coupure : l'hôte choisit la zone (celle du jeton si elle est libre).
+            int zone = NetSession.Current!.ZoneForJoin(token, member.Team);
+            if (zone < 0) { members.Remove(peer); RpcId(peer, MethodName.RefuseRpc, "Partie pleine"); return; }
+            matchZones[peer] = zone;
+            BroadcastRoster();
+            RpcId(peer, MethodName.StartRpc, Map, zone);
+            return;
+        }
+        BroadcastRoster();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void RefuseRpc(string reason)
+    {
+        GD.Print($"[Lobby] Refusé par l'hôte : {reason}");
+        Fail(reason);
+        if (GetTree().CurrentScene?.GetNodeOrNull("NetSession") != null) GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void SetReadyRpc(bool ready)
+    {
+        if (!IsHost || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m)) return;
+        m.Ready = ready;
+        BroadcastRoster();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void SetTeamRpc(int team)
+    {
+        if (!IsHost || State != LobbyState.InRoom || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m)) return;
+        m.Team = Mathf.Clamp(team, 0, 1);
+        BroadcastRoster();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void RosterRpc(string json)
+    {
+        var parsed = Json.ParseString(json);
+        if (parsed.VariantType != Variant.Type.Dictionary) return;
+        var d = parsed.AsGodotDictionary();
+        Map = (string)d["map"];
+        members.Clear();
+        foreach (var v in d["members"].AsGodotArray())
+        {
+            var md = v.AsGodotDictionary();
+            var m = new LobbyMember { PeerId = (int)md["peer"], Name = (string)md["name"], Team = (int)md["team"], Ready = (bool)md["ready"], Vr = (bool)md["vr"] };
+            members[m.PeerId] = m;
+        }
+        if (State is LobbyState.Connecting) SetState(LobbyState.InRoom, "Dans la salle");
+        else Changed?.Invoke();
+        if (autoReady && State == LobbyState.InRoom && members.TryGetValue(Multiplayer.GetUniqueId(), out var me) && !me.Ready) SetReady(true);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void StartRpc(string map, int zone)
+    {
+        GD.Print($"[Lobby] L'hôte lance la partie : {map}, zone {zone}");
+        LaunchClient(map, zone);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void ReturnToLobbyRpc()
+    {
+        SetState(LobbyState.InRoom, "De retour dans la salle");
+        GameLaunch.ShowLobby = true;
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    // ------------------------------------------------------------------ outils
+
+    void LaunchClient(string map, int zone)
+    {
+        Map = map;
+        var cfg = BaseConfig();
+        cfg.Mode = NetMode.Client;
+        cfg.Map = map;
+        cfg.Zone = zone;
+        cfg.Preconnected = true;
+        SetState(LobbyState.InMatch, "Partie en cours");
+        GameLaunch.Set(cfg);
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    /// <summary>Base de configuration : garde les options de test de la ligne de commande (latence, perte, joueur automatique).</summary>
+    static NetConfig BaseConfig()
+    {
+        var cfg = NetConfig.Parse();
+        cfg.Token = Identity.Token;
+        cfg.PlayerName = Identity.Name;
+        return cfg;
+    }
+
+    void BroadcastRoster()
+    {
+        if (!IsHost) { Changed?.Invoke(); return; }
+        var list = new Godot.Collections.Array();
+        foreach (var m in Members)
+            list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr });
+        string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch });
+        foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.RosterRpc, json);
+        SteamBridge.OnRosterChanged(this);
+        Changed?.Invoke();
+    }
+
+    Godot.Collections.Dictionary? Announcement()
+    {
+        if (!IsHost || State is not (LobbyState.InRoom or LobbyState.InMatch)) return null;
+        return new Godot.Collections.Dictionary
+        {
+            ["game"] = "dogeball", ["protocol"] = NetSession.ProtocolVersion, ["port"] = port, ["name"] = Identity.Name, ["map"] = Map,
+            ["players"] = members.Count, ["max"] = MaxPlayers, ["inMatch"] = State == LobbyState.InMatch,
+        };
+    }
+
+    void SetState(LobbyState state, string status)
+    {
+        if (State != state) GD.Print($"[Lobby] État : {State} -> {state}");
+        State = state;
+        Status = status;
+        stateClock = 0;
+        Changed?.Invoke();
+    }
+
+    void Fail(string reason)
+    {
+        GD.Print($"[Lobby] Échec : {reason}");
+        Reset();
+        SetState(LobbyState.Idle, reason);
+        Failed?.Invoke(reason);
+    }
+
+    void Reset()
+    {
+        if (Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer and not null) Multiplayer.MultiplayerPeer.Close();
+        Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
+        SteamBridge.Leave();
+        Lan.Announcement = null;
+        Lan.StopListening();
+        ClosePortMapping();
+        members.Clear();
+        pendingPeers.Clear();
+        matchZones.Clear();
+        IsHost = false;
+        Code = "";
+    }
+
+    public static string GameVersion => (string)ProjectSettings.GetSetting("application/config/version", "dev");
+    static bool IsVr => Xr.XrBootstrap.Active;
+
+    static MapData? LoadMap(string name)
+    {
+        string path = $"res://maps/{name}.json";
+        return FileAccess.FileExists(path) ? MapData.Load(path) : null;
+    }
+
+    static int MapZoneCount(string name) => LoadMap(name)?.Zones.Count ?? 4;
+
+    static string LocalIPv4()
+    {
+        foreach (var a in IP.GetLocalAddresses())
+            if (a.Contains('.') && !a.StartsWith("127.") && !a.StartsWith("169.254.")) return a;
+        return "127.0.0.1";
+    }
+
+    // UPnP : ouverture automatique du port sur la box (souvent refusée ; sinon, ouvrir le port UDP à la main ou passer par Steam).
+    void OpenPortMapping(int mapPort)
+    {
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                var u = new Upnp();
+                if (u.Discover(2000, 2, "") != (int)Upnp.UpnpResult.Success || u.GetGateway() is not { } gw || !gw.IsValidGateway()) { GD.Print("[Lobby] UPnP : pas de box compatible"); return; }
+                if (u.AddPortMapping(mapPort, mapPort, "Dogeball", "UDP", 0) != (int)Upnp.UpnpResult.Success) { GD.Print("[Lobby] UPnP : ouverture du port refusée"); return; }
+                string external = u.QueryExternalAddress();
+                Callable.From(() =>
+                {
+                    upnp = u;
+                    if (IsHost && external.Count(c => c == '.') == 3) { Code = JoinCode.FromAddress(external, mapPort); GD.Print($"[Lobby] UPnP : port {mapPort} ouvert, code Internet {Code}"); Changed?.Invoke(); }
+                }).CallDeferred();
+            }
+            catch (Exception e) { GD.Print($"[Lobby] UPnP : {e.Message}"); }
+        });
+    }
+
+    void ClosePortMapping()
+    {
+        if (upnp == null) return;
+        try { upnp.DeletePortMapping(port, "UDP"); } catch (Exception) { }
+        upnp = null;
+    }
+}
