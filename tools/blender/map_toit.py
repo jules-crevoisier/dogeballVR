@@ -1,0 +1,222 @@
+"""Carte « Toit » : arène 30 × 16 m sur le toit d'un immeuble, ville en arrière-plan, DA inspirée de Knockout City
+(briques chaudes, corniches arrondies, bandes jaune et noir, néons, enseignes, caisses en bois).
+Noms, enseignes et motifs sont originaux.
+
+Deux ensembles :  build_toit()  décor proche (jouable)  ·  build_ville()  skyline lointaine (sans collision).
+Axes : X = longueur (équipe orange à -X, bleue à +X), Y = largeur, Z = haut. Sol de jeu en Z = 0.
+"""
+import math
+import random
+
+import bpy
+
+import lib
+from kc import NEON, arch_cap, block, dome, kmat, tube
+
+HX, HY = 18.0, 15.0   # demi-dimensions de l'aire de jeu (arenaBounds de croix_neon.json ; Blender Y = -Z Godot)
+
+
+def hazard_frame(z=0.011):
+    """Bande jaune et noire qui borde l'aire de jeu (quatre bandes)."""
+    w = 0.7
+    block((2 * HX + 2 * w, w, 0.02), (0, HY - w / 2, z), "danger", "BandeN", 0.0)
+    block((2 * HX + 2 * w, w, 0.02), (0, -HY + w / 2, z), "danger", "BandeS", 0.0)
+    block((w, 2 * HY, 0.02), (HX - w / 2, 0, z), "danger", "BandeE", 0.0)
+    block((w, 2 * HY, 0.02), (-HX + w / 2, 0, z), "danger", "BandeO", 0.0)
+
+
+def roof():
+    block((2 * HX + 14, 2 * HY + 12, 1.2), (0, 0, -0.6), "beton", "Dalle", 0.06)
+    hazard_frame()
+
+
+def parapets():
+    """Parapet de brique avec capuchon arrondi sombre et piliers, comme les toits du trailer."""
+    h, t = 1.1, 0.7
+    for sy in (-1, 1):
+        block((2 * HX + 2.8, t, h), (0, sy * (HY + 1.45), h / 2), "brique", f"ParapetL{sy}", 0.05)
+        arch_cap(2 * HX + 3.0, (0, sy * (HY + 1.45), h + 0.12), f"CapL{sy}", "x")
+    for sx in (-1, 1):
+        block((t, 2 * HY + 2.8, h), (sx * (HX + 1.45), 0, h / 2), "brique", f"ParapetP{sx}", 0.05)
+        arch_cap(2 * HY + 3.0, (sx * (HX + 1.45), 0, h + 0.12), f"CapP{sx}", "y")
+    # liserés néon sur la face intérieure : cyan sur les longs côtés, couleur d'équipe aux extrémités
+    for sy in (-1, 1):
+        block((2 * HX, 0.08, 0.12), (0, sy * (HY + 1.45 - 0.37), 0.75), "neon_cyan", f"NeonL{sy}", 0.0)
+    block((0.08, 2 * HY, 0.12), (-HX - 1.45 + 0.37, 0, 0.75), "neon_orange", "NeonO", 0.0)
+    block((0.08, 2 * HY, 0.12), (HX + 1.45 - 0.37, 0, 0.75), "neon_cyan", "NeonB", 0.0)
+    # piliers de jaune sur les côtés longs
+    for sy in (-1, 1):
+        for i in range(-4, 5):
+            block((0.9, 0.95, h + 0.25), (i * 4.4, sy * (HY + 1.45), (h + 0.25) / 2), "brique_jaune", f"Pilier{sy}_{i}", 0.05)
+            tube(0.36, 0.5, (i * 4.4, sy * (HY + 1.45), h + 0.3), "capuchon", f"PilierCap{sy}_{i}", 12)
+
+
+def tower(x, y, w, d, h, name, facing=1, sign=None):
+    """Cage d'escalier en briques à bandes jaunes, porte, fenêtre éclairée, toit à capuchon."""
+    block((w, d, h), (x, y, h / 2), "brique", name, 0.06)
+    for k in (0.3, 0.62):
+        block((w + 0.08, d + 0.08, 0.35), (x, y, h * k), "brique_jaune", f"{name}_bande{k}", 0.03)
+    arch_cap(w + 0.4, (x, y, h + 0.15), f"{name}_toit", "x")
+    arch_cap(d + 0.4, (x, y, h + 0.15), f"{name}_toit2", "y")
+    fy = y - facing * (d / 2 + 0.02)
+    block((1.1, 0.06, 2.0), (x, fy, 1.0), "metal_sombre", f"{name}_porte", 0.03)
+    block((1.0, 0.06, 0.9), (x - w * 0.25, fy, h * 0.62 + 0.9), "neon_jaune", f"{name}_fen", 0.0)
+    block((w * 0.8, 0.08, 0.5), (x, fy, h * 0.9), "metal_bleu", f"{name}_enseigne", 0.03)
+    block((w * 0.8 - 0.2, 0.09, 0.08), (x, fy, h * 0.9), "neon_cyan", f"{name}_neon", 0.0)
+
+
+def towers():
+    tower(-HX - 4.5, -HY - 1.0, 4.2, 3.6, 6.2, "TourO1", 1)
+    tower(HX + 4.5, -HY - 1.0, 4.2, 3.6, 5.4, "TourB1", 1)
+    tower(-HX - 4.5, HY + 1.0, 4.2, 3.6, 5.0, "TourO2", -1)
+    tower(HX + 4.5, HY + 1.0, 4.2, 3.6, 6.6, "TourB2", -1)
+
+
+def crates():
+    rnd = random.Random(7)
+    spots = [(-8, HY + 3.4, 1), (-6.8, HY + 3.9, 1), (-7.6, HY + 3.7, 2), (9, -HY - 3.4, 1), (10.3, -HY - 3.9, 1), (9.5, -HY - 3.6, 2), (-12, -HY - 3.5, 1), (14, HY + 3.5, 1)]
+    for i, (x, y, lv) in enumerate(spots):
+        s = 1.25
+        block((s, s, s), (x, y, s / 2 + (lv - 1) * s - 0.0), "bois", f"Caisse{i}", 0.05, rot=(0, 0, rnd.uniform(-0.25, 0.25)))
+        block((s + 0.06, s + 0.06, 0.1), (x, y, (lv - 1) * s + 0.05), "metal_sombre", f"CaisseBas{i}", 0.0)
+    block((6.0, 2.4, 2.5), (-1.5, -HY - 5.0, 1.25), "metal_bleu", "Conteneur", 0.05)
+    block((6.05, 0.06, 0.3), (-1.5, -HY - 3.78, 2.0), "danger", "ConteneurBande", 0.0)
+
+
+COVERS = [  # (x, z Godot, base y, sx, sy, sz) tirés de maps/croix_neon.json
+    (0.3, -7.2, 3.2, 1.3, 0.25), (1.8, -8.5, 0.25, 1.3, 3.2), (-8.3, -7.2, 3.2, 1.3, 0.25), (-9.8, -8.5, 0.25, 1.3, 3.2),
+    (7.2, 0.3, 0.25, 1.3, 3.2), (8.5, 1.8, 3.2, 1.3, 0.25), (7.2, -8.3, 0.25, 1.3, 3.2), (8.5, -9.8, 3.2, 1.3, 0.25),
+    (-0.3, 7.2, 3.2, 1.3, 0.25), (-1.8, 8.5, 0.25, 1.3, 3.2), (8.3, 7.2, 3.2, 1.3, 0.25), (9.8, 8.5, 0.25, 1.3, 3.2),
+    (-7.2, -0.3, 0.25, 1.3, 3.2), (-8.5, -1.8, 3.2, 1.3, 0.25), (-7.2, 8.3, 0.25, 1.3, 3.2), (-8.5, 9.8, 3.2, 1.3, 0.25),
+]
+PILLARS = [(-4, -9), (9, -4), (4, 9), (-9, 4)]
+ZONES = [(-4, -8.5, "orange_equipe"), (8.5, -4, "bleu_equipe"), (4, 8.5, "orange_equipe"), (-8.5, 4, "bleu_equipe")]
+DISPENSERS = [(-1.5, -10), (10, -1.5), (1.5, 10), (-10, 1.5)]
+
+
+def gameplay_preview():
+    """Reproduit les éléments de jeu construits par le code (abris, pilier, moyeu, distributeurs, zones) pour les rendus."""
+    for x, z, w, h, d in [(c[0], c[1], c[2], c[3], c[4]) for c in COVERS]:
+        i = len(bpy.data.objects)
+        block((w, d, h), (x, -z, h / 2), "beton_clair", f"Abri{i}", 0.08)
+        block((w + 0.02, d + 0.02, 0.1), (x, -z, h + 0.04), "capuchon", f"AbriHaut{i}", 0.02)
+    for x, z in PILLARS:
+        block((0.8, 0.8, 2.2), (x, -z, 1.1), "metal_bleu", f"Pilier{x}{z}", 0.05)
+        block((0.9, 0.9, 0.12), (x, -z, 2.25), "neon_cyan", f"PilierNeon{x}{z}", 0.0)
+    for i, (x, z, k) in enumerate(ZONES):
+        block((15, 8, 0.03), (x, -z, 0.016), "beton_zone", f"Zone{i}", 0.0, rot=(0, 0, 0 if i % 2 == 0 else math.pi / 2))
+        zw, zd = (15, 8) if i % 2 == 0 else (8, 15)   # emprise réelle de la zone sur X et Y
+        for sgn in (-1, 1):   # lignes jaunes peintes sur les deux grands côtés
+            if i % 2 == 0:
+                block((zw, 0.12, 0.035), (x, -z + sgn * (zd / 2 - 0.1), 0.034), "danger_ligne", f"ZoneLigne{i}{sgn}", 0.0)
+            else:
+                block((0.12, zd, 0.035), (x + sgn * (zw / 2 - 0.1), -z, 0.034), "danger_ligne", f"ZoneLigne{i}{sgn}", 0.0)
+        block((15, 0.35, 0.04), (x, -z, 0.03), k, f"ZoneBande{i}", 0.0, rot=(0, 0, 0 if i % 2 == 0 else math.pi / 2))
+    for i, (x, z) in enumerate(DISPENSERS):
+        tube(0.3, 1.0, (x, -z, 0.5), "metal_sombre", f"Distrib{i}", 12)
+        tube(0.65, 0.05, (x, -z, 0.025), "metal_bleu", f"DistribPlot{i}", 6)
+        tube(0.5, 0.012, (x, -z, 1.01), "neon_cyan", f"DistribAnneau{i}", 6)
+    # moyeu : sol 9 × 9, pylône 1,6 × 3,4, rotor à 4 bras
+    block((9, 9, 0.1), (0, 0, 0.05), "beton_clair", "SolMoyeu", 0.03)
+    block((1.6, 1.6, 3.4), (0, 0, 1.7), "metal_bleu", "Pylone", 0.06)
+    block((1.9, 1.9, 0.2), (0, 0, 3.45), "neon_cyan", "PyloneAnneau", 0.0)
+    tube(0.33, 0.4, (0, 0, 4.0), "neon_jaune", "Lanceur", 14)
+    for i in range(4):
+        a = i * math.pi / 2
+        block((4.0, 0.4, 0.4), (math.cos(a) * 2.2, math.sin(a) * 2.2, 1.8), "metal_sombre", f"Bras{i}", 0.05, rot=(0, 0, a))
+        block((0.5, 0.5, 0.5), (math.cos(a) * 4.0, math.sin(a) * 4.0, 1.8), "orange_equipe" if i % 2 == 0 else "bleu_equipe", f"Pointe{i}", 0.05)
+
+
+def clutter():
+    """Réservoir d'eau sur pilotis, blocs de climatisation et lampadaires : le désordre d'un vrai toit."""
+    x, y = HX + 11, -HY - 8
+    for dx in (-1.2, 1.2):
+        for dy in (-1.2, 1.2):
+            block((0.25, 0.25, 3.0), (x + dx, y + dy, 1.5), "metal_sombre", f"PilotisR{dx}{dy}", 0.02)
+    tube(1.9, 2.8, (x, y, 4.4), "bois", "Reservoir", 20)
+    tube(1.95, 0.25, (x, y, 5.9), "capuchon", "ReservoirToit", 20, rot=(0, 0, 0))
+    tube(0.25, 0.9, (x, y, 6.5), "metal_sombre", "ReservoirPointe", 8)
+    for i, (cx, cy) in enumerate([(-HX - 9, 0), (-HX - 9, 5), (HX + 9, 3), (HX + 10, -4)]):
+        block((2.2, 1.6, 1.4), (cx, cy, 0.7), "metal_bleu", f"Clim{i}", 0.06)
+        tube(0.55, 0.12, (cx, cy, 1.45), "metal_sombre", f"ClimVentilo{i}", 14)
+    for i, (px, py) in enumerate([(-HX - 2.6, -6), (-HX - 2.6, 6), (HX + 2.6, -6), (HX + 2.6, 6), (0, -HY - 2.8), (0, HY + 2.8)]):
+        tube(0.09, 5.2, (px, py, 2.6), "metal_sombre", f"Poteau{i}", 8)
+        block((0.9, 0.35, 0.15), (px, py, 5.3), "metal_sombre", f"Lampe{i}", 0.02)
+        block((0.7, 0.25, 0.08), (px, py, 5.2), "neon_jaune", f"Ampoule{i}", 0.0)
+
+
+def pipes():
+    """Gros tuyaux orange lumineux au-dessus du terrain (les tubes de la ruelle) : coude en quart de cercle + colliers blancs."""
+    for k in range(7):
+        a = k * math.radians(14)
+        x, y = -HX + 3 + math.sin(a) * 9.0, HY + 8.0
+        z = 7.0 + (1 - math.cos(a)) * 9.0
+        tube(0.6, 2.6, (x, y, z), "tuyau", f"Tuyau{k}", 16, rot=(0, math.pi / 2 - a, 0))
+        if k % 2 == 0:
+            tube(0.68, 0.32, (x, y, z), "peinture_blanche", f"Collier{k}", 16, rot=(0, math.pi / 2 - a, 0))
+
+
+def sign_fizz(x, y, z, face=-1):
+    """Enseigne « FIZZ » originale : médaillon rayé et panneau néon (aucun logo existant)."""
+    block((7.0, 0.5, 3.2), (x, y, z), "capuchon", "EnseigneFizz", 0.12)
+    block((6.5, 0.2, 2.7), (x, y + face * 0.3, z), "metal_bleu", "EnseigneFace", 0.1)
+    block((6.5, 0.22, 0.12), (x, y + face * 0.32, z + 1.2), "neon_orange", "EnseigneLiserePlus", 0.0)
+    block((6.5, 0.22, 0.12), (x, y + face * 0.32, z - 1.2), "neon_orange", "EnseigneLiseréMoins", 0.0)
+    dome(1.0, (x - 2.2, y + face * 0.45, z), "neon_rose", "EnseigneBille")
+    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face < 0 else 0))
+    t = bpy.context.active_object
+    t.data.body, t.data.size, t.data.extrude, t.data.align_x = "FIZZ", 1.6, 0.05, "CENTER"
+    bpy.ops.object.convert(target="MESH")
+    t = bpy.context.active_object
+    t.name = "EnseigneTexte"
+    t.data.materials.clear()
+    t.data.materials.append(kmat("neon_jaune"))
+
+
+def build_toit(preview=False):
+    roof()
+    parapets()
+    towers()
+    crates()
+    clutter()
+    pipes()
+    sign_fizz(4, HY + 14, 10)
+    if preview:
+        gameplay_preview()
+
+
+# --------------------------------------------------------------- ville lointaine
+def build_ville(seed=3):
+    rnd = random.Random(seed)
+    kinds = ["fenetres", "fenetres", "fenetres", "brique", "brique_jaune", "beton"]
+    neons = list(NEON)
+    n = 0
+    for ring, (dist, count) in enumerate([(28, 16), (46, 20), (72, 22), (105, 22)]):
+        for i in range(count):
+            a = i / count * math.tau + rnd.uniform(-0.1, 0.1)
+            d = dist + rnd.uniform(-3, 5)
+            w, dp = rnd.uniform(9, 16), rnd.uniform(9, 16)
+            h = rnd.uniform(22, 38) + ring * 16 + rnd.uniform(0, 14)
+            top = rnd.uniform(6, 24) if ring == 0 else rnd.uniform(0, 30) + ring * 5
+            x, y = math.cos(a) * d * 1.25, math.sin(a) * d
+            k = kinds[rnd.randrange(len(kinds))]
+            block((w, dp, h), (x, y, top - h / 2), k, f"Immeuble{n}", 0.1)
+            if rnd.random() < 0.5:   # couronne arrondie, signe des immeubles art déco
+                c = tube(dp / 2 * 0.95, w, (x, y, top), "capuchon", f"Couronne{n}", 16, rot=(0, math.pi / 2, 0))
+                c.scale = (0.16, 1, 1)   # demi-cylindre bas : la corniche arrondie, pas un tambour
+            else:
+                block((w + 0.6, dp + 0.6, 0.8), (x, y, top + 0.4), "capuchon", f"Toit{n}", 0.05)
+            if rnd.random() < 0.6:   # retrait supérieur
+                block((w * 0.6, dp * 0.6, 4.0), (x, y, top + 2.6), k, f"Retrait{n}", 0.08)
+            nk = neons[rnd.randrange(len(neons))]
+            sgn = -1 if y > 0 else 1
+            block((w + 0.2, 0.3, 0.3), (x, y + sgn * (dp / 2 + 0.12), top - 2.0), nk, f"Neon{n}", 0.0)
+            block((0.3, 0.3, min(h * 0.6, 14)), (x + w / 2 + 0.12, y + sgn * (dp / 2 + 0.12), top - min(h * 0.3, 7)), nk, f"NeonV{n}", 0.0)
+            n += 1
+    for k in range(4):   # tour radio (treillis)
+        a = k * math.pi / 2 + math.pi / 4
+        tube(0.14, 30, (math.cos(a) * 1.6 + 38, math.sin(a) * 1.6 + 34, 15), "metal_sombre", f"RadioPied{k}", 6)
+    for h in range(3, 30, 4):
+        block((3.6, 0.12, 0.12), (38, 35.6, h), "metal_sombre", f"RadioBarre{h}", 0.0)
+        block((0.12, 3.6, 0.12), (39.6, 34, h + 2), "metal_sombre", f"RadioBarreB{h}", 0.0)
+    dome(0.7, (38, 34, 31), "neon_rose", "RadioLampe")

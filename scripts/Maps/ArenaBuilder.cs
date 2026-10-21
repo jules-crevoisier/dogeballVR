@@ -28,17 +28,57 @@ public static class ArenaBuilder
         }
         Node3D ParentOf(int zone) => platforms.TryGetValue(zone, out var p) ? p : root;
 
-        AddEnvironment(root);
+        var decor = map.Decor == null ? null : ModelLibrary.Instance(map.Decor);
+        bool kc = decor != null;
+        if (kc) AddKcEnvironment(root, pcProfile); else AddEnvironment(root);
         AddFloor(root, map);
+        if (kc)
+        {
+            root.AddChild(decor!);
+            var city = ModelLibrary.Instance(map.Decor + "_ville");
+            if (city != null) root.AddChild(city);
+            HideFloorMeshes(root);   // le toit du décor remplace la grille ; les collisions restent
+        }
         AddZones(map, platforms);
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
         if (map.IsRing) { AddRingExtras(root, map); if (pcProfile) AddPcExtras(root, map); }
         foreach (var prop in map.Props) AddProp(root, prop);
-        foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o);
+        foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o, kc);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
         return new Result(root, platforms);
+    }
+
+    /// <summary>Ciel de jour dégradé, brume lointaine, soleil chaud : l'ambiance de la DA Knockout City. Le glow n'est activé qu'au clavier-souris.</summary>
+    static void AddKcEnvironment(Node3D root, bool pcProfile)
+    {
+        var sky = new ProceduralSkyMaterial
+        {
+            SkyTopColor = new Color("5B55D6"), SkyHorizonColor = new Color("FFC59A"), SkyCurve = 0.18f,
+            GroundHorizonColor = new Color("E9B59C"), GroundBottomColor = new Color("6A4FA0"),
+            SunAngleMax = 20f, SunCurve = 0.1f,
+        };
+        var env = new Godot.Environment
+        {
+            BackgroundMode = Godot.Environment.BGMode.Sky,
+            Sky = new Sky { SkyMaterial = sky },
+            AmbientLightSource = Godot.Environment.AmbientSource.Sky,
+            AmbientLightEnergy = 0.75f,
+            TonemapMode = Godot.Environment.ToneMapper.Filmic,
+            FogEnabled = true, FogLightColor = new Color("D7B7DD"), FogDensity = 0.0035f,
+            GlowEnabled = pcProfile, GlowIntensity = 0.7f, GlowBloom = 0.08f, GlowHdrThreshold = 1.0f,
+        };
+        root.AddChild(new WorldEnvironment { Environment = env });
+        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.15f, LightColor = new Color("FFE6C2"), ShadowEnabled = false });
+    }
+
+    static void HideFloorMeshes(Node3D root)
+    {
+        foreach (var n in root.GetChildren())
+            if (n is StaticBody3D body && body.Name.ToString().StartsWith("Floor"))
+                foreach (var c in body.GetChildren())
+                    if (c is MeshInstance3D m) m.Visible = false;
     }
 
     static void AddEnvironment(Node3D root)
@@ -301,7 +341,7 @@ public static class ArenaBuilder
     /// Obstacles du level design : couverts (gris), plots de rebond (gris clair, balle très rebondissante), sol de fosse.
     /// Le centre est en x et z, la base en y. Les bots ne les contournent pas (greybox).
     /// </summary>
-    static void AddObstacle(Node3D root, ObstacleDef o)
+    static void AddObstacle(Node3D root, ObstacleDef o, bool kc = false)
     {
         var size = new Vector3(o.Sx, o.Sy, o.Sz);
         var color = o.Kind switch { "bumper" => new Color("b7bcc8"), "pit" => new Color("14161b"), _ => new Color("7d838f") };
@@ -312,7 +352,11 @@ public static class ArenaBuilder
             RotationDegrees = new Vector3(0, o.RotY, 0),
             PhysicsMaterialOverride = o.Kind == "bumper" ? new PhysicsMaterial { Bounce = 0.95f, Friction = 0.1f } : null,
         };
-        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(color) });
+        Material look = kc
+            ? (o.Kind == "bumper" ? KcShaders.Toon(new Color("3F8FB5"), new Color("245A75"), 6) : KcShaders.Toon(new Color("8C93AB"), new Color("757D97"), 2))
+            : Materials.Flat(color);
+        if (kc && look is ShaderMaterial sm && o.Kind != "pit") sm.NextPass = KcShaders.Outline(0.03f);
+        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
     }

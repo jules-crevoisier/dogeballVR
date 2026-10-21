@@ -1,6 +1,7 @@
 {
   "name": "croix_neon",
   "schemaVersion": 3,
+  "decor": "toit",
   "layout": "ring",
   "zoneWidth": 15,
   "zoneDepth": 8,

@@ -8,10 +8,13 @@ namespace DogeballVR.Visual;
 /// </summary>
 public static class ModelLibrary
 {
-    public static Node3D? Instance(string name)
+    /// <param name="toon">Applique le shader toon KC aux matériaux (désactivé : matériaux glb d'origine).</param>
+    public static Node3D? Instance(string name, bool toon = true)
     {
         var path = $"res://assets/models/{name}.glb";
         if (!ResourceLoader.Exists(path)) return null;
-        return ResourceLoader.Load<PackedScene>(path)?.Instantiate<Node3D>();
+        var node = ResourceLoader.Load<PackedScene>(path)?.Instantiate<Node3D>();
+        if (node != null && toon) KcShaders.Apply(node, withOutline: name.StartsWith("avatar_") || name == "main");
+        return node;
     }
 }
