@@ -252,6 +252,8 @@ public partial class Main : Node3D
         tween.TweenMethod(Callable.From<float>(v => swapFade(v)), 1f, 0f, 0.4);
     }
 
+    static bool PcAutoplay => System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+
     bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
 
     void BuildHost(ZoneDef localZone)
@@ -285,7 +287,13 @@ public partial class Main : Node3D
             if (z.Id != localZone.Id) SpawnBot(z);
 
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
+        {
+            // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
+            var view = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+            match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless";
+        }
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
@@ -445,7 +453,12 @@ public partial class Main : Node3D
         currentPlate = localZone.Id;
         net.PlatesReceived += ApplyPlates;
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
+        {
+            // Le client ne reçoit que le texte du tableau de score : la vue le relit (pas de statistiques par joueur).
+            var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+        }
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
         AddKnockoutFeedback(localZone, world.Lives, 2, () => hud.Text);
