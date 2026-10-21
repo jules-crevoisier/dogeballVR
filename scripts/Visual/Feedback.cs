@@ -84,7 +84,7 @@ public partial class Feedback : Node
                 Juice.Burst(this, hit, teamColor);
                 Juice.Shock(this, hit, Colors.White);
                 SpeechBubble.Spawn(this, HitWords[wordIndex++ % HitWords.Length], hit + new Vector3(0, 0.4f, 0), Colors.White);
-                Sfx.Play(this, SfxKind.Parry, hit, 0.7f);
+                Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
                 Juice.HitStop(this, h == Local ? 0.09f : 0.06f);
             }
             lastLives[h] = lives;

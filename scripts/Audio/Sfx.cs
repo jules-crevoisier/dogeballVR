@@ -4,7 +4,7 @@ using Godot;
 
 namespace DogeballVR.Audio;
 
-public enum SfxKind { Throw, Catch, Perfect, Tier, Ko, Alert, Parry, Bomb }
+public enum SfxKind { Throw, Catch, Perfect, Tier, Ko, Alert, Parry, Bomb, Hit, Click }
 
 /// <summary>
 /// Sons du jeu, synthétisés au démarrage (aucun fichier audio dans le dépôt) : un balayage de fréquence enveloppé par sample.
@@ -26,6 +26,8 @@ public static class Sfx
         [SfxKind.Alert] = (880, 880, 0.09f, 0.55f, 0),
         [SfxKind.Parry] = (700, 250, 0.1f, 0.5f, 1),
         [SfxKind.Bomb] = (140, 40, 0.6f, 0.8f, 2),
+        [SfxKind.Hit] = (150, 45, 0.32f, 0.9f, 3),     // choc : claquement de bruit + grave qui plonge
+        [SfxKind.Click] = (900, 600, 0.05f, 0.4f, 1),
     };
 
     static AudioStreamWav Make(SfxKind kind)
@@ -44,7 +46,8 @@ public static class Sfx
             {
                 0 => Math.Sin(phase),
                 1 => Math.Tanh(2.5 * Math.Sin(phase)),
-                _ => (lp += 0.25 * ((rng.NextDouble() * 2 - 1) - lp)) * 3,
+                2 => (lp += 0.25 * ((rng.NextDouble() * 2 - 1) - lp)) * 3,
+                _ => Math.Sin(phase) * 1.1 + (rng.NextDouble() * 2 - 1) * Math.Exp(-t * 18) * 0.9 + Math.Tanh(3 * Math.Sin(phase * 0.5)) * 0.3,
             };
             double env = Math.Min(1.0, i / (Rate * 0.004)) * Math.Pow(1 - t, 1.6);
             short s = (short)(Math.Clamp(v * env * gain, -1, 1) * short.MaxValue);

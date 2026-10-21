@@ -70,7 +70,12 @@ public static class ArenaBuilder
             GlowEnabled = pcProfile, GlowIntensity = 0.7f, GlowBloom = 0.08f, GlowHdrThreshold = 1.0f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
-        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.4f, LightColor = new Color("FFE6C2"), ShadowEnabled = false });
+        root.AddChild(new DirectionalLight3D
+        {
+            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.4f, LightColor = new Color("FFE6C2"),
+            ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 1.6f,
+            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
+        });
     }
 
     static void HideFloorMeshes(Node3D root)
