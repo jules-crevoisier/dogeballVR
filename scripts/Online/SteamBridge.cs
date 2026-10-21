@@ -17,4 +17,5 @@ public static partial class SteamBridge
     public static void OnMatchStarted(OnlineLobby lobby) { }
     public static void OnRosterChanged(OnlineLobby lobby) { }
     public static void OpenInvite() { }
+    public static void Flush() { }
 }

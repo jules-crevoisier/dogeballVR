@@ -92,6 +92,29 @@ public partial class OnlineLobby : Node
             if (a.StartsWith("--autostart=") && int.TryParse(a["--autostart=".Length..], out int n)) autoStart = n;
     }
 
+    public override void _Notification(int what)
+    {
+        if (what == NotificationWMCloseRequest) AnnounceHostClosing();
+    }
+
+    /// <summary>Hôte qui ferme : les joueurs reviennent tout de suite au menu, sans attendre 45 s de reconnexion inutile.</summary>
+    void AnnounceHostClosing()
+    {
+        if (!IsHost || State is not (LobbyState.InRoom or LobbyState.InMatch)) return;
+        foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.HostClosingRpc);
+        if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet) enet.Host?.Flush();
+        SteamBridge.Flush();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void HostClosingRpc()
+    {
+        GD.Print("[Lobby] L'hôte a fermé la partie");
+        bool inGame = State == LobbyState.InMatch;
+        Fail("L'hôte a quitté la partie");
+        if (inGame) GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
     public override void _ExitTree()
     {
         if (Instance == this) Instance = null;
@@ -281,6 +304,7 @@ public partial class OnlineLobby : Node
     /// <summary>Quitte la salle (ou la partie) et ferme la connexion.</summary>
     public void Leave()
     {
+        AnnounceHostClosing();
         bool wasConnected = State is LobbyState.InRoom or LobbyState.InMatch or LobbyState.Reconnecting;
         Reset();
         SetState(LobbyState.Idle, "");
