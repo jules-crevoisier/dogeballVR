@@ -1,0 +1,280 @@
+"""Génère tous les assets .glb du jeu.
+
+Usage : python3 -I tools/blender/gen_assets.py <dossier_sortie> [nom ...]
+Les unités sont des mètres, Z haut dans Blender (converti en Y haut par l'export glTF).
+"""
+import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bpy  # noqa: E402
+from lib import (box, cyl, export, mat, outline_shell, reset, sphere, torus, tris)  # noqa: E402
+
+
+# ---------------------------------------------------------------- balles
+def _ball_core(kind):
+    r = 0.15
+    body = sphere(r, material=mat("balle", "balle", 1.0), name="Balle", sub=3)
+    parts = [body]
+    dark = mat("bande", "panneau")
+    if kind == "normale":
+        parts.append(torus(r * 1.005, 0.012, material=dark, name="Bande", seg=32, rseg=4))
+    elif kind == "bombe":
+        parts.append(torus(r * 1.005, 0.014, material=dark, name="Bande", seg=32, rseg=4))
+        parts.append(torus(r * 1.005, 0.014, material=dark, name="Bande2", seg=32, rseg=4, rot=(math.pi / 2, 0, 0)))
+        parts.append(cyl(0.06, 0.06, (0, 0, r + 0.012), dark, "Culot", verts=12))
+        parts.append(cyl(0.022, 0.1, (0, 0, r + 0.07), mat("meche", "ligne"), "Meche", verts=8))
+        parts.append(sphere(0.035, (0, 0, r + 0.14), mat("etincelle", "#FF6A1A", 2.0), "Etincelle", sub=1))
+    else:  # rebond : trois anneaux inclinés
+        for i in range(2):
+            parts.append(torus(r * 1.005, 0.016, material=dark, name=f"Anneau{i}", seg=32, rseg=4,
+                               rot=(math.pi / 2, 0, i * math.pi / 2)))
+    return parts
+
+
+def ball(kind):  # noqa
+    def f():
+        return _ball_core(kind)
+    return f
+
+
+# ---------------------------------------------------------------- avatars
+def avatar(team, part):
+    col = "orange" if team == "orange" else "bleu"
+    c = mat("combi_" + team, col)
+    dk = mat("jambes", "#2B3658")
+    wh = mat("blanc", "ligne", 0.35)
+    p = []
+    # jambes en deux blocs (cuisse + mollet) légèrement écartées, chaussures larges
+    for s in (-1, 1):
+        p.append(box((0.2, 0.22, 0.42), (s * 0.13, 0, 0.58), dk, f"Cuisse{s}", 0.04))
+        p.append(box((0.18, 0.2, 0.36), (s * 0.13, 0, 0.21), dk, f"Mollet{s}", 0.04))
+        p.append(box((0.22, 0.38, 0.12), (s * 0.13, 0.07, 0.06), wh, f"Pied{s}", 0.035))
+    p.append(box((0.46, 0.26, 0.20), (0, 0, 0.88), dk, "Bassin", 0.05))
+    p.append(box((0.58, 0.30, 0.07), (0, 0, 1.0), wh, "Ceinture", 0.02))
+    p.append(box((0.6, 0.32, 0.46), (0, 0, 1.2), c, "Torse", 0.08))
+    p.append(box((0.82, 0.34, 0.2), (0, 0, 1.4), c, "Epaules", 0.08))
+    # bras écartés vers l'extérieur (posture active), manchon sombre au poignet
+    for s in (-1, 1):
+        p.append(box((0.17, 0.19, 0.46), (s * 0.52, 0, 1.13), c, f"Bras{s}", 0.045, rot=(0, s * math.radians(-12), 0)))
+        p.append(sphere(0.115, (s * 0.47, 0, 1.4), c, f"Deltoide{s}", sub=2))
+    p.append(cyl(0.08, 0.10, (0, 0, 1.53), dk, "Cou", verts=10))
+    p.append(sphere(0.23, (0, 0, 1.72), c, "Tete", sub=2))
+    p.append(sphere(0.2, (0, 0.17, 1.73), mat("visiere", "visiere"), "Visiere", sub=2, scale=(0.95, 0.45, 0.36)))
+    if team == "orange":
+        d = cyl(0.12, 0.014, (0, 0.165, 1.24), wh, "Signe", verts=20, rot=(math.pi / 2, 0, 0))
+    else:
+        d = cyl(0.15, 0.014, (0, 0.165, 1.24), wh, "Signe", verts=4, rot=(math.pi / 2, 0, 0), smooth=False)
+    p.append(d)
+    head_names = ("Tete", "Visiere")
+    keep = p if part == "tout" else [o for o in p if (o.name.split(".")[0] in head_names) == (part == "tete")]
+    for o in p:
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+    # origine = pivot de l'avatar Godot : tête au centre de la tête, torse à 0,5 m sous la tête
+    dz = 0 if part == "tout" else (1.72 if part == "tete" else 1.13)
+    for o in keep:
+        o.location.z -= dz
+    return lambda: keep
+
+
+def hand():
+    wh = mat("blanc", "ligne")
+    p = [sphere(0.115, (0, 0, 0), wh, "Paume", sub=3, scale=(1.0, 0.8, 1.05))]
+    for i in range(4):  # quatre doigts fusionnés en capsules courtes
+        p.append(sphere(0.045, ((i - 1.5) * 0.06, 0.0, 0.125 - abs(i - 1.5) * 0.015), wh, f"Doigt{i}", sub=3, scale=(1.0, 1.0, 1.6)))
+    th = sphere(0.05, (0.125, 0.0, 0.03), wh, "Pouce", sub=3, scale=(1.0, 1.0, 1.6))
+    th.rotation_euler = (0, math.radians(-35), 0)
+    p.append(th)
+    p.append(cyl(0.085, 0.07, (0, 0, -0.1), mat("manchette", "#2B3658"), "Manchette", verts=12))
+    return lambda: p
+
+
+# ---------------------------------------------------------------- plots hexagonaux
+def pad(team):
+    base = {"neutre": "neutre", "orange": "orange", "bleu": "bleu"}[team]
+    R = 0.62
+    body = cyl(R, 0.06, (0, 0, 0.03), mat("plot_base", "mur"), "Plaque", verts=6, bevel=0.015)
+    ring = cyl(R * 0.82, 0.012, (0, 0, 0.066), mat("plot_" + team, base, 0.6 if team != "neutre" else 0.0),
+               "Anneau", verts=6, smooth=False)
+    inner = cyl(R * 0.62, 0.014, (0, 0, 0.068), mat("plot_base", "mur"), "Centre", verts=6, smooth=False)
+    return lambda: [body, ring, inner]
+
+
+# ---------------------------------------------------------------- moyeu / lanceur
+def hub():
+    dk = mat("hub_base", "panneau")
+    gr = mat("sol", "sol")
+    wh = mat("ligne", "ligne")
+    p = []
+    p.append(cyl(1.25, 0.2, (0, 0, 0.1), gr, "Socle", verts=24, bevel=0.04))
+    p.append(cyl(0.62, 1.1, (0, 0, 0.75), dk, "Fut", verts=16, bevel=0.0))
+    p.append(torus(0.64, 0.06, (0, 0, 1.0), wh, "Bague", seg=24, rseg=6))
+    p.append(cyl(0.55, 0.22, (0, 0, 1.4), gr, "Tete", verts=16, r2=0.42))
+    # bouche du lanceur : ouverture orientée vers le haut, balle posée dessus
+    p.append(torus(0.26, 0.05, (0, 0, 1.52), mat("balle", "balle", 1.0), "Bouche", seg=20, rseg=6))
+    # rotor séparé (nœud « Rotor ») : 4 bras
+    rot = bpy.data.objects.new("Rotor", None)
+    bpy.context.collection.objects.link(rot)
+    rot.location = (0, 0, 0.95)
+    bm = mat("bras", "#2B3658")
+    for i in range(4):
+        a = i * math.pi / 2
+        arm = box((1.9, 0.3, 0.2), (math.cos(a) * 1.1, math.sin(a) * 1.1, 0.95), bm, f"Bras{i}", 0.03, rot=(0, 0, a))
+        arm.parent = rot
+        arm.matrix_parent_inverse = rot.matrix_world.inverted()
+        p.append(arm)
+        tip = box((0.4, 0.4, 0.26), (math.cos(a) * 2.05, math.sin(a) * 2.05, 0.95), mat("pointe", "orange" if i % 2 == 0 else "bleu"), f"Pointe{i}", 0.03)
+        tip.parent = rot
+        tip.matrix_parent_inverse = rot.matrix_world.inverted()
+        p.append(tip)
+    p.append(rot)
+    return lambda: p
+
+
+# ---------------------------------------------------------------- arène
+def wall(team="neutre"):
+    m = mat("mur", "mur")
+    p = [box((4.0, 0.3, 2.4), (0, 0, 1.2), m, "Mur", 0.05)]
+    p.append(box((4.0, 0.33, 0.12), (0, 0, 0.06), mat("plinthe", "sol"), "Plinthe", 0.02))
+    p.append(box((4.0, 0.335, 0.06), (0, 0, 0.5), mat("bande_lim", "ligne", 1.5), "Bande", 0.0))
+    if team != "neutre":
+        cm = mat("chevron_" + team, "orange" if team == "orange" else "bleu")
+        for i in range(4):  # chevrons en « V » inversé, larges, aux couleurs de l'équipe
+            x = -1.5 + i * 1.0
+            for s in (-1, 1):
+                p.append(box((0.62, 0.02, 0.2), (x + s * 0.2, 0.16, 1.45), cm, f"Chevron{i}_{s}", 0.0, rot=(0, s * math.radians(-38), 0)))
+    return lambda: p
+
+
+def floor_tile(team="neutre"):
+    base = {"neutre": "sol", "orange": "sol_orange", "bleu": "sol_bleu"}[team]
+    p = [box((4.0, 4.0, 0.1), (0, 0, -0.05), mat("sol_" + team, base), "Sol", 0.012)]
+    j = mat("joint", "mur")
+    p.append(box((3.96, 0.03, 0.012), (0, 1.97, 0.002), j, "JointN", 0.0))
+    p.append(box((3.96, 0.03, 0.012), (0, -1.97, 0.002), j, "JointS", 0.0))
+    p.append(box((0.03, 3.96, 0.012), (1.97, 0, 0.002), j, "JointE", 0.0))
+    p.append(box((0.03, 3.96, 0.012), (-1.97, 0, 0.002), j, "JointO", 0.0))
+    p.append(box((0.08, 3.9, 0.014), (-1.5, 0, 0.003), mat("ligne_sol", "#9AA3BC"), "Ligne", 0.0))
+    if team != "neutre":
+        p.append(box((1.0, 3.9, 0.014), (1.1, 0, 0.004), mat("bande_" + team, "orange" if team == "orange" else "bleu"), "Bande", 0.0))
+    return lambda: p
+
+
+def cover_block():
+    p = [box((1.2, 0.5, 1.0), (0, 0, 0.5), mat("abri", "#2B3658"), "Abri", 0.07)]
+    p.append(box((1.22, 0.52, 0.06), (0, 0, 1.0), mat("abri_haut", "neutre"), "Haut", 0.02))
+    return lambda: p
+
+
+def ramp():
+    import bmesh
+    from lib import finish
+    me = bpy.data.meshes.new("Tremplin")
+    # coin : 3 m de large (x), 4 m de long (y), haut de 1 m côté y>0
+    v = [(-1.5, -2, 0), (1.5, -2, 0), (1.5, 2, 0), (-1.5, 2, 0), (-1.5, 2, 1), (1.5, 2, 1)]
+    f = [(0, 3, 2, 1), (3, 4, 5, 2), (0, 1, 5, 4)[::-1], (0, 4, 3), (1, 2, 5)]
+    me.from_pydata(v, [], [(0, 3, 2, 1), (3, 4, 5, 2), (0, 1, 5, 4), (0, 4, 3)[::-1], (1, 2, 5)])
+    me.update()
+    o = bpy.data.objects.new("Tremplin", me)
+    bpy.context.collection.objects.link(o)
+    bpy.context.view_layer.objects.active = o
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me); bm.free()
+    finish(o, mat("tremplin", "sol"), "Tremplin", smooth=False, bevel=0.03)
+    stripe = box((3.0, 0.14, 0.05), (0, 1.9, 0.98), mat("tremplin_bord", "ligne"), "Bord", 0.0)
+    return lambda: [o, stripe]
+
+
+def pit_edge():
+    p = [box((4.0, 0.7, 0.2), (0, 0, 0.0), mat("fosse_bord", "neutre"), "Rebord", 0.05)]
+    p.append(box((4.0, 0.12, 0.04), (0, 0.2, 0.11), mat("fosse_ligne", "ligne", 1.0), "Ligne", 0.0))
+    p.append(box((4.0, 0.5, 0.06), (0, 0.9, -0.15), mat("fosse_danger", "orange", 0.8), "Danger", 0.0))
+    return lambda: p
+
+
+def scoreboard():
+    pan = mat("panneau", "panneau")
+    p = [box((4.4, 0.24, 1.5), (0, 0, 0), pan, "Panneau", 0.1)]
+    p.append(box((4.5, 0.26, 0.07), (0, 0, 0.78), mat("lis", "ligne", 1.0), "LisereHaut", 0.0))
+    p.append(box((2.0, 0.1, 1.2), (-1.1, -0.1, 0), mat("score_o", "orange", 0.6), "ZoneOrange", 0.03))
+    p.append(box((2.0, 0.1, 1.2), (1.1, -0.1, 0), mat("score_b", "bleu", 0.6), "ZoneBleue", 0.03))
+    for x in (-1.1, 1.1):
+        bpy.ops.object.text_add(location=(x, -0.2, -0.38), rotation=(math.pi / 2, 0, math.pi))
+        t = bpy.context.active_object
+        t.data.body = "00"
+        t.data.size = 0.85
+        t.data.extrude = 0.03
+        t.data.align_x = "CENTER"
+        bpy.ops.object.convert(target="MESH")
+        t = bpy.context.active_object
+        t.name = "Chiffre"
+        t.data.materials.clear()
+        t.data.materials.append(mat("chiffre", "ligne", 1.0))
+        p.append(t)
+    for s in (-1, 1):
+        p.append(cyl(0.06, 3.0, (s * 1.8, 0, 2.2), mat("cable", "jambes"), f"Cable{s}", verts=6))
+    return lambda: p
+
+
+def lamp():
+    p = [cyl(0.7, 0.1, (0, 0, 0), mat("lampe_lumiere", "ligne", 4.0), "Lumiere", verts=20, bevel=0.0)]
+    p.append(cyl(0.78, 0.07, (0, 0, 0.085), mat("lampe_cadre", "panneau"), "Cadre", verts=20))
+    p.append(cyl(0.75, 0.05, (0, 0, -0.07), mat("lampe_bord", "#2B3658"), "Bord", verts=20))
+    return lambda: p
+
+
+# ---------------------------------------------------------------- effets
+def fx_ring():
+    r = torus(1.0, 0.07, material=mat("fx_anneau", "ligne", 2.0), name="Onde", seg=40, rseg=4)
+    return lambda: [r]
+
+
+def fx_blast():
+    p = []
+    for i, (r, h) in enumerate(((1.0, 0.0), (0.72, 0.22), (0.42, 0.4))):
+        p.append(torus(r, 0.09 - i * 0.015, (0, 0, h), mat("fx_souffle", "ligne", 1.5), f"Anneau{i}", seg=36, rseg=5))
+    return lambda: p
+
+
+def fx_spark():
+    p = []
+    for i in range(4):
+        o = box((0.7, 0.06, 0.06), (0, 0, 0), mat("fx_etincelle", "ligne", 2.0), f"Trait{i}", 0.0)
+        o.rotation_euler = (0, 0, i * math.pi / 4)
+        p.append(o)
+    return lambda: p
+
+
+def L(f, *a):
+    return lambda: f(*a)()
+
+
+ASSETS = {
+    "balle_normale": L(ball, "normale"), "balle_bombe": L(ball, "bombe"), "balle_rebond": L(ball, "rebond"),
+    "avatar_orange_corps": L(avatar, "orange", "corps"), "avatar_orange_tete": L(avatar, "orange", "tete"),
+    "avatar_orange": L(avatar, "orange", "tout"), "avatar_bleu": L(avatar, "bleu", "tout"),
+    "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
+    "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
+    "moyeu": L(hub), "mur": L(wall), "mur_orange": L(wall, "orange"), "mur_bleu": L(wall, "bleu"), "sol_tuile": L(floor_tile), "sol_tuile_orange": L(floor_tile, "orange"), "sol_tuile_bleu": L(floor_tile, "bleu"), "abri": L(cover_block),
+    "tremplin": L(ramp), "bord_fosse": L(pit_edge), "tableau_score": L(scoreboard), "lampe": L(lamp),
+    "fx_onde": L(fx_ring), "fx_souffle": L(fx_blast), "fx_etincelle": L(fx_spark),
+}
+
+
+def main():
+    out = sys.argv[1]
+    names = sys.argv[2:] or list(ASSETS)
+    os.makedirs(out, exist_ok=True)
+    for n in names:
+        reset()
+        parts = ASSETS[n]()
+        objs = [o for o in bpy.context.scene.objects]
+        t = export(os.path.join(out, n + ".glb"), objs)
+        print(f"{n}: {t} triangles")
+
+
+if __name__ == "__main__":
+    main()

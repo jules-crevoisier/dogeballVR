@@ -16,7 +16,9 @@ public partial class PickupBeacon : Node3D
 
     public override void _Ready()
     {
-        AddChild(new MeshInstance3D
+        var slab = ModelLibrary.Instance("plot_neutre");
+        if (slab != null) { slab.Position = new Vector3(0, -0.02f, 0); AddChild(slab); }
+        else AddChild(new MeshInstance3D
         {
             Mesh = new CylinderMesh { TopRadius = 0.62f, BottomRadius = 0.62f, Height = 0.04f, RadialSegments = 6, Rings = 1 },
             MaterialOverride = Materials.Flat(new Color("6b7389")), Position = new Vector3(0, 0.03f, 0), RotationDegrees = new Vector3(0, 30, 0),

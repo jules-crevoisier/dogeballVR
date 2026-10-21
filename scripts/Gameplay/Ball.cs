@@ -43,9 +43,33 @@ public partial class Ball : RigidBody3D
         {
             kind = value;
             if (core != null) core.MaterialOverride = Materials.Glow(KindColor() ?? Palette.BallCore, 1f);
+            ShowDecor();
             UpdateLook();
         }
     }
+    /// <summary>Bandes, mèche et anneaux des modèles Blender (assets/models), un jeu par type de balle ; le cœur reste procédural pour garder la teinte par type.</summary>
+    readonly Node3D?[] decor = new Node3D?[3];
+
+    void AddDecor()
+    {
+        string[] names = { "balle_normale", "balle_bombe", "balle_rebond" };
+        for (int i = 0; i < names.Length; i++)
+        {
+            var model = Visual.ModelLibrary.Instance(names[i]);
+            if (model == null) continue;
+            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // le cœur est déjà dans la balle
+            model.Visible = i == kind || (kind > KindBounce && i == 0);
+            decor[i] = model;
+            AddChild(model);
+        }
+    }
+
+    void ShowDecor()
+    {
+        for (int i = 0; i < decor.Length; i++)
+            if (decor[i] != null) decor[i]!.Visible = i == (kind <= KindBounce ? kind : 0);
+    }
+
     Color? KindColor() => kind == KindBomb ? BombColor : kind == KindBounce ? BounceColor : null;
     MeshInstance3D? core;
 
@@ -115,6 +139,7 @@ public partial class Ball : RigidBody3D
             MaterialOverride = Materials.Glow(Palette.BallCore, 1f),
         };
         ball.AddChild(ball.core);
+        ball.AddDecor();
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
         ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
