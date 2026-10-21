@@ -16,6 +16,7 @@ public static class Palette
     public static readonly Color Panel = new("101830");       // panneaux d'interface, contour sombre
     public static readonly Color TeamA = new("ff6a1a");       // équipe 1 : orange (disque blanc sur le torse)
     public static readonly Color TeamB = new("6cc8ff");       // équipe 2 : bleue (losange blanc sur le torse)
+    public static readonly Color Beacon = new("5fe0c8");      // plots de ramassage : faisceau turquoise, réservé aux distributeurs
     public static readonly Color BallCore = new("d6ff2e");    // balle : seule à utiliser cette couleur
 
     public static readonly Color Night = Wall;                // fond d'écran et base des sols

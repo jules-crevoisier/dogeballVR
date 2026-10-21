@@ -328,6 +328,7 @@ public static class ArenaBuilder
             MaterialOverride = Materials.Flat(new Color("5b616d")),
         });
         body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.3f, Height = def.Y } });
+        body.AddChild(new PickupBeacon { TopY = def.Y, Position = new Vector3(0, -def.Y / 2f, 0) });   // plot hexagonal, faisceau et anneau de recharge
         root.AddChild(body);
     }
 

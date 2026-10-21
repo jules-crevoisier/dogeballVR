@@ -16,8 +16,6 @@ public partial class NetSession : Node
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
-    const float CatchReach = 1.2f;    // tolérance de l'hôte : la main (déjà bornée près de la tête) doit être près de la balle
-    const float MaxThrowSpeed = 30f;  // = plafond côté joueur (HandThrower, DesktopPlayer)
     const float MaxMoveSpeed = 11f;   // m/s (esquive PC à 10 m/s) : au-delà, la pose est ramenée (pas de téléportation)
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
@@ -150,6 +148,11 @@ public partial class NetSession : Node
     public void RequestCatch(int ballId, int hand, bool perfect = false)
     {
         if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand, perfect));
+    }
+
+    public void RequestParry(int ballId, int hand, Vector3 normal)
+    {
+        if (Connected) Later(() => RpcId(1, MethodName.ParryRpc, ballId, hand, normal));
     }
 
     public void RequestThrow(int hand, Vector3 velocity, float spin, int mode = 0)
@@ -367,13 +370,12 @@ public partial class NetSession : Node
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
-            float lagSlack = Mathf.Min(ball.LinearVelocity.Length() * 0.12f, 2.0f);
-            if (ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) > CatchReach + lagSlack) return;
+            if (!Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
             if (ball.IsPass && ball.OwnerTeam != remote.Hurtbox.Team) return;   // une passe ne s'intercepte pas (phase 2)
             // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
             bool perfectOk = perfect && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed
-                && ball.ThrowMode == 0 && ball.LinearVelocity.Length() >= 10f && catchNow - remote.LastPerfectAt > 2.0
+                && ball.ThrowMode == 0 && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap) && catchNow - remote.LastPerfectAt > 1.0
                 && ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) + 0.01f < (ball.GlobalPosition - ball.LinearVelocity * 0.3f).DistanceTo(remote.HandNode(hand).GlobalPosition);
             if (perfectOk) remote.LastPerfectAt = catchNow;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team, perfectOk);
@@ -385,13 +387,31 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void ParryRpc(int ballId, int hand, Vector3 normal)
+    {
+        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
+            || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
+            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
+            remote.LastParryAt = now;
+            GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");
+            return;
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ThrowRpc(int hand, Vector3 velocity, float spin, int mode)
     {
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         mode = Mathf.Clamp(mode, 0, 2);
-        ball.Release(velocity.LimitLength(mode == 0 ? MaxThrowSpeed : 24f), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
+        ball.Release(Assist.PlanFor(ball, velocity, mode), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
         GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s" + (mode == Ball.ModePass ? " (passe)" : mode == Ball.ModeLob ? " (cloche)" : spin != 0 ? " (effet)" : ""));
     }

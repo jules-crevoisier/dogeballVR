@@ -38,6 +38,7 @@ public partial class RemotePlayer : Node3D
     public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;
+    public double LastParryAt { get; set; } = -10;
     public bool TeleportPending { get; set; }
     public double TeleportDeadline { get; set; }
     /// <summary>Dernière pose acceptée par l'hôte (non lissée) : référence de la vérification de vitesse.</summary>
@@ -53,7 +54,7 @@ public partial class RemotePlayer : Node3D
         AddChild(Body);
         SetPose(StartPose);
         Avatar.Pose(StartPose.Head, StartPose.Yaw, StartPose.Left, StartPose.Right);
-        Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head };
+        Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head, HitGraceSeconds = Assist.VrRules ? Assist.HitGraceSeconds : 0f };
         AddChild(Hurtbox);
     }
 

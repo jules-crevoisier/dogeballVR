@@ -21,7 +21,14 @@ public static class BallActions
     public static void Throw(Ball ball, int handIndex, Vector3 velocity, float spin, int mode = 0)
     {
         if (IsClient) Net!.RequestThrow(handIndex, velocity, spin, mode);
-        else ball.Release(velocity, spin, mode);
+        else ball.Release(Assist.PlanFor(ball, velocity, mode), spin, mode);
+    }
+
+    /// <summary>Parade de la paume : le client la demande, l'hôte la juge (balle de palier 0, proche de la main).</summary>
+    public static void Parry(Ball ball, int handIndex, Vector3 normal)
+    {
+        if (IsClient) Net!.RequestParry(ball.NetId, handIndex, normal);
+        else ball.Deflect(normal);
     }
 
     /// <summary>Un dash touche un adversaire : le client le signale à l'hôte, l'hôte (ou le mode hors ligne) le juge.</summary>
