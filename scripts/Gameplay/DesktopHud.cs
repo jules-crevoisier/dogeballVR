@@ -126,7 +126,10 @@ public partial class DesktopHud : CanvasLayer
         crosshair.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(crosshair);
 
-        lives = MakeLabel(new Vector2(24, 20), 34);
+        lives = MakeLabel(new Vector2(24, 20), 46);
+        lives.AddThemeColorOverride("font_color", new Color("FF4D6D"));
+        lives.AddThemeConstantOverride("outline_size", 10);
+        lives.AddThemeColorOverride("font_outline_color", new Color("101830"));
         state = MakeLabel(new Vector2(0, 0), 20);
         state.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         state.OffsetLeft = -600; state.OffsetRight = 200; state.OffsetTop = -112; state.OffsetBottom = -80;
@@ -150,6 +153,7 @@ public partial class DesktopHud : CanvasLayer
         help.OffsetLeft = -470; help.OffsetRight = -20; help.OffsetTop = 20;
         help.HorizontalAlignment = HorizontalAlignment.Right;
         help.CustomMinimumSize = new Vector2(450, 0);
+        help.AddThemeStyleboxOverride("normal", Panel(new Color(0.06f, 0.09f, 0.2f, 0.6f)));
 
         toast = MakeLabel(new Vector2(0, 0), 26);
         toast.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
@@ -160,6 +164,8 @@ public partial class DesktopHud : CanvasLayer
         score.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         score.OffsetLeft = -300; score.OffsetRight = 300; score.OffsetTop = 12;
         score.HorizontalAlignment = HorizontalAlignment.Center;
+        score.AddThemeStyleboxOverride("normal", Panel(new Color(0.06f, 0.09f, 0.2f, 0.72f)));
+        score.AddThemeFontSizeOverride("font_size", 24);
 
         koLabel = MakeLabel(new Vector2(0, 0), 28);
         koLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
@@ -205,6 +211,13 @@ public partial class DesktopHud : CanvasLayer
         back.AddChild(label);
         return back;
     }
+
+    static StyleBoxFlat Panel(Color bg, int pad = 10) => new()
+    {
+        BgColor = bg, CornerRadiusTopLeft = 14, CornerRadiusTopRight = 14, CornerRadiusBottomLeft = 14, CornerRadiusBottomRight = 14,
+        ContentMarginLeft = pad + 6, ContentMarginRight = pad + 6, ContentMarginTop = pad - 2, ContentMarginBottom = pad - 2,
+        BorderWidthBottom = 4, BorderColor = new Color(0.04f, 0.06f, 0.14f, 0.9f),
+    };
 
     Label MakeLabel(Vector2 pos, int size)
     {
