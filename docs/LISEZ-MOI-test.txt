@@ -18,4 +18,11 @@ Contrôles
 Règles : 2 vies par joueur, KO = retour au bout de 3 s. Une balle passée à ton allié devient plus lumineuse ;
 à 2 charges ou plus elle retire 2 vies. Le score s'affiche au-dessus de l'arène.
 
+Steam (test)
+  Le zip contient steam_api64.dll et un fichier steam_appid.txt qui vaut 480 : c'est Spacewar, le jeu de test public de Valve.
+  Il sert à essayer les lobbies, invitations et parties en ligne via Steam sans que le jeu soit encore sur Steam.
+  Pour ça, Steam doit être lancé et connecté avant d'ouvrir DogeballVR.exe (ton profil Steam affichera « Spacewar »).
+  Sans Steam, le jeu marche quand même : solo contre les bots, ou à deux en réseau local / par adresse IP (--host / --join=IP).
+  Ne supprime pas ces deux fichiers. (La vraie version Steam n'aura pas steam_appid.txt : Steam lui donne son propre AppID.)
+
 Si quelque chose ne va pas (trop rapide, trop lent, bots trop forts ou trop faibles), dis-le : tout est réglable.

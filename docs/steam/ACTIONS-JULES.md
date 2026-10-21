@@ -1,0 +1,39 @@
+# Actions Steam que seul jules peut faire
+
+Dans l'ordre. Les durées sont le temps passé devant l'écran ; les attentes de Valve sont à part. Personne d'autre (ni les agents) ne peut créer le compte, payer, signer ou remplir la fiscalité.
+
+**À savoir d'abord** : Steam impose **30 jours** entre le paiement des frais et la sortie (page Steam Direct ; l'onboarding parle de 21 jours, prévoir 30), une page « Coming soon » publique **au moins 2 semaines** avant la sortie, et des revues de page et de build de 3 à 5 jours ouvrés chacune (prévoir 7). Le jeu ne peut donc pas être en vente sur Steam avant environ 5 à 6 semaines. Ce qui est possible tout de suite : tester les fonctions Steam avec le zip de test (AppID 480 Spacewar, `docs/LISEZ-MOI-test.txt`) puis, une fois l'app créée, une branche beta privée.
+
+Les liens `partner.steamgames.com/apps/.../APPID` sont des liens types (remplacer APPID) ; leur forme exacte est à revérifier, la navigation passe sinon par le tableau de bord Steamworks.
+
+| # | Action | Durée | Lien |
+|---|---|---|---|
+| 1 | **Choisir le nom définitif** (3 propositions dans `PAGE-STORE.md` §1) et vérifier qu'il est libre (Steam, EUIPO/INPI, domaine). À faire avant de créer l'app : l'URL et les wishlists suivent le nom | 1 h | docs/steam/PAGE-STORE.md |
+| 2 | Choisir le statut : en nom propre ou via une société (micro-entreprise, SAS…) ; il fixe le nom légal, la banque et la fiscalité. Avis d'un comptable conseillé | 30 min | — |
+| 3 | **Inscription Steamworks** avec le compte Steam de jules (Steam Guard mobile actif) : nom légal exact, adresse, signature électronique du NDA et du Steam Distribution Agreement | 30 min | https://partner.steamgames.com/steamdirect |
+| 4 | **Banque** : IBAN/BIC, titulaire identique au nom déclaré | 10 min | https://partner.steamgames.com/doc/gettingstarted/onboarding |
+| 5 | **Fiscalité et identité** : questionnaire fiscal américain (équivalent W-8BEN pour un particulier français, W-8BEN-E pour une société ; la convention France–États-Unis réduit la retenue à la source, taux à confirmer dans le questionnaire), pièce d'identité. Vérification jusqu'à 30 jours | 30 min + attente | https://partner.steamgames.com/doc/gettingstarted/onboarding |
+| 6 | **Payer les frais Steam Direct : 100 $** (récupérés sur le versement qui suit 1 000 $ de revenu). Démarre le compte à rebours de 30 jours | 5 min | https://partner.steamgames.com/steamdirect |
+| 7 | **Créer l'app**, noter l'**AppID** ; dans SteamPipe > Depots, garder le depot Windows (AppID + 1), en ajouter un Linux si voulu, **Publier** | 15 min | https://partner.steamgames.com/dashboard ; https://partner.steamgames.com/doc/sdk/uploading |
+| 8 | **Options de lancement** (Installation > Général) : 1) « Jouer sur écran », exe `DogeballVR.exe`, arguments `--xr-mode off`, Windows ; 2) « Jouer en VR », même exe, arguments `--xr-mode on`, type VR (libellé exact à revérifier ; au moins une option VR est obligatoire pour que la VR soit activée). Publier | 10 min | https://partner.steamgames.com/doc/features/steamvr/settings |
+| 9 | **Compte builder** dédié (permissions Edit App Metadata + Publish App Changes To Steam), connexion steamcmd une fois, `config.vdf` en base64, puis **secrets GitHub** `STEAM_USERNAME`, `STEAM_CONFIG_VDF`, `STEAM_APP_ID`, `STEAM_DEPOT_ID_WINDOWS` (+ `STEAM_DEPOT_ID_LINUX`) | 30 min | tools/steam/README.md §2 à §4 |
+| 10 | Créer la branche **beta** (avec mot de passe), lancer le workflow « Envoi Steam » (branche beta), installer le jeu depuis Steam et y jouer | 30 min | tools/steam/README.md §5-6 |
+| 11 | **Steam Cloud (Auto-Cloud)** : quota 1 048 576 octets et 10 fichiers par joueur. Chemin 1 : Root `WinAppDataRoaming`, Subdirectory `Godot/app_userdata/DogeballVR`, Pattern `settings.cfg`, OS « Cross-Platform ». Chemin 2 : pareil avec `progress.cfg`. Root override (pour Linux / Deck natif) : Original Root `WinAppDataRoaming`, OS Linux, New Root `LinuxXdgDataHome`, Add/Replace Path `godot/app_userdata/DogeballVR`, Replace Path coché. Cocher « Steam Cloud » dans les fonctionnalités. Publier | 15 min | https://partner.steamgames.com/doc/features/cloud |
+| 12 | **Succès** : Stats & Achievements > Achievements, saisir chaque ligne de `docs/steam/achievements.csv` (nom API, nom et description FR + EN, caché ou non), icônes 256x256 en couleur (la version grisée peut être générée), cocher « Steam Achievements », Publier | 1 h | https://partner.steamgames.com/doc/features/achievements/ach_guide |
+| 13 | **Rich presence** : Communauté > Rich Presence, envoyer `docs/steam/rich_presence_fr_en.vdf`, Publier | 5 min | https://partner.steamgames.com/doc/api/ISteamFriends#richpresencelocalization |
+| 14 | **Page store** : textes de `PAGE-STORE.md` (relire, retirer ce qui n'est pas livré), tags, genres, langues FR + EN, configuration requise, partie VR (« VR Supported », OpenXR, casques, debout / échelle de la pièce, manettes suivies), images et bande-annonce fournies par l'art (tailles dans la checklist §2) | 2 à 3 h | docs/steam/PAGE-STORE.md ; https://partner.steamgames.com/doc/store/assets/standard |
+| 15 | **Questionnaire de contenu** (dont la déclaration d'usage de l'IA : textes, modèles et code produits avec de l'aide d'IA = contenu « pré-généré ») et **classification IARC** (gratuite, dans Steamworks) | 30 min | Steamworks > page store ; règles IA à revérifier |
+| 16 | **Accès anticipé ou 1.0** : recommandé **Early Access** (jamais testé sur casque, en ligne hors LAN en cours) ; répondre aux questions Early Access sur la page | 20 min | https://partner.steamgames.com/doc/store/earlyaccess |
+| 17 | **Prix** : suggestion **9,99 €/9,99 $** en accès anticipé (un jeu multijoueur a d'abord besoin de joueurs), 14,99 € à la 1.0 ; accepter les prix régionaux recommandés par Valve ; réduction de lancement de 10 à 20 % | 15 min | https://partner.steamgames.com/doc/store/pricing |
+| 18 | **Soumettre la page en revue** au moins 7 jours ouvrés avant la date voulue, puis cliquer « Post as Coming Soon » : il faut ensuite **2 semaines au moins** avant la sortie | 10 min + 3 à 5 jours ouvrés | https://partner.steamgames.com/doc/store/coming_soon |
+| 19 | **Soumettre le build en revue** (build activé sur la branche default à la main, voir tools/steam/README.md §6), fixer la date de sortie | 15 min + 3 à 7 jours ouvrés | https://partner.steamgames.com/doc/store/review_process |
+| 20 | **Revue Steam Deck** (après la revue du build ; utile seulement quand la manette marche en mode écran) | 10 min | https://partner.steamgames.com/doc/steamdeck/compat |
+| 21 | Choisir `company_name` et `copyright` pour `export_presets.cfg` (laissés vides) et donner un .ico pour l'exe | 5 min | export_presets.cfg |
+| 22 | Le jour J : bouton « Release », événement de sortie dans le centre d'événements | 15 min | https://partner.steamgames.com/doc/marketing/event_tools |
+
+Temps total devant l'écran : environ 9 h, réparties sur 5 à 6 semaines d'attente Valve.
+
+Remarques :
+- Étape 11 : le chemin `user://` de Godot est `%APPDATA%/Godot/app_userdata/DogeballVR/` sous Windows et `~/.local/share/godot/app_userdata/DogeballVR/` sous Linux tant que `application/config/use_custom_user_dir` est absent de `project.godot` (c'est le cas). Le dernier dossier est `application/config/name` : si le jeu est renommé, ce chemin change, il faut alors fixer un dossier (`use_custom_user_dir`) et corriger l'Auto-Cloud. Si le fil réseau sauvegarde par l'API Steam Remote Storage plutôt que par fichiers, ne pas configurer Auto-Cloud sur les mêmes fichiers.
+- `settings.cfg` contient aussi des réglages propres à la machine (résolution, qualité) : s'ils y sont, les synchroniser peut gêner entre deux PC ; à séparer côté code si besoin.
+- Étapes 12 et 13 : `docs/steam/achievements.csv` et `docs/steam/rich_presence_fr_en.vdf` sont produits par le fil réseau cette nuit ; si absents de `main`, attendre leur merge.
