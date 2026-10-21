@@ -34,7 +34,8 @@ public partial class OnlineLobby : Node
 {
     public static OnlineLobby? Instance { get; private set; }
 
-    const double JoinRequestTimeout = 10.0, ConnectTimeout = 10.0, ReconnectWindow = 45.0, ReconnectEvery = 3.0, SearchSeconds = 1.6;
+    const double JoinRequestTimeout = 10.0, ConnectTimeout = 10.0, ReconnectWindow = 30.0, ReconnectEvery = 3.0;
+    const int MaxLobbyMessagesPerSecond = 8;
     static readonly string[] MapChoices = { "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
 
     public LobbyState State { get; private set; } = LobbyState.Idle;
@@ -42,10 +43,17 @@ public partial class OnlineLobby : Node
     public string Map { get; private set; } = "croix_neon";
     /// <summary>Code à donner aux amis (IP:port encodé ou lobby Steam), vide tant qu'inconnu.</summary>
     public string Code { get; private set; } = "";
+    /// <summary>Vrai si le code marche depuis Internet (lobby Steam, ou port ouvert par UPnP) ; sinon il ne vaut que sur le réseau local.</summary>
+    public bool CodeIsInternet { get; private set; }
     /// <summary>Dernier message d'état ou d'erreur, pour l'écran du lobby et le menu.</summary>
     public string Status { get; private set; } = "";
     public IReadOnlyList<LobbyMember> Members => members.Values.OrderBy(m => m.PeerId == 1 ? 0 : 1).ThenBy(m => m.PeerId).ToList();
     public int MaxPlayers => Math.Max(2, MapZoneCount(Map));
+    /// <summary>Identifiant aléatoire de la salle (annonce LAN) : deux salles ouvertes en même temps par « partie rapide » fusionnent vers la plus petite.</summary>
+    readonly string roomId = $"{new RandomNumberGenerator().Randi():x8}";
+    bool quickHosted;
+    double searchFor;
+    readonly Dictionary<int, (double second, int count)> rate = new();
     public LanDiscovery Lan { get; private set; } = null!;
     public static IReadOnlyList<string> Maps => MapChoices;
 
@@ -87,7 +95,9 @@ public partial class OnlineLobby : Node
         Multiplayer.ConnectionFailed += OnConnectionFailed;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
         var args = OS.GetCmdlineUserArgs();
-        autoReady = Array.IndexOf(args, "--auto-ready") >= 0;
+        autoReady = Array.IndexOf(args, "--auto-ready") >= 0 || IsVr;   // pas d'écran de salle dans le casque : un joueur VR est prêt d'office
+        NetHandshake.Install(Multiplayer);
+        NetHandshake.Rejected += reason => { if (!IsHost) Fail(reason); };
         foreach (var a in args)
             if (a.StartsWith("--autostart=") && int.TryParse(a["--autostart=".Length..], out int n)) autoStart = n;
     }
@@ -151,7 +161,8 @@ public partial class OnlineLobby : Node
     {
         Reset();
         if (SteamBridge.Available) { SteamBridge.QuickMatch(this); return; }
-        if (Lan.Listen() != Error.Ok) { HostLan(NetSession.DefaultPort, Map); return; }
+        if (Lan.Listen() != Error.Ok) { HostLan(NetSession.DefaultPort, Map); quickHosted = true; return; }
+        searchFor = 1.2 + new RandomNumberGenerator().Randf() * 1.6;   // durée aléatoire : deux joueurs lancés ensemble n'ouvrent pas deux salles
         SetState(LobbyState.Searching, "Recherche d'une partie sur le réseau local…");
     }
 
@@ -186,6 +197,7 @@ public partial class OnlineLobby : Node
         port = listenPort;
         OpenRoomAsHost(peer, map ?? Map);
         Code = JoinCode.FromAddress(LocalIPv4(), port);
+        CodeIsInternet = false;
         Lan.Announcement = Announcement;
         if (DisplayServer.GetName() != "headless" && Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-upnp") < 0) OpenPortMapping(port);
         GD.Print($"[Lobby] Salle ouverte sur le port {port}, code {Code}");
@@ -201,6 +213,7 @@ public partial class OnlineLobby : Node
         address = ip; port = joinPort;
         SteamBridge.Target = 0;
         Multiplayer.MultiplayerPeer = peer;
+        NetSession.ShortenTimeout(peer, 1);
         IsHost = false;
         if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, $"Connexion à {ip}:{joinPort}…");
     }
@@ -225,7 +238,7 @@ public partial class OnlineLobby : Node
         if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, description);
     }
 
-    internal void SetCode(string code) { Code = code; Changed?.Invoke(); }
+    internal void SetCode(string code, bool internet = true) { Code = code; CodeIsInternet = internet; Changed?.Invoke(); }
 
     public void SetReady(bool ready)
     {
@@ -305,6 +318,7 @@ public partial class OnlineLobby : Node
     public void Leave()
     {
         AnnounceHostClosing();
+        ReconnectSecret.Clear();
         bool wasConnected = State is LobbyState.InRoom or LobbyState.InMatch or LobbyState.Reconnecting;
         Reset();
         SetState(LobbyState.Idle, "");
@@ -350,7 +364,17 @@ public partial class OnlineLobby : Node
             case LobbyState.Searching:
                 var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers).OrderByDescending(r => r.Players).FirstOrDefault();
                 if (room != null) { Lan.StopListening(); GD.Print($"[Lobby] Partie trouvée : {room.Name} ({room.Address}:{room.GamePort})"); JoinAddress(room.Address, room.GamePort); }
-                else if (stateClock > SearchSeconds) { Lan.StopListening(); GD.Print("[Lobby] Aucune partie trouvée : ouverture d'une salle"); HostLan(NetSession.DefaultPort, Map); }
+                else if (stateClock > searchFor)
+                {
+                    GD.Print("[Lobby] Aucune partie trouvée : ouverture d'une salle");
+                    HostLan(NetSession.DefaultPort, Map);
+                    if (State == LobbyState.InRoom) { quickHosted = true; Lan.Listen(); }   // on continue d'écouter : fusion si une autre salle s'ouvre en même temps
+                }
+                break;
+            case LobbyState.InRoom when IsHost && quickHosted && members.Count == 1:
+                // Deux « parties rapides » simultanées ont chacune ouvert une salle : la salle seule rejoint celle d'identifiant plus petit.
+                var other = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && !r.InMatch && string.CompareOrdinal(r.Id, roomId) < 0).FirstOrDefault();
+                if (other != null) { GD.Print($"[Lobby] Autre salle ouverte en même temps ({other.Address}:{other.GamePort}) : on la rejoint"); var (a, gp) = (other.Address, other.GamePort); Reset(); JoinAddress(a, gp); }
                 break;
             case LobbyState.Connecting:
                 if (stateClock > ConnectTimeout) Fail("L'hôte ne répond pas");
@@ -383,6 +407,31 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost) return;
         pendingPeers[(int)id] = Time.GetTicksMsec() / 1000.0;
+        NetSession.ShortenTimeout(Multiplayer.MultiplayerPeer, (int)id);
+    }
+
+    /// <summary>Hôte : un pair qui inonde la salle de messages est déconnecté.</summary>
+    bool Flooding(int peer)
+    {
+        double second = Math.Floor(Time.GetTicksMsec() / 1000.0);
+        var (s0, n) = rate.TryGetValue(peer, out var r) ? r : (second, 0);
+        if (s0 != second) n = 0;
+        rate[peer] = (second, n + 1);
+        if (n + 1 <= MaxLobbyMessagesPerSecond) return false;
+        GD.Print($"[Lobby] Pair {peer} déconnecté : trop de messages");
+        Multiplayer.MultiplayerPeer.DisconnectPeer(peer);
+        return true;
+    }
+
+    /// <summary>Hôte : refus, puis déconnexion un peu plus tard (le message part d'abord) ; un client modifié ne garde pas la place.</summary>
+    void Refuse(int peer, string reason)
+    {
+        GD.Print($"[Lobby] Entrée refusée au pair {peer} : {reason}");
+        RpcId(peer, MethodName.RefuseRpc, reason);
+        GetTree().CreateTimer(0.5).Timeout += () =>
+        {
+            if (IsHost && !members.ContainsKey(peer) && Array.IndexOf(Multiplayer.GetPeers(), peer) >= 0) Multiplayer.MultiplayerPeer.DisconnectPeer(peer);
+        };
     }
 
     void OnPeerDisconnected(long id)
@@ -400,7 +449,7 @@ public partial class OnlineLobby : Node
     {
         if (IsHost || State is not (LobbyState.Connecting or LobbyState.Reconnecting)) return;
         GD.Print("[Lobby] Connecté à l'hôte : demande d'entrée");
-        RpcId(1, MethodName.JoinRequestRpc, NetSession.ProtocolVersion, GameVersion, Identity.Name, Identity.Token, IsVr, myTeam);
+        RpcId(1, MethodName.JoinRequestRpc, NetSession.ProtocolVersion, GameVersion, Identity.Name, ReconnectSecret.Get(), IsVr, myTeam);
     }
 
     void OnConnectionFailed()
@@ -425,17 +474,13 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost) return;
         int peer = Multiplayer.GetRemoteSenderId();
+        if (Flooding(peer) || members.ContainsKey(peer)) return;   // une seule demande par pair
         pendingPeers.Remove(peer);
         string? refusal = null;
         if (protocol != NetSession.ProtocolVersion) refusal = $"Version différente (hôte {GameVersion}, vous {Identity.Clean(version)}) : mettez le jeu à jour";
         else if (members.Count >= MaxPlayers && !members.ContainsKey(peer)) refusal = "Partie pleine";
         else if (State == LobbyState.InMatch && NetSession.Current == null) refusal = "Partie en cours de chargement : réessayez";
-        if (refusal != null)
-        {
-            GD.Print($"[Lobby] Entrée refusée au pair {peer} : {refusal}");
-            RpcId(peer, MethodName.RefuseRpc, refusal);
-            return;
-        }
+        if (refusal != null) { Refuse(peer, refusal); return; }
         token = (token ?? "").Length > 64 ? token![..64] : token ?? "";
         var member = new LobbyMember { PeerId = peer, Name = Identity.Clean(name), Token = token, Vr = vr, Team = Mathf.Clamp(team, 0, 1) };
         // Équipes équilibrées par défaut.
@@ -446,8 +491,8 @@ public partial class OnlineLobby : Node
         if (State == LobbyState.InMatch)
         {
             // Entrée en cours de partie ou retour après une coupure : l'hôte choisit la zone (celle du jeton si elle est libre).
-            int zone = NetSession.Current!.ZoneForJoin(token, member.Team);
-            if (zone < 0) { members.Remove(peer); RpcId(peer, MethodName.RefuseRpc, "Partie pleine"); return; }
+            int zone = NetSession.Current!.ZoneForJoin(token, member.Team, peer);
+            if (zone < 0) { members.Remove(peer); Refuse(peer, "Partie pleine"); return; }
             matchZones[peer] = zone;
             BroadcastRoster();
             RpcId(peer, MethodName.StartRpc, Map, zone);
@@ -467,7 +512,7 @@ public partial class OnlineLobby : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void SetReadyRpc(bool ready)
     {
-        if (!IsHost || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m)) return;
+        if (!IsHost || Flooding(Multiplayer.GetRemoteSenderId()) || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m) || m.Ready == ready) return;
         m.Ready = ready;
         BroadcastRoster();
     }
@@ -475,8 +520,12 @@ public partial class OnlineLobby : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void SetTeamRpc(int team)
     {
-        if (!IsHost || State != LobbyState.InRoom || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m)) return;
-        m.Team = Mathf.Clamp(team, 0, 1);
+        if (!IsHost || Flooding(Multiplayer.GetRemoteSenderId()) || State != LobbyState.InRoom || !members.TryGetValue(Multiplayer.GetRemoteSenderId(), out var m)) return;
+        team = Mathf.Clamp(team, 0, 1);
+        if (m.Team == team) return;
+        // Équipe pleine (autant de joueurs que de zones de cette équipe) : refusé.
+        if (members.Values.Count(x => x.Team == team) >= Math.Max(1, MaxPlayers / 2)) return;
+        m.Team = team;
         BroadcastRoster();
     }
 
@@ -494,7 +543,15 @@ public partial class OnlineLobby : Node
             var m = new LobbyMember { PeerId = (int)md["peer"], Name = (string)md["name"], Team = (int)md["team"], Ready = (bool)md["ready"], Vr = (bool)md["vr"] };
             members[m.PeerId] = m;
         }
+        bool hostInMatch = d.ContainsKey("inMatch") && (bool)d["inMatch"];
         if (State is LobbyState.Connecting) SetState(LobbyState.InRoom, "Dans la salle");
+        else if (State is LobbyState.Reconnecting && !hostInMatch)
+        {
+            // Reconnecté pendant que l'hôte est revenu à la salle : on quitte l'ancienne scène de jeu.
+            SetState(LobbyState.InRoom, "De retour dans la salle");
+            GameLaunch.ShowLobby = true;
+            GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+        }
         else Changed?.Invoke();
         if (autoReady && State == LobbyState.InRoom && members.TryGetValue(Multiplayer.GetUniqueId(), out var me) && !me.Ready) SetReady(true);
     }
@@ -556,7 +613,7 @@ public partial class OnlineLobby : Node
         return new Godot.Collections.Dictionary
         {
             ["game"] = "dogeball", ["protocol"] = NetSession.ProtocolVersion, ["port"] = port, ["name"] = Identity.Name, ["map"] = Map,
-            ["players"] = members.Count, ["max"] = MaxPlayers, ["inMatch"] = State == LobbyState.InMatch,
+            ["players"] = members.Count, ["max"] = MaxPlayers, ["inMatch"] = State == LobbyState.InMatch, ["id"] = roomId,
         };
     }
 
@@ -589,7 +646,10 @@ public partial class OnlineLobby : Node
         pendingPeers.Clear();
         matchZones.Clear();
         IsHost = false;
+        quickHosted = false;
+        rate.Clear();
         Code = "";
+        CodeIsInternet = false;
     }
 
     public static string GameVersion => (string)ProjectSettings.GetSetting("application/config/version", "dev");
@@ -601,13 +661,18 @@ public partial class OnlineLobby : Node
         return FileAccess.FileExists(path) ? MapData.Load(path) : null;
     }
 
-    static int MapZoneCount(string name) => LoadMap(name)?.Zones.Count ?? 4;
+    static readonly Dictionary<string, int> zoneCounts = new();
+    static int MapZoneCount(string name)
+    {
+        if (!zoneCounts.TryGetValue(name, out int n)) zoneCounts[name] = n = LoadMap(name)?.Zones.Count ?? 4;
+        return n;
+    }
 
+    /// <summary>Adresse sur le réseau local : réseaux de box (192.168, 10.) avant les autres (Docker, Hyper-V, VPN).</summary>
     static string LocalIPv4()
     {
-        foreach (var a in IP.GetLocalAddresses())
-            if (a.Contains('.') && !a.StartsWith("127.") && !a.StartsWith("169.254.")) return a;
-        return "127.0.0.1";
+        var all = IP.GetLocalAddresses().Where(a => a.Count(c => c == '.') == 3 && !a.StartsWith("127.") && !a.StartsWith("169.254.")).ToList();
+        return all.FirstOrDefault(a => a.StartsWith("192.168.")) ?? all.FirstOrDefault(a => a.StartsWith("10.")) ?? all.FirstOrDefault() ?? "127.0.0.1";
     }
 
     // UPnP : ouverture automatique du port sur la box (souvent refusée ; sinon, ouvrir le port UDP à la main ou passer par Steam).
@@ -624,7 +689,7 @@ public partial class OnlineLobby : Node
                 Callable.From(() =>
                 {
                     upnp = u;
-                    if (IsHost && external.Count(c => c == '.') == 3) { Code = JoinCode.FromAddress(external, mapPort); GD.Print($"[Lobby] UPnP : port {mapPort} ouvert, code Internet {Code}"); Changed?.Invoke(); }
+                    if (IsHost && external.Count(c => c == '.') == 3) { Code = JoinCode.FromAddress(external, mapPort); CodeIsInternet = true; GD.Print($"[Lobby] UPnP : port {mapPort} ouvert, code Internet {Code}"); Changed?.Invoke(); }
                 }).CallDeferred();
             }
             catch (Exception e) { GD.Print($"[Lobby] UPnP : {e.Message}"); }

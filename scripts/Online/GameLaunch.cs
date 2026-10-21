@@ -67,7 +67,7 @@ public static class Identity
             if (name != null) return name;
             if (Arg("--name=") is { } forced) return name = Clean(forced);
             string? steam = SteamHooks.PersonaName?.Invoke();
-            if (!string.IsNullOrEmpty(steam)) return name = steam;
+            if (!string.IsNullOrEmpty(steam)) return name = Clean(steam);
             var cfg = new ConfigFile();
             cfg.Load(Path);
             name = (string)cfg.GetValue("player", "name", "");
@@ -112,4 +112,49 @@ public static class SteamHooks
 {
     public static System.Func<string?>? LocalId { get; set; }
     public static System.Func<string?>? PersonaName { get; set; }
+}
+
+/// <summary>
+/// Secret de reconnexion remis par l'hôte à l'entrée en partie. Gardé en mémoire et dans <c>user://identity.cfg</c>
+/// (un crash puis un relancement permettent de revenir), effacé quand on quitte la salle. Valable 30 minutes.
+/// </summary>
+public static class ReconnectSecret
+{
+    const string Path = "user://identity.cfg";
+    const double MaxAgeSeconds = 1800;
+    static string? secret;
+
+    // Tests : plusieurs joueurs sur une machine, chacun sa clé (`--token=`).
+    static string Key
+    {
+        get
+        {
+            foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--token=") && a.Length > 8) return "secret_" + a[8..];
+            return "secret";
+        }
+    }
+
+    public static string Get()
+    {
+        if (secret != null) return secret;
+        var cfg = new ConfigFile();
+        cfg.Load(Path);
+        var saved = (string)cfg.GetValue("reconnect", Key, "");
+        double at = (double)cfg.GetValue("reconnect", Key + "_at", 0.0);
+        secret = saved.Length == 32 && Time.GetUnixTimeFromSystem() - at < MaxAgeSeconds ? saved : "";
+        return secret;
+    }
+
+    public static void Set(string value)
+    {
+        if (value == secret) return;
+        secret = value;
+        var cfg = new ConfigFile();
+        cfg.Load(Path);
+        cfg.SetValue("reconnect", Key, value);
+        cfg.SetValue("reconnect", Key + "_at", Time.GetUnixTimeFromSystem());
+        cfg.Save(Path);
+    }
+
+    public static void Clear() => Set("");
 }

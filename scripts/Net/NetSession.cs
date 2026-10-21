@@ -32,7 +32,9 @@ public partial class NetSession : Node
     public NetMode Mode { get; private set; } = NetMode.Offline;
     public bool IsClient => Mode == NetMode.Client;
     public bool IsHost => Mode == NetMode.Host;
-    public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+    // Une session coupée ne parle plus : le lobby peut déjà retenter une connexion (ou poser un pair hors ligne, qui se croit « connecté »).
+    public bool Connected => !lost && Multiplayer.MultiplayerPeer is { } p and not OfflineMultiplayerPeer && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+    bool lost;
     public int ZoneId { get; set; }
     /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
     public bool FreeRoam { get; set; }
@@ -62,7 +64,7 @@ public partial class NetSession : Node
         else delayed.Enqueue((Time.GetTicksMsec() / 1000.0 + SimulatedLag, action));
     }
 
-    /// <summary>Identité du joueur (reconnexion) envoyée dans le Hello.</summary>
+    /// <summary>Secret de reconnexion reçu de l'hôte lors d'une entrée précédente (vide la première fois), renvoyé dans le Hello.</summary>
     public string Token { get; set; } = "";
     /// <summary>Client : aller-retour mesuré avec l'hôte (ms, lissé), -1 tant qu'inconnu.</summary>
     public double RttMs { get; private set; } = -1;
@@ -119,6 +121,7 @@ public partial class NetSession : Node
         var peer = new ENetMultiplayerPeer();
         var err = peer.CreateServer(port, MaxPlayers - 1);
         if (err != Error.Ok) return err;
+        NetHandshake.Install(Multiplayer);
         Multiplayer.MultiplayerPeer = peer;
         AdoptHost();
         GD.Print($"[Net] Hôte en écoute sur le port {port}");
@@ -130,17 +133,29 @@ public partial class NetSession : Node
     {
         Mode = NetMode.Host;
         Multiplayer.PeerDisconnected += OnPeerDisconnected;
+        Multiplayer.PeerConnected += OnPeerConnected;
     }
+
+    /// <summary>Coupure détectée en 3 à 8 s au lieu de 30 s par défaut (ENet) : la reconnexion et le bot de remplacement arrivent vite.</summary>
+    public static void ShortenTimeout(MultiplayerPeer? peer, int id)
+    {
+        if (peer is ENetMultiplayerPeer enet && enet.GetPeer(id) is { } p) p.SetTimeout(0, 3000, 8000);
+    }
+
+    void OnPeerConnected(long id) => ShortenTimeout(Multiplayer.MultiplayerPeer, (int)id);
 
     void OnPeerDisconnected(long id)
     {
-        tokenOfPeer.Remove((int)id);
+        // La zone reste réservée à ce joueur le temps qu'il revienne (coupure, crash) : un nouvel arrivant ne la prend pas.
+        if (secretOfPeer.Remove((int)id, out var secret) && zoneOfSecret.TryGetValue(secret, out int zone))
+            reserved[zone] = (0, secret, Time.GetTicksMsec() / 1000.0 + ReconnectHold);
         PeerLeft?.Invoke((int)id);
     }
 
     /// <summary>Client : la connexion à l'hôte est déjà ouverte par le lobby ; on se présente tout de suite.</summary>
     public void AdoptClient(int zoneId)
     {
+        NetHandshake.Install(Multiplayer);
         Mode = NetMode.Client;
         ZoneId = zoneId;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
@@ -152,6 +167,8 @@ public partial class NetSession : Node
 
     void OnServerDisconnected()
     {
+        if (lost) return;
+        lost = true;
         GD.Print("[Net] Hôte déconnecté");
         HudReceived?.Invoke("HÔTE DÉCONNECTÉ");
         Disconnected?.Invoke();
@@ -162,23 +179,37 @@ public partial class NetSession : Node
         var peer = new ENetMultiplayerPeer();
         var err = peer.CreateClient(address, port);
         if (err != Error.Ok) return err;
+        NetHandshake.Install(Multiplayer);
         Multiplayer.MultiplayerPeer = peer;
+        ShortenTimeout(peer, 1);
         Mode = NetMode.Client;
         ZoneId = zoneId;
-        Multiplayer.ConnectedToServer += () =>
-        {
-            GD.Print($"[Net] Connecté à l'hôte, zone {zoneId}");
-            SendHello();
-        };
+        joined = true;
+        Multiplayer.ConnectedToServer += OnConnectedToServer;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
-        Multiplayer.ConnectionFailed += () => { GD.Print("[Net] Connexion impossible"); HudReceived?.Invoke("CONNEXION IMPOSSIBLE"); Disconnected?.Invoke(); };
+        Multiplayer.ConnectionFailed += OnConnectionFailed;
         return err;
+    }
+
+    bool joined;   // connexion ouverte par la session elle-même (ligne de commande) : signaux à débrancher en sortant
+
+    void OnConnectedToServer()
+    {
+        GD.Print($"[Net] Connecté à l'hôte, zone {ZoneId}");
+        SendHello();
+    }
+
+    void OnConnectionFailed()
+    {
+        GD.Print("[Net] Connexion impossible");
+        HudReceived?.Invoke("CONNEXION IMPOSSIBLE");
+        Disconnected?.Invoke();
     }
 
     public override void _PhysicsProcess(double delta)
     {
         double clockNow = Time.GetTicksMsec() / 1000.0;
-        while (delayed.Count > 0 && delayed.Peek().due <= clockNow) delayed.Dequeue().action();
+        while (delayed.Count > 0 && delayed.Peek().due <= clockNow) { var action = delayed.Dequeue().action; if (!lost) action(); }
         if (Mode == NetMode.Host) HostTick(delta);
         else if (Mode == NetMode.Client) ClientTick(delta);
     }
@@ -230,58 +261,67 @@ public partial class NetSession : Node
         if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin, mode));
     }
 
-    // Reconnexion : l'hôte retient la zone de chaque jeton (pour toute la partie) ; un joueur qui revient la retrouve, avec ses vies et son score.
-    readonly Dictionary<string, int> zoneOfToken = new();
-    readonly Dictionary<int, string> tokenOfPeer = new();
-    /// <summary>Zone libre (tenue par un bot) pour un joueur sans zone, de l'équipe demandée si possible (-1 : indifférent) ; -1 si tout est pris.</summary>
-    public Func<int, int>? PickZone { get; set; }
+    // Reconnexion : à la première entrée, l'hôte remet au joueur un secret aléatoire (WelcomeRpc) ; le joueur qui revient le
+    // présente et retrouve sa zone, ses vies et son score. Un secret émis par l'hôte ne se devine pas (contrairement à un
+    // SteamID public ou à un jeton déclaré par le client). Une zone libérée reste réservée à son secret pendant le retour possible,
+    // et une zone attribuée par le lobby reste réservée au pair qui charge la partie.
+    const double ReconnectHold = 45.0, LoadingHold = 20.0;
+    readonly Dictionary<string, int> zoneOfSecret = new();
+    readonly Dictionary<int, string> secretOfPeer = new();
+    readonly Dictionary<int, (int peer, string secret, double until)> reserved = new();
+    readonly RandomNumberGenerator secretRng = new();
+    /// <summary>Zone tenue par un bot qui passe le filtre, de l'équipe demandée si possible (-1 : indifférent) ; -1 si aucune.</summary>
+    public Func<int, Func<int, bool>, int>? PickZone { get; set; }
+    /// <summary>Vrai si la zone peut accueillir un joueur distant (tenue par un bot).</summary>
+    public Func<int, bool> ZoneAvailable { get; set; } = _ => true;
+
+    bool IsFree(int zone, int peer, string secret)
+    {
+        if (!ZoneAvailable(zone)) return false;
+        if (!reserved.TryGetValue(zone, out var r) || Time.GetTicksMsec() / 1000.0 > r.until) return true;
+        return (r.peer != 0 && r.peer == peer) || (r.secret != "" && r.secret == secret);
+    }
+
+    int PickFree(int team, int peer, string secret) => PickZone?.Invoke(team, z => IsFree(z, peer, secret)) ?? -1;
 
     /// <summary>
     /// Le même joueur revient avant que l'hôte ait vu partir son ancienne connexion (crash, coupure) : on libère l'ancienne.
-    /// Mais deux jeux lancés sur le même PC partagent le jeton : si l'ancienne connexion envoie encore ses poses, c'est un autre
-    /// joueur (renvoie faux : le jeton ne doit pas servir).
+    /// Si l'ancienne connexion envoie encore ses poses, ce n'est pas un retour (copie du secret) : renvoie faux.
     /// </summary>
-    bool EvictStale(string token, int newPeer)
+    bool EvictStale(string secret, int newPeer)
     {
         double now = Time.GetTicksMsec() / 1000.0;
-        foreach (var (oldPeer, oldToken) in new Dictionary<int, string>(tokenOfPeer))
+        foreach (var (oldPeer, oldSecret) in new Dictionary<int, string>(secretOfPeer))
         {
-            if (oldToken != token || oldPeer == newPeer || !Remotes.TryGetValue(oldPeer, out var old)) continue;
+            if (oldSecret != secret || oldPeer == newPeer || !Remotes.TryGetValue(oldPeer, out var old)) continue;
             if (now - old.LastPoseAt < 1.5) return false;
-            GD.Print($"[Net] Jeton déjà en jeu (pair {oldPeer}, muet) : ancienne connexion remplacée");
-            tokenOfPeer.Remove(oldPeer);
-            PeerLeft?.Invoke(oldPeer);
+            GD.Print($"[Net] Secret déjà en jeu (pair {oldPeer}, muet) : ancienne connexion remplacée");
+            OnPeerDisconnected(oldPeer);
             Multiplayer.MultiplayerPeer.DisconnectPeer(oldPeer);
         }
         return true;
     }
 
-    /// <summary>Hôte, entrée par le lobby en cours de partie : la zone du jeton si elle est libre, sinon une zone de bot (équipe préférée d'abord). -1 si plein.</summary>
-    public int ZoneForJoin(string token, int preferredTeam)
+    /// <summary>Zone de retour d'un secret connu (et libre pour ce joueur), sinon -1.</summary>
+    int ReturningZone(string secret, int peer)
     {
-        if (token != "" && EvictStale(token, 0) && zoneOfToken.TryGetValue(token, out int previous) && ZoneAvailable(previous))
-        {
-            GD.Print($"[Net] Reconnexion : le jeton {Short(token)} retrouve la zone {previous}");
-            return previous;
-        }
-        return PickZone?.Invoke(preferredTeam) ?? -1;
+        if (secret == "" || !zoneOfSecret.TryGetValue(secret, out int previous) || !EvictStale(secret, peer) || !IsFree(previous, peer, secret)) return -1;
+        return previous;
     }
 
-    /// <summary>Session de jeu en cours (null hors partie) : le lobby s'en sert pour placer un joueur qui entre en cours de partie.</summary>
-    public static NetSession? Current { get; private set; }
-    public override void _EnterTree() => Current = this;
-
-    public override void _ExitTree()
+    /// <summary>Hôte, entrée par le lobby en cours de partie : la zone du secret si elle est libre, sinon une zone de bot (équipe préférée d'abord), réservée au pair le temps qu'il charge. -1 si plein.</summary>
+    public int ZoneForJoin(string secret, int preferredTeam, int peer)
     {
-        if (Current == this) Current = null;
-        if (Mode == NetMode.Host) Multiplayer.PeerDisconnected -= OnPeerDisconnected;
-        else if (Mode == NetMode.Client) Multiplayer.ServerDisconnected -= OnServerDisconnected;
+        if (secret.Length != 32) secret = "";
+        int zone = ReturningZone(secret, peer);
+        if (zone >= 0) GD.Print($"[Net] Reconnexion : le secret {Short(secret)} retrouve la zone {zone}");
+        else zone = PickFree(preferredTeam, peer, secret);
+        if (zone >= 0) reserved[zone] = (peer, secret, Time.GetTicksMsec() / 1000.0 + LoadingHold);
+        return zone;
     }
-    /// <summary>Vrai si la zone peut accueillir un joueur distant (tenue par un bot).</summary>
-    public Func<int, bool> ZoneAvailable { get; set; } = _ => true;
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void HelloRpc(int protocol, int zoneId, string token)
+    void HelloRpc(int protocol, int zoneId, string secret)
     {
         if (!IsHost) return;
         int peer = Multiplayer.GetRemoteSenderId();
@@ -292,43 +332,51 @@ public partial class NetSession : Node
             return;
         }
         if (Remotes.ContainsKey(peer)) return;   // un seul Hello par pair
-        token ??= "";
-        if (token.Length > 64) token = token[..64];
-        if (token != "")
-        {
-            // Le même joueur revient avant que l'hôte ait vu partir son ancienne connexion (crash, coupure) : on libère l'ancienne.
-            if (!EvictStale(token, peer)) token = "";
-            if (token != "" && zoneOfToken.TryGetValue(token, out int previous) && ZoneAvailable(previous) && previous != zoneId)
-            {
-                GD.Print($"[Net] Reconnexion : le jeton {Short(token)} retrouve la zone {previous}");
-                zoneId = previous;
-            }
-        }
-        // Zone non imposée (-1, entrée en cours de partie) ou déjà prise : l'hôte en choisit une tenue par un bot.
-        if (!ZoneAvailable(zoneId) && PickZone != null) zoneId = PickZone(-1);
+        secret ??= "";
+        if (secret.Length != 32) secret = "";
+        int back = ReturningZone(secret, peer);
+        if (back >= 0 && back != zoneId) { GD.Print($"[Net] Reconnexion : le secret {Short(secret)} retrouve la zone {back}"); zoneId = back; }
+        else if (back < 0 && !zoneOfSecret.ContainsKey(secret)) secret = "";   // secret inconnu (autre partie) : nouvelle entrée
+        // Zone non imposée (-1) ou déjà prise : l'hôte en choisit une tenue par un bot.
+        if (!IsFree(zoneId, peer, secret)) zoneId = PickFree(-1, peer, secret);
         GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
         PeerHello?.Invoke(peer, zoneId);
         if (!Remotes.ContainsKey(peer))
         {
-            RpcId(peer, MethodName.RefusedRpc, "ZONE REFUSÉE : DÉJÀ PRISE OU INCONNUE");
+            RpcId(peer, MethodName.RefusedRpc, "PARTIE PLEINE OU ZONE INCONNUE");
             return;
         }
-        tokenOfPeer[peer] = token;
-        if (token != "") zoneOfToken[token] = zoneId;
-        RpcId(peer, MethodName.WelcomeRpc, zoneId);
+        if (secret == "" || secretOfPeer.ContainsValue(secret)) secret = $"{secretRng.Randi():x8}{secretRng.Randi():x8}{secretRng.Randi():x8}{secretRng.Randi():x8}";
+        secretOfPeer[peer] = secret;
+        zoneOfSecret[secret] = zoneId;
+        reserved.Remove(zoneId);
+        RpcId(peer, MethodName.WelcomeRpc, zoneId, secret);
         RpcId(peer, MethodName.HudRpc, HudText());
+    }
+
+    /// <summary>Session de jeu en cours (null hors partie) : le lobby s'en sert pour placer un joueur qui entre en cours de partie.</summary>
+    public static NetSession? Current { get; private set; }
+    public override void _EnterTree() => Current = this;
+
+    public override void _ExitTree()
+    {
+        if (Current == this) Current = null;
+        if (Mode == NetMode.Host) { Multiplayer.PeerDisconnected -= OnPeerDisconnected; Multiplayer.PeerConnected -= OnPeerConnected; }
+        else if (Mode == NetMode.Client) Multiplayer.ServerDisconnected -= OnServerDisconnected;
+        if (joined) { Multiplayer.ConnectedToServer -= OnConnectedToServer; Multiplayer.ConnectionFailed -= OnConnectionFailed; }
     }
 
     static string Short(string token) => token.Length <= 6 ? token : token[..6];
 
-    /// <summary>Client : l'hôte confirme l'entrée et la zone attribuée (elle peut différer de la demande à la reconnexion).</summary>
-    public event Action<int>? Welcomed;
+    /// <summary>Client : l'hôte confirme l'entrée, la zone attribuée (elle peut différer de la demande) et le secret de reconnexion.</summary>
+    public event Action<int, string>? Welcomed;
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void WelcomeRpc(int zoneId)
+    void WelcomeRpc(int zoneId, string secret)
     {
         GD.Print($"[Net] Entrée acceptée par l'hôte, zone {zoneId}");
-        Welcomed?.Invoke(zoneId);
+        Token = secret;
+        Welcomed?.Invoke(zoneId, secret);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

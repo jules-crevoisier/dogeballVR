@@ -267,9 +267,12 @@ jobs:
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 6900 -- --lobby-host --autostart=1 --map=croix_neon --pc-autoplay --name=Hote > lobby-host.log 2>&1 &
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 7500 -- --lobby-host --autostart=1 --map=croix_neon --pc-autoplay --name=Hote > lobby-host.log 2>&1 &
           HOST_PID=$!
-          sleep 3
+          # On attend que la salle soit ouverte (démarrage de Godot .NET plus ou moins lent selon le runner).
+          for i in $(seq 1 60); do grep -q "\[Lobby\] Salle ouverte" lobby-host.log && break; sleep 0.5; done
+          # 0) Version différente : le client est refusé à la poignée de main, avant tout RPC, avec un message clair.
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 400 -- --lobby-join=127.0.0.1 --fake-version --name=Vieux > lobby-c0.log 2>&1
           # 1) Partie rapide : le client trouve la salle sur le réseau local, se déclare prêt, l'hôte lance ; coupure réseau à 20 s puis reconnexion.
           "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-quick --auto-ready --pc-autoplay --token=ci-reco --name=Reco --net-cut=20 > lobby-c1.log 2>&1
           # 2) Entrée en cours de partie, crash brutal (SIGKILL), retour 4 s plus tard avec le même jeton : même zone.
@@ -277,17 +280,23 @@ jobs:
           sleep 4
           "$GODOT" --headless --path . --max-fps 60 --quit-after 900 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c3.log 2>&1
           wait $HOST_PID || true
-          grep -E "\[Lobby\]|\[Net\] (Pair|Joueur|Reconnexion|Jeton|Entrée|Test)" lobby-host.log lobby-c1.log lobby-c2.log lobby-c3.log | head -60
-          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" lobby-host.log lobby-c1.log lobby-c2.log lobby-c3.log; then echo "Erreur à l'exécution (lobby)"; exit 1; fi
+          grep -E "\[Lobby\]|\[Net\] (Pair|Joueur|Reconnexion|Secret|Entrée|Test|Version)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log | head -70
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log; then echo "Erreur à l'exécution (lobby)"; exit 1; fi
+          # RPC vers un nœud absent (course entre rechargement de scène et réseau) : Godot l'écrit en ERROR, pas en exception.
+          if grep -iE "ERROR:.*(node not found|invalid packet|rpc|cached)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log; then echo "RPC perdu ou mal routé (lobby)"; exit 1; fi
           FAIL=0
+          grep -q "\[Lobby\] Échec : Version différente" lobby-c0.log || { echo "Version différente non détectée à la poignée de main"; FAIL=1; }
           grep -q "\[Lobby\] Partie trouvée" lobby-c1.log || { echo "Partie rapide : salle LAN non trouvée"; FAIL=1; }
           grep -q "\[Lobby\] Lancement : croix_neon, 2 joueur(s)" lobby-host.log || { echo "L'hôte n'a pas lancé la partie depuis la salle"; FAIL=1; }
           grep -q "\[Lobby\] État : InMatch -> Reconnecting" lobby-c1.log || { echo "Le client n'a pas tenté de se reconnecter"; FAIL=1; }
-          [ "$(grep -c "Entrée acceptée par l'hôte, zone 1" lobby-c1.log)" -ge 2 ] || { echo "Le client reconnecté n'a pas retrouvé sa zone"; FAIL=1; }
-          grep -q "Reconnexion : le jeton ci-rec retrouve la zone 1" lobby-host.log || { echo "L'hôte n'a pas rendu la zone au jeton reconnecté"; FAIL=1; }
-          grep -q "Jeton déjà en jeu (pair [0-9]*, muet) : ancienne connexion remplacée" lobby-host.log || { echo "La connexion morte (crash) n'a pas été remplacée"; FAIL=1; }
-          grep -q "Reconnexion : le jeton ci-cra retrouve la zone" lobby-host.log || { echo "Le joueur revenu après crash n'a pas retrouvé sa zone"; FAIL=1; }
-          CATCHES=$(grep -c "attrapée par la zone 1" lobby-host.log || true)
+          Z1=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c1.log | head -1 | grep -o "[0-9]*$")
+          [ -n "$Z1" ] && [ "$(grep -c "Entrée acceptée par l'hôte, zone $Z1\$" lobby-c1.log)" -ge 2 ] || { echo "Le client reconnecté n'a pas retrouvé sa zone"; FAIL=1; }
+          [ "$(grep -c "Reconnexion : le secret [0-9a-f]* retrouve la zone" lobby-host.log)" -ge 2 ] || { echo "L'hôte n'a pas rendu leur zone aux joueurs revenus (coupure puis crash)"; FAIL=1; }
+          grep -q "Secret déjà en jeu (pair [0-9]*, muet) : ancienne connexion remplacée" lobby-host.log || { echo "La connexion morte (crash) n'a pas été remplacée"; FAIL=1; }
+          Z2=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c2.log | tail -1 | grep -o "[0-9]*$")
+          Z3=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c3.log | tail -1 | grep -o "[0-9]*$")
+          [ -n "$Z2" ] && [ "$Z2" = "$Z3" ] || { echo "Après le crash, le joueur n'a pas retrouvé sa zone ($Z2 puis $Z3)"; FAIL=1; }
+          CATCHES=$(grep -c "attrapée par la zone ${Z1:-1}\$" lobby-host.log || true)
           echo "Prises du client du lobby validées par l'hôte : $CATCHES"
           [ "$CATCHES" -ge 3 ] || { echo "Le client entré par le lobby ne joue pas"; FAIL=1; }
           exit $FAIL

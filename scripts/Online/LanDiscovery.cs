@@ -12,7 +12,7 @@ public partial class LanDiscovery : Node
     public const int Port = 7778;
     const double AnnounceEvery = 1.0, ForgetAfter = 3.5;
 
-    public record Room(string Address, int GamePort, string Name, string Map, int Players, int MaxPlayers, int Protocol, bool InMatch, double SeenAt);
+    public record Room(string Address, int GamePort, string Name, string Map, int Players, int MaxPlayers, int Protocol, bool InMatch, double SeenAt, string Id);
 
     /// <summary>Hôte : contenu de l'annonce (null = ne rien annoncer).</summary>
     public System.Func<Godot.Collections.Dictionary?>? Announcement { get; set; }
@@ -61,7 +61,7 @@ public partial class LanDiscovery : Node
             if (gamePort <= 0 || gamePort > 65535) continue;
             var room = new Room(from, gamePort, Identity.Clean(d.ContainsKey("name") ? (string)d["name"] : "?"), d.ContainsKey("map") ? (string)d["map"] : "",
                 d.ContainsKey("players") ? (int)d["players"] : 0, d.ContainsKey("max") ? (int)d["max"] : 0,
-                d.ContainsKey("protocol") ? (int)d["protocol"] : 0, d.ContainsKey("inMatch") && (bool)d["inMatch"], now);
+                d.ContainsKey("protocol") ? (int)d["protocol"] : 0, d.ContainsKey("inMatch") && (bool)d["inMatch"], now, d.ContainsKey("id") ? (string)d["id"] : "");
             rooms[$"{from}:{gamePort}"] = room;
         }
         foreach (var key in new List<string>(rooms.Keys))

@@ -84,7 +84,7 @@ public partial class Main : Node3D
 
         if (cfg.Mode != NetMode.Offline)
         {
-            net = new NetSession { Name = "NetSession", Token = cfg.Token };
+            net = new NetSession { Name = "NetSession", Token = Online.ReconnectSecret.Get() };
             AddChild(net);
             if (DisplayServer.GetName() != "headless") AddChild(new Online.NetStatusOverlay { Name = "NetStatus", Net = net });
             if (client) BallActions.Net = net;
@@ -309,10 +309,10 @@ public partial class Main : Node3D
     }
 
     /// <summary>Zone tenue par un bot pour un joueur qui entre : dans l'équipe demandée si possible, sinon dans celle qui a le moins d'humains.</summary>
-    int PickFreeZone(int preferredTeam)
+    int PickFreeZone(int preferredTeam, System.Func<int, bool> allowed)
     {
         int Humans(int team) => map.Zones.Count(z => z.Team == team && !bots.ContainsKey(z.Id));
-        var free = map.Zones.Where(z => bots.ContainsKey(z.Id) && z.Id != localHurtbox.PlayerId).ToList();
+        var free = map.Zones.Where(z => bots.ContainsKey(z.Id) && z.Id != localHurtbox.PlayerId && allowed(z.Id)).ToList();
         if (free.Count == 0) return -1;
         var pick = free.Where(z => z.Team == preferredTeam).FirstOrDefault()
             ?? free.OrderBy(z => Humans(z.Team)).ThenBy(z => z.Id).First();
@@ -448,7 +448,7 @@ public partial class Main : Node3D
         {
             // Partie lancée par le lobby : reconnexion automatique, zone corrigée par l'hôte, refus renvoyé au menu.
             net.Disconnected += lobby.OnMatchConnectionLost;
-            net.Welcomed += zone => lobby.OnWelcomedZone(zone, localZone.Id);
+            net.Welcomed += (zone, secret) => { Online.ReconnectSecret.Set(secret); lobby.OnWelcomedZone(zone, localZone.Id); };
             net.Refused += lobby.OnMatchRefused;
         }
         if (cfg.Preconnected) net.AdoptClient(localZone.Id);

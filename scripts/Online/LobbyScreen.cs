@@ -68,7 +68,7 @@ public partial class LobbyScreen : CanvasLayer
         {
             var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             row.AddThemeConstantOverride("separation", 12);
-            row.AddChild(Text($"Code : {lobby.Code}", 28));
+            row.AddChild(Text(lobby.CodeIsInternet ? $"Code : {lobby.Code}" : $"Code (réseau local) : {lobby.Code}", 28));
             row.AddChild(MakeButton("COPIER", Gray, () => DisplayServer.ClipboardSet(lobby.Code), 160));
             if (SteamBridge.Available && lobby.IsHost) row.AddChild(MakeButton("INVITER DES AMIS", Blue, SteamBridge.OpenInvite, 280));
             root.AddChild(row);
