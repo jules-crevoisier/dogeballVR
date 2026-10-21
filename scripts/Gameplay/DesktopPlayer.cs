@@ -395,7 +395,7 @@ public partial class DesktopPlayer : Node3D
             dashStartedAt = time;
             dashCount++;
             Dashes++;
-            if (FreeRoam && !autoplay) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
+            if (FreeRoam) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
             if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
@@ -522,7 +522,7 @@ public partial class DesktopPlayer : Node3D
         if (grounded)
         {
             groundedAt = time;
-            if (wasAirborne && !autoplay)
+            if (wasAirborne)
             {
                 // Réception : la vue plonge un peu, plus fort après une grande chute ; son de pas lourd.
                 float impact = Mathf.Clamp(-airVel / 9f, 0f, 1f);
@@ -531,13 +531,13 @@ public partial class DesktopPlayer : Node3D
             }
             wasAirborne = false;
             feet = ground; jumpVel = 0f; padFlight = false;
-            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; Jumps++; if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
+            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; Jumps++; Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
             else if (!Hurtbox.Eliminated) TryPad();
         }
         else if (wantJump && !padFlight && jumpVel <= 0f && jumpVel > -3f && time - groundedAt <= 0.1 && ground > float.NegativeInfinity)
         {
             jumpVel = FreeJumpSpeed; jumpPressedAt = -10;
-            if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f);
+            Sfx.Play(this, SfxKind.Jump, null, 1f, -6f);
         }
         if (!grounded || jumpVel > 0f)
         {
@@ -723,7 +723,7 @@ public partial class DesktopPlayer : Node3D
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
                 if (perfect && !BallActions.IsClient) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
-                if (viaCatch && !ally && !autoplay)
+                if (viaCatch && !ally)
                 {
                     // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
                     CameraFx.Kick(new Vector2(0, -1.4f));
@@ -780,7 +780,7 @@ public partial class DesktopPlayer : Node3D
                 if (tick > chargeTicks)
                 {
                     chargeTicks = tick;
-                    if (!autoplay) Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
+                    Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
                 }
             }
             else if (charging)
@@ -815,12 +815,9 @@ public partial class DesktopPlayer : Node3D
         catchWindowLeft = 0;                  // une fenêtre encore ouverte ne doit pas reprendre la balle lancée
         // Le lancer se sent : recul de la vue vers le haut et coup de champ, proportionnels à la vitesse ; secousse au lancer plein.
         float power = Mathf.Clamp((velocity.Length() - MinThrow) / (MaxThrow - MinThrow), 0f, 1f);
-        if (!autoplay)
-        {
-            CameraFx.Kick(new Vector2(0, 0.6f + 1.6f * power));
-            CameraFx.FovPunch(3f + 5f * power);
-            if (power > 0.95f) CameraFx.Shake(0.15f);
-        }
+        CameraFx.Kick(new Vector2(0, 0.6f + 1.6f * power));
+        CameraFx.FovPunch(3f + 5f * power);
+        if (power > 0.95f) CameraFx.Shake(0.15f);
     }
 
     /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
@@ -937,7 +934,7 @@ public partial class DesktopPlayer : Node3D
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
         var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
-        float side = autoplay ? 0f : velocity.Dot(right2);
+        float side = velocity.Dot(right2);
         lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
         var ideal = from + basis * new Vector3(0.85f, 0.35f + 0.8f * killCamBlend, CameraDistance + 2.2f * killCamBlend);   // par-dessus l'épaule droite : le viseur n'est jamais caché par le personnage
