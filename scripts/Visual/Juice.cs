@@ -57,7 +57,7 @@ public static class Juice
     /// <summary>Ralentit le monde 60-90 ms à l'impact (temps réel, indépendant du ralenti). Aucun effet sur la caméra VR.</summary>
     public static void HitStop(Node context, float seconds = 0.07f, float scale = 0.12f)
     {
-        if (DisplayServer.GetName() == "headless" || !GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return;   // pas de ralenti dans les simulations de CI
+        if (DisplayServer.GetName() == "headless" || !UI.GameSettings.HitStop || !GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return;   // pas de ralenti dans les simulations de CI
         ulong until = Time.GetTicksMsec() + (ulong)(seconds * 1000f);
         if (until > hitStopUntil) hitStopUntil = until;
         if (hitStopActive) return;

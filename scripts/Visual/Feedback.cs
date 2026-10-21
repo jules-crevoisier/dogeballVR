@@ -86,6 +86,14 @@ public partial class Feedback : Node
                 SpeechBubble.Spawn(this, HitWords[wordIndex++ % HitWords.Length], hit + new Vector3(0, 0.4f, 0), Colors.White);
                 Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
                 Juice.HitStop(this, h == Local ? 0.09f : 0.06f);
+                if (h == Local && GrayWhenKo)
+                {
+                    // Joueur clavier-souris touché : la vue encaisse (secousse, coup de côté), son plus sourd que pour les autres.
+                    CameraFx.Shake(0.5f);
+                    CameraFx.Kick(new Vector2((wordIndex % 2 == 0 ? 1f : -1f) * 2.5f, 1.2f));
+                    Sfx.Play(this, SfxKind.HurtSelf);
+                }
+                else if (GrayWhenKo) CameraFx.Shake(0.18f * Mathf.Clamp(1f - hit.DistanceTo(Local.GlobalPosition) / 15f, 0f, 1f));   // touche proche : petite secousse
             }
             lastLives[h] = lives;
             bool was = eliminated.TryGetValue(h, out var w) && w;
@@ -96,6 +104,7 @@ public partial class Feedback : Node
                 Juice.Burst(this, pos, Palette.Team(h.Team), 60, 8f);
                 Juice.Shock(this, pos, Palette.Team(h.Team), 2.2f);
                 Juice.HitStop(this, 0.12f, 0.08f);
+                if (GrayWhenKo) CameraFx.Shake(h == Local ? 0.75f : 0.22f);
                 Sfx.Play(this, SfxKind.Ko, pos);
             }
             eliminated[h] = h.Eliminated;

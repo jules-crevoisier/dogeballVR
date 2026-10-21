@@ -38,14 +38,33 @@ public partial class Main : Node3D
     readonly List<int> targetTeams = new();
     readonly Dictionary<int, int> targetIndexOfZone = new();
 
+    /// <summary>Retour au menu principal demandé (pause, fin de partie) : la scène est rechargée et affiche le menu même si le jeu a été lancé avec des options.</summary>
+    public static bool ReturnToMenu;
+
+    /// <summary>Recharge la scène sur le menu principal (ferme la connexion réseau).</summary>
+    public void GoToMenu()
+    {
+        ReturnToMenu = true;
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
+        Multiplayer.MultiplayerPeer = null;
+        Input.MouseMode = Input.MouseModeEnum.Visible;
+        GetTree().ReloadCurrentScene();
+    }
+
     public override void _Ready()
     {
         bool xrActive = XrBootstrap.Start(GetViewport());
+        UI.GameSettings.Load();
+        UI.InputSetup.Register();
+        UI.GameSettings.Apply(xrActive ? null : GetViewport());
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
         // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
-        if (!xrActive && DisplayServer.GetName() != "headless" && OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1)
+        if (!xrActive && DisplayServer.GetName() != "headless" && (ReturnToMenu || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
         {
             var menu = new Visual.MainMenu { Name = "MainMenu" };
             menu.Chosen += (mode, address) => { menu.QueueFree(); cfg.Choose(mode, address); StartMatch(xrActive); };
@@ -268,6 +287,7 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
+        if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
@@ -379,6 +399,12 @@ public partial class Main : Node3D
         GD.Print($"[Net] Joueur de la zone {zoneId} parti, un bot reprend");
     }
 
+    /// <summary>Menu pause du joueur clavier-souris (Échap).</summary>
+    void AddPauseMenu(bool canFreeze, System.Action? restart)
+    {
+        AddChild(new UI.PauseMenu { Name = "PauseMenu", CanFreeze = canFreeze, Restart = restart, QuitToMenu = GoToMenu });
+    }
+
     // ------------------------------------------------------------------ client
 
     /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
@@ -421,6 +447,7 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
         if (localBody is DesktopPlayer) hud.Visible = false;
+        if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
         AddKnockoutFeedback(localZone, world.Lives, 2, () => hud.Text);
 
         if (cfg.SelfTest)

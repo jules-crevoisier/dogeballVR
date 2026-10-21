@@ -2,6 +2,9 @@ using Godot;
 using DogeballVR.Net;
 using DogeballVR.Maps;
 using DogeballVR.Zones;
+using DogeballVR.Audio;
+using DogeballVR.UI;
+using DogeballVR.Visual;
 
 namespace DogeballVR.Gameplay;
 
@@ -31,7 +34,7 @@ public partial class DesktopPlayer : Node3D
     const float VoidMargin = 0.8f;        // le dash s'arrête à 0,8 m du vide
     const float PushSpeed = 8f, PushTime = 0.25f;   // poussée de tacle : 2 m en 0,25 s
     const float TackleRadius = 1.1f;      // un dash qui passe à moins de 1,1 m d'un adversaire le tacle
-    const float CameraDistance = 3.0f;   // 3e personne : distance de la caméra derrière la tête
+    const float CameraDistance = 3.4f;   // 3e personne : distance de la caméra derrière la tête (assez loin pour voir autour de soi)
     const float EyeHeight = 1.6f;
     const float CrouchHeight = 0.9f;
     const float EyeSpeed = 3.5f;         // m/s : l'hôte plafonne la vitesse verticale à 4 m/s
@@ -70,7 +73,11 @@ public partial class DesktopPlayer : Node3D
     public int CatchState => catchWindowLeft > 0 ? 1 : catchCooldownLeft > 0 ? 2 : 0;
     public float CatchCooldown01 => CatchState == 2 ? (float)(1 - catchCooldownLeft / CatchRecovery) : 1f;
     public bool Autoplay => autoplay;
-    public float Sensitivity => sensitivity;
+    public float Sensitivity => GameSettings.Sensitivity;
+    /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
+    public bool Dashing => dodgeLeft > 0 && FreeRoam;
+    /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
+    public float GroundSpeed => velocity.Length();
     /// <summary>Message bref à afficher (changement de sensibilité…).</summary>
     public string Toast { get; private set; } = "";
     public double ToastUntil { get; private set; }
@@ -94,7 +101,6 @@ public partial class DesktopPlayer : Node3D
     float yaw, pitch;
     float eyeY = EyeHeight;
     float jumpY, jumpVel;
-    float sensitivity = 0.0022f;
     double chargeTime;
     bool charging;
     double catchWindowLeft, catchCooldownLeft;
@@ -120,10 +126,15 @@ public partial class DesktopPlayer : Node3D
     public int DashCharges => dashCharges;
     public int DashMax => MaxCharges;
     public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
-    bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint;
+    bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint, prevCrouch, crouchToggled;
     double catchOpenedAt = -10, feintUntil, perfectClaimAt = -10;
     bool ignoreClicksUntilRelease, fireLatch;
-    float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
+    float fov = 100f;   // champ horizontal (Knockout City : large, réglable) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
+    float lean;         // roulis de la caméra en pas chassé (degrés)
+    double jumpPressedAt = -10, groundedAt = -10;   // tampon d'appui et « coyote time » du saut
+    bool wasAirborne;
+    float airVel;
+    int chargeTicks;    // paliers sonores de la charge du lancer (1/3, 2/3, plein)
     double time;
 
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
@@ -188,17 +199,10 @@ public partial class DesktopPlayer : Node3D
 
     void LoadSettings()
     {
-        var cfg = new ConfigFile();
-        if (cfg.Load("user://settings.cfg") == Error.Ok)
-            sensitivity = Mathf.Clamp((float)cfg.GetValue("pc", "sensitivity", sensitivity).AsDouble(), 0.0005f, 0.01f);
-    }
-
-    void SaveSettings()
-    {
-        var cfg = new ConfigFile();
-        cfg.Load("user://settings.cfg");
-        cfg.SetValue("pc", "sensitivity", sensitivity);
-        cfg.Save("user://settings.cfg");
+        GameSettings.Load();
+        InputSetup.Register();
+        fov = GameSettings.Fov;
+        CameraFx.Reset();
     }
 
     void ShowToast(string text) { Toast = text; ToastUntil = time + 1.5; }
@@ -208,16 +212,16 @@ public partial class DesktopPlayer : Node3D
         if (autoplay) return;
         if (e is InputEventMouseMotion motion && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            yaw -= motion.Relative.X * sensitivity;
-            pitch = Mathf.Clamp(pitch - motion.Relative.Y * sensitivity, -1.45f, 1.45f);
+            float sens = GameSettings.Sensitivity;
+            yaw -= motion.Relative.X * sens;
+            pitch = Mathf.Clamp(pitch - motion.Relative.Y * sens * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);
         }
         else if (e is InputEventKey { Pressed: true, Echo: false } key)
         {
-            if (key.Keycode == Key.Escape) Input.MouseMode = Input.MouseModeEnum.Visible;
-            else if (key.Keycode is Key.Pageup or Key.KpAdd) ChangeSensitivity(1.15f);
+            if (key.Keycode is Key.Pageup or Key.KpAdd) ChangeSensitivity(1.15f);
             else if (key.Keycode is Key.Pagedown or Key.KpSubtract) ChangeSensitivity(1f / 1.15f);
         }
-        else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
+        else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured && !PauseMenu.IsOpen)
         {
             Input.MouseMode = Input.MouseModeEnum.Captured;   // le premier clic reprend la souris et ne lance pas
             ignoreClicksUntilRelease = true;
@@ -227,15 +231,19 @@ public partial class DesktopPlayer : Node3D
 
     void ChangeSensitivity(float factor)
     {
-        sensitivity = Mathf.Clamp(sensitivity * factor, 0.0005f, 0.01f);
-        SaveSettings();
-        ShowToast($"Sensibilité : {sensitivity / 0.0022f:0.00}x");
+        GameSettings.Sensitivity = Mathf.Clamp(GameSettings.Sensitivity * factor, 0.0005f, 0.01f);
+        GameSettings.Save();
+        ShowToast($"Sensibilité : {GameSettings.Sensitivity / GameSettings.DefaultSensitivity:0.00}x");
     }
 
     public override void _Process(double delta)
     {
         head.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
-        if (FreeRoam) PlaceCamera((float)delta);
+        // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
+        float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
+        var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
+        if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -276,28 +284,32 @@ public partial class DesktopPlayer : Node3D
 
     PcInput ReadInput()
     {
+        // Actions de l'InputMap (touches physiques réassignables, voir UI.InputSetup) : ZQSD sur AZERTY, WASD sur QWERTY.
+        static bool A(string action) => Input.IsActionPressed(action);
         var m = Vector2.Zero;
-        if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Up)) m.Y -= 1;
-        if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) m.Y += 1;
-        if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) m.X -= 1;
-        if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) m.X += 1;
-        bool jump = Input.IsKeyPressed(Key.Space), dash = Input.IsKeyPressed(FreeRoam ? Key.Shift : Key.E), catchDown = Input.IsMouseButtonPressed(MouseButton.Right);
-        bool pass = Input.IsMouseButtonPressed(MouseButton.Middle) || Input.IsKeyPressed(Key.X), lob = Input.IsKeyPressed(Key.R), feint = Input.IsKeyPressed(Key.F);
+        if (A("move_forward")) m.Y -= 1;
+        if (A("move_back")) m.Y += 1;
+        if (A("move_left")) m.X -= 1;
+        if (A("move_right")) m.X += 1;
+        bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
+        bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
+        if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }
+        else crouchToggled = false;
         var input = new PcInput
         {
             Move = m.LimitLength(1f),
-            Crouch = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.C),
+            Crouch = GameSettings.ToggleCrouch ? crouchToggled : crouchKey,
             Jump = jump && !prevJump,
             Dodge = dash && !prevDodge,
-            Sprint = !FreeRoam && Input.IsKeyPressed(Key.Shift),
+            Sprint = !FreeRoam && A("dash"),
             Catch = catchDown && !prevCatch,
-            Fire = Input.IsMouseButtonPressed(MouseButton.Left),
+            Fire = A("fire"),
             Pass = FreeRoam && pass && !prevPass,
             Lob = FreeRoam && lob && !prevLob,
             Feint = FreeRoam && feint && !prevFeint,
-            Curve = FreeRoam && Input.IsKeyPressed(Key.E),
+            Curve = FreeRoam && A("curve"),
         };
-        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint;
+        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
         return input;
     }
 
@@ -323,6 +335,7 @@ public partial class DesktopPlayer : Node3D
             dashCharges--;
             dashStartedAt = time;
             dashCount++;
+            if (FreeRoam && !autoplay) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
 
@@ -436,11 +449,27 @@ public partial class DesktopPlayer : Node3D
         var terrace = map.TerraceAt(worldPos.X, worldPos.Y);
         float ground = terrace != null && feet >= terrace.Sy - 0.25f ? terrace.Sy : map.OverPit(worldPos.X, worldPos.Y, -0.05f) ? float.NegativeInfinity : 0f;
         bool grounded = jumpVel <= 0f && ground > float.NegativeInfinity && feet <= ground + 0.03f;
+        if (input.Jump) jumpPressedAt = time;
+        // Tampon de 0,12 s (appui juste avant de toucher le sol) et « coyote time » de 0,1 s (appui juste après avoir quitté une terrasse).
+        bool wantJump = time - jumpPressedAt <= 0.12 && !crouched && !Hurtbox.Eliminated && time >= evictUntil;
         if (grounded)
         {
+            groundedAt = time;
+            if (wasAirborne && !autoplay)
+            {
+                // Réception : la vue plonge un peu, plus fort après une grande chute ; son de pas lourd.
+                float impact = Mathf.Clamp(-airVel / 9f, 0f, 1f);
+                if (impact > 0.15f) { CameraFx.Kick(new Vector2(0, -2.5f * impact)); Sfx.Play(this, SfxKind.Land, null, 1f, -8f + 6f * impact); }
+            }
+            wasAirborne = false;
             feet = ground; jumpVel = 0f; padFlight = false;
-            if (input.Jump && !crouched && !Hurtbox.Eliminated && time >= evictUntil) jumpVel = FreeJumpSpeed;
+            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
             else if (!Hurtbox.Eliminated) TryPad();
+        }
+        else if (wantJump && !padFlight && jumpVel <= 0f && jumpVel > -3f && time - groundedAt <= 0.1 && ground > float.NegativeInfinity)
+        {
+            jumpVel = FreeJumpSpeed; jumpPressedAt = -10;
+            if (!autoplay) Sfx.Play(this, SfxKind.Jump, null, 1f, -6f);
         }
         if (!grounded || jumpVel > 0f)
         {
@@ -449,6 +478,7 @@ public partial class DesktopPlayer : Node3D
             feet += jumpVel * dt;
             if (jumpVel < 0f && ground > float.NegativeInfinity && prev >= ground && feet <= ground) { feet = ground; jumpVel = 0f; padFlight = false; }
             if (feet < -6f) { feet = -6f; jumpVel = 0f; }   // fond de la fosse : l'hôte a déjà jugé la chute depuis longtemps
+            if (jumpVel != 0f) { wasAirborne = true; airVel = jumpVel; }
         }
         float elevation = terrace != null && feet >= terrace.Sy - 0.05f ? terrace.Sy : 0f;
         if (elevation != Elevation)
@@ -625,6 +655,14 @@ public partial class DesktopPlayer : Node3D
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
                 if (perfect && !BallActions.IsClient) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
+                if (viaCatch && !ally && !autoplay)
+                {
+                    // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
+                    CameraFx.Kick(new Vector2(0, -1.4f));
+                    CameraFx.Shake(perfect ? 0.3f : 0.14f);
+                    CameraFx.FovPunch(perfect ? -6f : -3f);
+                    if (perfect) Juice.HitStop(this, 0.1f, 0.1f);
+                }
                 else if (perfect) perfectClaimAt = time;   // client : on annonce quand l'hôte a confirmé (balle tenue avec un palier)
                 if (ally) { GD.Print("[PC] Passe reçue"); pickupBlockedUntil = time + 0.3; }
                 if (viaCatch) { catchWindowLeft = 0; catchCooldownLeft = 0; }   // attrape réussie : pas de recharge
@@ -656,12 +694,22 @@ public partial class DesktopPlayer : Node3D
             else if (input.Lob)
             {
                 var enemy = BestEnemy(AssistCone * 2f);
-                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition - camera.GlobalTransform.Basis.Z * AimDistance();
+                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
                 var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
                 if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }   // au-delà, la vitesse maximale ne suffit plus
                 Launch(ArcVelocity(holdPoint.GlobalPosition, to, 3.0f), 0f, Ball.ModeLob);
             }
-            else if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            else if (fire)
+            {
+                if (!charging) chargeTicks = 0;
+                charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                int tick = Mathf.FloorToInt((float)(chargeTime / MaxChargeTime) * 3f + 0.001f);
+                if (tick > chargeTicks)
+                {
+                    chargeTicks = tick;
+                    if (!autoplay) Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
+                }
+            }
             else if (charging)
             {
                 float t = (float)(chargeTime / MaxChargeTime);
@@ -686,7 +734,14 @@ public partial class DesktopPlayer : Node3D
         chargeTime = 0;
         pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
         catchWindowLeft = 0;                  // une fenêtre encore ouverte ne doit pas reprendre la balle lancée
-        fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
+        // Le lancer se sent : recul de la vue vers le haut et coup de champ, proportionnels à la vitesse ; secousse au lancer plein.
+        float power = Mathf.Clamp((velocity.Length() - MinThrow) / (MaxThrow - MinThrow), 0f, 1f);
+        if (!autoplay)
+        {
+            CameraFx.Kick(new Vector2(0, 0.6f + 1.6f * power));
+            CameraFx.FovPunch(3f + 5f * power);
+            if (power > 0.95f) CameraFx.Shake(0.15f);
+        }
     }
 
     /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
@@ -706,7 +761,7 @@ public partial class DesktopPlayer : Node3D
     Hurtbox? BestAlly()
     {
         var from = camera.GlobalPosition;
-        var fwd = -camera.GlobalTransform.Basis.Z;
+        var fwd = AimFwd;
         Hurtbox? best = null, nearest = null;
         float bestAngle = 35f, nearestDist = 33f;   // au-delà de 33 m la passe (24 m/s au plus) retomberait courte
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
@@ -721,6 +776,9 @@ public partial class DesktopPlayer : Node3D
         return best ?? nearest;
     }
 
+    /// <summary>Direction de visée sans les secousses de caméra (une secousse ne doit jamais dévier un tir).</summary>
+    Vector3 AimFwd => FreeRoam ? -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z : -camera.GlobalTransform.Basis.Z;
+
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
@@ -733,7 +791,7 @@ public partial class DesktopPlayer : Node3D
     Hurtbox? BestEnemy(float coneDegrees)
     {
         var from = camera.GlobalPosition;
-        var fwd = -camera.GlobalTransform.Basis.Z;
+        var fwd = AimFwd;
         Hurtbox? best = null;
         float bestAngle = coneDegrees;
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
@@ -751,7 +809,7 @@ public partial class DesktopPlayer : Node3D
     float AimDistance()
     {
         var from = camera.GlobalPosition;
-        var to = from + (-camera.GlobalTransform.Basis.Z) * 30f;
+        var to = from + AimFwd * 30f;
         var space = GetWorld3D().DirectSpaceState;
         var exclude = new Godot.Collections.Array<Rid>();
         for (int i = 0; i < 4; i++)
@@ -771,14 +829,14 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     Vector3 ThrowVelocity(float speed)
     {
-        var fwd = (-camera.GlobalTransform.Basis.Z).Normalized();
-        var enemy = BestEnemy(AssistCone);
+        var fwd = AimFwd.Normalized();
+        var enemy = GameSettings.AimAssist > 0.01f ? BestEnemy(AssistCone * Mathf.Lerp(0.6f, 1f, GameSettings.AimAssist)) : null;
         float dist = AimDistance();
         if (enemy != null)
         {
             var to = enemy.GlobalPosition - camera.GlobalPosition;
             dist = to.Length();
-            fwd = fwd.Lerp(to / dist, AssistStrength).Normalized();   // petit angle : mélange linéaire (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
+            fwd = fwd.Lerp(to / dist, AssistStrength * GameSettings.AimAssist).Normalized();   // petit angle : mélange linéaire (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
         }
         var aimPoint = camera.GlobalPosition + fwd * dist;
         float t = dist / speed;
@@ -790,17 +848,20 @@ public partial class DesktopPlayer : Node3D
 
     void UpdateCamera(float dt)
     {
-        float target = charging ? 94f : 100f;
+        float target = charging ? GameSettings.Fov - 6f : GameSettings.Fov;   // on resserre en armant : la cible se rapproche
         fov = Mathf.Lerp(fov, target, 1f - Mathf.Exp(-10f * dt));
-        camera.Fov = fov;
     }
 
     /// <summary>3e personne : la caméra flotte derrière l'épaule droite, orientée comme la tête, et reste dans l'arène.</summary>
-    void PlaceCamera(float dt)
+    void PlaceCamera(float dt, Vector3 fxRot, Vector3 fxOffset, float realDt)
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
+        // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
+        var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
+        float side = autoplay ? 0f : velocity.Dot(right2);
+        lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
-        var ideal = from + basis * new Vector3(0.75f, 0.25f, CameraDistance);
+        var ideal = from + basis * new Vector3(0.85f, 0.35f, CameraDistance);   // par-dessus l'épaule droite : le viseur n'est jamais caché par le personnage
         var bnd = Zones.Map.Bounds;
         ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
         // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.
@@ -823,7 +884,8 @@ public partial class DesktopPlayer : Node3D
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
-        camera.GlobalTransform = new Transform3D(basis, pos);
+        var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
+        camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
     }
 
     /// <summary>Échange de plaques : le joueur se retrouve au même endroit relatif de la plaque d'arrivée (jeu libre) ou y est simplement posé (zones).</summary>

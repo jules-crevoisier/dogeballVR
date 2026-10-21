@@ -4,7 +4,11 @@ using Godot;
 
 namespace DogeballVR.Audio;
 
-public enum SfxKind { Throw, Catch, Perfect, Tier, Ko, Alert, Parry, Bomb, Hit, Click }
+public enum SfxKind
+{
+    Throw, Catch, Perfect, Tier, Ko, Alert, Parry, Bomb, Hit, Click,
+    UiHover, UiClick, UiBack, Countdown, Go, Whistle, Dash, Jump, Land, ChargeTick, KoConfirm, Victory, Defeat, HurtSelf,
+}
 
 /// <summary>
 /// Sons du jeu, synthétisés au démarrage (aucun fichier audio dans le dépôt) : un balayage de fréquence enveloppé par sample.
@@ -28,6 +32,20 @@ public static class Sfx
         [SfxKind.Bomb] = (140, 40, 0.6f, 0.8f, 2),
         [SfxKind.Hit] = (150, 45, 0.32f, 0.9f, 3),     // choc : claquement de bruit + grave qui plonge
         [SfxKind.Click] = (900, 600, 0.05f, 0.4f, 1),
+        [SfxKind.UiHover] = (1200, 1400, 0.03f, 0.25f, 0),
+        [SfxKind.UiClick] = (700, 1100, 0.07f, 0.45f, 1),
+        [SfxKind.UiBack] = (700, 400, 0.08f, 0.4f, 1),
+        [SfxKind.Countdown] = (660, 660, 0.12f, 0.5f, 0),
+        [SfxKind.Go] = (880, 1320, 0.35f, 0.6f, 1),
+        [SfxKind.Whistle] = (2100, 2300, 0.5f, 0.4f, 0),
+        [SfxKind.Dash] = (500, 200, 0.2f, 0.5f, 2),
+        [SfxKind.Jump] = (300, 520, 0.1f, 0.35f, 0),
+        [SfxKind.Land] = (160, 80, 0.1f, 0.5f, 2),
+        [SfxKind.ChargeTick] = (900, 1000, 0.05f, 0.35f, 0),
+        [SfxKind.KoConfirm] = (520, 1040, 0.3f, 0.6f, 1),
+        [SfxKind.Victory] = (440, 880, 1.0f, 0.6f, 1),
+        [SfxKind.Defeat] = (330, 160, 1.0f, 0.6f, 1),
+        [SfxKind.HurtSelf] = (200, 60, 0.35f, 0.9f, 3),
     };
 
     static AudioStreamWav Make(SfxKind kind)
@@ -57,15 +75,17 @@ public static class Sfx
         return new AudioStreamWav { Data = data, Format = AudioStreamWav.FormatEnum.Format16Bits, MixRate = Rate, Stereo = false };
     }
 
+    static string BusOf(SfxKind kind) => kind is SfxKind.UiHover or SfxKind.UiClick or SfxKind.UiBack ? "UI" : "SFX";
+
     /// <summary>Joue un son ; pitch 1 = normal (les paliers de charge montent la hauteur).</summary>
-    public static void Play(Node context, SfxKind kind, Vector3? position = null, float pitch = 1f)
+    public static void Play(Node context, SfxKind kind, Vector3? position = null, float pitch = 1f, float volumeDb = 0f)
     {
         if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return;
         if (!cache.TryGetValue(kind, out var stream)) cache[kind] = stream = Make(kind);
         Node player;
         if (position is Vector3 p)
         {
-            var p3 = new AudioStreamPlayer3D { Stream = stream, PitchScale = pitch, UnitSize = 6f, MaxDistance = 40f };
+            var p3 = new AudioStreamPlayer3D { Stream = stream, PitchScale = pitch, UnitSize = 6f, MaxDistance = 40f, VolumeDb = volumeDb, Bus = BusOf(kind) };
             p3.Finished += p3.QueueFree;
             context.GetTree().CurrentScene.AddChild(p3);
             p3.GlobalPosition = p;
@@ -74,7 +94,7 @@ public static class Sfx
         }
         else
         {
-            var p2 = new AudioStreamPlayer { Stream = stream, PitchScale = pitch };
+            var p2 = new AudioStreamPlayer { Stream = stream, PitchScale = pitch, VolumeDb = volumeDb, Bus = BusOf(kind), ProcessMode = Node.ProcessModeEnum.Always };
             p2.Finished += p2.QueueFree;
             context.GetTree().CurrentScene.AddChild(p2);
             p2.Play();
