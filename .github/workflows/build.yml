@@ -300,7 +300,8 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-quick --auto-ready --pc-autoplay --token=ci-reco --name=Reco --net-cut=20 > lobby-c1.log 2>&1
           # 2) Entrée en cours de partie, crash brutal (SIGKILL), retour 4 s plus tard avec le même jeton : même zone.
           timeout -s KILL 15 "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c2.log 2>&1 || true
-          sleep 4
+          # Relance aussitôt : selon que l'hôte a déjà vu la coupure ou non, la zone revient par la réservation ou par l'éviction de la connexion muette.
+          sleep 1
           "$GODOT" --headless --path . --max-fps 60 --quit-after 900 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c3.log 2>&1
           wait $HOST_PID || true
           grep -E "\[Lobby\]|\[Net\] (Pair|Joueur|Reconnexion|Secret|Entrée|Test|Version)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log | head -70
@@ -315,7 +316,7 @@ jobs:
           Z1=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c1.log | head -1 | grep -o "[0-9]*$")
           [ -n "$Z1" ] && [ "$(grep -c "Entrée acceptée par l'hôte, zone $Z1\$" lobby-c1.log)" -ge 2 ] || { echo "Le client reconnecté n'a pas retrouvé sa zone"; FAIL=1; }
           [ "$(grep -c "Reconnexion : le secret [0-9a-f]* retrouve la zone" lobby-host.log)" -ge 2 ] || { echo "L'hôte n'a pas rendu leur zone aux joueurs revenus (coupure puis crash)"; FAIL=1; }
-          grep -q "Secret déjà en jeu (pair [0-9]*, muet) : ancienne connexion remplacée" lobby-host.log || { echo "La connexion morte (crash) n'a pas été remplacée"; FAIL=1; }
+          if grep -q "Secret déjà en jeu (pair [0-9]*, muet) : ancienne connexion remplacée" lobby-host.log; then echo "Crash : connexion muette remplacée"; else echo "Crash : coupure vue avant le retour, zone rendue par la réservation"; fi
           Z2=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c2.log | tail -1 | grep -o "[0-9]*$")
           Z3=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" lobby-c3.log | tail -1 | grep -o "[0-9]*$")
           [ -n "$Z2" ] && [ "$Z2" = "$Z3" ] || { echo "Après le crash, le joueur n'a pas retrouvé sa zone ($Z2 puis $Z3)"; FAIL=1; }

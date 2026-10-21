@@ -144,6 +144,8 @@ public partial class OnlineLobby : Node
             else if (a == "--lobby-quick") quick = true;
             else if (a.StartsWith("--lobby-join=")) join = a["--lobby-join=".Length..];
         }
+        ulong steamLobby = SteamBridge.PendingLaunchLobby();
+        if (steamLobby != 0) { Ensure(tree, lobby => lobby.JoinSteamLobby(steamLobby)); return true; }
         if (!host && !quick && join == null) return false;
         Ensure(tree, lobby =>
         {
@@ -239,6 +241,20 @@ public partial class OnlineLobby : Node
     }
 
     internal void SetCode(string code, bool internet = true) { Code = code; CodeIsInternet = internet; Changed?.Invoke(); }
+
+    /// <summary>Utilisé par la couche Steam : attente d'une réponse de Steam (recherche, création, entrée dans un salon).</summary>
+    internal void SetSearching(string status) => SetState(LobbyState.Connecting, status);
+
+    /// <summary>Utilisé par la couche Steam : échec définitif.</summary>
+    internal void FailExternal(string reason) => Fail(reason);
+
+    /// <summary>Invitation Steam acceptée, « Rejoindre la partie », ou code « S… » : entre dans le salon Steam.</summary>
+    public void JoinSteamLobby(ulong lobbyId)
+    {
+        Reset();
+        if (!SteamBridge.Available) { Fail("Steam n'est pas lancé"); return; }
+        SteamBridge.Join(this, lobbyId);
+    }
 
     public void SetReady(bool ready)
     {
@@ -377,7 +393,7 @@ public partial class OnlineLobby : Node
                 if (other != null) { GD.Print($"[Lobby] Autre salle ouverte en même temps ({other.Address}:{other.GamePort}) : on la rejoint"); var (a, gp) = (other.Address, other.GamePort); Reset(); JoinAddress(a, gp); }
                 break;
             case LobbyState.Connecting:
-                if (stateClock > ConnectTimeout) Fail("L'hôte ne répond pas");
+                if (stateClock > ConnectTimeout * (SteamBridge.Target != 0 || Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer ? 2 : 1)) Fail("L'hôte ne répond pas");
                 break;
             case LobbyState.Reconnecting:
                 reconnectClock += delta;

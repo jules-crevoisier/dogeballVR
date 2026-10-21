@@ -42,6 +42,7 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         Online.CrashReporter.Start(GetTree());
+        Online.SteamBridge.Init();   // sans effet sans Steam (CI, LAN)
         bool xrActive = XrBootstrap.Start(GetViewport());
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
@@ -304,6 +305,7 @@ public partial class Main : Node3D
                 if (err != Error.Ok) GD.PrintErr($"[Net] Impossible d'héberger : {err}");
             }
         }
+        AddAchievementTracker(localZone, match);
         match.StartMatch();
         if (cfg.Preconnected) Online.OnlineLobby.Instance?.HostMatchReady();   // les joueurs de la salle peuvent entrer
     }
@@ -394,6 +396,14 @@ public partial class Main : Node3D
     // ------------------------------------------------------------------ client
 
     /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
+    /// <summary>Succès Steam (ou leur repli local) : KO, prises, victoires. Sans match local (client), la victoire vient de l'hôte.</summary>
+    void AddAchievementTracker(ZoneDef localZone, MatchController? localMatch) =>
+        AddChild(new Online.Steam.AchievementTracker
+        {
+            Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch,
+            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Vr = xrOrigin != null, Online = net != null,
+        });
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
@@ -442,6 +452,7 @@ public partial class Main : Node3D
             AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up,
                 Lift = localZone.Lift, ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
+        AddAchievementTracker(localZone, null);
         net.SimulatedLag = cfg.LagMs / 1000.0;
         net.SimulatedLoss = cfg.LossRate;
         if (Online.OnlineLobby.Instance is { } lobby)
