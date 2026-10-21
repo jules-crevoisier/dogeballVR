@@ -56,6 +56,7 @@ jobs:
             echo "Le réseau ne fonctionne pas (trop peu de prises / lancers)"; exit 1
           fi
           grep -E "balles=[1-9]" client.log > /dev/null || { echo "Le client ne voit pas les balles"; exit 1; }
+          grep -E "touches=[1-9]" client.log > /dev/null || { echo "Les touches validées par l'hôte n'arrivent pas au client (HUD, fil des KO)"; exit 1; }
 
       - name: Test transport P2P (peer Steam sur UDP local, 10 % de perte)
         run: |

@@ -18,6 +18,8 @@ public class LobbyMember
     public int Team;
     public bool Ready;
     public bool Vr;
+    /// <summary>Zone tenue en partie (-1 : pas en partie).</summary>
+    public int Zone = -1;
     public bool Host => PeerId == 1;
 }
 
@@ -556,7 +558,8 @@ public partial class OnlineLobby : Node
         foreach (var v in d["members"].AsGodotArray())
         {
             var md = v.AsGodotDictionary();
-            var m = new LobbyMember { PeerId = (int)md["peer"], Name = (string)md["name"], Team = (int)md["team"], Ready = (bool)md["ready"], Vr = (bool)md["vr"] };
+            var m = new LobbyMember { PeerId = (int)md["peer"], Name = (string)md["name"], Team = (int)md["team"], Ready = (bool)md["ready"], Vr = (bool)md["vr"],
+                Zone = md.ContainsKey("zone") ? (int)md["zone"] : -1 };
             members[m.PeerId] = m;
         }
         bool hostInMatch = d.ContainsKey("inMatch") && (bool)d["inMatch"];
@@ -611,12 +614,18 @@ public partial class OnlineLobby : Node
         return cfg;
     }
 
+    /// <summary>Nom du joueur humain qui tient cette zone en partie, null si c'est un bot (HUD, fil des KO, écran de fin).</summary>
+    public string? NameOfZone(int zone) => State == LobbyState.InMatch ? members.Values.FirstOrDefault(m => m.Zone == zone)?.Name : null;
+
     void BroadcastRoster()
     {
         if (!IsHost) { Changed?.Invoke(); return; }
         var list = new Godot.Collections.Array();
         foreach (var m in Members)
-            list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr });
+        {
+            m.Zone = State == LobbyState.InMatch && matchZones.TryGetValue(m.PeerId, out int zone) ? zone : -1;
+            list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr, ["zone"] = m.Zone });
+        }
         string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch });
         foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.RosterRpc, json);
         SteamBridge.OnRosterChanged(this);

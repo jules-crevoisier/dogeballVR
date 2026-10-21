@@ -306,6 +306,8 @@ public partial class MatchController : Node3D
 
     /// <summary>Touche validée par l'hôte (ou hors ligne) : tireur, cible, vrai si la cible est KO. Pour le marqueur de touche du HUD.</summary>
     public static event System.Action<int, int, bool>? HitScored;
+    /// <summary>Client : touche annoncée par l'hôte, relayée aux mêmes abonnés (HUD, succès) que sur l'hôte.</summary>
+    public static void ReportRemoteHit(int shooterId, int targetId, bool kill) => HitScored?.Invoke(shooterId, targetId, kill);
 
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {

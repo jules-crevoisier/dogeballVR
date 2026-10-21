@@ -361,11 +361,16 @@ public partial class NetSession : Node
 
     /// <summary>Session de jeu en cours (null hors partie) : le lobby s'en sert pour placer un joueur qui entre en cours de partie.</summary>
     public static NetSession? Current { get; private set; }
-    public override void _EnterTree() => Current = this;
+    public override void _EnterTree()
+    {
+        Current = this;
+        MatchController.HitScored += OnHitScored;
+    }
 
     public override void _ExitTree()
     {
         if (Current == this) Current = null;
+        MatchController.HitScored -= OnHitScored;
         if (Mode == NetMode.Host) { Multiplayer.PeerDisconnected -= OnPeerDisconnected; Multiplayer.PeerConnected -= OnPeerConnected; }
         else if (Mode == NetMode.Client) Multiplayer.ServerDisconnected -= OnServerDisconnected;
         if (joined) { Multiplayer.ConnectedToServer -= OnConnectedToServer; Multiplayer.ConnectionFailed -= OnConnectionFailed; }
@@ -769,6 +774,16 @@ public partial class NetSession : Node
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    /// <summary>Hôte : chaque touche validée (tireur, cible, KO) part chez les clients, pour leur marqueur de touche, leur fil des KO et leurs succès.</summary>
+    void OnHitScored(int shooterId, int targetId, bool kill)
+    {
+        if (!IsHost || !Connected) return;
+        foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.HitRpc, shooterId, targetId, kill);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void HitRpc(int shooterId, int targetId, bool kill) => Later(() => MatchController.ReportRemoteHit(shooterId, targetId, kill), unreliable: false);
 
     /// <summary>Nouvelle table des plaques (indexée par joueur) : l'hôte l'envoie à tous et accepte le saut des joueurs déplacés.</summary>
     public event Action<int[]>? PlatesReceived;
