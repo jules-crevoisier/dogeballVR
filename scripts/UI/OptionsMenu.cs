@@ -24,11 +24,11 @@ public partial class OptionsMenu : Control
     {
         Theme = UiKit.Theme;
         ProcessMode = ProcessModeEnum.Always;
-        SetAnchorsPreset(LayoutPreset.FullRect);
+        SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(UiKit.Dim(0.55f));
 
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
-        center.SetAnchorsPreset(LayoutPreset.FullRect);
+        center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(center);
         var panel = new PanelContainer { CustomMinimumSize = new Vector2(980, 640) };
         center.AddChild(panel);

@@ -50,7 +50,7 @@ public partial class Tutorial : CanvasLayer
         steps.Add(new("FEINTE", () => $"Balle en main, {K("feint")} fait mine de lancer : l'adversaire attrape dans le vide.", p => p.Feints > start["feints"]));
 
         var root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
         card = new PanelContainer { CustomMinimumSize = new Vector2(760, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
         card.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.Navy, 0.88f), 20, 0f, 3, UiKit.Yellow, 8));
@@ -155,11 +155,11 @@ public partial class Tutorial : CanvasLayer
         card.Visible = false;
         Input.MouseMode = Input.MouseModeEnum.Visible;
         var layer = new Control { Theme = UiKit.Theme };
-        layer.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        layer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(layer);
         layer.AddChild(UiKit.Dim(0.55f));
         var center = new CenterContainer();
-        center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         layer.AddChild(center);
         var panel = new PanelContainer();
         center.AddChild(panel);

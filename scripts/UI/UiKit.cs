@@ -187,7 +187,7 @@ public static class UiKit
     public static ColorRect Dim(float alpha = 0.6f)
     {
         var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop };
-        r.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        r.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         return r;
     }
 }

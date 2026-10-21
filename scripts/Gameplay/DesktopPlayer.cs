@@ -156,8 +156,39 @@ public partial class DesktopPlayer : Node3D
 
     struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, Feint, Curve; }
 
+    int killerId = -1;
+    float killCamBlend;   // 0 → 1 : la caméra recule et se tourne vers celui qui nous a mis KO
+
+    void OnHitScored(int shooterId, int targetId, bool kill)
+    {
+        if (targetId == Hurtbox.PlayerId && kill && shooterId != Hurtbox.PlayerId) killerId = shooterId;
+    }
+
+    public override void _ExitTree() => MatchController.HitScored -= OnHitScored;
+
+    /// <summary>KO : la caméra se tourne doucement vers le tireur (façon « kill cam »), puis reprend la main au retour.</summary>
+    void KillCam(float dt)
+    {
+        bool active = Hurtbox.Eliminated && killerId >= 0 && FreeRoam && !autoplay;
+        killCamBlend = Mathf.MoveToward(killCamBlend, active ? 1f : 0f, dt * 2.5f);
+        if (!Hurtbox.Eliminated) killerId = -1;
+        if (!active) return;
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (n is not Hurtbox h || h.PlayerId != killerId) continue;
+            var to = h.GlobalPosition - head.GlobalPosition;
+            float wantYaw = Mathf.Atan2(-to.X, -to.Z);
+            float wantPitch = Mathf.Clamp(Mathf.Atan2(to.Y - 0.6f, new Vector2(to.X, to.Z).Length()), -0.5f, 0.3f);
+            float k = 1f - Mathf.Exp(-3f * dt);
+            yaw = Mathf.LerpAngle(yaw, wantYaw, k);
+            pitch = Mathf.Lerp(pitch, wantPitch, k);
+            break;
+        }
+    }
+
     public override void _Ready()
     {
+        MatchController.HitScored += OnHitScored;
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
         if (FreeRoam)
         {
@@ -269,6 +300,7 @@ public partial class DesktopPlayer : Node3D
     public override void _Process(double delta)
     {
         if (!autoplay && !PauseMenu.IsOpen) PadLook((float)delta);
+        KillCam((float)delta);
         head.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
         // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
@@ -908,7 +940,7 @@ public partial class DesktopPlayer : Node3D
         float side = autoplay ? 0f : velocity.Dot(right2);
         lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
-        var ideal = from + basis * new Vector3(0.85f, 0.35f, CameraDistance);   // par-dessus l'épaule droite : le viseur n'est jamais caché par le personnage
+        var ideal = from + basis * new Vector3(0.85f, 0.35f + 0.8f * killCamBlend, CameraDistance + 2.2f * killCamBlend);   // par-dessus l'épaule droite : le viseur n'est jamais caché par le personnage
         var bnd = Zones.Map.Bounds;
         ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
         // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.

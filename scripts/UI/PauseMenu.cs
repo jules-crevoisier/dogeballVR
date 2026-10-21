@@ -85,7 +85,7 @@ public partial class PauseMenu : CanvasLayer
     void Build()
     {
         root = new Control { Theme = UiKit.Theme };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
         root.AddChild(UiKit.Dim(0.62f));
 
@@ -137,10 +137,10 @@ public partial class PauseMenu : CanvasLayer
         public override void _Ready()
         {
             Theme = UiKit.Theme;
-            SetAnchorsPreset(LayoutPreset.FullRect);
+            SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(UiKit.Dim(0.5f));
             var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
+            center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             var panel = new PanelContainer();
             center.AddChild(panel);

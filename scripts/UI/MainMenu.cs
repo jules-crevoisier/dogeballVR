@@ -24,7 +24,7 @@ public partial class MainMenu : CanvasLayer
     {
         Layer = 20;
         root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
 
         // Dégradé sombre à gauche : les boutons restent lisibles quel que soit le décor.
@@ -60,7 +60,7 @@ public partial class MainMenu : CanvasLayer
         root.AddChild(version);
 
         fade = new ColorRect { Color = new Color(0, 0, 0, 1), MouseFilter = Control.MouseFilterEnum.Ignore };
-        fade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        fade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(fade);
         fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.6);
 
@@ -163,10 +163,10 @@ public partial class MainMenu : CanvasLayer
     static Control Centered(Control card)
     {
         var holder = new Control();
-        holder.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        holder.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         holder.AddChild(UiKit.Dim(0.5f));
         var center = new CenterContainer();
-        center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         holder.AddChild(center);
         center.AddChild(card);
         UiKit.Punch(card, 0.85f, 0.22);
