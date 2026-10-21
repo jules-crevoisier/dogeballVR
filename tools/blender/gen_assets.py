@@ -10,6 +10,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
 from lib import (box, cyl, export, mat, outline_shell, reset, sphere, torus, tris)  # noqa: E402
+from lib import hex_rgba  # noqa: E402
+from organic import paint, skin_body  # noqa: E402
 
 
 # ---------------------------------------------------------------- balles
@@ -50,40 +52,64 @@ def avatar(team, part):
     glow = mat("neon_" + team, "#FFB347" if orange else "#8FE3FF", 2.5)
     vis = mat("visiere", "visiere")
     p = []
-    # baskets épaisses à semelle lumineuse, jambes de jogging fuselées
+    # corps organique : squelette + Skin + Subdivision, couleurs et occlusion peintes dans les sommets
+    N = [  # x, y, z, rx, ry
+        (0, 0, 0.92, 0.22, 0.17), (0, 0, 1.2, 0.29, 0.2), (0, 0, 1.46, 0.1, 0.1),  # 0 bassin, 1 buste, 2 cou
+        (-0.3, 0, 1.38, 0.12, 0.12), (-0.5, 0, 1.2, 0.1, 0.1), (-0.6, 0.02, 0.98, 0.075, 0.075),   # 3-5 bras G
+        (0.3, 0, 1.38, 0.12, 0.12), (0.5, 0, 1.2, 0.1, 0.1), (0.6, 0.02, 0.98, 0.075, 0.075),      # 6-8 bras D
+        (-0.14, 0, 0.84, 0.13, 0.13), (-0.14, 0.02, 0.5, 0.115, 0.115), (-0.14, 0, 0.19, 0.095, 0.095), (-0.14, 0.2, 0.09, 0.1, 0.085),   # 9-12 jambe G + pied
+        (0.14, 0, 0.84, 0.13, 0.13), (0.14, 0.02, 0.5, 0.115, 0.115), (0.14, 0, 0.19, 0.095, 0.095), (0.14, 0.2, 0.09, 0.1, 0.085),     # 13-16
+    ]
+    E = [(0, 1), (1, 2), (1, 3), (3, 4), (4, 5), (1, 6), (6, 7), (7, 8),
+         (0, 9), (9, 10), (10, 11), (11, 12), (0, 13), (13, 14), (14, 15), (15, 16)]
+    body = skin_body(N, E, subdiv=2, name="Corps")
+    tc = hex_rgba("#FF6A1A" if orange else "#4FB8F5")
+    td = hex_rgba("#C94A0A" if orange else "#2E86C7")
+    jog = hex_rgba("#2B3658")
+    white = hex_rgba("#F2F4F8")
+    skin = hex_rgba("#F2C9A5")
+
+    def body_color(co, n):
+        if co.z < 0.2:
+            return white
+        if co.z < 0.97 and abs(co.x) < 0.45 and abs(co.y) < 0.4:
+            return jog if co.z > 0.24 else white
+        if abs(co.x) > 0.55 and co.z < 1.06:
+            return skin
+        if co.z > 1.5:
+            return skin
+        t = max(0.0, min(1.0, (1.45 - co.z) / 0.5))
+        return tuple(tc[i] * (1 - t * 0.35) + td[i] * t * 0.35 for i in range(3)) + (1,)
+    paint(body, body_color, ao_rays=28, ao_dist=0.3)
+    p.append(body)
     for s in (-1, 1):
-        p.append(box((0.21, 0.36, 0.11), (s * 0.13, 0.06, 0.085), wh, f"Basket{s}", 0.045))
-        p.append(box((0.215, 0.37, 0.03), (s * 0.13, 0.06, 0.025), glow, f"Semelle{s}", 0.012))
-        p.append(box((0.18, 0.14, 0.09), (s * 0.13, 0.17, 0.145), wh, f"Bout{s}", 0.04))
-        p.append(cyl(0.1, 0.5, (s * 0.14, 0, 0.4), dk, f"Jambe{s}", verts=14, r2=0.13))
-        p.append(cyl(0.095, 0.05, (s * 0.13, 0, 0.17), cd, f"Revers{s}", verts=14))
-    p.append(sphere(0.25, (0, 0, 0.84), dk, "Bassin", sub=3, scale=(1.05, 0.8, 0.75)))
-    # sweat à capuche : buste en poire, bas élastique, poche kangourou, zip
-    p.append(sphere(0.3, (0, 0, 1.2), c, "Torse", sub=3, scale=(1.08, 0.78, 1.0)))
-    p.append(sphere(0.19, (0, 0, 1.36), c, "Epaules", sub=3, scale=(2.05, 1.05, 0.8)))
-    p.append(cyl(0.27, 0.07, (0, 0, 0.95), cd, "Ourlet", verts=20, bevel=0.0))
-    p[-1].scale = (1.06, 0.84, 1)
-    p.append(box((0.34, 0.06, 0.15), (0, 0.205, 1.0), cd, "Poche", 0.03))
+        p.append(box((0.215, 0.37, 0.03), (s * 0.14, 0.07, 0.022), glow, f"Semelle{s}", 0.012))
+        p.append(torus(0.085, 0.024, (s * 0.6, 0.02, 0.985), glow, f"Poignet{s}", seg=16, rseg=6, rot=(0, -s * math.radians(12), 0)))
+        p.append(cyl(0.115, 0.05, (s * 0.14, 0, 0.2), cd, f"Revers{s}", verts=14))
+    p.append(cyl(0.27, 0.07, (0, 0, 0.95), cd, "Ourlet", verts=20))
+    p[-1].scale = (1.06, 0.8, 1)
+    p.append(box((0.34, 0.06, 0.15), (0, 0.2, 1.0), cd, "Poche", 0.03))
     p.append(box((0.016, 0.02, 0.38), (0, 0.235, 1.28), wh, "Zip", 0.004))
     p.append(torus(0.115, 0.045, (0, -0.02, 1.5), c, "Capuche", seg=24, rseg=8))
     if orange:
         p.append(cyl(0.12, 0.012, (-0.13, 0.225, 1.22), wh, "Signe", verts=24, rot=(math.pi / 2, 0, 0)))
     else:
         p.append(cyl(0.14, 0.012, (-0.13, 0.225, 1.22), wh, "Signe", verts=4, rot=(math.pi / 2, 0, math.pi / 4), smooth=False))
-    # bras écartés, manches fuselées, poignets lumineux
-    for s in (-1, 1):
-        ang = -s * math.radians(19)
-        p.append(cyl(0.065, 0.46, (s * 0.50, 0, 1.17), c, f"Bras{s}", verts=14, r2=0.1, rot=(0, ang, 0)))
-        p.append(sphere(0.105, (s * 0.41, 0, 1.38), c, f"Deltoide{s}", sub=3))
-        p.append(torus(0.07, 0.022, (s * 0.585, 0, 0.955), glow, f"Poignet{s}", seg=16, rseg=6, rot=(0, ang, 0)))
-    p.append(cyl(0.085, 0.1, (0, 0, 1.56), dk, "Cou", verts=12))
     # tête : gros crâne, lunettes-masque lumineuses, coiffe propre à l'équipe
-    p.append(sphere(0.25, (0, 0, 1.76), mat("peau_" + team, "#F2C9A5"), "H_Tete", sub=3, scale=(1.1, 1.05, 1.12)))
-    p.append(sphere(0.2, (0, 0.17, 1.77), vis, "H_Visiere", sub=3, scale=(1.0, 0.42, 0.36)))
-    p.append(sphere(0.11, (0, 0.245, 1.77), glow, "H_Lentille", sub=2, scale=(1.35, 0.12, 0.3)))
-    p.append(torus(0.245, 0.018, (0, 0, 1.78), mat("sangle", "#14192B"), "H_Sangle", seg=28, rseg=6))
+    head = sphere(0.25, (0, 0, 1.76), mat("peau_" + team, "#F2C9A5"), "H_Tete", sub=4, scale=(1.1, 1.05, 1.12))
+    paint(head, lambda co, n: skin + (1,) if n.y < 0.9 or co.z < 1.9 else skin + (1,), ao_rays=12, ao_dist=0.12, ao_strength=0.3)
+    p.append(head)
+    eye_w = mat("oeil", "#FFFFFF")
+    eye_k = mat("pupille", "#14192B")
+    for s in (-1, 1):
+        p.append(sphere(0.062, (s * 0.098, 0.228, 1.785), eye_w, f"H_Oeil{s}", sub=3, scale=(1.0, 0.55, 1.25)))
+        p.append(sphere(0.036, (s * 0.098 - s * 0.006, 0.262, 1.79), eye_k, f"H_Pupille{s}", sub=2, scale=(1.0, 0.5, 1.25)))
+        p.append(sphere(0.012, (s * 0.098 + s * 0.008, 0.274, 1.805), eye_w, f"H_Reflet{s}", sub=1))
+        p.append(box((0.095, 0.03, 0.022), (s * 0.1, 0.235, 1.865), eye_k, f"H_Sourcil{s}", 0.008, rot=(0, math.radians(-s * 14), 0)))
+    p.append(sphere(0.03, (0, 0.265, 1.735), mat("peau_nez", "#E8B48E"), "H_Nez", sub=2))
+    p.append(sphere(0.055, (0, 0.248, 1.655), mat("bouche", "#7A2A2A"), "H_Bouche", sub=2, scale=(1.1, 0.3, 0.3)))
     if orange:  # casquette à l'envers
-        p.append(sphere(0.262, (0, -0.01, 1.83), c, "H_Casquette", sub=3, scale=(1.0, 1.0, 0.72)))
+        p.append(sphere(0.285, (0, -0.045, 1.85), c, "H_Casquette", sub=3, scale=(1.0, 1.0, 0.74)))
         p.append(box((0.3, 0.2, 0.025), (0, -0.28, 1.84), cd, "H_Visiere_cas", 0.01, rot=(math.radians(-8), 0, 0)))
         p.append(cyl(0.035, 0.02, (0, 0.0, 1.99), glow, "H_Bouton", verts=12))
     else:  # casque audio

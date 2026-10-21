@@ -6,7 +6,7 @@ render_mode diffuse_burley, specular_disabled, cull_back;
 
 uniform vec4 base_color : source_color = vec4(0.7, 0.7, 0.7, 1.0);
 uniform vec4 alt_color : source_color = vec4(0.5, 0.5, 0.5, 1.0);
-uniform int pattern = 0;            // 0 uni, 1 briques, 2 béton, 3 planches, 4 danger, 5 fenêtres, 6 tôle, 7 asphalte
+uniform int pattern = 0;            // 0 uni, 1 briques, 2 béton, 3 planches, 4 danger, 5 fenêtres, 6 tôle, 7 asphalte, 8 couleurs de sommet
 uniform float pattern_scale = 1.0;
 uniform float emission_energy = 0.0;
 uniform vec4 shadow_tint : source_color = vec4(0.52, 0.47, 0.78, 1.0);   // les ombres virent au violet, jamais au noir
@@ -18,10 +18,12 @@ uniform float rim_strength = 0.35;
 
 varying vec3 wpos;
 varying vec3 wnorm;
+varying vec4 vcol;
 
 void vertex() {
     wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     wnorm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+    vcol = COLOR;
 }
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -93,7 +95,7 @@ vec3 surface(vec3 p, vec3 n) {
 
 void fragment() {
     vec3 n = normalize(wnorm);
-    vec3 col = surface(wpos, n);
+    vec3 col = pattern == 8 ? pow(vcol.rgb, vec3(1.0 / 2.2)) : surface(wpos, n);   // 8 : peinture dans les couleurs de sommet (personnages)
     ALBEDO = col;
     ROUGHNESS = 1.0;
     float lit_window = 0.0;

@@ -61,11 +61,13 @@ public static class KcShaders
                 ShaderMaterial m;
                 if (name.StartsWith("neon_") || src.EmissionEnabled && src.EmissionEnergyMultiplier > 1.5f)
                     m = Toon(color, null, 0, 1f, 2.5f);
+                else if (name == "peinture")
+                    m = Toon(Colors.White, null, 8);
                 else if (Kinds.TryGetValue(name, out var k))
                     m = Toon(new Color(k.c1), new Color(k.c2), k.pattern, k.scale, 0f);
                 else
                     m = Toon(color, null, 0, 1f, src.EmissionEnabled ? src.EmissionEnergyMultiplier * 0.8f : 0f);
-                if (withOutline && !name.StartsWith("neon_")) m.NextPass = Outline();
+                if (withOutline && !name.StartsWith("neon_") && name is not ("oeil" or "pupille" or "peau_nez" or "bouche")) m.NextPass = Outline();
                 mi.SetSurfaceOverrideMaterial(s, m);
             }
         }
