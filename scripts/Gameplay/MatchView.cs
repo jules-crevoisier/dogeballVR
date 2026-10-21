@@ -73,6 +73,7 @@ public sealed class MatchView
     {
         var view = new MatchView { LocalId = localId, LocalTeam = localTeam, Lives = lives, Players = PlayersOf(map) };
         view.hudText = hudText;
+        MatchController.HitScored += view.OnHitScored;   // touches relayées par l'hôte, quand le réseau les transmet
         view.State = new Snapshot(Phase.Playing, 0, 0, 0, 0, 0, 0, 1, 5, false, "", -1, map.Rules.KoTarget > 0 ? map.Rules.KoTarget : 3);
         return view;
     }
@@ -87,7 +88,7 @@ public sealed class MatchView
     /// <summary>À appeler quand le HUD disparaît (l'événement de l'hôte est statique).</summary>
     public void Detach()
     {
-        if (match != null) MatchController.HitScored -= OnHitScored;
+        MatchController.HitScored -= OnHitScored;
     }
 
     public void Restart() => match?.StartMatch();
@@ -95,7 +96,10 @@ public sealed class MatchView
     /// <summary>Dernier tireur à avoir touché ce joueur dans la seconde (hôte), -1 sinon : d'où venait la balle.</summary>
     public int RecentShooterOf(int target) => lastHitBy.TryGetValue(target, out var h) && Time.GetTicksMsec() - h.at < 1000 ? h.shooter : -1;
 
-    public string NameOf(int id) => id == LocalId ? "Toi" : isBot?.Invoke(id) == true ? $"Bot {id + 1}" : $"Joueur {id + 1}";
+    /// <summary>Nom d'un joueur humain fourni par la salle en ligne (null : bot ou inconnu). Branché par le module en ligne.</summary>
+    public static Func<int, string?>? HumanName { get; set; }
+
+    public string NameOf(int id) => id == LocalId ? "Toi" : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? $"Bot {id + 1}" : $"Joueur {id + 1}";
     public int TeamOf(int id) { foreach (var p in Players) if (p.Id == id) return p.Team; return -1; }
 
     void OnHitScored(int shooter, int target, bool kill)
