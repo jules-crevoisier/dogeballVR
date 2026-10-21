@@ -107,6 +107,16 @@ public class ThrowAssistDef
 {
     public float SpeedMultiplier { get; set; } = 1.4f;
     public float MinLaunchSpeed { get; set; } = 0f;
+    /// <summary>Plafond de vitesse d'un lancer VR (m/s).</summary>
+    public float MaxLaunchSpeedVR { get; set; } = 20f;
+    /// <summary>Attrape parfaite : rapport minimal entre la vitesse de la balle et sa vitesse de lancer.</summary>
+    public float PerfectCatchFactor { get; set; } = 0.8f;
+    /// <summary>Attrape parfaite : délai maximal entre le grip et la prise (s).</summary>
+    public float PerfectCatchWindowSeconds { get; set; } = 0.15f;
+    /// <summary>Prise : le grip doit avoir été pressé dans ce délai avant le contact (s).</summary>
+    public float GripWindowSeconds { get; set; } = 0.35f;
+    /// <summary>Volume de prise de la main (m).</summary>
+    public float CatchRadius { get; set; } = 0.3f;
 }
 
 /// <summary>Règles de partie lues dans la map. Seules celles qui sont codées sont lues ; le reste du bloc « rules » est ignoré.</summary>
@@ -126,6 +136,8 @@ public class BallRulesDef
     public int MaxBallsInPlay { get; set; } = 0;          // 0 = pas de plafond
     public float MaxFlightSeconds { get; set; } = 0f;      // 0 = illimité
     public float BallGravityFactor { get; set; } = 0.6f;
+    /// <summary>Aimant de la main sur une balle qui s'approche (m).</summary>
+    public float BallMagnetRadius { get; set; } = 0.5f;
     public ThrowAssistDef ThrowAssist { get; set; } = new();
 }
 

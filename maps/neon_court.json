@@ -42,7 +42,12 @@
     "maxBallsInPlay": 6,
     "throwAssist": {
       "speedMultiplier": 1.4,
-      "minLaunchSpeed": 9.0,
+      "minLaunchSpeed": 5.5,
+      "maxLaunchSpeedVR": 20.0,
+      "perfectCatchFactor": 0.8,
+      "perfectCatchWindowSeconds": 0.15,
+      "gripWindowSeconds": 0.35,
+      "catchRadius": 0.3,
       "note": "multiplicateur de vitesse de main (ThrowSpeedScale du dépôt) ; la main Quest serait vers 10 m/s (à mesurer)"
     },
     "maxFlightSeconds": 1.5,

@@ -11,7 +11,7 @@ namespace DogeballVR.Gameplay;
 public partial class Ball : RigidBody3D
 {
     public const int MaxCharge = 3;
-    public const float HitMinSpeed = 6f; // en dessous, la balle ne blesse pas
+    public const float HitMinSpeed = 5f; // en dessous, la balle ne blesse pas (vol minimal VR : 5,5 m/s au lancer, l'amortissement ne doit pas la désarmer)
     public const float LobHitMinSpeed = 4.5f;   // une cloche arrive presque à la verticale : seuil plus bas
 
     /// <summary>Réglages de la map (voir BallRulesDef) : gravité, et durée de vol après laquelle la balle ne blesse plus.</summary>
@@ -50,11 +50,14 @@ public partial class Ball : RigidBody3D
     MeshInstance3D? core;
 
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
-    static readonly float[] HaloScale = { 1.0f, 1.15f, 1.35f, 1.6f };
-    static readonly float[] HaloAlpha = { 0.25f, 0.4f, 0.55f, 0.75f };
-    static readonly float[] PulseHz = { 0f, 1f, 2f, 2.5f };   // sous les 3 Hz (confort)
+    // Palier 0 discret, palier 1 un peu plus lumineux, palier 2 (KO) binaire et très marqué : double halo + anneau orbital (voir UpdateLook).
+    static readonly float[] HaloScale = { 1.0f, 1.12f, 1.35f, 1.5f };
+    static readonly float[] HaloAlpha = { 0.22f, 0.32f, 0.6f, 0.75f };
+    static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
+    /// <summary>Vitesse de lancer retenue par l'hôte (m/s) : l'attrape parfaite exige encore 80 % de cette vitesse. 0 = inconnue.</summary>
+    public float SpeedCap { get; set; }
     const int TrailPoints = 10;
-    const float TrailMinSpeed = 6f;                            // = seuil de blessure
+    const float TrailMinSpeed = HitMinSpeed;                   // = seuil de blessure
 
     /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
     public int NetId { get; set; }
@@ -84,7 +87,14 @@ public partial class Ball : RigidBody3D
     public double RestTime { get; private set; }
 
     StandardMaterial3D haloMaterial = null!;
+    StandardMaterial3D halo2Material = null!;
     MeshInstance3D halo = null!;
+    MeshInstance3D halo2 = null!;
+    MeshInstance3D orbit = null!;
+    MeshInstance3D? alertMarker;
+    MeshInstance3D? bombRing;
+    bool alert;
+    Color alertColor = Colors.White;
     MeshInstance3D shadow = null!;
     MeshInstance3D trail = null!;
     ImmediateMesh trailMesh = null!;
@@ -115,6 +125,12 @@ public partial class Ball : RigidBody3D
             MaterialOverride = ball.haloMaterial,
         };
         ball.AddChild(ball.halo);
+        // Palier 2 (KO) : second halo plus large et anneau orbital, invisibles aux paliers 0 et 1.
+        ball.halo2Material = Materials.Additive(Palette.BallCore);
+        ball.halo2 = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.26f, Height = 0.52f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.halo2Material, Visible = false };
+        ball.AddChild(ball.halo2);
+        ball.orbit = new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.27f, OuterRadius = 0.31f, Rings = 24, RingSegments = 8 }, MaterialOverride = ball.haloMaterial, Visible = false };
+        ball.AddChild(ball.orbit);
         // Ombre portée simplifiée : un disque lumineux au sol sous la balle (indice de hauteur).
         ball.shadow = new MeshInstance3D
         {
@@ -181,6 +197,7 @@ public partial class Ball : RigidBody3D
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
         else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
         EndArc();
+        SpeedCap = 0;
         OwnerPlayerId = playerId;
         OwnerTeam = team;
         LastTeam = team;
@@ -284,6 +301,10 @@ public partial class Ball : RigidBody3D
         var c = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
         c.A = HaloAlpha[Charge];
         haloMaterial.AlbedoColor = c;
+        var c2 = c; c2.A = 0.3f;
+        halo2Material.AlbedoColor = c2;
+        halo2.Visible = Charge >= 2;
+        orbit.Visible = Charge >= 2;
     }
 
     public override void _Process(double delta)
@@ -307,6 +328,12 @@ public partial class Ball : RigidBody3D
         }
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
+        if (Charge >= 2)
+        {
+            halo2.Scale = Vector3.One * (1.0f + 0.1f * Mathf.Sin((float)visualTime * 2.5f * Mathf.Tau + 1f));
+            orbit.Rotation = new Vector3(Mathf.Pi / 2 + 0.5f * Mathf.Sin((float)visualTime), (float)visualTime * 3f, 0);   // anneau qui tourne : lisible de loin
+        }
+        UpdateAlertAndRing();
 
         var p = GlobalPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
@@ -314,6 +341,57 @@ public partial class Ball : RigidBody3D
         shadow.Scale = new Vector3(h, 1f, h);
 
         UpdateTrail(p);
+    }
+
+    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local) : éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
+    public void SetAlert(bool on, Color color)
+    {
+        alert = on;
+        alertColor = color;
+        if (on && alertMarker == null)
+        {
+            alertMarker = new MeshInstance3D
+            {
+                Mesh = new SphereMesh { Radius = 0.3f, Height = 0.6f, RadialSegments = 16, Rings = 8 },
+                MaterialOverride = Materials.Additive(color), TopLevel = false,
+            };
+            AddChild(alertMarker);
+        }
+        if (alertMarker != null) alertMarker.Visible = on;
+    }
+
+    void UpdateAlertAndRing()
+    {
+        if (alert && alertMarker != null)
+        {
+            float s = 1.2f + 0.5f * Mathf.Abs(Mathf.Sin((float)visualTime * 2.5f * Mathf.Pi));
+            alertMarker.Scale = Vector3.One * s;
+            var c = alertColor; c.A = 0.45f;
+            ((StandardMaterial3D)alertMarker.MaterialOverride!).AlbedoColor = c;
+        }
+        // Bombe lancée : anneau de sa zone d'effet au sol (rayon BombRadius), pour voir qui sera pris dans le souffle.
+        bool ring = kind == KindBomb && !IsHeld && OwnerTeam >= 0 && !exploded;
+        if (ring && bombRing == null)
+        {
+            var m = Materials.Additive(new Color(BombColor, 0.55f));
+            bombRing = new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = BombRadius - 0.06f, OuterRadius = BombRadius, Rings = 48, RingSegments = 4 }, MaterialOverride = m, TopLevel = true, Scale = new Vector3(1, 0.05f, 1) };
+            AddChild(bombRing);
+        }
+        if (bombRing != null)
+        {
+            bombRing.Visible = ring;
+            var p = GlobalPosition;
+            bombRing.GlobalTransform = new Transform3D(Basis.Identity.Scaled(new Vector3(1, 0.05f, 1)), new Vector3(p.X, 0.05f, p.Z));
+        }
+    }
+
+    /// <summary>Parade de la paume : une balle de palier 0 est déviée et devient neutre (les chargées ne se parent pas).</summary>
+    public bool Deflect(Vector3 palmNormal)
+    {
+        if (Charge > 0 || IsHeld || exploded || IsPass) return false;
+        LinearVelocity = LinearVelocity.Bounce(palmNormal.Normalized()) * 0.6f;
+        Spent();
+        return true;
     }
 
     /// <summary>Traînée en ruban : longueur proportionnelle à la vitesse, aucune sous le seuil de blessure.</summary>

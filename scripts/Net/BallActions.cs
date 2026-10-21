@@ -21,7 +21,7 @@ public static class BallActions
     public static void Throw(Ball ball, int handIndex, Vector3 velocity, float spin, int mode = 0)
     {
         if (IsClient) Net!.RequestThrow(handIndex, velocity, spin, mode);
-        else ball.Release(velocity, spin, mode);
+        else ball.Release(Assist.PlanFor(ball, velocity, mode), spin, mode);
     }
 
     /// <summary>Un dash touche un adversaire : le client le signale à l'hôte, l'hôte (ou le mode hors ligne) le juge.</summary>

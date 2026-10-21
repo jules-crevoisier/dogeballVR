@@ -42,6 +42,8 @@ public partial class Main : Node3D
     {
         bool xrActive = XrBootstrap.Start(GetViewport());
         pcProfile = !xrActive;
+        Assist.VrRules = xrActive;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
