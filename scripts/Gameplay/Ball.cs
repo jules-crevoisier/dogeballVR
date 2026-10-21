@@ -276,8 +276,16 @@ public partial class Ball : RigidBody3D
         UpdateLook();
     }
 
+    ulong lastBounceMs;
+
     void OnContact(Node body)
     {
+        // son de rebond au contact du décor (hôte seulement : les clients n'ont pas la physique) ; aucune incidence sur la trajectoire
+        if (!IsHeld && kind != KindBomb && body is not Ball && body is not Hurtbox && LinearVelocity.Length() is float v && v > 1.5f && Time.GetTicksMsec() - lastBounceMs > 110)
+        {
+            lastBounceMs = Time.GetTicksMsec();
+            Audio.Sfx.Play(this, Audio.SfxKind.Bounce, GlobalPosition, 1.05f - Mathf.Min(v, 20f) * 0.008f, Mathf.Clamp(-16f + v * 1.1f, -16f, 0f));
+        }
         if (exploded || kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
         if (sinceRelease < 0.12) return;   // pas dans la main qui la lâche
         Explode(-1, OwnerTeam, OwnerPlayerId);

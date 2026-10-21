@@ -128,6 +128,7 @@ public partial class Main : Node3D
 
     void StartMatch(bool xrActive)
     {
+        Audio.Music.PlayMatch();
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
