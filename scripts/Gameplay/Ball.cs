@@ -21,8 +21,8 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
-    /// <summary>Un adversaire attrape une balle lancée vite : (balle, id du receveur). Le receveur regagne une vie.</summary>
-    public static event System.Action<int>? CaughtThrow;
+    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Le receveur regagne une vie.</summary>
+    public static event System.Action<int, bool>? CaughtThrow;
     double flightTime;
 
     /// <summary>Balle spéciale (une famille par match, voir specialBalls dans les maps) : 0 normale, 1 bombe, 2 rebond.</summary>
@@ -218,7 +218,7 @@ public partial class Ball : RigidBody3D
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
-        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
+        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
         else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
         EndArc();
