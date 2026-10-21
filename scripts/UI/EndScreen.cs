@@ -58,7 +58,7 @@ public partial class EndScreen : CanvasLayer
         if (!Autoplay) Input.MouseMode = Input.MouseModeEnum.Visible;
         var s = View.State;
         bool win = s.Winner == View.LocalTeam;
-        Sfx.Play(this, win ? SfxKind.Victory : SfxKind.Defeat);
+        Audio.Music.Stinger(win ? SfxKind.Victory : SfxKind.Defeat);   // jingle + foule, la musique de match s'efface
 
         root = new Control { Theme = UiKit.Theme };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);

@@ -1077,6 +1077,11 @@ public partial class DesktopHud : CanvasLayer
         var s = View.State;
         int n = View.Lives(View.LocalId);
         if (hudTest) n = HudTest(delta, n);
+        // Musique plus tendue en fin de manche serrée et en mort subite.
+        bool tense = s.Phase == MatchView.Phase.Playing && (s.Overtime || s.Seconds <= 20
+            || Mathf.Max(s.Kos0, s.Kos1) >= s.KoTarget - 1 && Mathf.Abs(s.Kos0 - s.Kos1) <= 1);
+        Audio.Music.PlayIntensity(tense);
+        if (prev.Phase == MatchView.Phase.MatchOver && s.Phase != MatchView.Phase.MatchOver) Audio.Music.PlayMatch(0.6f);   // revanche : la musique repart après le jingle
         if (s.Phase != prev.Phase)
             GD.Print($"[HUD] {s.Phase} : manche {s.Round}/{s.MaxRounds}, manches {s.Rounds0}-{s.Rounds1}, KO {s.Kos0}-{s.Kos1}, gagnant {s.Winner}{(View.HasStats ? "" : " (client)")}");
 
