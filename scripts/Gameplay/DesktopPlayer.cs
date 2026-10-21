@@ -117,6 +117,8 @@ public partial class DesktopPlayer : Node3D
     Vector2 spawnPos;
     bool wasEliminated;
     float camFraction = 1f;          // part de la distance caméra libre de décor
+    float raise;                     // 0 → 1 : caméra montée par-dessus un couvert bas derrière le joueur
+    const float ShoulderOffset = 1.0f;   // décalage à droite : le personnage occupe le tiers gauche, le viseur reste dégagé
     int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
     int dashCount;                   // compteur envoyé à l'hôte : chaque dash le fait avancer d'un cran
@@ -937,31 +939,53 @@ public partial class DesktopPlayer : Node3D
         float side = velocity.Dot(right2);
         lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
-        var ideal = from + basis * new Vector3(0.85f, 0.35f + 0.8f * killCamBlend, CameraDistance + 2.2f * killCamBlend);   // par-dessus l'épaule droite : le viseur n'est jamais caché par le personnage
         var bnd = Zones.Map.Bounds;
-        ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
-        // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.
-        float full = from.DistanceTo(ideal);
-        float allowed = full;
-        var space = GetWorld3D().DirectSpaceState;
-        var exclude = new Godot.Collections.Array<Rid>();
-        for (int i = 0; i < 4; i++)
+        // Bras de caméra façon jeu d'épaule : d'abord le point d'épaule (à droite de la tête), puis le recul derrière ce point.
+        // Si un mur rapproche la caméra, le personnage reste à gauche de l'écran au lieu de boucher le viseur.
+        float lift = 0.35f + 0.8f * killCamBlend;
+        var shoulder = from + basis * new Vector3(ShoulderOffset, lift, 0f);
+        shoulder = from.Lerp(shoulder, FreeFraction(from, shoulder, bnd));
+        var boom = basis * new Vector3(0f, 0f, CameraDistance + 2.2f * killCamBlend);
+        float f = FreeFraction(shoulder, shoulder + boom, bnd);
+        // Couvert bas derrière soi : plutôt que de coller la caméra au dos, elle passe par-dessus.
+        if (f < 0.75f)
         {
-            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, ideal, 0xFFFFFFFF, exclude));
-            if (hit.Count == 0) break;
-            var hp = hit["position"].AsVector3();
-            bool arenaWall = hp.X < bnd.MinX + 0.6f || hp.X > bnd.MaxX - 0.6f || hp.Z < bnd.MinZ + 0.6f || hp.Z > bnd.MaxZ - 0.6f || hp.Y > bnd.CeilingHeight - 0.5f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor && !arenaWall) { allowed = Mathf.Min(full, Mathf.Max(0.2f, from.DistanceTo(hp) - 0.25f)); break; }
-            exclude.Add(hit["rid"].AsRid());
+            var high = shoulder + Vector3.Up * 0.9f;
+            float up = FreeFraction(shoulder, high, bnd);
+            float fh = up > 0.99f ? FreeFraction(high, high + boom, bnd) : 0f;
+            if (fh > f + 0.2f) { raise = Mathf.Lerp(raise, 1f, 1f - Mathf.Exp(-8f * dt)); f = fh; }
+            else raise = Mathf.Lerp(raise, 0f, 1f - Mathf.Exp(-5f * dt));
         }
-        float f = allowed / full;
+        else raise = Mathf.Lerp(raise, 0f, 1f - Mathf.Exp(-5f * dt));
         camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 1f - Mathf.Exp(-9f * dt));
-        var pos = from.Lerp(ideal, camFraction);
+        var pivot = shoulder + Vector3.Up * 0.9f * raise;
+        var pos = pivot + boom * camFraction;
+        pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
+    }
+
+    /// <summary>Part du segment libre de décor plein (couverts, pylône) ; les murs d'enceinte et le plafond sont ignorés.</summary>
+    float FreeFraction(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    {
+        float full = a.DistanceTo(b);
+        if (full < 0.01f) return 1f;
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, exclude));
+            if (hit.Count == 0) return 1f;
+            var hp = hit["position"].AsVector3();
+            bool arenaWall = hp.X < bnd.MinX + 0.6f || hp.X > bnd.MaxX - 0.6f || hp.Z < bnd.MinZ + 0.6f || hp.Z > bnd.MaxZ - 0.6f || hp.Y > bnd.CeilingHeight - 0.5f;
+            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor && !arenaWall)
+                return Mathf.Clamp((a.DistanceTo(hp) - 0.3f) / full, 0.06f, 1f);
+            exclude.Add(hit["rid"].AsRid());
+        }
+        return 1f;
     }
 
     /// <summary>Échange de plaques : le joueur se retrouve au même endroit relatif de la plaque d'arrivée (jeu libre) ou y est simplement posé (zones).</summary>
@@ -1012,7 +1036,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camFraction > 0.4f;   // caméra collée au joueur : on le fond pour ne pas masquer le viseur
+            selfAvatar.Visible = !Hurtbox.Eliminated && camFraction > 0.25f;   // caméra collée au joueur : on le fond pour ne pas masquer le viseur
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
         }
     }
