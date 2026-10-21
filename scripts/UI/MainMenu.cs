@@ -65,6 +65,7 @@ public partial class MainMenu : CanvasLayer
         fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.6);
 
         Input.MouseMode = Input.MouseModeEnum.Visible;
+        Music.PlayMenu();
         ShowMain();
     }
 
