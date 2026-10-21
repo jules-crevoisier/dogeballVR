@@ -21,7 +21,8 @@ public partial class Avatar : Node3D
     Vector3 lastHead;
     float speed;
     double actionLeft;
-    readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner)> seenBalls = new();
+    readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
+    float climb;   // vitesse verticale de la tête (saut)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
     public static Avatar Create(int team, bool bot, int playerId = -1)
@@ -140,14 +141,16 @@ public partial class Avatar : Node3D
             foreach (var n in GetTree().GetNodesInGroup("balls"))
             {
                 if (n is not Gameplay.Ball ball) continue;
-                var cur = (ball.IsHeld, ball.OwnerPlayerId);
+                var cur = (held: ball.IsHeld, owner: ball.OwnerPlayerId, speed: ball.LinearVelocity.Length());
                 if (seenBalls.TryGetValue(ball, out var prev))
                 {
-                    if (!prev.held && cur.IsHeld && cur.OwnerPlayerId == playerId) PlayAction("Attrape", 0.35);
-                    else if (prev.held && !cur.IsHeld && prev.owner == playerId) PlayAction("Lancer", 0.6);
+                    // balle lente = ramassée au sol, balle rapide = attrapée au vol
+                    if (!prev.held && cur.held && cur.owner == playerId) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.35);
+                    else if (prev.held && !cur.held && prev.owner == playerId) PlayAction(ball.IsPass ? "Passe" : "Lancer", ball.IsPass ? 0.45 : 0.6);
                 }
                 seenBalls[ball] = cur;
             }
+        if (actionLeft <= 0 && climb > 2.2f) PlayAction("Saut", 0.7);
         if (actionLeft > 0) { actionLeft -= delta; return; }
         string loop = speed > 1.0f ? "Course" : "Repos";
         if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
@@ -161,9 +164,15 @@ public partial class Avatar : Node3D
         {
             float dt = (float)GetProcessDeltaTime();
             var flat = new Vector3(head.X - lastHead.X, 0, head.Z - lastHead.Z);
-            if (dt > 0 && lastHead != Vector3.Zero) speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / dt, 12f), 0.25f);
+            if (dt > 0 && lastHead != Vector3.Zero)
+            {
+                speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / dt, 12f), 0.25f);
+                climb = (head.Y - lastHead.Y) / dt;
+            }
             lastHead = head;
-            body.Position = new Vector3(head.X, Mathf.Min(0f, head.Y - HeadHeight), head.Z);   // pieds au sol, même pour un grand joueur
+            // pieds au sol même pour un grand joueur (écart de taille), mais le corps suit un vrai saut
+            float y = head.Y - HeadHeight;
+            body.Position = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
             body.Rotation = new Vector3(0, yaw, 0);
         }
         Head.Position = head;

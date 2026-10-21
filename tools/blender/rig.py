@@ -238,6 +238,42 @@ def animate(rig, arm_rest=6):
         24: {"Hanches": ("loc", 0, -0.6, -0.68), "Dos": (85, 0, 0), "Tete": (10, 0, 20), "Bras.G": (25, 160, 0), "Bras.D": (25, -160, 0),
              "Cuisse.G": (90, 0, -10), "Cuisse.D": (80, 0, 10), "Tibia.G": (-30, 0, 0), "Tibia.D": (-5, 0, 0)},
     }, 24, loop=False)
+    # saut : appel accroupi, extension bras en l'air, genoux repliés en l'air, réception
+    _action(rig, "Saut", {
+        1: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0),
+            "Tibia.D": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0)},
+        4: {"Hanches": ("loc", 0, 0, -0.12), "Dos": (-18, 0, 0), "Cuisse.G": (40, 0, 0), "Cuisse.D": (40, 0, 0), "Tibia.G": (-70, 0, 0),
+            "Tibia.D": (-70, 0, 0), "Bras.G": (-40, 15, 0), "Bras.D": (-40, -15, 0)},
+        9: {"Hanches": ("loc", 0, 0, 0.02), "Dos": (8, 0, 0), "Cuisse.G": (55, 0, 0), "Cuisse.D": (20, 0, 0), "Tibia.G": (-85, 0, 0),
+            "Tibia.D": (-50, 0, 0), "Bras.G": (120, 35, 0), "Bras.D": (110, -35, 0)},
+        18: {"Hanches": ("loc", 0, 0, 0), "Dos": (-6, 0, 0), "Cuisse.G": (25, 0, 0), "Cuisse.D": (35, 0, 0), "Tibia.G": (-40, 0, 0),
+             "Tibia.D": (-60, 0, 0), "Bras.G": (40, 40, 0), "Bras.D": (40, -40, 0)},
+        24: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0),
+             "Tibia.D": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0)},
+    }, 24, loop=False)
+    # passe : lancer à deux mains depuis la poitrine
+    _action(rig, "Passe", {
+        1: dict(D),
+        6: {"Dos": (8, 0, 0), "Bras.D": (40, -10, 0), f"{A}.D": (110, 30, 0), "Bras.G": (40, 10, 0), f"{A}.G": (110, -30, 0), "Tete": (0, 0, 0)},
+        10: {"Dos": (-14, 0, 0), "Bras.D": (95, -10, 0), f"{A}.D": (5, 0, 0), "Bras.G": (95, 10, 0), f"{A}.G": (5, 0, 0), "Tete": (6, 0, 0)},
+        18: dict(D),
+    }, 18, loop=False)
+    # ramasser : flexion, main droite au sol
+    _action(rig, "Ramasser", {
+        1: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0),
+            "Tibia.D": (0, 0, 0), "Bras.D": (0, -R, 0)},
+        7: {"Hanches": ("loc", 0, 0, -0.3), "Dos": (-45, 0, 10), "Cuisse.G": (70, 0, 0), "Cuisse.D": (50, 0, 0), "Tibia.G": (-110, 0, 0),
+            "Tibia.D": (-80, 0, 0), "Bras.D": (60, 10, 0)},
+        16: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0),
+             "Tibia.D": (0, 0, 0), "Bras.D": (0, -R, 0)},
+    }, 16, loop=False)
+    # célébration : bras levés, petits sauts (boucle)
+    cel = {}
+    for i, f in enumerate((1, 9, 17)):
+        up = i % 2
+        cel[f] = {"Hanches": ("loc", 0, 0, 0.06 * up), "Dos": (-6, 0, 0), "Tete": (-12, 0, 0), "Bras.G": (150 - 20 * up, 30, 0),
+                  "Bras.D": (150 - 20 * up, -30, 0), f"{A}.G": (20 + 30 * up, 0, 0), f"{A}.D": (20 + 30 * up, 0, 0)}
+    _action(rig, "Celebration", cel, 17)
 
 
 def rig_character(objs, bones=BONES, arm_rest=6):
