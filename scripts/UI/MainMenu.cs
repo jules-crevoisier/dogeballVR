@@ -91,16 +91,47 @@ public partial class MainMenu : CanvasLayer
             UiKit.Button("QUITTER", UiKit.Grey, () => GetTree().Quit()));
     }
 
+    /// <summary>
+    /// Actions en ligne (Steam / salle) : branchées par Main sur le module Online quand il est présent.
+    /// Sans écouteur, la partie rapide et la salle privée retombent sur l'hébergement réseau local.
+    /// </summary>
+    public event Action? QuickMatch, CreatePrivate, HostLan;
+    public event Action<string>? JoinCode, JoinAddress;
+
     void ShowOnline()
     {
-        var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
+        var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
         Fill(
             UiKit.Text("EN LIGNE", 44, UiKit.Yellow, 10),
-            UiKit.Button("HÉBERGER UNE PARTIE", UiKit.Orange, () => Leave(() => Chosen?.Invoke(NetMode.Host, ""))),
-            address,
-            UiKit.Button("REJOINDRE", UiKit.Blue, () => Leave(() => Chosen?.Invoke(NetMode.Client, address.Text.Trim()))),
+            UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))),
+            UiKit.Button("CRÉER UNE SALLE PRIVÉE", UiKit.Blue, () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, ""))),
+            code,
+            UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
+            {
+                var c = code.Text.Trim().ToUpperInvariant();
+                if (c == "") { code.GrabFocus(); return; }
+                if (JoinCode != null) Leave(() => JoinCode(c));
+            }),
+            UiKit.Button("RÉSEAU LOCAL", UiKit.NavySoft, ShowLan),
             UiKit.Button("RETOUR", UiKit.Grey, () => { Sfx.Play(this, SfxKind.UiBack); ShowMain(); }));
     }
+
+    void ShowLan()
+    {
+        var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
+        Fill(
+            UiKit.Text("RÉSEAU LOCAL", 44, UiKit.Yellow, 10),
+            UiKit.Button("HÉBERGER", UiKit.Orange, () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, ""))),
+            address,
+            UiKit.Button("REJOINDRE", UiKit.Blue, () =>
+            {
+                var ip = address.Text.Trim();
+                if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));
+            }),
+            UiKit.Button("RETOUR", UiKit.Grey, () => { Sfx.Play(this, SfxKind.UiBack); ShowOnline(); }));
+    }
+
+    void Online(Action? handler, Action fallback) => Leave(handler ?? fallback);
 
     void PlayBots()
     {
