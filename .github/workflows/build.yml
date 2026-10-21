@@ -57,6 +57,29 @@ jobs:
           fi
           grep -E "balles=[1-9]" client.log > /dev/null || { echo "Le client ne voit pas les balles"; exit 1; }
 
+      - name: Test transport P2P (peer Steam sur UDP local, 10 % de perte)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          # Même scénario que le premier test réseau, mais SteamMultiplayerPeer sur UdpPipe (pas de client Steam en CI).
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --transport=udp-p2p --p2p-loss=0.1 > p2p-host.log 2>&1 &
+          HOST_PID=$!
+          sleep 3
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --net-selftest --transport=udp-p2p --p2p-loss=0.1 > p2p-client.log 2>&1
+          wait $HOST_PID || true
+          grep -E "\[Net|\[NetTest|\[P2P" p2p-host.log p2p-client.log | tail -20
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" p2p-host.log p2p-client.log; then
+            echo "Erreur à l'exécution (transport P2P)"; exit 1
+          fi
+          grep -q "\[P2P\] Pair [0-9]* connecté" p2p-host.log || { echo "Le client P2P ne s'est pas présenté à l'hôte"; exit 1; }
+          CATCHES=$(grep -c "attrapée par la zone 2" p2p-host.log || true)
+          THROWS=$(grep -c "lancée par la zone 2" p2p-host.log || true)
+          echo "P2P, prises validées par l'hôte : $CATCHES, lancers : $THROWS"
+          if [ "$CATCHES" -lt 5 ] || [ "$THROWS" -lt 5 ]; then
+            echo "Le transport P2P ne fonctionne pas (trop peu de prises / lancers)"; exit 1
+          fi
+          grep -E "balles=[1-9]" p2p-client.log > /dev/null || { echo "Le client P2P ne voit pas les balles"; exit 1; }
+
       - name: Test réseau sur La Fosse (lift, plateaux)
         run: |
           GODOT_VERSION=4.3-stable

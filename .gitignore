@@ -10,3 +10,6 @@ obj/
 .idea/
 build/
 .claude/
+
+# Natifs Steam (tools/steam/fetch-steam-natives.sh)
+addons/steam_natives/

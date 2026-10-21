@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Gameplay;
+using DogeballVR.Online.Steam;
 
 namespace DogeballVR.Net;
 
@@ -118,8 +119,10 @@ public partial class NetSession : Node
 
     public Error Host(int port = DefaultPort)
     {
-        var peer = new ENetMultiplayerPeer();
-        var err = peer.CreateServer(port, MaxPlayers - 1);
+        MultiplayerPeer peer;
+        Error err;
+        if (SteamMultiplayerPeer.UdpTransportRequested) err = SteamMultiplayerPeer.CreateUdpServer(port, out peer);   // --transport=udp-p2p : peer Steam sur UDP local (CI)
+        else { var enet = new ENetMultiplayerPeer(); err = enet.CreateServer(port, MaxPlayers - 1); peer = enet; }
         if (err != Error.Ok) return err;
         NetHandshake.Install(Multiplayer);
         Multiplayer.MultiplayerPeer = peer;
@@ -176,8 +179,10 @@ public partial class NetSession : Node
 
     public Error Join(string address, int port, int zoneId)
     {
-        var peer = new ENetMultiplayerPeer();
-        var err = peer.CreateClient(address, port);
+        MultiplayerPeer peer;
+        Error err;
+        if (SteamMultiplayerPeer.UdpTransportRequested) err = SteamMultiplayerPeer.CreateUdpClient(port + 1 + zoneId, port, out peer);   // 127.0.0.1 seulement
+        else { var enet = new ENetMultiplayerPeer(); err = enet.CreateClient(address, port); peer = enet; }
         if (err != Error.Ok) return err;
         NetHandshake.Install(Multiplayer);
         Multiplayer.MultiplayerPeer = peer;
