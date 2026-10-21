@@ -25,9 +25,42 @@ def hazard_frame(z=0.011):
     block((w, 2 * HY, 0.02), (-HX + w / 2, 0, z), "danger", "BandeO", 0.0)
 
 
+def street_markings():
+    """Marquage routier continu (un seul espace, sans rectangles de zones) : axes en pointillés jaunes, anneau autour du
+    moyeu, passages piétons aux quatre bouts, plaques d'égout et grilles. Tout est plat et sans collision."""
+    z = 0.012
+    for ax in (0, 1):   # axes de la croix : tirets de 2 m tous les 3,6 m
+        half = HX if ax == 0 else HY
+        n = int((half - 6.0) / 3.6)
+        for sgn in (-1, 1):
+            for i in range(n):
+                d = sgn * (6.6 + i * 3.6)
+                size = (2.0, 0.14, 0.02) if ax == 0 else (0.14, 2.0, 0.02)
+                loc = (d, 0, z) if ax == 0 else (0, d, z)
+                block(size, loc, "danger_ligne", f"Tiret{ax}{sgn}{i}", 0.0)
+    for r, kind, w in ((5.6, "danger_ligne", 0.22), (5.1, "peinture_blanche", 0.1)):   # anneau du moyeu
+        tube(r + w, 0.016, (0, 0, z - 0.004), kind, f"AnneauExt{r}", 48)
+        tube(r - w, 0.02, (0, 0, z - 0.002), "asphalte", f"AnneauInt{r}", 48)
+    for sgn in (-1, 1):   # passages piétons au bout de chaque branche
+        for ax in (0, 1):
+            for j in range(-3, 4):
+                if ax == 0:
+                    block((2.6, 0.45, 0.02), (sgn * (HX - 3.2), j * 0.9, z), "peinture_blanche", f"Zebre{ax}{sgn}{j}", 0.0)
+                else:
+                    block((0.45, 2.6, 0.02), (j * 0.9, sgn * (HY - 3.2), z), "peinture_blanche", f"Zebre{ax}{sgn}{j}", 0.0)
+    for i, (x, y) in enumerate([(-12, 6), (12, -6), (-6, -11), (6, 11), (13, 9), (-13, -9)]):   # plaques d'égout
+        tube(0.62, 0.022, (x, y, z), "metal_sombre", f"Egout{i}", 20)
+        tube(0.45, 0.026, (x, y, z), "capuchon", f"EgoutCentre{i}", 20)
+    for i, (x, y) in enumerate([(-3, 12.5), (3, -12.5), (-14.5, 0.0), (14.5, 0.0)]):   # grilles d'évacuation
+        block((1.6, 0.7, 0.02), (x, y, z), "metal_sombre", f"Grille{i}", 0.0)
+        for s in range(5):
+            block((0.08, 0.6, 0.026), (x - 0.6 + s * 0.3, y, z), "capuchon", f"GrilleBarre{i}{s}", 0.0)
+
+
 def roof():
-    block((2 * HX + 14, 2 * HY + 12, 1.2), (0, 0, -0.6), "beton", "Dalle", 0.06)
+    block((2 * HX + 14, 2 * HY + 12, 1.2), (0, 0, -0.6), "asphalte", "Dalle", 0.06)
     hazard_frame()
+    street_markings()
 
 
 def parapets():
@@ -103,21 +136,11 @@ def gameplay_preview():
     for x, z in PILLARS:
         block((0.8, 0.8, 2.2), (x, -z, 1.1), "metal_bleu", f"Pilier{x}{z}", 0.05)
         block((0.9, 0.9, 0.12), (x, -z, 2.25), "neon_cyan", f"PilierNeon{x}{z}", 0.0)
-    for i, (x, z, k) in enumerate(ZONES):
-        block((15, 8, 0.03), (x, -z, 0.016), "beton_zone", f"Zone{i}", 0.0, rot=(0, 0, 0 if i % 2 == 0 else math.pi / 2))
-        zw, zd = (15, 8) if i % 2 == 0 else (8, 15)   # emprise réelle de la zone sur X et Y
-        for sgn in (-1, 1):   # lignes jaunes peintes sur les deux grands côtés
-            if i % 2 == 0:
-                block((zw, 0.12, 0.035), (x, -z + sgn * (zd / 2 - 0.1), 0.034), "danger_ligne", f"ZoneLigne{i}{sgn}", 0.0)
-            else:
-                block((0.12, zd, 0.035), (x + sgn * (zw / 2 - 0.1), -z, 0.034), "danger_ligne", f"ZoneLigne{i}{sgn}", 0.0)
-        block((15, 0.35, 0.04), (x, -z, 0.03), k, f"ZoneBande{i}", 0.0, rot=(0, 0, 0 if i % 2 == 0 else math.pi / 2))
     for i, (x, z) in enumerate(DISPENSERS):
         tube(0.3, 1.0, (x, -z, 0.5), "metal_sombre", f"Distrib{i}", 12)
         tube(0.65, 0.05, (x, -z, 0.025), "metal_bleu", f"DistribPlot{i}", 6)
         tube(0.5, 0.012, (x, -z, 1.01), "neon_cyan", f"DistribAnneau{i}", 6)
     # moyeu : sol 9 × 9, pylône 1,6 × 3,4, rotor à 4 bras
-    block((9, 9, 0.1), (0, 0, 0.05), "beton_clair", "SolMoyeu", 0.03)
     block((1.6, 1.6, 3.4), (0, 0, 1.7), "metal_bleu", "Pylone", 0.06)
     block((1.9, 1.9, 0.2), (0, 0, 3.45), "neon_cyan", "PyloneAnneau", 0.0)
     tube(0.33, 0.4, (0, 0, 4.0), "neon_jaune", "Lanceur", 14)

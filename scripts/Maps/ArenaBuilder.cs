@@ -39,11 +39,11 @@ public static class ArenaBuilder
             if (city != null) root.AddChild(city);
             HideFloorMeshes(root);   // le toit du décor remplace la grille ; les collisions restent
         }
-        AddZones(map, platforms);
+        AddZones(map, platforms, kc);
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
-        if (map.IsRing) { AddRingExtras(root, map); if (pcProfile) AddPcExtras(root, map); }
+        if (map.IsRing) { AddRingExtras(root, map, kc); if (pcProfile) AddPcExtras(root, map); }
         foreach (var prop in map.Props) AddProp(root, prop);
         foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o, kc);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
@@ -55,8 +55,8 @@ public static class ArenaBuilder
     {
         var sky = new ProceduralSkyMaterial
         {
-            SkyTopColor = new Color("5B55D6"), SkyHorizonColor = new Color("FFC59A"), SkyCurve = 0.18f,
-            GroundHorizonColor = new Color("E9B59C"), GroundBottomColor = new Color("6A4FA0"),
+            SkyTopColor = new Color("4C8DE8"), SkyHorizonColor = new Color("FFDDBA"), SkyCurve = 0.18f,
+            GroundHorizonColor = new Color("EBCDB4"), GroundBottomColor = new Color("8A7BB5"),
             SunAngleMax = 20f, SunCurve = 0.1f,
         };
         var env = new Godot.Environment
@@ -64,13 +64,13 @@ public static class ArenaBuilder
             BackgroundMode = Godot.Environment.BGMode.Sky,
             Sky = new Sky { SkyMaterial = sky },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            AmbientLightEnergy = 0.75f,
+            AmbientLightEnergy = 1.0f,
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            FogEnabled = true, FogLightColor = new Color("D7B7DD"), FogDensity = 0.0035f,
+            FogEnabled = true, FogLightColor = new Color("E6D4EA"), FogDensity = 0.0022f,
             GlowEnabled = pcProfile, GlowIntensity = 0.7f, GlowBloom = 0.08f, GlowHdrThreshold = 1.0f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
-        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.15f, LightColor = new Color("FFE6C2"), ShadowEnabled = false });
+        root.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.4f, LightColor = new Color("FFE6C2"), ShadowEnabled = false });
     }
 
     static void HideFloorMeshes(Node3D root)
@@ -190,13 +190,19 @@ public static class ArenaBuilder
         root.AddChild(floor);
     }
 
-    static void AddZones(MapData map, Dictionary<int, Node3D> platforms)
+    /// <param name="kc">Décor continu (DA Knockout City) : pas de dalles, contours ni textes de zone peints au sol ; les zones physiques ne sont marquées que par les limites en jeu.</param>
+    static void AddZones(MapData map, Dictionary<int, Node3D> platforms, bool kc = false)
     {
         foreach (var zone in map.Zones)
         {
             var root = platforms[zone.Id];
             var color = Palette.Team(zone.Team);
             var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
+            if (kc)
+            {
+                if (zone.Lift != null) AddLift(root, map, zone);
+                continue;
+            }
             // Dalle teintée un peu au-dessus du sol (sans collision : le sol sert de support).
             root.AddChild(new MeshInstance3D
             {
@@ -292,9 +298,9 @@ public static class ArenaBuilder
     }
 
     /// <summary>Maps en moulinet : joints entre plaques (sol continu), pylône central plein et lanceur lumineux au sommet.</summary>
-    static void AddRingExtras(Node3D root, MapData map)
+    static void AddRingExtras(Node3D root, MapData map, bool kc = false)
     {
-        if (map.Pc != null)
+        if (map.Pc != null && !kc)
             foreach (var j in map.Pc.Joints)
                 root.AddChild(new MeshInstance3D
                 {
@@ -356,7 +362,7 @@ public static class ArenaBuilder
             ? (o.Kind == "bumper" ? KcShaders.Toon(new Color("3F8FB5"), new Color("245A75"), 6) : KcShaders.Toon(new Color("8C93AB"), new Color("757D97"), 2))
             : Materials.Flat(color);
         if (kc && look is ShaderMaterial sm && o.Kind != "pit") sm.NextPass = KcShaders.Outline(0.03f);
-        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look });
+        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look, Visible = !(kc && o.Kind == "hubfloor") });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
     }

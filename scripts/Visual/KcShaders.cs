@@ -10,18 +10,21 @@ public static class KcShaders
 {
     static Shader? toon, outline;
 
-    // nom du matériau glb : (couleur 2, motif, échelle)
-    static readonly System.Collections.Generic.Dictionary<string, (string alt, int pattern, float scale)> Kinds = new()
+    // Matériaux à motif : le glb n'en garde qu'une couleur blanche (l'exporteur ignore la couleur d'un matériau à texture procédurale),
+    // donc les deux couleurs du motif sont définies ici. nom : (couleur 1, couleur 2, motif, échelle)
+    static readonly System.Collections.Generic.Dictionary<string, (string c1, string c2, int pattern, float scale)> Kinds = new()
     {
-        ["brique"] = ("#8E3F30", 1, 1f),
-        ["brique_jaune"] = ("#B58530", 1, 1f),
-        ["beton"] = ("#4A5268", 2, 1f),
-        ["beton_clair"] = ("#757D97", 2, 1f),
-        ["bois"] = ("#8A5A30", 3, 1f),
-        ["metal_bleu"] = ("#245A75", 6, 1f),
-        ["danger"] = ("#1A1C26", 4, 1f),
-        ["fenetres"] = ("#F6C56A", 5, 1f),
-        ["herbe"] = ("#3F7A3E", 2, 1f),
+        ["brique"] = ("#B5533C", "#8E3F30", 1, 0.5f),
+        ["brique_jaune"] = ("#D9A441", "#B58530", 1, 0.5f),
+        ["beton"] = ("#5A6180", "#4A5170", 2, 1f),
+        ["beton_clair"] = ("#8C93B0", "#767E9E", 2, 1f),
+        ["beton_zone"] = ("#707898", "#5E6684", 7, 1f),
+        ["asphalte"] = ("#6E6D7C", "#5E5D6E", 7, 1f),
+        ["bois"] = ("#B07A45", "#8A5A30", 3, 1f),
+        ["metal_bleu"] = ("#2F6F8F", "#245A75", 6, 1f),
+        ["danger"] = ("#F2C230", "#1A1C26", 4, 1f),
+        ["fenetres"] = ("#232A4D", "#F6C56A", 5, 1f),
+        ["herbe"] = ("#4E8F4A", "#3F7A3E", 2, 1f),
     };
 
     public static ShaderMaterial Toon(Color color, Color? alt = null, int pattern = 0, float scale = 1f, float emission = 0f)
@@ -59,7 +62,7 @@ public static class KcShaders
                 if (name.StartsWith("neon_") || src.EmissionEnabled && src.EmissionEnergyMultiplier > 1.5f)
                     m = Toon(color, null, 0, 1f, 2.5f);
                 else if (Kinds.TryGetValue(name, out var k))
-                    m = Toon(color, new Color(k.alt), k.pattern, k.scale, src.EmissionEnabled ? 0.8f : 0f);
+                    m = Toon(new Color(k.c1), new Color(k.c2), k.pattern, k.scale, 0f);
                 else
                     m = Toon(color, null, 0, 1f, src.EmissionEnabled ? src.EmissionEnergyMultiplier * 0.8f : 0f);
                 if (withOutline && !name.StartsWith("neon_")) m.NextPass = Outline();

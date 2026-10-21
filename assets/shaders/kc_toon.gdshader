@@ -6,10 +6,10 @@ render_mode diffuse_burley, specular_disabled, cull_back;
 
 uniform vec4 base_color : source_color = vec4(0.7, 0.7, 0.7, 1.0);
 uniform vec4 alt_color : source_color = vec4(0.5, 0.5, 0.5, 1.0);
-uniform int pattern = 0;            // 0 uni, 1 briques, 2 béton, 3 planches, 4 danger, 5 fenêtres, 6 tôle
+uniform int pattern = 0;            // 0 uni, 1 briques, 2 béton, 3 planches, 4 danger, 5 fenêtres, 6 tôle, 7 asphalte
 uniform float pattern_scale = 1.0;
 uniform float emission_energy = 0.0;
-uniform vec4 shadow_tint : source_color = vec4(0.36, 0.30, 0.62, 1.0);   // les ombres virent au violet, jamais au noir
+uniform vec4 shadow_tint : source_color = vec4(0.52, 0.47, 0.78, 1.0);   // les ombres virent au violet, jamais au noir
 uniform float bands = 3.0;
 uniform float softness = 0.12;
 uniform vec4 rim_color : source_color = vec4(1.0, 0.82, 0.62, 1.0);
@@ -74,9 +74,19 @@ vec3 surface(vec3 p, vec3 n) {
         float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.2, f.y) * step(f.y, 0.8);
         float lit = step(0.45, hash(id));
         c = mix(base_color.rgb, mix(base_color.rgb * 1.5, alt_color.rgb, lit), win);
+    } else if (pattern == 7) {                // asphalte : lavis sombre irrégulier, sans joints
+        float a1 = vnoise(uv * 0.35) * 0.55 + vnoise(uv * 1.7) * 0.3 + vnoise(uv * 6.0) * 0.15;
+        c = mix(base_color.rgb, alt_color.rgb, smoothstep(0.25, 0.75, a1));
     } else if (pattern == 6) {                // tôle ondulée
         float w = 0.5 + 0.5 * sin((uv.x) * 18.0);
         c = mix(alt_color.rgb, base_color.rgb, w);
+    }
+    // De loin, les motifs fins scintillent : on les fond vers leur couleur moyenne selon la taille d'un pixel sur le motif.
+    if (pattern == 1 || pattern == 2 || pattern == 3 || pattern == 6 || pattern == 7) {
+        float aa = fwidth(uv.x) + fwidth(uv.y);
+        vec3 avg = mix(base_color.rgb, alt_color.rgb, 0.4);
+        if (pattern == 1) avg *= 0.88;
+        c = mix(c, avg, smoothstep(0.12, 0.5, aa));
     }
     return c;
 }
@@ -104,5 +114,5 @@ void light() {
     float step_v = floor(t) + smoothstep(0.5 - softness * bands, 0.5 + softness * bands, fract(t));
     float lit = clamp(step_v / bands, 0.0, 1.0) * ATTENUATION;
     vec3 tint = mix(shadow_tint.rgb, vec3(1.0), lit);
-    DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * tint * lit / PI * 2.2;
+    DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * tint * lit / PI;
 }

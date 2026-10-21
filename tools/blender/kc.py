@@ -18,6 +18,7 @@ KINDS = {
     "brique_jaune": ("#D9A441", "#B58530", "brique"),
     "beton": ("#444B66", "#363C54", "bruit"),
     "beton_clair": ("#707898", "#5B6384", "bruit"),
+    "asphalte": ("#3A4057", "#2C3146", "bruit"),
     "beton_zone": ("#5B6382", "#4B5373", "bruit"),
     "danger_ligne": ("#F2C230", "#F2C230", "uni"),
     "capuchon": ("#262B42", "#1B1F33", "uni"),
