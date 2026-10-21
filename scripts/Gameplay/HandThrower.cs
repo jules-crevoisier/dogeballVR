@@ -16,6 +16,9 @@ public partial class HandThrower : XRController3D
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
 
+    /// <summary>Vibration de la manette (OpenXR : action « haptic » de l'action map).</summary>
+    public void Pulse(float amplitude, float seconds) => TriggerHapticPulse("haptic", 0f, Mathf.Clamp(amplitude, 0f, 1f), seconds, 0f);
+
     public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
     int HandIndex => Tracker == "left_hand" ? 0 : 1;
     double ignoreHeldUntil;
@@ -60,6 +63,7 @@ public partial class HandThrower : XRController3D
     /// </summary>
     void TryCatchSweep(double now, double delta)
     {
+        TryParry(now, delta);
         if (!gripDown || !CanCatch || !Assist.GripValid(now, lastGripPressTime)) return;
         var hand = GlobalPosition;
         foreach (var n in GetTree().GetNodesInGroup("balls"))
@@ -68,6 +72,32 @@ public partial class HandThrower : XRController3D
             var now3 = ball.GlobalPosition;
             if (!Assist.Contact(now3 - ball.LinearVelocity * (float)delta, now3, hand)) continue;
             Catch(ball);
+            return;
+        }
+    }
+
+    double nextParry;
+
+    /// <summary>
+    /// Parade de la paume (palier 0 seulement) : main ouverte, vide, levée devant la poitrine, une balle chargée de rien qui arrive à moins de 0,3 m est déviée.
+    /// Une seule parade par seconde et demie et par main : pas de bouclier permanent. La normale de déviation est l'axe main vers balle
+    /// (l'axe de la paume dépend du modèle de manette, à confirmer au casque).
+    /// </summary>
+    void TryParry(double now, double delta)
+    {
+        if (gripDown || held != null || Hurtbox.HeldHand >= 0 || Hurtbox.Eliminated || now < nextParry) return;
+        var head = Hurtbox.Head;
+        if (head == null || GlobalPosition.Y < head.GlobalPosition.Y - 0.55f || GlobalPosition.Y > head.GlobalPosition.Y + 0.1f) return;
+        var hand = GlobalPosition;
+        if (head.GlobalPosition.DistanceTo(hand) < 0.25f || head.GlobalPosition.DistanceTo(hand) > 0.8f) return;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball ball || ball.IsHeld || ball.HasExploded || ball.Charge > 0 || ball.IsPass || ball.OwnerTeam < 0 || ball.OwnerTeam == Hurtbox.Team) continue;
+            var pos = ball.GlobalPosition;
+            if (ball.LinearVelocity.Length() < Ball.HitMinSpeed || !Assist.Contact(pos - ball.LinearVelocity * (float)delta, pos, hand)) continue;
+            nextParry = now + 1.5;
+            BallActions.Parry(ball, HandIndex, (pos - hand).Normalized());
+            Pulse(0.8f, 0.1f);
             return;
         }
     }

@@ -38,6 +38,7 @@ public partial class RemotePlayer : Node3D
     public double PushUntil { get; set; }   // poussée subie (tacle) : plafond de vitesse élargi
     public int LastDashCount { get; set; }
     public double LastPerfectAt { get; set; } = -10;
+    public double LastParryAt { get; set; } = -10;
     public bool TeleportPending { get; set; }
     public double TeleportDeadline { get; set; }
     /// <summary>Dernière pose acceptée par l'hôte (non lissée) : référence de la vérification de vitesse.</summary>

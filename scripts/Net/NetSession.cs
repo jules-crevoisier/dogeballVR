@@ -150,6 +150,11 @@ public partial class NetSession : Node
         if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand, perfect));
     }
 
+    public void RequestParry(int ballId, int hand, Vector3 normal)
+    {
+        if (Connected) Later(() => RpcId(1, MethodName.ParryRpc, ballId, hand, normal));
+    }
+
     public void RequestThrow(int hand, Vector3 velocity, float spin, int mode = 0)
     {
         if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin, mode));
@@ -377,6 +382,24 @@ public partial class NetSession : Node
             remote.NextCatchAt = 0;
             if (perfectOk) GD.Print($"[Net] Attrape parfaite de la zone {remote.Hurtbox.PlayerId}");
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
+            return;
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void ParryRpc(int ballId, int hand, Vector3 normal)
+    {
+        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
+            || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
+            if (ball.OwnerTeam == remote.Hurtbox.Team || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
+            remote.LastParryAt = now;
+            GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");
             return;
         }
     }

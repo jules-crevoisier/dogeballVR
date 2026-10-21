@@ -56,6 +56,17 @@ public partial class AssistSelfTest : Node
         }
         Check("temps de vol >= 0,45 s à partir de 3,5 m", worst >= 0.45f, $"pire cas {worst:0.00} s");
 
+        // 2b) Alerte : un tir planifié visant un joueur est signalé au plus tard 0,3 s avant l'impact (alerte dès t <= 0,6 s ou dès le lâcher).
+        float minLead = 99f;
+        for (float d = 3.5f; d <= 20f; d += 0.5f)
+        {
+            var target = from + new Vector3(0, 0, -d);
+            var (v, speed) = Assist.Plan(from, new Vector3(0, 0, -30), new List<Vector3> { target });
+            float t = Visual.ThreatIndicator.TimeToImpact(from, v, target);
+            minLead = Mathf.Min(minLead, Mathf.Min(t, Visual.ThreatIndicator.WarnSeconds));
+        }
+        Check("alerte >= 0,3 s avant l'impact", minLead >= 0.3f, $"préavis minimal {minLead:0.00} s");
+
         // 3) Attrape parfaite possible à 3 m : la balle arrive à sa vitesse de lancer (plafonnée), fenêtre de grip de 0,15 s.
         {
             var enemies = new List<Vector3> { from + new Vector3(0, 0, -3f) };
