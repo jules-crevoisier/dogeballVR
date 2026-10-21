@@ -52,16 +52,24 @@ def finish(obj, material, name=None, smooth=True, bevel=0.0, parent=None):
         obj.data.name = name
     obj.data.materials.clear()
     obj.data.materials.append(material)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
     if bevel > 0:
         m = obj.modifiers.new("bev", "BEVEL")
         m.width = bevel
-        m.segments = 2
+        m.segments = 3
+        m.profile = 0.6
         m.limit_method = "ANGLE"
-        bpy.context.view_layer.objects.active = obj
-        obj.select_set(True)
         bpy.ops.object.modifier_apply(modifier="bev")
+        smooth = True
     for p in obj.data.polygons:
         p.use_smooth = smooth
+    if bevel > 0:
+        # grandes faces planes, arêtes biseautées lisses : les normales sont pondérées par la surface des faces
+        w = obj.modifiers.new("wn", "WEIGHTED_NORMAL")
+        w.keep_sharp = True
+        w.weight = 50
+        bpy.ops.object.modifier_apply(modifier="wn")
     if parent:
         obj.parent = parent
     return obj

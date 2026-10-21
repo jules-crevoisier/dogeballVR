@@ -364,7 +364,27 @@ public static class ArenaBuilder
         if (kc && look is ShaderMaterial sm && o.Kind != "pit") sm.NextPass = KcShaders.Outline(0.03f);
         body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look, Visible = !(kc && o.Kind == "hubfloor") });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        if (kc && (o.Kind == "bumper" || o.Kind == "cover" || o.Kind == null)) AddObstacleTrim(body, size, o.Kind == "bumper");
         root.AddChild(body);
+    }
+
+    /// <summary>Détails d'abri façon barrière de chantier : socle sombre, bande de danger, chapeau clair et liseré néon. Visuel seulement.</summary>
+    static void AddObstacleTrim(Node3D body, Vector3 size, bool pylon)
+    {
+        void Piece(Vector3 sz, float y, ShaderMaterial m, bool outline = true)
+        {
+            if (outline) m.NextPass = KcShaders.Outline(0.02f);
+            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = sz }, Position = new Vector3(0, y - size.Y / 2f, 0), MaterialOverride = m });
+        }
+        const float pad = 0.06f;
+        var wide = new Vector3(size.X + pad, 0, size.Z + pad);
+        Piece(new Vector3(wide.X, 0.16f, wide.Z), 0.08f, KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2));
+        Piece(new Vector3(wide.X, 0.1f, wide.Z), size.Y - 0.05f, KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2));
+        float band = pylon ? 1.0f : Mathf.Min(0.7f, size.Y * 0.55f);
+        Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f), false);
+        var glow = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f);
+        Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), size.Y - 0.13f, glow, false);
+        if (pylon) Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), 2.3f, KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f), false);
     }
 
     /// <summary>Piédestal d'un distributeur de balles : cylindre dont le sommet est à la hauteur indiquée par la map.</summary>

@@ -41,34 +41,58 @@ def ball(kind):  # noqa
 
 # ---------------------------------------------------------------- avatars
 def avatar(team, part):
-    col = "orange" if team == "orange" else "bleu"
+    orange = team == "orange"
+    col = "orange" if orange else "bleu"
     c = mat("combi_" + team, col)
+    cd = mat("combi_" + team + "_ombre", "#C94A0A" if orange else "#3E8FCB")
     dk = mat("jambes", "#2B3658")
-    wh = mat("blanc", "ligne", 0.35)
+    wh = mat("blanc", "ligne")
+    glow = mat("neon_" + team, "#FFB347" if orange else "#8FE3FF", 2.5)
+    vis = mat("visiere", "visiere")
     p = []
-    # jambes en deux blocs (cuisse + mollet) légèrement écartées, chaussures larges
+    # baskets épaisses à semelle lumineuse, jambes de jogging fuselées
     for s in (-1, 1):
-        p.append(box((0.2, 0.22, 0.42), (s * 0.13, 0, 0.58), dk, f"Cuisse{s}", 0.04))
-        p.append(box((0.18, 0.2, 0.36), (s * 0.13, 0, 0.21), dk, f"Mollet{s}", 0.04))
-        p.append(box((0.22, 0.38, 0.12), (s * 0.13, 0.07, 0.06), wh, f"Pied{s}", 0.035))
-    p.append(box((0.46, 0.26, 0.20), (0, 0, 0.88), dk, "Bassin", 0.05))
-    p.append(box((0.58, 0.30, 0.07), (0, 0, 1.0), wh, "Ceinture", 0.02))
-    p.append(box((0.6, 0.32, 0.46), (0, 0, 1.2), c, "Torse", 0.08))
-    p.append(box((0.82, 0.34, 0.2), (0, 0, 1.4), c, "Epaules", 0.08))
-    # bras écartés vers l'extérieur (posture active), manchon sombre au poignet
-    for s in (-1, 1):
-        p.append(box((0.17, 0.19, 0.46), (s * 0.52, 0, 1.13), c, f"Bras{s}", 0.045, rot=(0, s * math.radians(-12), 0)))
-        p.append(sphere(0.115, (s * 0.47, 0, 1.4), c, f"Deltoide{s}", sub=2))
-    p.append(cyl(0.08, 0.10, (0, 0, 1.53), dk, "Cou", verts=10))
-    p.append(sphere(0.23, (0, 0, 1.72), c, "Tete", sub=2))
-    p.append(sphere(0.2, (0, 0.17, 1.73), mat("visiere", "visiere"), "Visiere", sub=2, scale=(0.95, 0.45, 0.36)))
-    if team == "orange":
-        d = cyl(0.12, 0.014, (0, 0.165, 1.24), wh, "Signe", verts=20, rot=(math.pi / 2, 0, 0))
+        p.append(box((0.21, 0.36, 0.11), (s * 0.13, 0.06, 0.085), wh, f"Basket{s}", 0.045))
+        p.append(box((0.215, 0.37, 0.03), (s * 0.13, 0.06, 0.025), glow, f"Semelle{s}", 0.012))
+        p.append(box((0.18, 0.14, 0.09), (s * 0.13, 0.17, 0.145), wh, f"Bout{s}", 0.04))
+        p.append(cyl(0.1, 0.5, (s * 0.14, 0, 0.4), dk, f"Jambe{s}", verts=14, r2=0.13))
+        p.append(cyl(0.095, 0.05, (s * 0.13, 0, 0.17), cd, f"Revers{s}", verts=14))
+    p.append(sphere(0.25, (0, 0, 0.84), dk, "Bassin", sub=3, scale=(1.05, 0.8, 0.75)))
+    # sweat à capuche : buste en poire, bas élastique, poche kangourou, zip
+    p.append(sphere(0.3, (0, 0, 1.2), c, "Torse", sub=3, scale=(1.08, 0.78, 1.0)))
+    p.append(sphere(0.19, (0, 0, 1.36), c, "Epaules", sub=3, scale=(2.05, 1.05, 0.8)))
+    p.append(cyl(0.27, 0.07, (0, 0, 0.95), cd, "Ourlet", verts=20, bevel=0.0))
+    p[-1].scale = (1.06, 0.84, 1)
+    p.append(box((0.34, 0.06, 0.15), (0, 0.205, 1.0), cd, "Poche", 0.03))
+    p.append(box((0.016, 0.02, 0.38), (0, 0.235, 1.28), wh, "Zip", 0.004))
+    p.append(torus(0.115, 0.045, (0, -0.02, 1.5), c, "Capuche", seg=24, rseg=8))
+    if orange:
+        p.append(cyl(0.12, 0.012, (-0.13, 0.225, 1.22), wh, "Signe", verts=24, rot=(math.pi / 2, 0, 0)))
     else:
-        d = cyl(0.15, 0.014, (0, 0.165, 1.24), wh, "Signe", verts=4, rot=(math.pi / 2, 0, 0), smooth=False)
-    p.append(d)
-    head_names = ("Tete", "Visiere")
-    keep = p if part == "tout" else [o for o in p if (o.name.split(".")[0] in head_names) == (part == "tete")]
+        p.append(cyl(0.14, 0.012, (-0.13, 0.225, 1.22), wh, "Signe", verts=4, rot=(math.pi / 2, 0, math.pi / 4), smooth=False))
+    # bras écartés, manches fuselées, poignets lumineux
+    for s in (-1, 1):
+        ang = -s * math.radians(19)
+        p.append(cyl(0.065, 0.46, (s * 0.50, 0, 1.17), c, f"Bras{s}", verts=14, r2=0.1, rot=(0, ang, 0)))
+        p.append(sphere(0.105, (s * 0.41, 0, 1.38), c, f"Deltoide{s}", sub=3))
+        p.append(torus(0.07, 0.022, (s * 0.585, 0, 0.955), glow, f"Poignet{s}", seg=16, rseg=6, rot=(0, ang, 0)))
+    p.append(cyl(0.085, 0.1, (0, 0, 1.56), dk, "Cou", verts=12))
+    # tête : gros crâne, lunettes-masque lumineuses, coiffe propre à l'équipe
+    p.append(sphere(0.25, (0, 0, 1.76), mat("peau_" + team, "#F2C9A5"), "H_Tete", sub=3, scale=(1.1, 1.05, 1.12)))
+    p.append(sphere(0.2, (0, 0.17, 1.77), vis, "H_Visiere", sub=3, scale=(1.0, 0.42, 0.36)))
+    p.append(sphere(0.11, (0, 0.245, 1.77), glow, "H_Lentille", sub=2, scale=(1.35, 0.12, 0.3)))
+    p.append(torus(0.245, 0.018, (0, 0, 1.78), mat("sangle", "#14192B"), "H_Sangle", seg=28, rseg=6))
+    if orange:  # casquette à l'envers
+        p.append(sphere(0.262, (0, -0.01, 1.83), c, "H_Casquette", sub=3, scale=(1.0, 1.0, 0.72)))
+        p.append(box((0.3, 0.2, 0.025), (0, -0.28, 1.84), cd, "H_Visiere_cas", 0.01, rot=(math.radians(-8), 0, 0)))
+        p.append(cyl(0.035, 0.02, (0, 0.0, 1.99), glow, "H_Bouton", verts=12))
+    else:  # casque audio
+        for s in (-1, 1):
+            p.append(cyl(0.11, 0.07, (s * 0.255, 0, 1.78), c, f"H_Coussin{s}", verts=18, rot=(0, math.pi / 2, 0)))
+            p.append(cyl(0.085, 0.02, (s * 0.295, 0, 1.78), glow, f"H_Led{s}", verts=18, rot=(0, math.pi / 2, 0)))
+        p.append(torus(0.262, 0.02, (0, 0, 1.78), c, "H_Arceau", seg=28, rseg=6, rot=(math.pi / 2, 0, 0)))
+        p[-1].scale = (1.0, 1.0, 1.0)
+    keep = p if part == "tout" else [o for o in p if (o.name.startswith("H_")) == (part == "tete")]
     for o in p:
         if o not in keep:
             bpy.data.objects.remove(o, do_unlink=True)
