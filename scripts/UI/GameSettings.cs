@@ -109,7 +109,7 @@ public static class GameSettings
             else if (!Fullscreen && isFull) DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetVsyncMode(VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
         }
-        Engine.MaxFps = MaxFps;
+        if (!LaunchedFromCommandLine) Engine.MaxFps = MaxFps;   // ne pas écraser --max-fps des tests et de la CI
         if (viewport != null)
         {
             viewport.Scaling3DScale = RenderScale;
