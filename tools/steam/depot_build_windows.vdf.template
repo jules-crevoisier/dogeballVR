@@ -1,0 +1,17 @@
+// Depot Windows 64 bits de DogeballVR (modèle). __DEPOTID_WINDOWS__ : voir app_build.vdf.template.
+// LocalPath est relatif au ContentRoot du script d'app (../content/).
+"DepotBuild"
+{
+	"DepotID" "__DEPOTID_WINDOWS__"
+	"FileMapping"
+	{
+		"LocalPath" "windows/*"
+		"DepotPath" "."
+		"Recursive" "1"
+	}
+	// steam_appid.txt ne doit jamais partir sur Steam (dans le zip de test il force l'AppID 480 Spacewar).
+	"FileExclusion" "steam_appid.txt"
+	"FileExclusion" "*.pdb"
+	"FileExclusion" "*.console.exe"
+	"FileExclusion" "LISEZ-MOI-test.txt"
+}
