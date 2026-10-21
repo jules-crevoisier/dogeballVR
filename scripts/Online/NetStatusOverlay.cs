@@ -19,7 +19,7 @@ public partial class NetStatusOverlay : CanvasLayer
         Layer = 20;
         ping = new Label { HorizontalAlignment = HorizontalAlignment.Right, MouseFilter = Control.MouseFilterEnum.Ignore };
         ping.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        ping.OffsetLeft = -260; ping.OffsetRight = -14; ping.OffsetTop = 8;
+        ping.OffsetLeft = -260; ping.OffsetRight = -14; ping.OffsetTop = 124;   // sous le fil des KO du HUD (coin haut droit)
         ping.AddThemeFontSizeOverride("font_size", 18);
         ping.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.09f, 0.19f));
         ping.AddThemeConstantOverride("outline_size", 6);
