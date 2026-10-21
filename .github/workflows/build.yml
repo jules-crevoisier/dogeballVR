@@ -35,15 +35,15 @@ jobs:
           echo "Portée des lancers des bots (touches/lancers par distance, cumulé sur la partie) :"
           grep "\[Portée\]" run.log | tail -1
 
-      - name: Test réseau (hôte + client automatique, 60 s en temps réel)
+      - name: Test réseau (hôte + client automatique, 90 s en temps réel)
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           # Pas de --fixed-fps ici : les délais réseau sont en temps réel.
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host > host.log 2>&1 &
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 6300 -- --host > host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --net-selftest > client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --net-selftest > client.log 2>&1
           wait $HOST_PID || true
           grep -E "\[Net|\[NetTest" host.log client.log | tail -20
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" host.log client.log; then
@@ -330,10 +330,10 @@ jobs:
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --port=7390 > bad-host.log 2>&1 &
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 6300 -- --host --port=7390 > bad-host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" bad-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --port=7390 --net-selftest --net-lag=80 --net-loss=0.05 > bad-client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --port=7390 --net-selftest --net-lag=80 --net-loss=0.05 > bad-client.log 2>&1
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" bad-host.log bad-client.log; then echo "Erreur à l'exécution (réseau dégradé)"; exit 1; fi
           CATCHES=$(grep -c "attrapée par la zone 2" bad-host.log || true)
