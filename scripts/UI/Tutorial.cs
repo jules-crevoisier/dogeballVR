@@ -17,6 +17,8 @@ public partial class Tutorial : CanvasLayer
     /// <summary>Fin de l'entraînement : jouer une vraie partie ou revenir au menu.</summary>
     public Action? PlayForReal { get; set; }
     public Action? BackToMenu { get; set; }
+    /// <summary>Entraînement en cours : le HUD cache le score, le chrono et les annonces de manche.</summary>
+    public static bool Running { get; private set; }
 
     sealed record Step(string Title, Func<string> Text, Func<DesktopPlayer, bool> Done);
 
@@ -36,6 +38,7 @@ public partial class Tutorial : CanvasLayer
     public override void _Ready()
     {
         Layer = 30;
+        Running = true;
         Bot.Gentle = true;
         MatchController.HitScored += OnHit;
         steps.Add(new("REGARDE AUTOUR DE TOI", () => "Bouge la souris pour tourner la caméra.", p => p.LookTravel - start["look"] > 3.5f));
@@ -87,6 +90,7 @@ public partial class Tutorial : CanvasLayer
 
     public override void _ExitTree()
     {
+        Running = false;
         Bot.Gentle = false;
         MatchController.HitScored -= OnHit;
     }
