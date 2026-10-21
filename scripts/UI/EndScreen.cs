@@ -208,15 +208,17 @@ public partial class EndScreen : CanvasLayer
         col.AddChild(UiKit.Text("MVP", 64, UiKit.Yellow, 14, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
         col.AddChild(UiKit.Spacer(6));
-        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {st.Hits} touches", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
-        col.AddChild(UiKit.Text($"{st.Catches} attrapes   ·   {st.PerfectCatches} parfaites", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text($"{Plural(st.Catches, "attrape")}   ·   {Plural(st.PerfectCatches, "parfaite")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }
 
+    static string Plural(int n, string word) => $"{n} {word}{(n > 1 ? "s" : "")}";
+
     Control StatsTable()
     {
-        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
         var box = UiKit.Box(new Color(UiKit.NavySoft, 0.92f), 20, 0f, 0, null, 8);
         box.ContentMarginLeft = 24; box.ContentMarginRight = 24; box.ContentMarginTop = 16; box.ContentMarginBottom = 18;
         panel.AddThemeStyleboxOverride("panel", box);
