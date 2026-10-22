@@ -23,6 +23,7 @@ public partial class NetSession : Node
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
+    const float RpcPerSecond = 20f;   // les autres RPC d'un client : seau de 20 jetons par pair et par RPC, au-delà le message est ignoré
     const double HelloTimeout = 20.0;         // un pair sans Hello est déconnecté (chargement de la partie compris)
     const int PlayerFloats = 15;
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
@@ -166,6 +167,7 @@ public partial class NetSession : Node
 
     void OnPeerDisconnected(long id)
     {
+        foreach (var key in new List<(int, string)>(rpcBudget.Keys)) if (key.Item1 == (int)id) rpcBudget.Remove(key);
         // La zone reste réservée à ce joueur le temps qu'il revienne (coupure, crash) : un nouvel arrivant ne la prend pas.
         if (secretOfPeer.Remove((int)id, out var secret) && zoneOfSecret.TryGetValue(secret, out int zone))
             reserved[zone] = (0, secret, Time.GetTicksMsec() / 1000.0 + ReconnectHold);
@@ -256,7 +258,7 @@ public partial class NetSession : Node
     void ClientTick(double delta)
     {
         clientClock += delta;
-        if (cutAt < 0) foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--net-cut=") && double.TryParse(a["--net-cut=".Length..], out double c)) cutAt = c;
+        if (cutAt < 0 && double.TryParse(Tools.DevFlags.Value("--net-cut="), out double c)) cutAt = c;
         if (cutAt > 0 && !cutDone && clientClock >= cutAt && Connected)
         {
             cutDone = true;
@@ -394,10 +396,26 @@ public partial class NetSession : Node
         return zone;
     }
 
+    // Anti-inondation (règle network-code.md) : un client modifié pouvait envoyer des milliers de demandes par seconde,
+    // chacune parcourant les balles et écrivant une ligne de journal. Un client normal redemande la prise à chaque image
+    // tant que l'hôte n'a pas confirmé : le seau en laisse passer une toutes les 50 ms, sous le délai de 0,15 s entre deux prises.
+    readonly Dictionary<(int peer, string rpc), (float tokens, double at)> rpcBudget = new();
+
+    /// <summary>Hôte : vrai si le pair a épuisé son débit pour ce RPC (le message est alors ignoré).</summary>
+    bool OverBudget(int peer, string rpc)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        var (tokens, at) = rpcBudget.TryGetValue((peer, rpc), out var budget) ? budget : (RpcPerSecond, now);
+        tokens = Mathf.Min(RpcPerSecond, tokens + (float)(now - at) * RpcPerSecond);
+        bool over = tokens < 1f;
+        rpcBudget[(peer, rpc)] = (over ? tokens : tokens - 1f, now);
+        return over;
+    }
+
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HelloRpc(int protocol, int zoneId, string secret)
     {
-        if (!IsHost) return;
+        if (!IsHost || OverBudget(Sender, nameof(HelloRpc))) return;
         int peer = Sender;
         if (protocol != ProtocolVersion)
         {
@@ -487,7 +505,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     void PingRpc(double sentAt)
     {
-        if (!IsHost || !Remotes.ContainsKey(Sender)) return;
+        if (!IsHost || !Remotes.ContainsKey(Sender) || OverBudget(Sender, nameof(PingRpc))) return;
         RpcId(Sender, MethodName.PongRpc, sentAt);
     }
 
@@ -663,7 +681,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void TackleRpc(int victimId, Vector2 dir)
     {
-        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Sender, out var remote) || !dir.IsFinite()) return;
+        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Sender, out var remote) || !dir.IsFinite() || OverBudget(Sender, nameof(TackleRpc))) return;
         // Le RPC (fiable) peut devancer la pose (non fiable) : le tacle attend la prochaine pose (dash validé, position à jour), 0,3 s au plus.
         remote.PendingTackle = (victimId, dir, Time.GetTicksMsec() / 1000.0 + 0.3);
     }
@@ -692,7 +710,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void CatchRpc(int ballId, int hand, bool perfect)
     {
-        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(CatchRpc))) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) { CatchRefused(remote, "bras pris ou main pleine"); return; }   // une seule balle par joueur
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
@@ -710,7 +728,7 @@ public partial class NetSession : Node
             float ballSpeed = ball.LinearVelocity.Length();
             // Ramassage d'une balle lente au sol (joueur PC) : jugé depuis les pieds, comme chez le client (point de ramassage à 0,9 m).
             bool scoop = ballSpeed < 3.5f && ball.GlobalPosition.DistanceTo(remote.Avatar.GlobalTransform * (t.Head + Vector3.Down * 0.85f)) <= 1.5f;
-            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ballSpeed) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ballSpeed))
+            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ball.LinearVelocity))
             {
                 CatchRefused(remote, $"balle à {Mathf.Min(ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition), ball.GlobalPosition.DistanceTo(handLatest)):0.0} m de la main à {ballSpeed:0} m/s");
                 return;
@@ -730,20 +748,33 @@ public partial class NetSession : Node
         }
     }
 
-    /// <summary>Prise demandée par un client et refusée : journal (réglage de la compensation de latence).</summary>
-    static void CatchRefused(RemotePlayer remote, string why) => GD.Print($"[Net] Prise refusée pour la zone {remote.Hurtbox.PlayerId} : {why}");
+    readonly Dictionary<int, (double at, int skipped)> refusalLog = new();
+
+    /// <summary>
+    /// Prise demandée par un client et refusée : journal (réglage de la compensation de latence), une ligne par zone et par
+    /// seconde au plus, avec le nombre de refus tus. Sans plafond, godot.log grossissait d'une ligne par image et par client.
+    /// </summary>
+    void CatchRefused(RemotePlayer remote, string why)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        int zone = remote.Hurtbox.PlayerId;
+        var (at, skipped) = refusalLog.TryGetValue(zone, out var last) ? last : (double.NegativeInfinity, 0);
+        if (now - at < 1.0) { refusalLog[zone] = (at, skipped + 1); return; }
+        refusalLog[zone] = (now, 0);
+        GD.Print($"[Net] Prise refusée pour la zone {zone} : {why}{(skipped > 0 ? $" (+{skipped} refus tus depuis 1 s)" : "")}");
+    }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ParryRpc(int ballId, int hand, Vector3 normal)
     {
-        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(ParryRpc))) return;
         double now = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
             || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
-            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity)) return;
             if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
             remote.LastParryAt = now;
             GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");
@@ -754,7 +785,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ThrowRpc(int hand, Vector3 velocity, float spin, int mode)
     {
-        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(ThrowRpc))) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         if (BallActions.Locked) { ball.Release(Vector3.Zero, 0f); return; }   // décompte : la balle tombe, rien ne part avant GO

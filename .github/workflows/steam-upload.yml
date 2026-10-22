@@ -31,7 +31,13 @@ concurrency:
 
 jobs:
   steam-upload:
+    # Seul main part sur Steam : un build de branche n'est pas relu par jules (audit réseau et sécurité).
+    # Une branche peut retirer cette ligne de sa copie du workflow : la vraie barrière est l'environnement GitHub
+    # steam-production, à protéger par jules (relecteur obligatoire, branche main seule ; docs/steam/ACTIONS-JULES.md, action 9).
+    if: github.ref == 'refs/heads/main'
+    environment: steam-production
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       GODOT_VERSION: 4.3-stable
       # Bibliothèques natives Steamworks (steam_api64.dll, libsteam_api.so), redistribuables avec le jeu.

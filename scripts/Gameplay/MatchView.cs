@@ -98,7 +98,7 @@ public sealed class MatchView
         var view = new MatchView
         {
             LocalId = localId, LocalTeam = localTeam, MaxLives = match.Rules.LivesPerPlayer,
-            Lives = id => { try { return match.Rules.LivesOf(id); } catch (KeyNotFoundException) { return 0; } },
+            Lives = match.Rules.LivesOf,
             Players = PlayersOf(map),
         };
         view.match = match;

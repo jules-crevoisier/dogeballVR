@@ -56,7 +56,7 @@ public static class NetHandshake
             .OrderBy(s => s, StringComparer.Ordinal);
         foreach (var r in rpcs) sb.Append(r).Append(';');
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
-        string fake = Array.IndexOf(OS.GetCmdlineUserArgs(), "--fake-version") >= 0 ? "-test" : "";   // test CI d'une version différente
+        string fake = Tools.DevFlags.Has("--fake-version") ? "-test" : "";   // test CI d'une version différente
         return $"dogeball/{NetSession.ProtocolVersion}/{Convert.ToHexString(hash)[..16]}{fake}";
     }
 }

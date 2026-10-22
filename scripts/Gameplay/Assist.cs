@@ -34,6 +34,10 @@ public static class Assist
     /// <summary>Tolérance de l'hôte : la main doit être près de la balle (m) + marge de latence.</summary>
     public const float CatchReach = 1.2f;
     public const float LatencyFactor = 0.12f, LatencyMaxSlack = 2.0f;
+    /// <summary>Au-delà de cette distance main-balle (m), la marge de latence ne vaut que si la balle vient de passer près de la main.</summary>
+    public const float TrajectoryCheckFrom = CatchReach + 0.4f;
+    /// <summary>Durée (s) de trajectoire regardée en arrière par l'hôte : ce que le client a pu voir avec sa latence.</summary>
+    public const float TrajectoryLookback = 0.3f;
 
     /// <summary>Vrai en VR : l'hôte planifie la vitesse de chaque lancer (ThrowPlan).</summary>
     public static bool VrRules { get; set; }
@@ -127,11 +131,18 @@ public static class Assist
         return d <= MagnetRadius && (ballNow - ballPrev).Dot(hand - ballPrev) > 0f;
     }
 
-    /// <summary>Contrôle de l'hôte : la balle (position hôte, en avance sur ce que voyait le client) doit être près de la main.</summary>
-    public static bool HostAccepts(Vector3 ballHost, Vector3 handHost, float ballSpeed)
+    /// <summary>
+    /// Contrôle de l'hôte : la balle (position hôte, en avance sur ce que voyait le client) doit être près de la main.
+    /// La marge de latence (jusqu'à 2 m pour un tir rapide) n'est accordée que si la trajectoire des
+    /// <see cref="TrajectoryLookback"/> dernières secondes est passée à portée de la main : sinon un client modifié
+    /// prendrait toute balle passant à 3 m de lui (audit réseau, constat S1).
+    /// </summary>
+    public static bool HostAccepts(Vector3 ballHost, Vector3 handHost, Vector3 ballVelocity)
     {
-        float slack = Mathf.Min(ballSpeed * LatencyFactor, LatencyMaxSlack);
-        return ballHost.DistanceTo(handHost) <= CatchReach + slack;
+        float distance = ballHost.DistanceTo(handHost);
+        if (distance > CatchReach + Mathf.Min(ballVelocity.Length() * LatencyFactor, LatencyMaxSlack)) return false;
+        if (distance <= TrajectoryCheckFrom) return true;
+        return SweepDistance(ballHost - ballVelocity * TrajectoryLookback, ballHost, handHost) <= CatchReach;
     }
 
     /// <summary>Attrape parfaite : tir adverse encore assez rapide par rapport à sa vitesse de lancer (ball.SpeedCap, 0 = inconnue).</summary>

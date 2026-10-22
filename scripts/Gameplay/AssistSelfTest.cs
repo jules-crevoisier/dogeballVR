@@ -34,8 +34,8 @@ public partial class AssistSelfTest : Node
                 if (Assist.Contact(pos, next, hand))
                 {
                     var host = next + dir * speed * latency;
-                    if (Assist.GripValid(t, pressedAt) && Assist.HostAccepts(host, hand, speed)) got = true;
-                    if (Assist.GripValid(t, -10) && Assist.HostAccepts(host, hand, speed)) gotClosed = true;
+                    if (Assist.GripValid(t, pressedAt) && Assist.HostAccepts(host, hand, dir * speed)) got = true;
+                    if (Assist.GripValid(t, -10) && Assist.HostAccepts(host, hand, dir * speed)) gotClosed = true;
                 }
                 pos = next;
             }
@@ -44,6 +44,17 @@ public partial class AssistSelfTest : Node
         }
         Check("attrape à 80 ms", caught >= 95, $"{caught}/100 (>= 95 requis)");
         Check("main fermée en permanence", closedCaught == 0, $"{closedCaught}/100 (0 requis)");
+
+        // 1b) Triche : un client déclare la prise d'un tir qui passe à 1,7..3 m de sa main sans jamais s'en approcher.
+        int stolen = 0;
+        for (int i = 0; i < 100; i++)
+        {
+            float speed = rng.RandfRange(8f, 20f), miss = rng.RandfRange(1.7f, 3f);
+            var velocity = new Vector3(0, 0, -speed);
+            var host = new Vector3(miss, 0, rng.RandfRange(-1f, 1f));   // la balle croise la main de côté
+            if (Assist.HostAccepts(host, Vector3.Zero, velocity)) stolen++;
+        }
+        Check("prise à distance refusée", stolen == 0, $"{stolen}/100 acceptées (0 requis)");
 
         // 2) Temps de vol : ennemi plein axe à 3,5..20 m, geste à 30 m/s : le tir ne doit pas arriver en moins de 0,45 s.
         float worst = 99f;

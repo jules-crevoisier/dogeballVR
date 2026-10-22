@@ -153,9 +153,9 @@ public partial class MatchController : Node3D
             if (!above) overPitSince.Remove(id);
             else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
             if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
-            if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
+            if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team
+                && Rules.Eliminate(push.by, id))   // toutes les vies d'un coup ; l'ancienne boucle de RegisterHit pouvait ne jamais finir
             {
-                while (Rules.LivesOf(id) > 0) Rules.RegisterHit(push.by, id);
                 StatsOf(push.by).Kos++;
                 HitScored?.Invoke(push.by, id, true);
                 GD.Print($"[Match] Ring-out : le joueur {id} est poussé dans la fosse par le joueur {push.by}");
@@ -396,7 +396,8 @@ public partial class MatchController : Node3D
 
     void OnEliminated(int playerId)
     {
-        hurtboxes[playerId].Eliminated = true;
+        if (!hurtboxes.TryGetValue(playerId, out var hurtbox)) return;   // pair parti entre la touche et l'élimination
+        hurtbox.Eliminated = true;
         respawnAt[playerId] = gameClock + Rules.RespawnSeconds;
     }
 

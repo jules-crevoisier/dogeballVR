@@ -348,7 +348,7 @@ public partial class Main : Node3D
         tween.TweenMethod(Callable.From<float>(v => swapFade(v)), 1f, 0f, 0.4);
     }
 
-    static bool PcAutoplay => System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+    static bool PcAutoplay => Tools.DevFlags.Has("--pc-autoplay");
 
     bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
 

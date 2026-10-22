@@ -456,7 +456,7 @@ public partial class OnlineLobby : Node
     // ------------------------------------------------------------------ boucle
 
     // Test (CI) : `--quit-file=CHEMIN` ferme proprement le jeu dès que ce fichier existe (fin des clients du test).
-    static readonly string? quitFile = System.Array.Find(OS.GetCmdlineUserArgs(), a => a.StartsWith("--quit-file="))?["--quit-file=".Length..];
+    static readonly string? quitFile = Tools.DevFlags.Value("--quit-file=");
     double quitCheck;
 
     public override void _Process(double delta)
