@@ -142,7 +142,12 @@ public sealed class MatchView
     /// <summary>Nom d'un joueur humain fourni par la salle en ligne (null : bot ou inconnu). Branché par le module en ligne.</summary>
     public static Func<int, string?>? HumanName { get; set; }
 
-    public string NameOf(int id) => id == LocalId ? "Toi" : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? $"Bot {id + 1}" : $"Joueur {id + 1}";
+    public string NameOf(int id) => id == LocalId ? "Toi" : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? BotName(id) : $"Joueur {id + 1}";
+
+    /// <summary>Surnoms des bots, à la façon des joueurs de rue : un par numéro de zone (toujours le même d'une partie à l'autre).</summary>
+    static readonly string[] BotNames = { "Rafale", "Mistral", "Bolt", "Turbo", "Comète", "Ricochet", "Zigzag", "Volt" };
+    /// <summary>Surnom du bot qui tient la zone <paramref name="id"/> (étiquettes, fil des KO, tableaux, bandeaux).</summary>
+    public static string BotName(int id) => BotNames[((id % BotNames.Length) + BotNames.Length) % BotNames.Length];
     public int TeamOf(int id) { foreach (var p in Players) if (p.Id == id) return p.Team; return -1; }
 
     void OnHitScored(int shooter, int target, bool kill)

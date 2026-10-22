@@ -19,6 +19,8 @@ public partial class MainMenu : CanvasLayer
     Control? overlay;
     ColorRect fade = null!;
     Panel plate = null!;
+    Control escHint = null!;
+    Action? back;   // page précédente (Échap) : null sur le menu racine
     bool leaving;
 
     public override void _Ready()
@@ -66,7 +68,9 @@ public partial class MainMenu : CanvasLayer
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         hints.AddThemeConstantOverride("separation", 36);
         hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
-        hints.AddChild(UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24));
+        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24);   // sous-menus seulement : le menu racine n'a pas de retour
+        escHint.Visible = false;
+        hints.AddChild(escHint);
         hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         hints.GrowVertical = Control.GrowDirection.Begin;
         hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
@@ -97,6 +101,7 @@ public partial class MainMenu : CanvasLayer
         // Le panneau suit la hauteur de la page affichée (menu, en ligne, réseau local, crédits).
         var want = column.Size + new Vector2(76, 52);
         plate.Size = plate.Size.Lerp(want, 1f - Mathf.Exp(-14f * (float)delta));
+        escHint.Visible = back != null || overlay != null;
     }
 
     void Fill(params Control[] items)
@@ -115,6 +120,7 @@ public partial class MainMenu : CanvasLayer
 
     void ShowMain()
     {
+        back = null;
         Fill(
             UiKit.Button("JOUER", UiKit.Orange, PlayBots, 38, new Vector2(460, 84)),
             UiKit.Button("ENTRAÎNEMENT", UiKit.Blue, () => Leave(() => TutorialChosen?.Invoke())),
@@ -133,6 +139,7 @@ public partial class MainMenu : CanvasLayer
 
     void ShowOnline()
     {
+        back = ShowMain;
         var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
         Fill(
             UiKit.Text("EN LIGNE", 44, UiKit.Yellow, 10),
@@ -151,6 +158,7 @@ public partial class MainMenu : CanvasLayer
 
     void ShowLan()
     {
+        back = ShowOnline;
         var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
         Fill(
             UiKit.Text("RÉSEAU LOCAL", 44, UiKit.Yellow, 10),
@@ -259,6 +267,7 @@ public partial class MainMenu : CanvasLayer
     {
         if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel")) return;
         if (overlay != null && overlay is not OptionsMenu) { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); GetViewport().SetInputAsHandled(); }
+        else if (overlay == null && back != null && !leaving) { Sfx.Play(this, SfxKind.UiBack); back(); GetViewport().SetInputAsHandled(); }   // En ligne, Réseau local : page précédente
     }
 
     /// <summary>Fondu au noir puis lancement (la partie se construit derrière le noir, qui se dissipe ensuite).</summary>
