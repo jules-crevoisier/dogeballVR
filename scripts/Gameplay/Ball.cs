@@ -85,7 +85,11 @@ public partial class Ball : RigidBody3D
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
     /// <summary>Vitesse de lancer retenue par l'hôte (m/s) : l'attrape parfaite exige encore 80 % de cette vitesse. 0 = inconnue.</summary>
     public float SpeedCap { get; set; }
-    const int TrailPoints = 14;
+    // Traînée échantillonnée au temps (et non par image) : même longueur à 20, 60 ou 144 images/s.
+    const double TrailStep = 0.015;                            // un point toutes les 15 ms
+    const double TrailSeconds = 0.18;                          // durée couverte par le ruban
+    const float TrailWidthMin = 0.12f, TrailWidthMax = 0.25f;  // largeur à la balle (m), selon la vitesse
+    const float TrailWideSpeed = 22f;                          // vitesse donnant la largeur maximale (m/s)
     const float TrailMinSpeed = HitMinSpeed;                   // = seuil de blessure
 
     /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
@@ -120,6 +124,11 @@ public partial class Ball : RigidBody3D
     MeshInstance3D halo = null!;
     MeshInstance3D halo2 = null!;
     MeshInstance3D orbit = null!;
+    StandardMaterial3D outlineMaterial = null!;
+    MeshInstance3D outline = null!;
+    StandardMaterial3D flightMaterial = null!;
+    MeshInstance3D flightHalo = null!;
+    float flightLit;   // 0 → 1 : balle lancée en vol (liseré et halo à la couleur du lanceur)
     MeshInstance3D? alertMarker;
     MeshInstance3D? bombRing;
     bool alert;
@@ -127,7 +136,7 @@ public partial class Ball : RigidBody3D
     MeshInstance3D shadow = null!;
     MeshInstance3D trail = null!;
     ImmediateMesh trailMesh = null!;
-    readonly List<Vector3> trailPoints = new();
+    readonly List<(Vector3 Pos, double Time)> trailPoints = new();
     double visualTime;
 
     /// <summary>Effet de courbe : vitesse angulaire du poignet au lâcher (rad/s, axe vertical).</summary>
@@ -148,8 +157,16 @@ public partial class Ball : RigidBody3D
         ball.core.Visible = !ball.modeled;   // la coque du modèle remplace la sphère procédurale
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
-        if (!ball.modeled || KcShaders.Look == KcShaders.LookKind.Toon)
-            ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
+        outline.EmissionEnabled = true;                         // éteint au repos ; en vol le liseré prend la couleur de l'équipe du lanceur (voir UpdateFlightLook)
+        outline.Emission = Colors.Black;
+        ball.outlineMaterial = outline;
+        ball.outline = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline };
+        ball.AddChild(ball.outline);
+        // Halo de vol : coque additive large à la couleur de l'équipe, invisible au sol et tenue.
+        ball.flightMaterial = Materials.Additive(new Color(Palette.BallCore, 0f));
+        ball.flightHalo = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.25f, Height = 0.5f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.flightMaterial, Visible = false };
+        ball.AddChild(ball.flightHalo);
+        ball.outline.Visible = !ball.modeled || KcShaders.Look == KcShaders.LookKind.Toon;   // ballon modélisé en PBR : pas de coque d'encre (le halo de vol porte la couleur)
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {
@@ -393,6 +410,7 @@ public partial class Ball : RigidBody3D
             orbit.Rotation = new Vector3(Mathf.Pi / 2 + 0.5f * Mathf.Sin((float)visualTime), (float)visualTime * 3f, 0);   // anneau qui tourne : lisible de loin
         }
         UpdateAlertAndRing();
+        UpdateFlightLook((float)delta);
 
         var p = GlobalPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
@@ -416,7 +434,26 @@ public partial class Ball : RigidBody3D
         foreach (var d in decor) if (d != null && d.Visible) d.GlobalRotate(axis.Normalized(), -rate);
     }
 
-    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local) : éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
+    /// <summary>
+    /// Balle lancée (en vol, avec un lanceur) : le contour sombre devient un liseré épais et lumineux à la couleur de l'équipe,
+    /// doublé d'un halo additif, pour lire d'un coup d'œil qui a tiré. Le noyau jaune reste l'identité de la balle.
+    /// S'allume vite au lâcher, s'éteint en douceur quand la balle ralentit, retombe ou est rattrapée.
+    /// </summary>
+    void UpdateFlightLook(float dt)
+    {
+        bool flying = !IsHeld && OwnerTeam >= 0 && kind != KindExploded && LinearVelocity.Length() > 3f;
+        float target = flying ? 1f : 0f;
+        flightLit = Mathf.MoveToward(flightLit, target, dt * (flying ? 12f : 4f));
+        var team = Palette.Team(OwnerTeam);
+        outlineMaterial.AlbedoColor = Palette.Panel.Lerp(team, flightLit);
+        outlineMaterial.Emission = team;
+        outlineMaterial.EmissionEnergyMultiplier = 1.2f * flightLit;   // assez pour briller, pas au point de blanchir la couleur d'équipe
+        outline.Scale = Vector3.One * (1f + 0.14f * flightLit);   // liseré de 1,8 cm au repos, ~4 cm en vol
+        flightHalo.Visible = flightLit > 0.01f;
+        if (flightHalo.Visible) flightMaterial.AlbedoColor = new Color(team, 0.4f * flightLit);
+    }
+
+    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local): éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
     public void SetAlert(bool on, Color color)
     {
         alert = on;
@@ -467,40 +504,43 @@ public partial class Ball : RigidBody3D
         return true;
     }
 
-    /// <summary>Traînée en ruban : longueur proportionnelle à la vitesse, aucune sous le seuil de blessure.</summary>
+    /// <summary>Traînée en ruban continu : points datés (toutes les 15 ms, sur 0,18 s), largeur 12 à 25 cm selon la vitesse,
+    /// opaque près de la balle, effilée et transparente en queue. Aucune sous le seuil de blessure.</summary>
     void UpdateTrail(Vector3 p)
     {
-        bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
-        if (fast) trailPoints.Add(p);
-        if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        float speed = LinearVelocity.Length();
+        bool fast = !IsHeld && speed >= TrailMinSpeed;
+        if (IsHeld) trailPoints.Clear();
+        else if (fast && (trailPoints.Count == 0 || visualTime - trailPoints[^1].Time >= TrailStep)) trailPoints.Add((p, visualTime));
+        // Les points vieillissent seuls : la queue se résorbe en 0,18 s quand la balle ralentit, sans coupure nette.
+        while (trailPoints.Count > 0 && visualTime - trailPoints[0].Time > TrailSeconds) trailPoints.RemoveAt(0);
         bool hadTrail = trailMesh.GetSurfaceCount() > 0;
-        if (!fast && !hadTrail && trailPoints.Count == 0) return;
+        if (!hadTrail && trailPoints.Count == 0) return;
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
-        if (trailPoints.Count < 2 || cam == null) return;
-        var color = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
-        float width = 0.1f + 0.025f * Charge;
-        // Deux rubans : un large à la couleur de l'équipe, un cœur blanc étroit et plus court (lecture de la vitesse).
-        for (int layer = 0; layer < 2; layer++)
+        if (trailPoints.Count == 0 || cam == null) return;
+        // La tête du ruban suit la balle à chaque image (pas de saut entre deux échantillons).
+        var pts = new List<(Vector3 Pos, double Time)>(trailPoints);
+        if (pts[^1].Pos.DistanceSquaredTo(p) > 1e-6f) pts.Add((p, visualTime));
+        if (pts.Count < 2) return;
+        float width = Mathf.Lerp(TrailWidthMin, TrailWidthMax, Mathf.Clamp((speed - TrailMinSpeed) / (TrailWideSpeed - TrailMinSpeed), 0f, 1f));
+        var color = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);   // balles spéciales : leur couleur
+        trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
+        for (int i = 0; i < pts.Count; i++)
         {
-            trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
-            for (int i = 0; i < trailPoints.Count; i++)
-            {
-                float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
-                var a = trailPoints[i];
-                var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
-                var prev = trailPoints[Mathf.Max(i - 1, 0)];
-                var dir = (next - prev).Normalized();
-                // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
-                float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
-                float taper = layer == 0 ? t : Mathf.Max(0f, t * 1.6f - 0.6f);
-                float w = (layer == 0 ? width : width * 0.3f) * Mathf.Sqrt(taper) * nearCam;
-                var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * w;
-                var vc = layer == 0 ? new Color(color, 0.5f * t * t * nearCam) : new Color(1f, 1f, 1f, 0.4f * taper * nearCam);
-                trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
-                trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
-            }
-            trailMesh.SurfaceEnd();
+            // t = fraîcheur du point : 1 à la balle, 0 en bout de queue (au temps, pas à l'indice).
+            float t = Mathf.Clamp(1f - (float)((visualTime - pts[i].Time) / TrailSeconds), 0f, 1f);
+            var a = pts[i].Pos;
+            var next = pts[Mathf.Min(i + 1, pts.Count - 1)].Pos;
+            var prev = pts[Mathf.Max(i - 1, 0)].Pos;
+            var dir = (next - prev).Normalized();
+            // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
+            float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
+            float taper = Mathf.Sqrt(t);   // s'effile vers la queue, reste large près de la balle
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.5f * width * taper * nearCam;
+            var vc = new Color(color, 0.75f * t * t * nearCam);
+            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
+            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
         }
     }
 

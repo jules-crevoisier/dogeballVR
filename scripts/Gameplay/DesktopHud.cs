@@ -1221,9 +1221,10 @@ public partial class DesktopHud : CanvasLayer
 
     // ------------------------------------------------------------------ textes centraux : compte à rebours, bandeaux, annonces
 
-    Label countdown = null!, countdownRound = null!, notice = null!, toast = null!, koTitle = null!, koSub = null!, resume = null!, pop = null!;
+    Label countdown = null!, countdownRound = null!, noticeMain = null!, noticeTime = null!, toast = null!, koTitle = null!, koSub = null!, resume = null!, pop = null!;
     Control bannerBox = null!;
     Panel bannerBand = null!;
+    PanelContainer notice = null!;
     Label bannerText = null!, bannerSub = null!;
     string lastNotice = "", lastToast = "";
     double koSince = -1;
@@ -1246,19 +1247,36 @@ public partial class DesktopHud : CanvasLayer
         countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 158, 76);
         countdownRound.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.85f), 14, -0.12f, 0, null, 4));
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
-        notice = CenterLabel("", 34, UiKit.Yellow, 10, 190, 50);
-        notice.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.8f), 12, -0.12f, 0, null, 4));
+        // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
+        // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
+        notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        notice.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 14, -0.12f, 3, UiKit.Yellow, 4));
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         notice.GrowHorizontal = Control.GrowDirection.Both;
-        notice.OffsetLeft = -360; notice.OffsetRight = 360;
-        notice.PivotOffset = new Vector2(360, 25);
-        toast = CenterLabel("", 34, Colors.White, 10, 250, 50);
+        notice.OffsetLeft = 0; notice.OffsetRight = 0; notice.OffsetTop = 186; notice.OffsetBottom = 186;
+        var noticeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+        noticeRow.AddThemeConstantOverride("separation", 12);
+        noticeMain = UiKit.Text("", 34, Colors.White, 10);
+        noticeTime = UiKit.Text("", 34, UiKit.Yellow, 10);
+        noticeRow.AddChild(noticeMain);
+        noticeRow.AddChild(noticeTime);
+        notice.AddChild(noticeRow);
+        centerLayer.AddChild(notice);
+        notice.Visible = false;
+        // Messages du joueur (réglage, terrasse, pas d'allié) : même langage que les autocollants (« PRISE ! », « PASSE ! ») :
+        // lettres blanches, contour bleu nuit épais, liseré extérieur à la couleur de l'équipe, légère inclinaison.
+        toast = CenterLabel("", 36, Colors.White, 14, 250, 56);
+        toast.AddThemeColorOverride("font_shadow_color", Palette.Team(View.LocalTeam).Lerp(Colors.White, 0.1f));
+        toast.AddThemeConstantOverride("shadow_outline_size", 26);
+        toast.AddThemeConstantOverride("shadow_offset_x", 0);
+        toast.AddThemeConstantOverride("shadow_offset_y", 0);
+        toast.Rotation = Mathf.DegToRad(-4f);
         pop = CenterLabel("", 96, UiKit.Yellow, 18, 600, 120);
         // Titre du joueur KO à la couleur de l'équipe adverse : il ressort net sur le monde désaturé (Feedback, calque sous le HUD).
         koTitle = CenterLabel("KO !", 150, Palette.Team(1 - View.LocalTeam).Lightened(0.1f), 24, 330, 180);
         koSub = CenterLabel("", 40, Colors.White, 10, 500, 60);
         resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60, root);
-        foreach (var l in new[] { countdown, countdownRound, notice, toast, pop, koTitle, koSub }) l.Visible = false;
+        foreach (var l in new[] { countdown, countdownRound, toast, pop, koTitle, koSub }) l.Visible = false;
 
         // Bandeau de fin de manche : bande inclinée de la couleur de l'équipe gagnante, qui traverse l'écran.
         // Assez haute pour le titre et le sous-titre (« Manches 3 – 2 ») sans que le bord de la bande les coupe.
@@ -1435,12 +1453,17 @@ public partial class DesktopHud : CanvasLayer
             // Même annonce dont seul le décompte change (« DANS 4 s » après « DANS 5 s ») : petit battement, sans nouvelle alerte.
             bool tick = s.Notice != "" && NoDigits(s.Notice) == NoDigits(lastNotice);
             lastNotice = s.Notice;
-            notice.Text = s.Notice;
+            // Décompte (« DANS 4 s ») en jaune, le reste en blanc.
+            int cut = s.Notice.LastIndexOf(" DANS ", System.StringComparison.Ordinal);
+            noticeMain.Text = cut > 0 ? s.Notice[..cut] : s.Notice;
+            noticeTime.Text = cut > 0 ? s.Notice[(cut + 1)..] : "";
+            noticeTime.Visible = noticeTime.Text != "";
             notice.Visible = s.Notice != "";
+            notice.OffsetLeft = notice.OffsetRight = 0;
             if (notice.Visible && tick) UiKit.Punch(notice, 1.12f, 0.2);
             else if (notice.Visible) { UiKit.Punch(notice, 1.5f, 0.3); Sfx.Play(this, SfxKind.Alert, null, 0.8f, -6f); }
         }
-        if (notice.Visible) notice.Modulate = new Color(1, 1, 1, 0.75f + 0.25f * Mathf.Sin((float)age * 8f));
+        if (notice.Visible) { notice.OffsetLeft = notice.OffsetRight = 0; notice.PivotOffset = notice.Size / 2f; }   // largeur au texte (croît des deux côtés), battement centré
         string t = Player.Time01 < Player.ToastUntil ? Player.Toast : "";
         if (t != lastToast)
         {
