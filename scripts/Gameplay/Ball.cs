@@ -115,6 +115,11 @@ public partial class Ball : RigidBody3D
     MeshInstance3D halo = null!;
     MeshInstance3D halo2 = null!;
     MeshInstance3D orbit = null!;
+    StandardMaterial3D outlineMaterial = null!;
+    MeshInstance3D outline = null!;
+    StandardMaterial3D flightMaterial = null!;
+    MeshInstance3D flightHalo = null!;
+    float flightLit;   // 0 → 1 : balle lancée en vol (liseré et halo à la couleur du lanceur)
     MeshInstance3D? alertMarker;
     MeshInstance3D? bombRing;
     bool alert;
@@ -142,7 +147,15 @@ public partial class Ball : RigidBody3D
         ball.AddDecor();
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
-        ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
+        outline.EmissionEnabled = true;                         // éteint au repos ; en vol le liseré prend la couleur de l'équipe du lanceur (voir UpdateFlightLook)
+        outline.Emission = Colors.Black;
+        ball.outlineMaterial = outline;
+        ball.outline = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline };
+        ball.AddChild(ball.outline);
+        // Halo de vol : coque additive large à la couleur de l'équipe, invisible au sol et tenue.
+        ball.flightMaterial = Materials.Additive(new Color(Palette.BallCore, 0f));
+        ball.flightHalo = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.25f, Height = 0.5f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.flightMaterial, Visible = false };
+        ball.AddChild(ball.flightHalo);
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {
@@ -379,6 +392,7 @@ public partial class Ball : RigidBody3D
             orbit.Rotation = new Vector3(Mathf.Pi / 2 + 0.5f * Mathf.Sin((float)visualTime), (float)visualTime * 3f, 0);   // anneau qui tourne : lisible de loin
         }
         UpdateAlertAndRing();
+        UpdateFlightLook((float)delta);
 
         var p = GlobalPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
@@ -388,7 +402,26 @@ public partial class Ball : RigidBody3D
         UpdateTrail(p);
     }
 
-    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local) : éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
+    /// <summary>
+    /// Balle lancée (en vol, avec un lanceur) : le contour sombre devient un liseré épais et lumineux à la couleur de l'équipe,
+    /// doublé d'un halo additif, pour lire d'un coup d'œil qui a tiré. Le noyau jaune reste l'identité de la balle.
+    /// S'allume vite au lâcher, s'éteint en douceur quand la balle ralentit, retombe ou est rattrapée.
+    /// </summary>
+    void UpdateFlightLook(float dt)
+    {
+        bool flying = !IsHeld && OwnerTeam >= 0 && kind != KindExploded && LinearVelocity.Length() > 3f;
+        float target = flying ? 1f : 0f;
+        flightLit = Mathf.MoveToward(flightLit, target, dt * (flying ? 12f : 4f));
+        var team = Palette.Team(OwnerTeam);
+        outlineMaterial.AlbedoColor = Palette.Panel.Lerp(team, flightLit);
+        outlineMaterial.Emission = team;
+        outlineMaterial.EmissionEnergyMultiplier = 1.2f * flightLit;   // assez pour briller, pas au point de blanchir la couleur d'équipe
+        outline.Scale = Vector3.One * (1f + 0.14f * flightLit);   // liseré de 1,8 cm au repos, ~4 cm en vol
+        flightHalo.Visible = flightLit > 0.01f;
+        if (flightHalo.Visible) flightMaterial.AlbedoColor = new Color(team, 0.4f * flightLit);
+    }
+
+    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local): éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
     public void SetAlert(bool on, Color color)
     {
         alert = on;
