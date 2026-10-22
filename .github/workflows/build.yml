@@ -194,6 +194,15 @@ jobs:
           "$GODOT" --headless --path . -- --assist-test 2>&1 | tee assist.log
           grep -q "TOUT OK" assist.log || { echo "Les aides VR ne respectent pas les critères"; exit 1; }
 
+      - name: Test fin de partie dans le casque (podium et tableau 3D, durée réglée par l'opérateur)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 1800 -- --map=neon_court --pc-autoplay --end-screen-test --vr-end-stage --eva-end-hold=6 2>&1 | tee vr-end.log
+          grep -q "\[EVA\] Réglages de salle : .*fin de partie 6 s" vr-end.log || { echo "Réglage de l'opérateur (--eva-end-hold) non lu"; exit 1; }
+          grep -q "\[FinVR\] Scène devant le joueur .*VICTOIRE !, podium de 2 joueur(s), MVP .*tableau 4 ligne(s), relance dans 6 s" vr-end.log || { echo "Pas de fin de partie VR complète"; exit 1; }
+          grep -qE "\[FinVR\] Scène retirée après (5\.[5-9]|6\.[0-9]|7\.[0-5]) s" vr-end.log || { echo "La partie suivante n'a pas démarré après la durée réglée"; exit 1; }
+
       - name: Test rotor du moyeu (balles tendues arrêtées par un bras, témoin sans rotor)
         run: |
           GODOT_VERSION=4.3-stable

@@ -81,7 +81,7 @@ public partial class EndScreen : CanvasLayer
         if (!Autoplay) Input.MouseMode = Input.MouseModeEnum.Visible;
         var s = View.State;
         winner = s.Winner;
-        stats = TestStats(View.Stats, s.Winner);
+        stats = TestStats(View, View.Stats, s.Winner);
         bool win = s.Winner == View.LocalTeam;
         Audio.Music.Stinger(win ? SfxKind.Victory : SfxKind.Defeat);   // jingle + foule, la musique de match s'efface
 
@@ -366,7 +366,7 @@ public partial class EndScreen : CanvasLayer
     /// tableau à zéro. Pour juger l'écran, on y montre une partie crédible (3-2 : les vainqueurs un peu devant). Seulement
     /// dans ce test et seulement si personne n'a marqué : une vraie partie garde ses chiffres.
     /// </summary>
-    IReadOnlyDictionary<int, MatchController.PlayerStats>? TestStats(IReadOnlyDictionary<int, MatchController.PlayerStats>? real, int champion)
+    internal static IReadOnlyDictionary<int, MatchController.PlayerStats>? TestStats(MatchView view, IReadOnlyDictionary<int, MatchController.PlayerStats>? real, int champion)
     {
         if (real == null || Array.FindIndex(Tools.DevFlags.Args, a => a.StartsWith("--end-screen-test")) < 0) return real;
         foreach (var st in real.Values) if (st.Kos > 0) return real;
@@ -375,7 +375,7 @@ public partial class EndScreen : CanvasLayer
         int[][] losers = { new[] { 4, 7, 3, 1, 16 }, new[] { 2, 5, 1, 0, 12 }, new[] { 1, 3, 2, 0, 10 } };
         var fake = new Dictionary<int, MatchController.PlayerStats>();
         int[] rank = new int[2];
-        foreach (var p in View.Players)
+        foreach (var p in view.Players)
         {
             if (p.Team is < 0 or > 1) continue;
             var table = p.Team == champion ? winners : losers;

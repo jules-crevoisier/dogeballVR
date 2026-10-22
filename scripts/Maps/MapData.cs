@@ -242,6 +242,8 @@ public class MapData
     public float EdgeWarningDistance { get; set; } = 1f;
     /// <summary>« ring » : plaques en moulinet autour d'un moyeu (schéma v3) ; le joueur PC y circule librement.</summary>
     public string Layout { get; set; } = "zones";
+    /// <summary>Faux : carte réservée au PC (zones adverses à moins de 1,5 m l'une de l'autre, ou plaques plus petites que les zones EVA).</summary>
+    public bool VrAllowed { get; set; } = true;
     public HubDef? Hub { get; set; }
     public PcDef? Pc { get; set; }
     /// <summary>Ancien format (v1) : volume de l'arène centré sur l'origine. Le v2 utilise ArenaBounds.</summary>
@@ -277,6 +279,28 @@ public class MapData
         Pc?.Terraces.Find(t => Mathf.Abs(x - t.X) < t.Sx / 2f + margin && Mathf.Abs(z - t.Z) < t.Sz / 2f + margin);
 
     public bool HasLifts => Zones.Exists(z => z.Lift != null);
+
+    /// <summary>Plus petit écart (m) entre les rectangles de deux zones d'équipes adverses ; les zones tournées de 90° échangent largeur et profondeur.</summary>
+    public float MinAdversaryGap()
+    {
+        Rect2 Footprint(ZoneDef z)
+        {
+            bool turned = Mathf.PosMod(Mathf.RoundToInt(z.FacingDegrees), 180) == 90;
+            var size = turned ? new Vector2(ZoneDepth, ZoneWidth) : new Vector2(ZoneWidth, ZoneDepth);
+            return new Rect2(new Vector2(z.X, z.Z) - size / 2, size);
+        }
+        float best = float.MaxValue;
+        foreach (var a in Zones)
+            foreach (var b in Zones)
+            {
+                if (a.Id >= b.Id || a.Team == b.Team) continue;
+                Rect2 ra = Footprint(a), rb = Footprint(b);
+                float gx = Mathf.Max(0, Mathf.Max(rb.Position.X - ra.End.X, ra.Position.X - rb.End.X));
+                float gz = Mathf.Max(0, Mathf.Max(rb.Position.Y - ra.End.Y, ra.Position.Y - rb.End.Y));
+                best = Mathf.Min(best, Mathf.Sqrt(gx * gx + gz * gz));
+            }
+        return best;
+    }
 
     /// <summary>Altitude maximale d'un joueur (plateau haut) : borne les poses acceptées par l'hôte.</summary>
     public float MaxElevation

@@ -16,7 +16,8 @@ public partial class MatchController : Node3D
     const int BallsOnField = 4;
     const float BallSpawnInterval = 3f;   // une nouvelle balle toutes les 3 s tant qu'il en manque
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
-    const float MatchEndSeconds = 8f;
+    /// <summary>Durée de l'écran de fin avant la partie suivante (8 s au PC ; 20 s en casque, réglable par l'opérateur).</summary>
+    public float MatchEndSeconds { get; set; } = 8f;
     const float CountdownSeconds = 3f;    // « 3, 2, 1, GO ! » au début de chaque manche : chrono figé, touches ignorées
 
     public MatchRules Rules { get; } = new();

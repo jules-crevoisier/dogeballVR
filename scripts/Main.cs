@@ -108,6 +108,8 @@ public partial class Main : Node3D
         System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency;   // pas de collecte complète bloquante en pleine partie   // préréglage de qualité sur chaque ciel et soleil chargés
         UI.InputSetup.Register();
         UI.GameSettings.Apply(xrActive ? null : GetViewport());
+        if (xrActive || Tools.DevFlags.Has("--vr-end-stage")) UI.EvaSettings.Load();   // salle EVA : réglages de l'opérateur, pas de menu dans le casque
+        if (xrActive) UI.EvaSettings.Apply();
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
@@ -132,6 +134,7 @@ public partial class Main : Node3D
             PlayOfflineOnLoad = false;
             Tutorial = false;
             cfg.Choose(NetMode.Offline);
+            menuSolo = true;
             StartMatch(xrActive);
             FadeIn();
             return;
@@ -148,6 +151,7 @@ public partial class Main : Node3D
                 menu.QueueFree();
                 backdrop.QueueFree();
                 cfg.Choose(mode, address);
+                menuSolo = mode == NetMode.Offline;
                 Tutorial = tutorial;
                 StartMatch(xrActive);
                 FadeIn();
@@ -168,6 +172,9 @@ public partial class Main : Node3D
         StartMatch(xrActive);
     }
 
+    /// <summary>Partie solo choisie dans le menu (JOUER, ou « vraie partie » après le tutoriel) : format en ligne.</summary>
+    bool menuSolo;
+
     void StartMatch(bool xrActive)
     {
         Audio.Music.PlayMatch();
@@ -180,6 +187,12 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        if (xrActive && !map.VrAllowed)
+        {
+            // Sécurité en salle : zones adverses trop proches pour des joueurs qui marchent. Chaque casque se replie de lui-même.
+            GD.PrintErr($"Carte {map.Name} réservée au PC (vrAllowed=false). Repli sur neon_court.");
+            map = MapData.Load("res://maps/neon_court.json");
+        }
         int localZoneId = cfg.LocalZone;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
@@ -396,7 +409,9 @@ public partial class Main : Node3D
         BallActions.ThrowsLocked = () => match.CountdownLeft > 0;
         match.PcProfile = pcProfile;
         match.ConfigureMap(map);
-        if (cfg.OnlineFormat) match.Rules.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));   // PC en ligne : façon Knockout City
+        // PC en ligne, et solo lancé depuis le menu (choix de jules du 22/10) : format Knockout City. Les tests en ligne de commande
+        // et la VR gardent les 5 manches.
+        if (cfg.OnlineFormat || menuSolo && xrOrigin == null && !Tutorial) match.Rules.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
         match.ZoneElevation = ZoneElevation;
         match.PlatformsMove = !(map.IsRing && xrOrigin == null);
         match.IsBot = id => bots.ContainsKey(id);
@@ -436,15 +451,24 @@ public partial class Main : Node3D
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
             AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
             AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
-            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
-            AddChild(end);
-            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
+            if (!Tools.DevFlags.Has("--vr-end-stage"))   // capture de la fin VR au clavier : pas d'écran de fin 2D par-dessus
+            {
+                var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+                AddChild(end);
+                AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
+            }
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
             match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
         // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt).
         if (cfg.Preconnected)
             match.MatchEnded += _ => GetTree().CreateTimer(UI.EndScreen.BackToRoomSeconds).Timeout += () => { if (IsInstanceValid(match) && match.IsInsideTree()) Online.OnlineLobby.Instance?.ReturnToLobby(); };
+        if (xrOrigin != null || Tools.DevFlags.Has("--vr-end-stage"))
+        {
+            // Fin de partie dans le casque : podium et tableau devant le joueur, 20 s (réglage de l'opérateur) avant la partie suivante.
+            match.MatchEndSeconds = UI.EvaSettings.EndHoldSeconds;
+            AddVrEndStage(MatchView.ForHost(match, map, localZone.Id, localZone.Team), match.AutoRestart ? UI.EvaSettings.EndHoldSeconds : 0f);
+        }
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
@@ -604,6 +628,15 @@ public partial class Main : Node3D
     /// <summary>Tangage du gant : l'axe -Z de la pose grip suit le poing fermé (les jointures) ; à régler au casque si les doigts piquent.</summary>
     const float GlovePitchDegrees = 0f;
 
+    void AddVrEndStage(MatchView view, float holdSeconds) =>
+        AddChild(new UI.VrEndStage
+        {
+            Name = "VrEndStage", View = view, HoldSeconds = holdSeconds,
+            Head = () => xrCamera ?? GetViewport().GetCamera3D(), FloorY = () => xrOrigin?.GlobalPosition.Y ?? 0f,
+            Distance = xrOrigin != null ? 4f : 7.5f,   // au clavier (test de capture) : champ vertical plus étroit, caméra d'épaule en jeu libre
+            FollowCamera = xrOrigin == null,
+        });
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
@@ -658,6 +691,8 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
         AddKnockoutFeedback(localZone, world.Lives, 2, () => hud.Text);
+        if (xrOrigin != null || Tools.DevFlags.Has("--vr-end-stage"))
+            AddVrEndStage(MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team), UI.EvaSettings.EndHoldSeconds);
 
         if (cfg.SelfTest)
         {
