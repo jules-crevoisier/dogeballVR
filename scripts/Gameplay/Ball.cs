@@ -80,7 +80,11 @@ public partial class Ball : RigidBody3D
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
     /// <summary>Vitesse de lancer retenue par l'hôte (m/s) : l'attrape parfaite exige encore 80 % de cette vitesse. 0 = inconnue.</summary>
     public float SpeedCap { get; set; }
-    const int TrailPoints = 10;
+    // Traînée échantillonnée au temps (et non par image) : même longueur à 20, 60 ou 144 images/s.
+    const double TrailStep = 0.015;                            // un point toutes les 15 ms
+    const double TrailSeconds = 0.18;                          // durée couverte par le ruban
+    const float TrailWidthMin = 0.12f, TrailWidthMax = 0.25f;  // largeur à la balle (m), selon la vitesse
+    const float TrailWideSpeed = 22f;                          // vitesse donnant la largeur maximale (m/s)
     const float TrailMinSpeed = HitMinSpeed;                   // = seuil de blessure
 
     /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
@@ -122,7 +126,7 @@ public partial class Ball : RigidBody3D
     MeshInstance3D shadow = null!;
     MeshInstance3D trail = null!;
     ImmediateMesh trailMesh = null!;
-    readonly List<Vector3> trailPoints = new();
+    readonly List<(Vector3 Pos, double Time)> trailPoints = new();
     double visualTime;
 
     /// <summary>Effet de courbe : vitesse angulaire du poignet au lâcher (rad/s, axe vertical).</summary>
@@ -439,30 +443,41 @@ public partial class Ball : RigidBody3D
         return true;
     }
 
-    /// <summary>Traînée en ruban : longueur proportionnelle à la vitesse, aucune sous le seuil de blessure.</summary>
+    /// <summary>Traînée en ruban continu : points datés (toutes les 15 ms, sur 0,18 s), largeur 12 à 25 cm selon la vitesse,
+    /// opaque près de la balle, effilée et transparente en queue. Aucune sous le seuil de blessure.</summary>
     void UpdateTrail(Vector3 p)
     {
-        bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
-        if (fast) trailPoints.Add(p);
-        if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        float speed = LinearVelocity.Length();
+        bool fast = !IsHeld && speed >= TrailMinSpeed;
+        if (IsHeld) trailPoints.Clear();
+        else if (fast && (trailPoints.Count == 0 || visualTime - trailPoints[^1].Time >= TrailStep)) trailPoints.Add((p, visualTime));
+        // Les points vieillissent seuls : la queue se résorbe en 0,18 s quand la balle ralentit, sans coupure nette.
+        while (trailPoints.Count > 0 && visualTime - trailPoints[0].Time > TrailSeconds) trailPoints.RemoveAt(0);
         bool hadTrail = trailMesh.GetSurfaceCount() > 0;
-        if (!fast && !hadTrail && trailPoints.Count == 0) return;
+        if (!hadTrail && trailPoints.Count == 0) return;
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
-        if (trailPoints.Count < 2 || cam == null) return;
+        if (trailPoints.Count == 0 || cam == null) return;
+        // La tête du ruban suit la balle à chaque image (pas de saut entre deux échantillons).
+        var pts = new List<(Vector3 Pos, double Time)>(trailPoints);
+        if (pts[^1].Pos.DistanceSquaredTo(p) > 1e-6f) pts.Add((p, visualTime));
+        if (pts.Count < 2) return;
+        float width = Mathf.Lerp(TrailWidthMin, TrailWidthMax, Mathf.Clamp((speed - TrailMinSpeed) / (TrailWideSpeed - TrailMinSpeed), 0f, 1f));
         var color = Palette.Team(OwnerTeam);
         trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
-        for (int i = 0; i < trailPoints.Count; i++)
+        for (int i = 0; i < pts.Count; i++)
         {
-            float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
-            var a = trailPoints[i];
-            var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
-            var prev = trailPoints[Mathf.Max(i - 1, 0)];
+            // t = fraîcheur du point : 1 à la balle, 0 en bout de queue (au temps, pas à l'indice).
+            float t = Mathf.Clamp(1f - (float)((visualTime - pts[i].Time) / TrailSeconds), 0f, 1f);
+            var a = pts[i].Pos;
+            var next = pts[Mathf.Min(i + 1, pts.Count - 1)].Pos;
+            var prev = pts[Mathf.Max(i - 1, 0)].Pos;
             var dir = (next - prev).Normalized();
             // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
             float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
-            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t * nearCam;
-            var vc = new Color(color, 0.6f * t * nearCam);
+            float taper = Mathf.Sqrt(t);   // s'effile vers la queue, reste large près de la balle
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.5f * width * taper * nearCam;
+            var vc = new Color(color, 0.75f * t * t * nearCam);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
         }

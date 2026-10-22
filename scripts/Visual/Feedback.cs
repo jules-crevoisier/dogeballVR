@@ -75,8 +75,36 @@ void fragment() {
         grayTween.TweenMethod(Callable.From<float>(a => mat.SetShaderParameter("amount", a)), 0f, 1f, 0.3);
     }
 
-    public override void _EnterTree() => MatchController.HitScored += OnHitScored;
-    public override void _ExitTree() => MatchController.HitScored -= OnHitScored;
+    public override void _EnterTree() { current = this; MatchController.HitScored += OnHitScored; Ball.CaughtThrow += OnCaughtThrow; PerfectCatchNoted += OnPerfectCatch; }
+    public override void _ExitTree() { if (current == this) current = null; MatchController.HitScored -= OnHitScored; Ball.CaughtThrow -= OnCaughtThrow; PerfectCatchNoted -= OnPerfectCatch; }
+
+    /// <summary>Attrape parfaite signalée hors de l'hôte (client PC) : l'autocollant devient « PRISE PARFAITE ! ».</summary>
+    public static void NotePerfectCatch(int playerId) => PerfectCatchNoted?.Invoke(playerId);
+    static event System.Action<int>? PerfectCatchNoted;
+    readonly Dictionary<int, ulong> perfectAt = new();
+    (int Id, ulong Ms) lastSteal = (-1, 0);
+
+    static Feedback? current;
+    /// <summary>Petit autocollant au-dessus du joueur local (geste : feinte, tacle…). Faux s'il n'y a pas de Feedback actif.</summary>
+    public static bool LocalSticker(string text)
+    {
+        if (current == null || !IsInstanceValid(current) || !current.IsInsideTree() || !IsInstanceValid(current.Local)) return false;
+        current.Sticker(text, current.Local, Palette.Team(current.Local.Team), SpeechBubble.Size.Small);
+        return true;
+    }
+
+    void OnCaughtThrow(int catcherId, bool perfect) { if (perfect) OnPerfectCatch(catcherId); }
+
+    /// <summary>Une seule annonce par attrape : si « PRISE ! » vient d'être posé pour ce joueur, il est remplacé par « PRISE PARFAITE ! ».</summary>
+    void OnPerfectCatch(int catcherId)
+    {
+        perfectAt[catcherId] = Time.GetTicksMsec();
+        if (lastSteal.Id == catcherId && Time.GetTicksMsec() - lastSteal.Ms < 500 && HurtboxOf(catcherId) is { } catcher)
+        {
+            lastSteal = (-1, 0);
+            Sticker("PRISE PARFAITE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Small);
+        }
+    }
 
     /// <summary>Touche validée (hôte, ou relayée au client) : on retient le tireur pour doser l'arrêt sur image.</summary>
     void OnHitScored(int shooter, int target, bool kill) => lastShooter[target] = (shooter, Time.GetTicksMsec());
@@ -135,7 +163,13 @@ void fragment() {
                     Sfx.Play(this, steal ? SfxKind.Perfect : SfxKind.Catch, pos, steal ? 1f : 1f + 0.1f * cur.Charge);
                     // « PRISE ! » seulement si le joueur local attrape, ou si c'est sa balle qu'on attrape (pas pour un ramassage de bot).
                     if (steal && (IsLocal(cur.OwnerId) || IsLocal(prev.OwnerId)) && HurtboxOf(cur.OwnerId) is { } catcher)
-                        Sticker("PRISE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Normal);
+                    {
+                        // Attrape parfaite (notée juste avant par l'hôte) : un seul mot, « PRISE PARFAITE ! », jamais « PRISE ! » + un second message.
+                        bool perfect = perfectAt.TryGetValue(cur.OwnerId, out var at) && Time.GetTicksMsec() - at < 500;
+                        if (perfect) perfectAt.Remove(cur.OwnerId);
+                        lastSteal = perfect ? (-1, 0) : (cur.OwnerId, Time.GetTicksMsec());
+                        Sticker(perfect ? "PRISE PARFAITE !" : "PRISE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Normal);
+                    }
                 }
                 else if (prev.Held && !cur.Held)
                 {
@@ -144,7 +178,6 @@ void fragment() {
                 else if (cur.Held && cur.Charge > prev.Charge) Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
                 if (!prev.Pass && cur.Pass && IsLocal(cur.OwnerId)) Sticker("PASSE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Small);
             }
-            if (cur.Speed > 7f && !cur.Held) Juice.TrailGhost(this, pos, cur.Charge >= 2 ? new Color(1f, 0.35f, 0.75f) : new Color(1f, 0.85f, 0.3f), 0.1f + 0.03f * cur.Charge);
             balls[ball] = cur;
         }
         foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) balls.Remove(dead);

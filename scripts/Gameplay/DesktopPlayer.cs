@@ -251,6 +251,8 @@ public partial class DesktopPlayer : Node3D
     }
 
     void ShowToast(string text) { Toast = text; ToastUntil = time + 1.5; }
+    /// <summary>Geste du joueur (feinte, tacle, poussée) : petit autocollant, même langage que « PRISE ! » ou « PASSE ! » ; message du HUD s'il n'y a pas de Feedback.</summary>
+    void ShowSticker(string text) { if (!Feedback.LocalSticker(text)) ShowToast(text); }
 
     public override void _Input(InputEvent e)
     {
@@ -381,7 +383,7 @@ public partial class DesktopPlayer : Node3D
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
             if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
             if (held != null) held.LocalHoldOverride = holdPoint;
-            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; ShowToast("Attrape parfaite !"); }
+            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « PRISE PARFAITE ! » (Feedback)
         }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
@@ -448,7 +450,7 @@ public partial class DesktopPlayer : Node3D
             if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
-        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.035)
+        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.05)   // ~3 silhouettes par dash
         {
             lastGhostAt = time;
             Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
@@ -638,7 +640,7 @@ public partial class DesktopPlayer : Node3D
             tackledDash = dashCount;
             BallActions.Tackle(Hurtbox.PlayerId, h.PlayerId, dodgeDir);
             GD.Print($"[PC] Tacle sur le joueur {h.PlayerId}");
-            ShowToast("Tacle !");
+            ShowSticker("TACLE !");
             dodgeLeft = 0;
             velocity = dodgeDir * RunSpeed * 0.4f;   // le tacleur ralentit net
             return;
@@ -654,7 +656,7 @@ public partial class DesktopPlayer : Node3D
         dodgeLeft = 0; charging = false; chargeTime = 0; padFlight = false;
         if (Elevation > 0f) { evictDir = pushDir; evictUntil = time + 1.0; }
         GD.Print("[PC] Poussé par un tacle");
-        ShowToast("Poussé !");
+        ShowSticker("POUSSÉ !");
     }
 
     /// <summary>Quand les pieds sont sous le bord de la fosse, on tombe droit : le mur de la fosse nous garde à l'intérieur.</summary>
@@ -771,7 +773,7 @@ public partial class DesktopPlayer : Node3D
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
-                if (perfect && !BallActions.IsClient) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
+                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « PRISE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
                 if (viaCatch && !ally)
                 {
                     // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
@@ -812,7 +814,7 @@ public partial class DesktopPlayer : Node3D
                 charging = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
                 Feints++;
-                ShowToast("Feinte !");
+                ShowSticker("FEINTE !");
             }
             else if (input.Pass)
             {
