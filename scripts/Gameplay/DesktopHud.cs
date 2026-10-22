@@ -1763,7 +1763,9 @@ public partial class DesktopHud : CanvasLayer
             FillIntermission(s);
             ShowIntermission(true);
             interShownNext = -1;
-            GD.Print($"[HUD] Intermission : {interTitle.Text}, manches {s.Rounds0}-{s.Rounds1}, suite dans {s.NextRoundIn} s{(View.HasStats ? "" : " (client)")}");
+            var kos = new List<string>();
+            if (View.HasStats) foreach (var p in View.Players) kos.Add($"{View.NameOf(p.Id)} {RoundKosOf(p.Id)}");
+            GD.Print($"[HUD] Intermission : {interTitle.Text}, manches {s.Rounds0}-{s.Rounds1}, suite dans {s.NextRoundIn} s{(View.HasStats ? $", KO de la manche : {string.Join(", ", kos)}" : " (client)")}");
         }
         else if (!want && interVisible) ShowIntermission(false);
         interVisible = want;
