@@ -277,7 +277,7 @@ public partial class OptionsMenu : Control
         switch (tab)
         {
             case 0:
-                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = 100f;
+                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
