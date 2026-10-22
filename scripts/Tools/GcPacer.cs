@@ -21,5 +21,8 @@ public partial class GcPacer : Node
         if (now - last < Budget) return;
         last = now;
         System.GC.Collect(0, System.GCCollectionMode.Forced, blocking: true, compacting: false);
+        // Les finaliseurs des objets Godot libérés tournent ici, pas sur leur thread en même temps que le moteur échange
+        // les handles de ces objets (« Handle is not initialized » vu après un rechargement de scène).
+        System.GC.WaitForPendingFinalizers();
     }
 }

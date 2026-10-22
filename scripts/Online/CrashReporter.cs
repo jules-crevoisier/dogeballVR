@@ -42,8 +42,12 @@ public partial class CrashReporter : Node
         GD.Print($"[Crash] Session : {Header()}");
     }
 
-    /// <summary>Sortie propre (fenêtre fermée, Quit) : le témoin disparaît.</summary>
-    public override void _ExitTree() => DirAccess.RemoveAbsolute(Marker);
+    /// <summary>Sortie propre (fenêtre fermée, Quit) : le témoin disparaît. La ligne écrite sert aussi à la CI (tools/ci/godot-fg.sh).</summary>
+    public override void _ExitTree()
+    {
+        DirAccess.RemoveAbsolute(Marker);
+        GD.Print("[Crash] Fermeture propre");
+    }
 
     static string Header() =>
         $"DogeballVR {OnlineLobby.GameVersion} | {OS.GetName()} {OS.GetVersion()} | {OS.GetProcessorName()} | {RenderingServer.GetVideoAdapterName()} | {Engine.GetVersionInfo()["string"]}";

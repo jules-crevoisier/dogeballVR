@@ -16,3 +16,4 @@ __pycache__/
 addons/steam_natives/
 *.log
 *.log.run
+*.log.exit

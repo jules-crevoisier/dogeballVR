@@ -140,7 +140,7 @@ public static class ReconnectSecret
         var cfg = new ConfigFile();
         cfg.Load(Path);
         var saved = (string)cfg.GetValue("reconnect", Key, "");
-        double at = (double)cfg.GetValue("reconnect", Key + "_at", 0.0);
+        double at = cfg.GetValue("reconnect", Key + "_at", 0).AsDouble();
         secret = saved.Length == 32 && Time.GetUnixTimeFromSystem() - at < MaxAgeSeconds ? saved : "";
         return secret;
     }
@@ -152,7 +152,8 @@ public static class ReconnectSecret
         var cfg = new ConfigFile();
         cfg.Load(Path);
         cfg.SetValue("reconnect", Key, value);
-        cfg.SetValue("reconnect", Key + "_at", Time.GetUnixTimeFromSystem());
+        // En secondes entières : un double s'écrit « 1.79263e+09 » dans le fichier (jusqu'à 5000 s perdues, secret jugé périmé).
+        cfg.SetValue("reconnect", Key + "_at", (long)Time.GetUnixTimeFromSystem());
         cfg.Save(Path);
     }
 

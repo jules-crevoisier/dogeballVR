@@ -45,7 +45,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 6300 -- --host > host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --net-selftest > client.log 2>&1
+          tools/ci/godot-fg.sh client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --net-selftest
           wait $HOST_PID || true
           grep -E "\[Net|\[NetTest" host.log client.log | tail -20
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" host.log client.log; then
@@ -69,7 +69,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 6300 -- --host --transport=udp-p2p --p2p-loss=0.1 > p2p-host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" p2p-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --net-selftest --transport=udp-p2p --p2p-loss=0.1 > p2p-client.log 2>&1
+          tools/ci/godot-fg.sh p2p-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --net-selftest --transport=udp-p2p --p2p-loss=0.1
           wait $HOST_PID || true
           grep -E "\[Net|\[NetTest|\[P2P" p2p-host.log p2p-client.log | tail -20
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" p2p-host.log p2p-client.log; then
@@ -95,7 +95,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=la_fosse > fosse-host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" fosse-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 4200 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1
+          tools/ci/godot-fg.sh fosse-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 4200 -- --join=127.0.0.1 --map=la_fosse --net-selftest
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-host.log fosse-client.log; then
             echo "Erreur à l'exécution (La Fosse, réseau)"; exit 1
@@ -123,7 +123,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --pc-autoplay > pc-host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" pc-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --pc-autoplay > pc-client.log 2>&1
+          tools/ci/godot-fg.sh pc-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --pc-autoplay
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" pc-host.log pc-client.log; then
             echo "Erreur à l'exécution (joueur PC, réseau)"; exit 1
@@ -147,7 +147,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --map=croix_neon --pc-autoplay > ring-host.log 2>&1 &
             HOST_PID=$!
             for i in $(seq 1 60); do grep -q "Hôte en écoute" ring-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --map=croix_neon --pc-autoplay > ring-client.log 2>&1
+            tools/ci/godot-fg.sh ring-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --map=croix_neon --pc-autoplay
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" ring-host.log ring-client.log; then
               echo "Erreur à l'exécution (Croix Néon, réseau)"; exit 1
@@ -240,7 +240,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=fosse_croisee --pc-autoplay > fc-host.log 2>&1 &
             HOST_PID=$!
             for i in $(seq 1 60); do grep -q "Hôte en écoute" fc-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=fosse_croisee --pc-autoplay > fc-client.log 2>&1
+            tools/ci/godot-fg.sh fc-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=fosse_croisee --pc-autoplay
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fc-host.log fc-client.log; then
               echo "Erreur à l'exécution (Fosse croisée, réseau)"; exit 1
@@ -269,7 +269,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=tour_4v4 --pc-autoplay > tr-host.log 2>&1 &
             HOST_PID=$!
             for i in $(seq 1 60); do grep -q "Hôte en écoute" tr-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=tour_4v4 --pc-autoplay > tr-client.log 2>&1
+            tools/ci/godot-fg.sh tr-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=tour_4v4 --pc-autoplay
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" tr-host.log tr-client.log; then
               echo "Erreur à l'exécution (Tour 4v4, réseau)"; exit 1
@@ -299,9 +299,9 @@ jobs:
           # On attend que la salle soit ouverte (démarrage de Godot .NET plus ou moins lent selon le runner).
           for i in $(seq 1 60); do grep -q "\[Lobby\] Salle ouverte" lobby-host.log && break; sleep 0.5; done
           # 0) Version différente : le client est refusé à la poignée de main, avant tout RPC, avec un message clair.
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 400 -- --lobby-join=127.0.0.1 --fake-version --name=Vieux > lobby-c0.log 2>&1
+          tools/ci/godot-fg.sh lobby-c0.log "$GODOT" --headless --path . --max-fps 60 --quit-after 400 -- --lobby-join=127.0.0.1 --fake-version --name=Vieux
           # 1) Partie rapide : le client trouve la salle sur le réseau local, se déclare prêt, l'hôte lance ; coupure réseau à 20 s puis reconnexion.
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-quick --auto-ready --pc-autoplay --token=ci-reco --name=Reco --net-cut=20 > lobby-c1.log 2>&1
+          tools/ci/godot-fg.sh lobby-c1.log "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-quick --auto-ready --pc-autoplay --token=ci-reco --name=Reco --net-cut=20
           # 2) Entrée en cours de partie, crash brutal (SIGKILL) 3 s après l'entrée en jeu, retour avec le même jeton : même zone.
           "$GODOT" --headless --path . --max-fps 60 --quit-after 3000 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c2.log 2>&1 &
           C2_PID=$!
@@ -311,7 +311,7 @@ jobs:
           wait $C2_PID 2>/dev/null || true
           # Relance aussitôt : selon que l'hôte a déjà vu la coupure ou non, la zone revient par la réservation ou par l'éviction de la connexion muette.
           sleep 1
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 900 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c3.log 2>&1
+          tools/ci/godot-fg.sh lobby-c3.log "$GODOT" --headless --path . --max-fps 60 --quit-after 900 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash
           # L'hôte a de la marge (250 s) : on le ferme proprement dès que les clients ont fini, quelle que soit la vitesse du runner.
           touch lobby-done
           wait $HOST_PID || true
@@ -385,7 +385,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 6300 -- --host --port=7390 > bad-host.log 2>&1 &
           HOST_PID=$!
           for i in $(seq 1 60); do grep -q "Hôte en écoute" bad-host.log && break; sleep 0.5; done   # hôte prêt (démarrage plus ou moins lent selon le runner)
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --port=7390 --net-selftest --net-lag=80 --net-loss=0.05 > bad-client.log 2>&1
+          tools/ci/godot-fg.sh bad-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 5400 -- --join=127.0.0.1 --port=7390 --net-selftest --net-lag=80 --net-loss=0.05
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" bad-host.log bad-client.log; then echo "Erreur à l'exécution (réseau dégradé)"; exit 1; fi
           CATCHES=$(grep -c "attrapée par la zone 2" bad-host.log || true)
