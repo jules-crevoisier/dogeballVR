@@ -59,6 +59,10 @@ public class PropDef
     public string Color { get; set; } = "#8a8f98";
     /// <summary>Si faux : purement visuel, les balles passent au travers.</summary>
     public bool Solid { get; set; } = true;
+    /// <summary>Modèle du kit de décor (assets/models/props/&lt;nom&gt;.glb) ; la collision suit alors sa boîte englobante.</summary>
+    public string? Model { get; set; }
+    public float RotY { get; set; }
+    public float Scale { get; set; } = 1f;
 }
 
 /// <summary>Obstacle du level design (schéma v2) : couvert (cover), plot de rebond (bumper) ou sol de fosse (pit).</summary>
@@ -106,7 +110,17 @@ public class BoundsDef
 public class ThrowAssistDef
 {
     public float SpeedMultiplier { get; set; } = 1.4f;
-    public float MinLaunchSpeed { get; set; } = 0f;
+    public float MinLaunchSpeed { get; set; } = 5.5f;
+    /// <summary>Plafond de vitesse d'un lancer VR (m/s).</summary>
+    public float MaxLaunchSpeedVR { get; set; } = 20f;
+    /// <summary>Attrape parfaite : rapport minimal entre la vitesse de la balle et sa vitesse de lancer.</summary>
+    public float PerfectCatchFactor { get; set; } = 0.8f;
+    /// <summary>Attrape parfaite : délai maximal entre le grip et la prise (s).</summary>
+    public float PerfectCatchWindowSeconds { get; set; } = 0.15f;
+    /// <summary>Prise : le grip doit avoir été pressé dans ce délai avant le contact (s).</summary>
+    public float GripWindowSeconds { get; set; } = 0.35f;
+    /// <summary>Volume de prise de la main (m).</summary>
+    public float CatchRadius { get; set; } = 0.3f;
 }
 
 /// <summary>Règles de partie lues dans la map. Seules celles qui sont codées sont lues ; le reste du bloc « rules » est ignoré.</summary>
@@ -126,6 +140,8 @@ public class BallRulesDef
     public int MaxBallsInPlay { get; set; } = 0;          // 0 = pas de plafond
     public float MaxFlightSeconds { get; set; } = 0f;      // 0 = illimité
     public float BallGravityFactor { get; set; } = 0.6f;
+    /// <summary>Aimant de la main sur une balle qui s'approche (m).</summary>
+    public float BallMagnetRadius { get; set; } = 0.5f;
     public ThrowAssistDef ThrowAssist { get; set; } = new();
 }
 
@@ -238,6 +254,8 @@ public class MapData
     public RulesDef Rules { get; set; } = new();
     public LiftRulesDef LiftRules { get; set; } = new();
     public List<ZoneDef> Zones { get; set; } = new();
+    /// <summary>Décor visuel optionnel (assets/models/&lt;decor&gt;.glb et &lt;decor&gt;_ville.glb) : toit, skyline et ciel de la DA Knockout City. Sans collision.</summary>
+    public string? Decor { get; set; }
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();

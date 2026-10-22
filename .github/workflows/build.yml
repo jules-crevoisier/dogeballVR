@@ -26,6 +26,8 @@ jobs:
           unzip -q godot.zip
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           "$GODOT" --headless --path . --build-solutions --quit
+          # Importe les modèles glb (assets/models) avant les parties : sans cela ils ne sont pas chargés et le jeu retombe sur les formes du code.
+          "$GODOT" --headless --path . --import --quit || true
           # 9000 images à 60 i/s = 150 s de jeu : une manche entière, la prolongation et le début de la suivante.
           # Toute erreur de script C# fait échouer le job.
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 2>&1 | tee run.log
@@ -150,6 +152,13 @@ jobs:
             echo "Tentative $ATTEMPT non concluante (scénario automatique non déterministe)"
             [ "$ATTEMPT" = 3 ] && exit 1
           done
+
+      - name: Test des aides VR (attrape à 80 ms, main fermée, temps de vol, alerte, attrape parfaite)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . -- --assist-test 2>&1 | tee assist.log
+          grep -q "TOUT OK" assist.log || { echo "Les aides VR ne respectent pas les critères"; exit 1; }
 
       - name: Test rotor du moyeu (balles tendues arrêtées par un bras, témoin sans rotor)
         run: |

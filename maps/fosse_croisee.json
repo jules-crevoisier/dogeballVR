@@ -392,8 +392,12 @@
     "maxBallsInPlay": 6,
     "throwAssist": {
       "speedMultiplier": 1.4,
-      "minLaunchSpeed": 9.0,
+      "minLaunchSpeed": 5.5,
       "maxLaunchSpeedVR": 20.0,
+      "perfectCatchFactor": 0.8,
+      "perfectCatchWindowSeconds": 0.15,
+      "gripWindowSeconds": 0.35,
+      "catchRadius": 0.3,
       "applies": "VR seulement"
     },
     "maxFlightSeconds": 1.5,

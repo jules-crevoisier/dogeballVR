@@ -37,7 +37,7 @@ public partial class Bot : Node3D
         rng.Randomize();
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
-        Avatar = Avatar.Create(Hurtbox.Team, bot: true);
+        Avatar = Avatar.Create(Hurtbox.Team, bot: true, Hurtbox.PlayerId);
         AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);
@@ -168,7 +168,7 @@ public partial class Bot : Node3D
         var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
         var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.1f, rng.RandfRange(-0.1f, 0.1f));
         var dir = (aim - holdPoint.GlobalPosition).Normalized();
-        held.Release(dir * speed + Vector3.Up * 1.2f, 0f);
+        held.Release(Assist.PlanFor(held, dir * speed + Vector3.Up * 1.2f, 0), 0f);
         held = null;
         catchCooldown = 0.6;
     }

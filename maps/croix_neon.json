@@ -1,6 +1,7 @@
 {
   "name": "croix_neon",
   "schemaVersion": 3,
+  "decor": "toit",
   "layout": "ring",
   "zoneWidth": 15,
   "zoneDepth": 8,
@@ -230,8 +231,12 @@
     "maxBallsInPlay": 6,
     "throwAssist": {
       "speedMultiplier": 1.4,
-      "minLaunchSpeed": 9.0,
+      "minLaunchSpeed": 5.5,
       "maxLaunchSpeedVR": 20.0,
+      "perfectCatchFactor": 0.8,
+      "perfectCatchWindowSeconds": 0.15,
+      "gripWindowSeconds": 0.35,
+      "catchRadius": 0.3,
       "applies": "VR seulement"
     },
     "maxFlightSeconds": 1.5,
@@ -262,7 +267,9 @@
     "heldBallMaxSeconds": 10,
     "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
     "heartRegen": "remis à 2 au respawn ; +1 cœur après 10 s sans être touché",
-    "invulnerableAfterHitSeconds": 1.5, "heartRegenSeconds": 10, "koTarget": 6,
+    "invulnerableAfterHitSeconds": 1.5,
+    "heartRegenSeconds": 10,
+    "koTarget": 6,
     "catchReward": "un attrapé rend un cœur à l'attrapeur (règle du dépôt) ; un perfect catch ajoute en plus 1 palier",
     "respawnSeconds": 3,
     "chargeByPass": "paliers 0 à 2 : chaque passe d'allié et chaque perfect catch ajoutent 1 palier ; palier 2 = KO direct ; au palier 0 ou 1, 1 cœur",
@@ -664,6 +671,256 @@
       "z": 0,
       "intervalSeconds": 6,
       "rule": "lob lent vers la plaque qui a le moins de balles ; une balle spéciale annoncée toutes les 45 s"
+    }
+  ],
+  "props": [
+    {
+      "model": "pile_pneus",
+      "x": 15.6,
+      "y": 0.0,
+      "z": -13.4,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "caisse_bois",
+      "x": 13.4,
+      "y": 0.0,
+      "z": -13.9,
+      "rotY": 12,
+      "solid": true
+    },
+    {
+      "model": "caisse_bois",
+      "x": 13.6,
+      "y": 0.0,
+      "z": -12.6,
+      "rotY": -5,
+      "solid": true
+    },
+    {
+      "model": "cone",
+      "x": 6.2,
+      "y": 0.0,
+      "z": -12.4,
+      "rotY": 0,
+      "solid": false
+    },
+    {
+      "model": "cone",
+      "x": 7.3,
+      "y": 0.0,
+      "z": -12.9,
+      "rotY": 30,
+      "solid": false
+    },
+    {
+      "model": "barriere_jersey",
+      "x": 9.6,
+      "y": 0.0,
+      "z": -13.6,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "clim",
+      "x": 17.2,
+      "y": 0.0,
+      "z": -9.5,
+      "rotY": -90,
+      "solid": true
+    },
+    {
+      "model": "distributeur",
+      "x": 17.3,
+      "y": 0.0,
+      "z": -6.2,
+      "rotY": -90,
+      "solid": true
+    },
+    {
+      "model": "poubelle",
+      "x": 17.2,
+      "y": 0.0,
+      "z": -4.4,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "banc_parc",
+      "x": 16.9,
+      "y": 0.0,
+      "z": -1.2,
+      "rotY": -90,
+      "solid": true
+    },
+    {
+      "model": "jardiniere",
+      "x": 16.9,
+      "y": 0.0,
+      "z": 1.8,
+      "rotY": -90,
+      "solid": true
+    },
+    {
+      "model": "transformateur",
+      "x": 15.8,
+      "y": 0.0,
+      "z": 13.0,
+      "rotY": 180,
+      "solid": true
+    },
+    {
+      "model": "tuyaux",
+      "x": 17.4,
+      "y": 0.0,
+      "z": 8.0,
+      "rotY": -90,
+      "solid": false
+    },
+    {
+      "model": "bidon",
+      "x": 13.0,
+      "y": 0.0,
+      "z": 13.7,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "bidon",
+      "x": 13.9,
+      "y": 0.0,
+      "z": 14.2,
+      "rotY": 40,
+      "solid": true
+    },
+    {
+      "model": "lampadaire",
+      "x": 12.8,
+      "y": 0.0,
+      "z": 5.4,
+      "rotY": -90,
+      "solid": false
+    },
+    {
+      "model": "escalier_secours",
+      "x": 7.0,
+      "y": 0.0,
+      "z": 14.4,
+      "rotY": 180,
+      "solid": false
+    },
+    {
+      "model": "panneau_avertissement",
+      "x": 1.5,
+      "y": 0.0,
+      "z": 13.8,
+      "rotY": 180,
+      "solid": false
+    },
+    {
+      "model": "caisse_bois",
+      "x": -6.2,
+      "y": 0.0,
+      "z": 13.7,
+      "rotY": 8,
+      "solid": true
+    },
+    {
+      "model": "pile_pneus",
+      "x": -9.2,
+      "y": 0.0,
+      "z": 13.8,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "cone",
+      "x": -4.6,
+      "y": 0.0,
+      "z": 12.6,
+      "rotY": 0,
+      "solid": false
+    },
+    {
+      "model": "barriere_jersey",
+      "x": -13.5,
+      "y": 0.0,
+      "z": 13.6,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "clim",
+      "x": -17.2,
+      "y": 0.0,
+      "z": 0.5,
+      "rotY": 90,
+      "solid": true
+    },
+    {
+      "model": "poubelle",
+      "x": -17.2,
+      "y": 0.0,
+      "z": -5.8,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "jardiniere",
+      "x": -16.9,
+      "y": 0.0,
+      "z": -8.8,
+      "rotY": 90,
+      "solid": true
+    },
+    {
+      "model": "lampadaire",
+      "x": -13.4,
+      "y": 0.0,
+      "z": -10.2,
+      "rotY": 90,
+      "solid": false
+    },
+    {
+      "model": "transformateur",
+      "x": -16.0,
+      "y": 0.0,
+      "z": -13.4,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "bidon",
+      "x": -13.6,
+      "y": 0.0,
+      "z": -14.0,
+      "rotY": 0,
+      "solid": true
+    },
+    {
+      "model": "guirlande_ampoules",
+      "x": -10.5,
+      "y": 0.0,
+      "z": -14.2,
+      "rotY": 0,
+      "solid": false
+    },
+    {
+      "model": "enseigne_bulle",
+      "x": -6.0,
+      "y": 3.0,
+      "z": -14.85,
+      "rotY": 180,
+      "solid": false
+    },
+    {
+      "model": "banc_parc",
+      "x": -1.5,
+      "y": 0.0,
+      "z": -14.3,
+      "rotY": 0,
+      "solid": true
     }
   ]
 }

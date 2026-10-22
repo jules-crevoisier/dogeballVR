@@ -170,7 +170,7 @@ public partial class MatchController : Node3D
         ringMap = PcProfile && map.PitRect != null ? map : null;
         terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
-        HandThrower.MinLaunchSpeed = map.BallRules.ThrowAssist.MinLaunchSpeed;
+        Assist.Configure(map.BallRules);
         foreach (var def in map.BallSpawns)
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;

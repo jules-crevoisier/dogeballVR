@@ -9,6 +9,7 @@ obj/
 .vs/
 .idea/
 build/
+__pycache__/
 
 # Claude Code Game Studios (état local des sessions, réglages perso)
 .claude/settings.local.json

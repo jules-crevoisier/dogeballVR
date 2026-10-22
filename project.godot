@@ -20,3 +20,7 @@ textures/vram_compression/import_etc2_astc=true
 
 openxr/enabled=true
 shaders/enabled=true
+
+[gui]
+
+theme/custom_font="res://assets/fonts/LilitaOne-Regular.ttf"

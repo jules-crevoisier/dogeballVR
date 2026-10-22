@@ -40,8 +40,25 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
+        Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
         pcProfile = !xrActive;
+        Assist.VrRules = xrActive;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
+        bool forceMenu = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0;   // captures du menu
+        if (!xrActive && DisplayServer.GetName() != "headless" && (forceMenu || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
+        {
+            var menu = new Visual.MainMenu { Name = "MainMenu" };
+            menu.Chosen += (mode, address) => { menu.QueueFree(); cfg.Choose(mode, address); StartMatch(xrActive); };
+            AddChild(menu);
+            return;
+        }
+        StartMatch(xrActive);
+    }
+
+    void StartMatch(bool xrActive)
+    {
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
@@ -253,6 +270,7 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
+        AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
         {
@@ -365,6 +383,25 @@ public partial class Main : Node3D
 
     // ------------------------------------------------------------------ client
 
+    /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
+    void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
+    {
+        var hands = new List<HandThrower>();
+        if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
+        AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
+        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
+        foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));
+        // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
+        var left = hands.Find(h => h.Tracker == "left_hand");
+        if (left != null)
+        {
+            var hearts = Visual.HeartsDisplay.Create(() => lives(localZone.Id), maxLives, Visual.Palette.Team(localZone.Team), 0.0007f, false);
+            hearts.Position = new Vector3(0, 0.08f, 0.04f);
+            hearts.RotationDegrees = new Vector3(-90, 0, 0);
+            left.AddChild(hearts);
+        }
+    }
+
     void BuildClient(ZoneDef localZone)
     {
         var hud = new Label3D
@@ -386,6 +423,7 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
         if (localBody is DesktopPlayer) hud.Visible = false;
+        AddKnockoutFeedback(localZone, world.Lives, 2, () => hud.Text);
 
         if (cfg.SelfTest)
         {

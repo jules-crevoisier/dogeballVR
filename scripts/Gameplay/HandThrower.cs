@@ -12,23 +12,17 @@ namespace DogeballVR.Gameplay;
 public partial class HandThrower : XRController3D
 {
     const int HistorySize = 4;   // fenêtre courte : une moyenne trop longue mélange armé du bras et lâcher (lancers mous)
-    const double PerfectCatchWindow = 0.15; // secondes entre le grip et l'arrivée de la balle
-
-    /// <summary>Réglé par la map (ballRules.throwAssist).</summary>
-    public static float MinLaunchSpeed { get; set; }
-
-    [Export] public float ThrowSpeedScale = 1.4f;
-    [Export] public float MaxThrowSpeed = 30f;
 
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
+
+    /// <summary>Vibration de la manette (OpenXR : action « haptic » de l'action map).</summary>
+    public void Pulse(float amplitude, float seconds) => TriggerHapticPulse("haptic", 0f, Mathf.Clamp(amplitude, 0f, 1f), seconds, 0f);
 
     public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
     int HandIndex => Tracker == "left_hand" ? 0 : 1;
     double ignoreHeldUntil;
     double catchRequestedAt = -10;
-    double nextRetry;
-    Area3D catchArea = null!;
     Ball? held;
     double lastGripPressTime = -10;
     bool gripDown;
@@ -40,12 +34,6 @@ public partial class HandThrower : XRController3D
 
     public override void _Ready()
     {
-        catchArea = new Area3D { Name = "CatchArea" };
-        var shape = new CollisionShape3D { Shape = new SphereShape3D { Radius = 0.18f } };
-        catchArea.AddChild(shape);
-        AddChild(catchArea);
-        catchArea.BodyEntered += OnBodyEntered;
-
         ButtonPressed += OnButtonPressed;
         ButtonReleased += OnButtonReleased;
     }
@@ -55,7 +43,6 @@ public partial class HandThrower : XRController3D
         if (name != "grip_click" || Hurtbox.Eliminated) return;
         gripDown = true;
         lastGripPressTime = Time.GetTicksMsec() / 1000.0;
-        TryCatchOverlapping();
     }
 
     void OnButtonReleased(string name)
@@ -65,45 +52,74 @@ public partial class HandThrower : XRController3D
         if (held != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex)) ThrowHeld();
     }
 
-    void OnBodyEntered(Node3D body)
-    {
-        // Différé : Hold change l'état physique de la balle, interdit pendant le traitement des collisions.
-        if (body is Ball ball && gripDown && CanCatch && !ball.IsHeld && !ball.HasExploded && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team)) CallDeferred(MethodName.CatchDeferred, ball);
-    }
-
     /// <summary>Une seule balle par joueur, et pas de prise tant que l'hôte n'a pas confirmé la précédente.</summary>
     bool CanCatch => held == null && Hurtbox.HeldHand < 0 && !Hurtbox.Eliminated;
 
-    void CatchDeferred(Ball ball)
+    bool Catchable(Ball ball) => !ball.IsHeld && !ball.HasExploded && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team);
+
+    /// <summary>
+    /// Prise par balayage : la fenêtre de grip (pressé il y a moins de GripWindowSeconds, main encore fermée) ouvre la main ; une balle dont
+    /// le trajet du tick passe dans le volume de prise (ou dans l'aimant si elle s'approche) est attrapée. Une main fermée en permanence n'attrape rien.
+    /// </summary>
+    void TryCatchSweep(double now, double delta)
     {
-        if (IsInstanceValid(ball) && gripDown && CanCatch && !ball.IsHeld && !ball.HasExploded) Catch(ball);
+        TryParry(now, delta);
+        if (!gripDown || !CanCatch || !Assist.GripValid(now, lastGripPressTime)) return;
+        var hand = GlobalPosition;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball ball || !Catchable(ball)) continue;
+            var now3 = ball.GlobalPosition;
+            if (!Assist.Contact(now3 - ball.LinearVelocity * (float)delta, now3, hand)) continue;
+            Catch(ball);
+            return;
+        }
     }
 
-    void TryCatchOverlapping()
+    double nextParry;
+
+    /// <summary>
+    /// Parade de la paume (palier 0 seulement) : main ouverte, vide, levée devant la poitrine, une balle chargée de rien qui arrive à moins de 0,3 m est déviée.
+    /// Une seule parade par seconde et demie et par main : pas de bouclier permanent. La normale de déviation est l'axe main vers balle
+    /// (l'axe de la paume dépend du modèle de manette, à confirmer au casque).
+    /// </summary>
+    void TryParry(double now, double delta)
     {
-        if (!CanCatch) return;
-        foreach (var body in catchArea.GetOverlappingBodies())
-            if (body is Ball ball && !ball.IsHeld && !ball.HasExploded && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team)) { Catch(ball); return; }
+        if (gripDown || held != null || Hurtbox.HeldHand >= 0 || Hurtbox.Eliminated || now < nextParry) return;
+        var head = Hurtbox.Head;
+        if (head == null || GlobalPosition.Y < head.GlobalPosition.Y - 0.55f || GlobalPosition.Y > head.GlobalPosition.Y + 0.1f) return;
+        var hand = GlobalPosition;
+        if (head.GlobalPosition.DistanceTo(hand) < 0.25f || head.GlobalPosition.DistanceTo(hand) > 0.8f) return;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball ball || ball.IsHeld || ball.HasExploded || ball.Charge > 0 || ball.IsPass || ball.OwnerTeam < 0 || ball.OwnerTeam == Hurtbox.Team) continue;
+            var pos = ball.GlobalPosition;
+            if (ball.LinearVelocity.Length() < Ball.HitMinSpeed || !Assist.Contact(pos - ball.LinearVelocity * (float)delta, pos, hand)) continue;
+            nextParry = now + 1.5;
+            BallActions.Parry(ball, HandIndex, (pos - hand).Normalized());
+            Pulse(0.8f, 0.1f);
+            return;
+        }
     }
 
     void Catch(Ball ball)
     {
         double now = Time.GetTicksMsec() / 1000.0;
-        bool perfect = now - lastGripPressTime <= PerfectCatchWindow && ball.LinearVelocity.Length() > 8f;
+        bool perfect = now - lastGripPressTime <= Assist.PerfectWindowSeconds && ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team
+            && ball.ThrowMode == 0 && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap);
         if (!BallActions.IsClient) held = ball;
         Hurtbox.HeldHand = HandIndex;
         catchRequestedAt = now;
-        BallActions.Catch(ball, this, HandIndex, Hurtbox.PlayerId, Hurtbox.Team);
-        if (perfect)
-            GD.Print("Attrapé parfait ! (ralenti + gain de vie à brancher)"); // TODO : Engine.TimeScale court, MatchRules.RegisterPerfectCatch
+        BallActions.Catch(ball, this, HandIndex, Hurtbox.PlayerId, Hurtbox.Team, perfect);
+        if (perfect) GD.Print("[VR] Attrape parfaite demandée");
     }
 
     void ThrowHeld()
     {
         var (vel, spin) = EstimateHandMotion();
-        vel = (vel * ThrowSpeedScale).LimitLength(MaxThrowSpeed);
-        // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu.
-        if (vel.Length() > 1.5f && vel.Length() < MinLaunchSpeed) vel = vel.Normalized() * MinLaunchSpeed;
+        vel = (vel * Assist.SpeedMultiplier).LimitLength(Assist.VrRules ? Assist.MaxLaunchSpeedVR : Assist.MaxLaunchSpeedOther);
+        // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu (l'hôte replanifie, voir Assist.Plan).
+        if (vel.Length() > 1.5f && vel.Length() < Assist.MinLaunchSpeed) vel = vel.Normalized() * Assist.MinLaunchSpeed;
         if (held != null) BallActions.Throw(held, HandIndex, vel, spin);
         else BallActions.Net!.RequestThrow(HandIndex, vel, spin); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
         ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
@@ -122,7 +138,7 @@ public partial class HandThrower : XRController3D
             {
                 var mine = BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
                 if (mine != null) held = mine;
-                else if (now > catchRequestedAt + 0.6) { held = null; Hurtbox.HeldHand = -1; } // refusée ou perdue (KO, manche)
+                else if (now > catchRequestedAt + 0.3) { held = null; Hurtbox.HeldHand = -1; } // refusée ou perdue (KO, manche)
             }
         }
         else if (held != null && Hurtbox.Eliminated)
@@ -132,8 +148,7 @@ public partial class HandThrower : XRController3D
         }
         if (held == null && !BallActions.IsClient && Hurtbox.HeldHand == HandIndex) Hurtbox.HeldHand = -1;
 
-        // Grip serré sans balle en main : on retente régulièrement (une balle déjà dans la zone n'« entre » plus).
-        if (gripDown && now >= nextRetry) { nextRetry = now + 0.25; TryCatchOverlapping(); }
+        TryCatchSweep(now, delta);
 
         // Historique glissant de la position / rotation de la main.
         for (int i = HistorySize - 1; i > 0; i--)
