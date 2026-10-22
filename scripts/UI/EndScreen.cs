@@ -143,7 +143,7 @@ public partial class EndScreen : CanvasLayer
         col.AddThemeConstantOverride("separation", compact ? 8 : 14);
         host.AddChild(col);
 
-        var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, win ? UiKit.Yellow : new Color("9fb4d8"), compact ? 24 : 30, HorizontalAlignment.Center);
+        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
         title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
         col.AddChild(title);
 
@@ -153,6 +153,7 @@ public partial class EndScreen : CanvasLayer
         Label Team(string name, Color c)
         {
             var l = UiKit.Text(name, 40, c, 10);
+            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
             l.CustomMinimumSize = new Vector2(0, 80);   // hauteur des chiffres : le nom reste aligné sur eux, pas sur l'unité
             l.VerticalAlignment = VerticalAlignment.Center;
             l.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
@@ -161,7 +162,7 @@ public partial class EndScreen : CanvasLayer
         score.AddChild(Team("ÉQUIPE ORANGE", UiKit.Orange));
         var mid = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         mid.AddThemeConstantOverride("separation", -10);
-        var digits = UiKit.Text($"{s.Rounds0}  -  {s.Rounds1}", 64, Colors.White, 14, HorizontalAlignment.Center);
+        var digits = UiKit.Title($"{s.Rounds0}  -  {s.Rounds1}", 64, HorizontalAlignment.Center, Colors.White);
         digits.CustomMinimumSize = new Vector2(0, 80);
         digits.VerticalAlignment = VerticalAlignment.Center;
         mid.AddChild(digits);
@@ -384,8 +385,9 @@ public partial class EndScreen : CanvasLayer
         var st = stats[id];
         int team = View.TeamOf(id);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(360, 0) };
-        var box = UiKit.Box(TeamRow(team, true), 22, 0f, 5, UiKit.Yellow, 8);
-        box.AntiAliasingSize = 1.25f;
+        // Carte penchée à la couleur de l'équipe, liseré jaune, ombre et bande violette : la fenêtre du menu, version trophée.
+        var box = UiKit.PanelBox(18, 26);
+        box.Top = TeamRow(team, true); box.Bottom = TeamRow(team, false).Darkened(0.2f); box.BorderColor = UiKit.Yellow;
         panel.Rotation = -0.03f;
         box.ContentMarginTop = 18; box.ContentMarginBottom = 22;
         panel.AddThemeStyleboxOverride("panel", box);
@@ -394,7 +396,7 @@ public partial class EndScreen : CanvasLayer
         panel.AddChild(col);
         star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(star);
-        col.AddChild(UiKit.Text("MVP", 64, UiKit.Yellow, 14, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("MVP", 64));
         col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
         col.AddChild(UiKit.Spacer(6));
         col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
@@ -409,8 +411,7 @@ public partial class EndScreen : CanvasLayer
     Control StatsTable()
     {
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
-        var box = UiKit.Box(UiKit.Navy, 20, 0f, 3, new Color("2a3a6a"), 8);   // opaque : la partie ne transparaît plus
-        box.ContentMarginLeft = 24; box.ContentMarginRight = 24; box.ContentMarginTop = 16; box.ContentMarginBottom = 18;
+        var box = UiKit.PanelBox(16, 26);   // opaque : la partie ne transparaît plus
         panel.AddThemeStyleboxOverride("panel", box);
         var rows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         rows.AddThemeConstantOverride("separation", 6);
@@ -450,9 +451,9 @@ public partial class EndScreen : CanvasLayer
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         // Couleurs pleines et vives par équipe (orange / bleu) ; ma ligne plus claire, cerclée de jaune avec un halo.
         var bg = header ? new Color(0, 0, 0, 0) : TeamRow(p!.Team, local);
-        var box = UiKit.Box(bg, 8, 0f, local ? 4 : 0, UiKit.Yellow, header ? 0 : 3);
-        box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 16; box.ContentMarginRight = 16;
-        if (local) { box.ShadowColor = new Color(UiKit.Yellow, 0.35f); box.ShadowSize = 10; }
+        // Lignes penchées comme la barre du menu ; la mienne cerclée de jaune.
+        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 8, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 6);

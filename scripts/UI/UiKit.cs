@@ -6,7 +6,9 @@ namespace DogeballVR.UI;
 
 /// <summary>
 /// Briques d'interface communes (menus, pause, options, fin de partie, HUD) dans la DA Knockout City :
-/// police Lilita One, texte blanc cerné de marine, panneaux arrondis inclinés, boutons qui grossissent au survol avec un son.
+/// police Lilita One, texte blanc cerné de marine. Fenêtres et boutons reprennent le menu principal (voir KcBox) : panneaux
+/// penchés violet profond → marine à liseré crème, ombre et bande violette en retrait ; boutons en lettres penchées qui passent
+/// en marine sur une barre jaune inclinée (étoile devant le texte) au survol ou au clavier, et glissent un peu vers la droite.
 /// </summary>
 public static class UiKit
 {
@@ -20,6 +22,76 @@ public static class UiKit
     public static readonly Color Cream = new("fff4e0");
     public static readonly Color Grey = new("55607f");
     public static readonly Color Green = new("4fdc7a");
+    // Couleurs du bandeau du menu principal.
+    public static readonly Color VioletTop = new("2e1260");
+    public static readonly Color VioletMid = new("221447");
+    public static readonly Color NavyLow = new("121a3c");
+    public static readonly Color Violet = new("5a1a8a");
+    public static readonly Color Gold = new("ffb21f");
+    public static readonly Color Lavender = new("a9a6cf");
+    static readonly Color Ink = new("0a0f22");
+
+    /// <summary>Fenêtre (options, pause, fin de match…) : le bandeau du menu en panneau penché, liseré crème, ombre et bande violette.</summary>
+    public static KcBox PanelBox(float slant = 22f, int margin = 40)
+    {
+        var b = new KcBox
+        {
+            Top = VioletTop, Bottom = NavyLow, BorderWidth = 7, BorderColor = Cream, Slant = slant,
+            ShadowOffset = new Vector2(12, 12), ShadowColor = new Color(Ink, 0.6f),
+            StripOffset = new Vector2(26, 26), StripColor = new Color(Violet, 0.75f),
+        };
+        b.ContentMarginLeft = b.ContentMarginRight = margin + slant * 0.5f;
+        b.ContentMarginTop = b.ContentMarginBottom = margin * 0.7f;
+        return b;
+    }
+
+    /// <summary>Encart dans une fenêtre (description, ligne de tableau, carte) : aplat sombre penché, sans liseré.</summary>
+    public static KcBox InsetBox(Color? fill = null, float slant = 10f, int border = 0, Color? borderColor = null)
+    {
+        var c = fill ?? new Color(Ink, 0.45f);
+        var b = new KcBox { Top = c, Bottom = c.Darkened(0.12f), Slant = slant, BorderWidth = border, BorderColor = borderColor ?? Cream };
+        b.ContentMarginLeft = b.ContentMarginRight = 22 + Mathf.Abs(slant) * 0.5f;
+        b.ContentMarginTop = 8; b.ContentMarginBottom = 8;
+        return b;
+    }
+
+    /// <summary>Bouton au repos : aplat violet nuit penché à fin liseré crème, accent de couleur à gauche (transparent : aucun).</summary>
+    public static KcBox ButtonIdle(Color accent, bool box = true)
+    {
+        var b = new KcBox
+        {
+            Top = box ? new Color("2a1458") : new Color(0, 0, 0, 0), Bottom = box ? new Color("17183c") : new Color(0, 0, 0, 0),
+            BorderWidth = box ? 3 : 0, BorderColor = new Color(Cream, 0.9f), Slant = 12,
+            ShadowOffset = new Vector2(6, 6), ShadowColor = new Color(Ink, box ? 0.55f : 0f),
+            AccentColor = accent, AccentWidth = 9,
+        };
+        b.ContentMarginLeft = b.ContentMarginRight = 28; b.ContentMarginTop = 6; b.ContentMarginBottom = 8;
+        return b;
+    }
+
+    /// <summary>Bouton sélectionné (survol ou clavier) : la barre jaune du menu, dorée vers le bas, avec l'étoile marine.</summary>
+    public static KcBox ButtonLit(bool pressed = false)
+    {
+        var b = new KcBox
+        {
+            Top = pressed ? Gold : Yellow, Bottom = pressed ? Gold.Darkened(0.15f) : Gold, Slant = 12,
+            ShadowOffset = new Vector2(7, 7), ShadowColor = new Color(Ink, 0.55f), Star = true,
+        };
+        b.ContentMarginLeft = b.ContentMarginRight = 28; b.ContentMarginTop = 6; b.ContentMarginBottom = 8;
+        return b;
+    }
+
+    /// <summary>Titre de fenêtre : lettres penchées jaunes cernées de marine, ombre portée encre décalée (comme le logo).</summary>
+    public static Label Title(string text, int size = 54, HorizontalAlignment align = HorizontalAlignment.Center, Color? color = null)
+    {
+        var l = Text(text, size, color ?? Yellow, Mathf.Max(8, size / 5), align);
+        if (Italic is Font it) l.AddThemeFontOverride("font", it);
+        l.AddThemeColorOverride("font_shadow_color", Ink);
+        l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(3, size / 12));
+        l.AddThemeConstantOverride("shadow_offset_y", Mathf.Max(4, size / 10));
+        l.AddThemeConstantOverride("shadow_outline_size", Mathf.Max(8, size / 5));
+        return l;
+    }
 
     public static Font? Font => font ??= ResourceLoader.Exists("res://assets/fonts/LilitaOne-Regular.ttf") ? GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf") : null;
     static Font? font;
@@ -50,30 +122,44 @@ public static class UiKit
         t.SetColor("font_outline_color", "Label", Navy);
         t.SetConstant("outline_size", "Label", 8);
 
-        t.SetStylebox("normal", "Button", Box(Blue, 14, -0.12f));
-        t.SetStylebox("hover", "Button", Box(Blue.Lightened(0.15f), 14, -0.12f, 3, Yellow));
-        t.SetStylebox("pressed", "Button", Box(Blue.Darkened(0.2f), 14, -0.12f));
-        t.SetStylebox("focus", "Button", Box(new Color(0, 0, 0, 0), 14, -0.12f, 3, Yellow, 0));
-        t.SetStylebox("disabled", "Button", Box(Grey.Darkened(0.3f), 14, -0.12f));
-        foreach (var k in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "Button", Colors.White);
+        var disabled = ButtonIdle(new Color(0, 0, 0, 0));
+        disabled.Top = new Color(Ink, 0.5f); disabled.Bottom = new Color(Ink, 0.5f); disabled.BorderColor = new Color(Cream, 0.3f);
+        t.SetStylebox("normal", "Button", ButtonIdle(new Color(0, 0, 0, 0)));
+        t.SetStylebox("hover", "Button", ButtonLit());
+        t.SetStylebox("pressed", "Button", ButtonLit(true));
+        t.SetStylebox("hover_pressed", "Button", ButtonLit(true));
+        t.SetStylebox("focus", "Button", ButtonLit());
+        t.SetStylebox("disabled", "Button", disabled);
+        t.SetColor("font_color", "Button", Colors.White);
+        foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "Button", Navy);
         t.SetColor("font_disabled_color", "Button", new Color(1, 1, 1, 0.4f));
         t.SetColor("font_outline_color", "Button", Navy);
         t.SetConstant("outline_size", "Button", 6);
         t.SetFontSize("font_size", "Button", 26);
+        if (Italic != null) t.SetFont("font", "Button", Italic);
 
-        var slider = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0.45f), CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6, ContentMarginTop = 9, ContentMarginBottom = 9 };
-        var fill = new StyleBoxFlat { BgColor = Orange, CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6, ContentMarginTop = 6, ContentMarginBottom = 6 };
+        // Glissière : rail encre penché à liseré crème, remplissage jaune → or (la barre du menu).
+        var slider = new KcBox { Top = new Color(Ink, 0.7f), Bottom = new Color(Ink, 0.7f), BorderWidth = 2, BorderColor = new Color(Cream, 0.8f), Slant = 6 };
+        slider.ContentMarginTop = 9; slider.ContentMarginBottom = 9;
+        var fill = new KcBox { Top = Yellow, Bottom = Gold, Slant = 6 };
+        fill.ContentMarginTop = 6; fill.ContentMarginBottom = 6;
         t.SetStylebox("slider", "HSlider", slider);
         t.SetStylebox("grabber_area", "HSlider", fill);
         t.SetStylebox("grabber_area_highlight", "HSlider", fill);
-        t.SetIcon("grabber", "HSlider", Dot(26, Colors.White));
+        t.SetIcon("grabber", "HSlider", Dot(26, Cream));
         t.SetIcon("grabber_highlight", "HSlider", Dot(30, Yellow));
 
-        t.SetStylebox("panel", "PanelContainer", Box(new Color(Navy, 0.92f), 22, 0f, 0, null, 8));
-        t.SetStylebox("normal", "LineEdit", Box(new Color(1, 1, 1, 0.95f), 12, 0f, 0, null, 4));
-        t.SetStylebox("focus", "LineEdit", Box(new Color(0, 0, 0, 0), 12, 0f, 3, Yellow, 0));
-        t.SetColor("font_color", "LineEdit", Navy);
-        t.SetColor("caret_color", "LineEdit", Navy);
+        t.SetStylebox("panel", "PanelContainer", PanelBox());
+        // Champ de saisie : encart encre penché à liseré crème ; jaune au focus.
+        var field = InsetBox(new Color(Ink, 0.8f), 10, 3, new Color(Cream, 0.9f));
+        field.ContentMarginTop = 6; field.ContentMarginBottom = 6;
+        var fieldLit = InsetBox(new Color(Ink, 0.8f), 10, 4, Yellow);
+        fieldLit.ContentMarginTop = 6; fieldLit.ContentMarginBottom = 6;
+        t.SetStylebox("normal", "LineEdit", field);
+        t.SetStylebox("focus", "LineEdit", fieldLit);
+        t.SetColor("font_color", "LineEdit", Colors.White);
+        t.SetColor("font_placeholder_color", "LineEdit", new Color(Lavender, 0.8f));
+        t.SetColor("caret_color", "LineEdit", Yellow);
         t.SetFontSize("font_size", "LineEdit", 24);
 
         foreach (var k in new[] { "normal", "hover", "pressed", "focus", "hover_pressed" })
@@ -84,16 +170,22 @@ public static class UiKit
         t.SetColor("font_outline_color", "CheckButton", Navy);
         t.SetConstant("outline_size", "CheckButton", 6);
 
-        t.SetStylebox("normal", "OptionButton", Box(NavySoft, 12, -0.1f, 0, null, 4));
-        t.SetStylebox("hover", "OptionButton", Box(NavySoft.Lightened(0.15f), 12, -0.1f, 3, Yellow, 4));
-        t.SetStylebox("pressed", "OptionButton", Box(NavySoft.Darkened(0.2f), 12, -0.1f, 0, null, 4));
-        t.SetStylebox("focus", "OptionButton", Box(new Color(0, 0, 0, 0), 12, -0.1f, 3, Yellow, 0));
+        t.SetStylebox("normal", "OptionButton", ButtonIdle(new Color(0, 0, 0, 0)));
+        t.SetStylebox("hover", "OptionButton", ButtonLit());
+        t.SetStylebox("pressed", "OptionButton", ButtonLit(true));
+        t.SetStylebox("focus", "OptionButton", ButtonLit());
+        t.SetColor("font_color", "OptionButton", Colors.White);
+        foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "OptionButton", Navy);
         t.SetColor("font_outline_color", "OptionButton", Navy);
         t.SetConstant("outline_size", "OptionButton", 5);
+        if (Italic != null) t.SetFont("font", "OptionButton", Italic);
 
-        t.SetStylebox("panel", "PopupMenu", Box(Navy, 12, 0f, 2, Yellow, 2));
+        var popup = PanelBox(8, 14);
+        popup.StripColor = new Color(0, 0, 0, 0); popup.BorderWidth = 4; popup.ShadowOffset = new Vector2(6, 6);
+        t.SetStylebox("panel", "PopupMenu", popup);
+        t.SetStylebox("hover", "PopupMenu", ButtonLit());
         t.SetColor("font_color", "PopupMenu", Colors.White);
-        t.SetColor("font_hover_color", "PopupMenu", Yellow);
+        t.SetColor("font_hover_color", "PopupMenu", Navy);
         t.SetFontSize("font_size", "PopupMenu", 22);
 
         var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.12f), CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4, ContentMarginLeft = 4, ContentMarginRight = 4 };
@@ -130,51 +222,85 @@ public static class UiKit
         return l;
     }
 
-    /// <summary>Gros bouton incliné de menu : grossit au survol (son), s'enfonce au clic (son), couleur au choix.</summary>
+    /// <summary>
+    /// Bouton de fenêtre dans la DA du menu principal : lettres penchées blanches sur un aplat violet nuit penché (accent de la
+    /// couleur donnée à gauche ; gris = action secondaire, texte lavande). Survol ou clavier : barre jaune → or avec l'étoile,
+    /// texte marine qui glisse un peu vers la droite, son. Le survol de la souris prend le focus : une seule sélection à la fois.
+    /// </summary>
     public static Button Button(string text, Color color, Action onPress, int fontSize = 30, Vector2? minSize = null)
     {
         var b = new Button { Text = text, CustomMinimumSize = minSize ?? new Vector2(440, 66), FocusMode = Control.FocusModeEnum.All };
         b.AddThemeFontSizeOverride("font_size", fontSize);
-        b.AddThemeStyleboxOverride("normal", Box(color, 14, -0.12f));
-        b.AddThemeStyleboxOverride("hover", Box(color.Lightened(0.15f), 14, -0.12f, 3, Yellow));
-        b.AddThemeStyleboxOverride("pressed", Box(color.Darkened(0.2f), 14, -0.12f, 0, null, 2));
-        b.AddThemeStyleboxOverride("focus", Box(new Color(0, 0, 0, 0), 14, -0.12f, 3, Yellow, 0));
-        Juicy(b);
+        bool secondary = color == Grey;
+        Style(b, ButtonIdle(secondary ? new Color(0, 0, 0, 0) : color), secondary ? Lavender : Colors.White);
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }
 
-    /// <summary>Bouton secondaire en texte seul (crédits, quitter) : pas de fond, jaune au survol, flèche au focus.</summary>
+    /// <summary>Habille un bouton : repos (idle), barre jaune au focus et au survol, texte qui glisse, son. Rest = couleur du texte au repos.</summary>
+    public static void Style(Button b, KcBox idle, Color rest, float shift = 22f)
+    {
+        var lit = ButtonLit();
+        var down = ButtonLit(true);
+        // La barre jaune et le repos partagent les marges : le texte glisse de la même façon sur les deux.
+        b.AddThemeStyleboxOverride("normal", idle);
+        b.AddThemeStyleboxOverride("hover", lit);
+        b.AddThemeStyleboxOverride("pressed", down);
+        b.AddThemeStyleboxOverride("hover_pressed", down);
+        b.AddThemeStyleboxOverride("focus", lit);
+        if (Italic is Font it) b.AddThemeFontOverride("font", it);
+        b.AddThemeColorOverride("font_color", rest);
+        foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, Navy);
+        b.AddThemeColorOverride("font_outline_color", Navy);
+        b.AddThemeConstantOverride("outline_size", 6);
+        float baseLeft = idle.ContentMarginLeft;
+        Tween? slide = null;
+        void Shift(float to)
+        {
+            slide?.Kill();
+            if (!b.IsInsideTree()) return;
+            slide = b.CreateTween().SetParallel();
+            foreach (var box in new[] { idle, lit, down })
+                slide.TweenProperty(box, "content_margin_left", baseLeft + to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        }
+        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 1); Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
+        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 6); Shift(0f); };
+        b.MouseEntered += () => { if (!b.Disabled && b.FocusMode != Control.FocusModeEnum.None) b.GrabFocus(); };
+    }
+
+    /// <summary>Change l'aplat de repos d'un bouton habillé par Style (accent à gauche, remplissage ; null : violet nuit d'origine) et la couleur de son texte.</summary>
+    public static void Tint(Button b, Color accent, Color? fill = null, Color? text = null)
+    {
+        if (b.GetThemeStylebox("normal") is not KcBox idle) return;
+        var f = fill ?? new Color("2a1458");
+        idle.AccentColor = accent;
+        idle.Top = f;
+        idle.Bottom = fill is Color c ? c.Darkened(0.3f) : new Color("17183c");
+        b.AddThemeColorOverride("font_color", text ?? Colors.White);
+    }
+
+    /// <summary>Bouton secondaire en texte seul (crédits, quitter) : lavande au repos, barre jaune au focus, comme le menu.</summary>
     public static Button TextButton(string text, Action onPress, int fontSize = 26)
     {
-        var b = new Button { Text = text, Flat = true, CustomMinimumSize = new Vector2(440, 48), FocusMode = Control.FocusModeEnum.All, Alignment = HorizontalAlignment.Left };
+        var b = new Button { Text = text, CustomMinimumSize = new Vector2(440, 48), FocusMode = Control.FocusModeEnum.All, Alignment = HorizontalAlignment.Left };
         b.AddThemeFontSizeOverride("font_size", fontSize);
-        var empty = new StyleBoxEmpty { ContentMarginLeft = 24 };
-        foreach (var st in new[] { "normal", "hover", "pressed", "focus" }) b.AddThemeStyleboxOverride(st, empty);
-        b.AddThemeColorOverride("font_color", new Color(Cream, 0.85f));
-        b.AddThemeColorOverride("font_hover_color", Yellow);
-        b.AddThemeColorOverride("font_focus_color", Yellow);
-        b.AddThemeColorOverride("font_pressed_color", Orange);
-        b.AddThemeConstantOverride("outline_size", 6);
-        b.AddThemeColorOverride("font_outline_color", Navy);
-        b.FocusEntered += () => b.Text = "› " + text;
-        b.FocusExited += () => b.Text = text;
-        Juicy(b);
+        Style(b, ButtonIdle(new Color(0, 0, 0, 0), false), Lavender);
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }
 
     /// <summary>
-    /// Bouton de liste (pause) : neutre au repos, un seul accent orange sur l'élément sélectionné. Le survol de la souris
-    /// prend le focus, si bien que souris et clavier ne montrent jamais deux sélections à la fois.
+    /// Bouton de liste (pause) : exactement les items du menu principal, texte penché sans boîte au repos, barre jaune avec
+    /// l'étoile sur l'élément sélectionné. Souris et clavier ne montrent jamais deux sélections à la fois.
     /// </summary>
     public static Button ListButton(string text, Action onPress, int fontSize = 28, Vector2? minSize = null)
     {
-        var b = Button(text, NavySoft, onPress, fontSize, minSize);
-        b.AddThemeStyleboxOverride("hover", Box(NavySoft.Lightened(0.12f), 14, -0.12f));
-        b.AddThemeStyleboxOverride("focus", Box(Orange, 14, -0.12f, 3, Yellow));   // dessiné par-dessus le fond, sous le texte
-        b.AddThemeColorOverride("font_color", new Color(Cream, 0.9f));
-        b.MouseEntered += () => { if (!b.Disabled) b.GrabFocus(); };
+        var b = new Button { Text = text, CustomMinimumSize = minSize ?? new Vector2(440, 62), FocusMode = Control.FocusModeEnum.All, Alignment = HorizontalAlignment.Left };
+        b.AddThemeFontSizeOverride("font_size", fontSize);
+        var idle = ButtonIdle(new Color(0, 0, 0, 0), false);
+        idle.ContentMarginLeft = 54;   // place de l'étoile
+        Style(b, idle, Colors.White, 26f);
+        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }
 
@@ -217,15 +343,19 @@ public static class UiKit
         var b = Button("", color, onPress, fontSize, minSize);
         var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        center.OffsetBottom = -4;   // la tranche du bouton (relief) mange le bas
+        center.OffsetLeft = 24;   // place de l'étoile de la barre jaune
         b.AddChild(center);
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         row.AddThemeConstantOverride("separation", 16);
         center.AddChild(row);
         row.AddChild(KeyCap(key, 20));
-        var l = Text(text, fontSize, Colors.White, 6);
+        var l = Text(text, fontSize, color == Grey ? Lavender : Colors.White, 6);
+        if (Italic is Font it) l.AddThemeFontOverride("font", it);
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
+        // Le texte est un Label à part : il suit lui-même la barre jaune (marine au focus).
+        b.FocusEntered += () => { l.AddThemeColorOverride("font_color", Navy); l.AddThemeConstantOverride("outline_size", 1); };
+        b.FocusExited += () => { l.AddThemeColorOverride("font_color", color == Grey ? Lavender : Colors.White); l.AddThemeConstantOverride("outline_size", 6); };
         return b;
     }
 
@@ -280,7 +410,7 @@ public static class UiKit
     /// <summary>Voile plein écran derrière un menu : le jeu flouté puis teinté bleu nuit (alpha = force de la teinte).</summary>
     public static ColorRect Dim(float alpha = 0.6f)
     {
-        var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = BlurMaterial() };   // pas de cache static : un ShaderMaterial gardé en static fuit à la fermeture
+        var r = new ColorRect { Color = new Color(new Color("140c34"), alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = BlurMaterial() };   // pas de cache static : un ShaderMaterial gardé en static fuit à la fermeture
         r.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         return r;
     }
