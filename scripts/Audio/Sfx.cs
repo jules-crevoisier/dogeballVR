@@ -79,6 +79,16 @@ public static class Sfx
 
     static string FileName(SfxKind kind) => kind.ToString().ToLowerInvariant();
 
+    /// <summary>
+    /// Charge tous les sons (fichiers, ou synthèse de repli) pendant le chargement de la partie : sinon le premier KO, la première
+    /// touche… lisent le disque ou synthétisent sur l'image même, et la partie saute (mesuré : jusqu'à 180 ms au premier KO).
+    /// </summary>
+    public static void Preload()
+    {
+        foreach (SfxKind kind in Enum.GetValues(typeof(SfxKind)))
+            if (Variants(FileName(kind)).Length == 0 && !synth.ContainsKey(kind)) synth[kind] = Make(kind);
+    }
+
     /// <summary>Le son à jouer : une variante au hasard (jamais deux fois la même de suite), sinon la synthèse de repli.</summary>
     static AudioStream Pick(SfxKind kind)
     {

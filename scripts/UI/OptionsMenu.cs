@@ -160,7 +160,7 @@ public partial class OptionsMenu : Control
                 break;
             case 1: InputSetup.ResetAll(); break;
             case 2: GameSettings.MasterVolume = 0.85f; GameSettings.MusicVolume = 0.6f; GameSettings.SfxVolume = 0.9f; GameSettings.UiVolume = 0.8f; break;
-            case 3: GameSettings.Fullscreen = true; GameSettings.VSync = true; GameSettings.MaxFps = 0; GameSettings.Quality = 2; GameSettings.RenderScale = 1f; GameSettings.ShowFps = false; break;
+            case 3: GameSettings.Fullscreen = true; GameSettings.VSync = true; GameSettings.MaxFps = 0; GameSettings.Quality = GameSettings.DefaultQuality; GameSettings.RenderScale = 1f; GameSettings.ShowFps = false; break;
         }
         GameSettings.Apply(GetViewport());
         ShowTab(tab);

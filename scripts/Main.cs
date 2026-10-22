@@ -102,11 +102,16 @@ public partial class Main : Node3D
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
         UI.GameSettings.Load();
+        UI.GameSettings.WatchScene(GetTree());
+        Audio.Sfx.Preload();   // pas de lecture disque ni de synthèse en pleine partie
+        System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency;   // pas de collecte complète bloquante en pleine partie   // préréglage de qualité sur chaque ciel et soleil chargés
         UI.InputSetup.Register();
         UI.GameSettings.Apply(xrActive ? null : GetViewport());
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
+        Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;

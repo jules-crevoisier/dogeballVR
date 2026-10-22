@@ -43,7 +43,7 @@ public static class GameSettings
         if (loaded) return;
         loaded = true;
         var cfg = new ConfigFile();
-        if (cfg.Load(Path) != Error.Ok) return;
+        if (cfg.Load(Path) != Error.Ok) { Quality = DefaultQuality; return; }   // premier lancement : qualité selon la carte graphique
         Sensitivity = Mathf.Clamp(F(cfg, "pc", "sensitivity", Sensitivity), 0.0005f, 0.01f);
         InvertY = B(cfg, "controls", "invert_y", InvertY);
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
@@ -118,6 +118,61 @@ public static class GameSettings
         }
         RenderingServer.DirectionalShadowAtlasSetSize(Quality >= 2 ? 4096 : Quality == 1 ? 2048 : 1024, true);
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Qualité proposée au premier lancement : moyenne sur une puce graphique intégrée (Intel, APU AMD, Steam Deck), haute sinon.
+    /// Le joueur la change dans les options ; « Réinitialiser » y revient.
+    /// </summary>
+    public static int DefaultQuality
+    {
+        get
+        {
+            if (DisplayServer.GetName() == "headless") return 2;
+            string gpu = (RenderingServer.GetVideoAdapterName() + " " + RenderingServer.GetVideoAdapterVendor()).ToLowerInvariant();
+            bool integrated = gpu.Contains("intel") || gpu.Contains("uhd") || gpu.Contains("iris") || gpu.Contains("vega") || gpu.Contains("radeon(tm) graphics")
+                || gpu.Contains("radeon graphics") || gpu.Contains("van gogh") || gpu.Contains("llvmpipe") || gpu.Contains("swiftshader");
+            return integrated ? 1 : 2;
+        }
+    }
+
+    static bool watching;
+
+    /// <summary>
+    /// Suit les scènes chargées : chaque ciel (WorldEnvironment) et chaque soleil (DirectionalLight3D) ajoutés reçoivent le préréglage
+    /// de qualité. Bas : ni glow ni SSAO, ombres sur 30 m en une seule cascade ; moyen : glow, ombres sur 50 m ; haut : tout.
+    /// </summary>
+    public static void WatchScene(SceneTree tree)
+    {
+        if (watching) return;
+        watching = true;
+        tree.NodeAdded += node => { if (node is WorldEnvironment or DirectionalLight3D) ApplyQuality(node); };
+        Changed += () => ApplyQualityAll(tree.Root);
+    }
+
+    static void ApplyQualityAll(Node node)
+    {
+        if (node is WorldEnvironment or DirectionalLight3D) ApplyQuality(node);
+        foreach (var c in node.GetChildren()) ApplyQualityAll(c);
+    }
+
+    /// <summary>Applique le préréglage en partant des valeurs d'origine du nœud (gardées en métadonnée à la première fois).</summary>
+    static void ApplyQuality(Node node)
+    {
+        if (node is WorldEnvironment { Environment: { } env })
+        {
+            if (!env.HasMeta("q_glow")) { env.SetMeta("q_glow", env.GlowEnabled); env.SetMeta("q_ssao", env.SsaoEnabled); }
+            env.GlowEnabled = Quality >= 1 && env.GetMeta("q_glow").AsBool();
+            env.SsaoEnabled = Quality >= 2 && env.GetMeta("q_ssao").AsBool();
+        }
+        else if (node is DirectionalLight3D sun)
+        {
+            if (!sun.HasMeta("q_dist")) { sun.SetMeta("q_dist", sun.DirectionalShadowMaxDistance); sun.SetMeta("q_mode", (int)sun.DirectionalShadowMode); }
+            float dist = (float)sun.GetMeta("q_dist").AsDouble();
+            var mode = (DirectionalLight3D.ShadowMode)sun.GetMeta("q_mode").AsInt32();
+            sun.DirectionalShadowMaxDistance = Quality >= 2 ? dist : Mathf.Min(dist, Quality == 1 ? 50f : 30f);
+            sun.DirectionalShadowMode = Quality >= 1 ? mode : DirectionalLight3D.ShadowMode.Orthogonal;
+        }
     }
 
     /// <summary>Notifie les écouteurs sans écrire (curseurs en cours de glissement).</summary>
