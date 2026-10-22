@@ -37,7 +37,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: steam-production
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     env:
       GODOT_VERSION: 4.3-stable
       # Bibliothèques natives Steamworks (steam_api64.dll, libsteam_api.so), redistribuables avec le jeu.

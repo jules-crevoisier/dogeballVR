@@ -65,7 +65,7 @@ Le jeton finit par expirer, ou est invalidé si on se reconnecte avec le mot de 
 
 ## 4. Secrets GitHub
 
-Dépôt GitHub > Settings > Secrets and variables > Actions > New repository secret :
+Dépôt GitHub > Settings > Environments > New environment, nommé `steam-production` : « Required reviewers » = jules, « Deployment branches and tags » = `main` seulement. Puis, dans cet environnement, « Add environment secret » pour chaque ligne ci-dessous. Rangés là plutôt qu'en secrets de dépôt, ils ne sont lisibles par aucune autre branche, même si elle modifie sa copie du workflow.
 
 | Secret | Obligatoire | Contenu |
 |---|---|---|

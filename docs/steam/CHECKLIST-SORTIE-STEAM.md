@@ -92,7 +92,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | `product_name`, `application/config/name`, nom de l'exe et du dossier data alignés sur le nom définitif (attention : changer `config/name` change le dossier des sauvegardes, voir section 7) | code | project.godot, export_presets.cfg |
 | [ ] | Signature de code de l'exe (facultatif sur Steam, évite l'alerte SmartScreen hors Steam) | jules | |
 | [ ] | Build Linux natif (facultatif ; sinon Proton) et test sur Steam Deck | code | steam-upload.yml (secret `STEAM_DEPOT_ID_LINUX`) |
-| [ ] | Retirer les options de test de la version publique (`--pc-autoplay`, `--net-selftest`, `--rotor-test`… inoffensives mais à cacher) | code | scripts/ |
+| [x] | Retirer les options de test de la version publique : `--pc-autoplay`, `--net-selftest`, `--cam-test`, `--special-test`, `--end-screen-test`, `--swap-test`, `--rotor-test`, `--rotor-off` et les options réseau de test ne sont lues que dans l'éditeur ou un export de debug (`scripts/Tools/DevFlags.cs`). Restent lisibles des options d'affichage sans effet sur le jeu (`--hud-test`, `--profile-test`…) | code | scripts/ |
 
 ## 4. Intégration du SDK Steamworks
 

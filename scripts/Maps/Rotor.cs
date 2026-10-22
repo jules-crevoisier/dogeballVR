@@ -61,7 +61,7 @@ public partial class Rotor : AnimatableBody3D
 
     public override void _Ready()
     {
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--rotor-test") >= 0) AddChild(new RotorBallTest());
+        if (Tools.DevFlags.Has("--rotor-test")) AddChild(new RotorBallTest());
     }
 
     public override void _EnterTree() => Current = this;
@@ -102,7 +102,7 @@ public partial class RotorBallTest : Node
 
     public override void _Ready()
     {
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--rotor-off") >= 0 && Rotor.Current != null) Rotor.Current.CollisionLayer = 0;
+        if (Tools.DevFlags.Has("--rotor-off") && Rotor.Current != null) Rotor.Current.CollisionLayer = 0;
     }
 
     public override void _PhysicsProcess(double delta)

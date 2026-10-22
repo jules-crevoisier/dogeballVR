@@ -19,7 +19,7 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 
 ## Lancer
 1. Ouvrir le dossier avec Godot 4.3 .NET, puis *Build* (C#).
-2. PC : lance sans casque (OpenXR indisponible) avec le joueur clavier-souris : ZQSD/WASD bouger, Maj sprinter, Espace sauter, Ctrl/C s'accroupir, E esquive, souris viser, clic gauche (maintenu = plus fort) lancer, clic droit attraper (fenêtre de 0,5 s), les balles lentes près des pieds se ramassent seules, PageHaut/PageBas règlent la sensibilité, F1 aide, Échap libère la souris. `-- --pc-autoplay` fait jouer le joueur PC tout seul (tests).
+2. PC : lance sans casque (OpenXR indisponible) avec le joueur clavier-souris : ZQSD/WASD bouger, Maj sprinter, Espace sauter, Ctrl/C s'accroupir, E esquive, souris viser, clic gauche (maintenu = plus fort) lancer, clic droit attraper (fenêtre de 0,5 s), les balles lentes près des pieds se ramassent seules, PageHaut/PageBas règlent la sensibilité, F1 aide, Échap libère la souris. `-- --pc-autoplay` fait jouer le joueur PC tout seul (tests). Comme les autres options de test, il ne marche que dans l'éditeur ou un export de debug (`scripts/Tools/DevFlags.cs`), pas dans l'export de sortie.
 3. Quest : installer le « Godot OpenXR Vendors » (AssetLib), créer un preset d'export Android avec *XR Mode = OpenXR*, export APK, `adb install`.
 
 ## Jouer à deux (réseau local)

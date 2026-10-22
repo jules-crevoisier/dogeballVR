@@ -370,7 +370,7 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
+        match.PlateSwaps = map.IsRing && (!pcProfile || Tools.DevFlags.Has("--swap-test"));
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {

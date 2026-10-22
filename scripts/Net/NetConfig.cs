@@ -56,7 +56,7 @@ public class NetConfig
             else if (a.StartsWith("--net-loss=") && float.TryParse(a["--net-loss=".Length..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float loss)) cfg.LossRate = Mathf.Clamp(loss, 0f, 0.9f);
             else if (a.StartsWith("--token=")) cfg.Token = a["--token=".Length..];
             else if (a.StartsWith("--name=")) cfg.PlayerName = a["--name=".Length..];
-            else if (a == "--net-selftest") cfg.SelfTest = true;
+            else if (a == "--net-selftest") cfg.SelfTest = Tools.DevFlags.Allowed;   // le client joue seul : jamais dans l'export de sortie
             else if (a == "--format=online") cfg.OnlineFormat = true;
         }
         // L'entraînement se joue sur la vraie carte du jeu, pas sur l'arène de test.

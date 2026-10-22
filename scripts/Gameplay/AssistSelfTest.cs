@@ -45,16 +45,34 @@ public partial class AssistSelfTest : Node
         Check("attrape à 80 ms", caught >= 95, $"{caught}/100 (>= 95 requis)");
         Check("main fermée en permanence", closedCaught == 0, $"{closedCaught}/100 (0 requis)");
 
-        // 1b) Triche : un client déclare la prise d'un tir qui passe à 1,7..3 m de sa main sans jamais s'en approcher.
-        int stolen = 0;
+        // 1b) Triche : un client déclare la prise d'un tir qui passe à 1,8..3 m de sa main sans jamais s'en approcher.
+        int stolen = 0, stolenBounced = 0;
         for (int i = 0; i < 100; i++)
         {
-            float speed = rng.RandfRange(8f, 20f), miss = rng.RandfRange(1.7f, 3f);
+            float speed = rng.RandfRange(8f, 20f), miss = rng.RandfRange(1.8f, 3f);
             var velocity = new Vector3(0, 0, -speed);
             var host = new Vector3(miss, 0, rng.RandfRange(-1f, 1f));   // la balle croise la main de côté
             if (Assist.HostAccepts(host, Vector3.Zero, velocity)) stolen++;
+            if (Assist.HostAccepts(host + new Vector3(0.3f, 0, 0), Vector3.Zero, velocity, bouncedRecently: true)) stolenBounced++;
         }
         Check("prise à distance refusée", stolen == 0, $"{stolen}/100 acceptées (0 requis)");
+        Check("prise à distance refusée après un rebond", stolenBounced == 0, $"{stolenBounced}/100 acceptées au-delà de 2,1 m (0 requis)");
+
+        // 1c) Prise légitime à 30, 100 et 150 ms de latence (hôte en avance d'autant), écart latéral <= 0,5 m.
+        int legit = 0, legitTotal = 0;
+        foreach (float lag in new[] { 0.03f, 0.1f, 0.15f })
+            for (int i = 0; i < 50; i++, legitTotal++)
+            {
+                float speed = rng.RandfRange(8f, 20f);
+                var velocity = new Vector3(0, 0, -speed);
+                var contact = new Vector3(rng.RandfRange(-0.5f, 0.5f), 0, 0);
+                if (Assist.HostAccepts(contact + velocity * lag, Vector3.Zero, velocity)) legit++;
+            }
+        Check("prise à 30-150 ms acceptée", legit == legitTotal, $"{legit}/{legitTotal}");
+
+        // 1d) Rebond juste après la main : la balle repart de côté à 2 m, sa vitesse ne pointe plus vers la main.
+        bool bouncedOk = Assist.HostAccepts(new Vector3(2f, 0, 0), Vector3.Zero, new Vector3(0, 0, 15f), bouncedRecently: true);
+        Check("prise juste avant un rebond acceptée", bouncedOk, "balle à 2 m après un rebond, 15 m/s");
 
         // 2) Temps de vol : ennemi plein axe à 3,5..20 m, geste à 30 m/s : le tir ne doit pas arriver en moins de 0,45 s.
         float worst = 99f;

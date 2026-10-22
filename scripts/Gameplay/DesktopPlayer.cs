@@ -244,7 +244,7 @@ public partial class DesktopPlayer : Node3D
         }
         dashCharges = MaxCharges;
         autoplay = Tools.DevFlags.Has("--pc-autoplay");   // option de test : ignorée par l'export de sortie
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-test") >= 0) StartCamTest();
+        if (Tools.DevFlags.Has("--cam-test")) StartCamTest();
         rng.Seed = 4242;
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;

@@ -307,8 +307,12 @@ public partial class Ball : RigidBody3D
 
     ulong lastBounceMs;
 
+    /// <summary>Hôte : instant (s, horloge Time.GetTicksMsec) du dernier choc qui a pu changer la trajectoire (décor, balle, parade).</summary>
+    public double LastContactAt { get; private set; } = double.NegativeInfinity;
+
     void OnContact(Node body)
     {
+        if (body is not Hurtbox) LastContactAt = Time.GetTicksMsec() / 1000.0;
         // son de rebond au contact du décor (hôte seulement : les clients n'ont pas la physique) ; aucune incidence sur la trajectoire
         if (!IsHeld && kind != KindBomb && body is not Ball && body is not Hurtbox && LinearVelocity.Length() is float v && v > 1.5f && Time.GetTicksMsec() - lastBounceMs > 110)
         {
@@ -472,6 +476,7 @@ public partial class Ball : RigidBody3D
     {
         if (Charge > 0 || IsHeld || exploded || IsPass) return false;
         LinearVelocity = LinearVelocity.Bounce(palmNormal.Normalized()) * 0.6f;
+        LastContactAt = Time.GetTicksMsec() / 1000.0;
         Spent();
         return true;
     }

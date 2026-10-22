@@ -252,13 +252,13 @@ public partial class NetSession : Node
     // ---------------------------------------------------------------- client -> hôte
 
     // Test de reconnexion : `--net-cut=S` coupe la connexion du client S secondes après son entrée (comme une coupure réseau).
-    double cutAt = -1, clientClock;
+    static readonly double cutAt = double.TryParse(Tools.DevFlags.Value("--net-cut="), out double c) ? c : -1;
+    double clientClock;
     static bool cutDone;   // une seule coupure par processus (la scène est rechargée à la reconnexion)
 
     void ClientTick(double delta)
     {
         clientClock += delta;
-        if (cutAt < 0 && double.TryParse(Tools.DevFlags.Value("--net-cut="), out double c)) cutAt = c;
         if (cutAt > 0 && !cutDone && clientClock >= cutAt && Connected)
         {
             cutDone = true;
@@ -726,9 +726,10 @@ public partial class NetSession : Node
             var t = remote.TargetPose;
             var handLatest = remote.Avatar.GlobalTransform * (hand == 0 ? t.Left : t.Right);
             float ballSpeed = ball.LinearVelocity.Length();
+            bool bounced = catchNow - ball.LastContactAt <= Assist.TrajectoryLookback;   // rebond récent : la trajectoire passée n'est plus une droite
             // Ramassage d'une balle lente au sol (joueur PC) : jugé depuis les pieds, comme chez le client (point de ramassage à 0,9 m).
             bool scoop = ballSpeed < 3.5f && ball.GlobalPosition.DistanceTo(remote.Avatar.GlobalTransform * (t.Head + Vector3.Down * 0.85f)) <= 1.5f;
-            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ball.LinearVelocity))
+            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity, bounced) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ball.LinearVelocity, bounced))
             {
                 CatchRefused(remote, $"balle à {Mathf.Min(ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition), ball.GlobalPosition.DistanceTo(handLatest)):0.0} m de la main à {ballSpeed:0} m/s");
                 return;
@@ -774,7 +775,7 @@ public partial class NetSession : Node
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
-            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity)) return;
+            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity, now - ball.LastContactAt <= Assist.TrajectoryLookback)) return;
             if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
             remote.LastParryAt = now;
             GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");
