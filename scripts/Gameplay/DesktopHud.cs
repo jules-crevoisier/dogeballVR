@@ -1385,6 +1385,8 @@ public partial class DesktopHud : CanvasLayer
         });
     }
 
+    static string NoDigits(string text) => System.Text.RegularExpressions.Regex.Replace(text, "[0-9]", "");
+
     void UpdateCenter(MatchView.Snapshot s, int lives)
     {
         // Compte à rebours de début de manche : « 3, 2, 1 », puis « GO ! » au passage en jeu.
@@ -1404,10 +1406,13 @@ public partial class DesktopHud : CanvasLayer
         // Annonces (balle spéciale, échange de plaques) et messages du joueur.
         if (s.Notice != lastNotice)
         {
+            // Même annonce dont seul le décompte change (« DANS 4 s » après « DANS 5 s ») : petit battement, sans nouvelle alerte.
+            bool tick = s.Notice != "" && NoDigits(s.Notice) == NoDigits(lastNotice);
             lastNotice = s.Notice;
             notice.Text = s.Notice;
             notice.Visible = s.Notice != "";
-            if (notice.Visible) { UiKit.Punch(notice, 1.5f, 0.3); Sfx.Play(this, SfxKind.Alert, null, 0.8f, -6f); }
+            if (notice.Visible && tick) UiKit.Punch(notice, 1.12f, 0.2);
+            else if (notice.Visible) { UiKit.Punch(notice, 1.5f, 0.3); Sfx.Play(this, SfxKind.Alert, null, 0.8f, -6f); }
         }
         if (notice.Visible) notice.Modulate = new Color(1, 1, 1, 0.75f + 0.25f * Mathf.Sin((float)age * 8f));
         string t = Player.Time01 < Player.ToastUntil ? Player.Toast : "";
