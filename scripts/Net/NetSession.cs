@@ -352,6 +352,16 @@ public partial class NetSession : Node
         return 0;
     }
 
+    /// <summary>Pair encore en jeu avec ce secret et qui a parlé il y a moins de 1,5 s (impossible de dire encore s'il est mort), sinon 0.</summary>
+    public int LivePeerOf(string secret)
+    {
+        if (secret.Length != 32) return 0;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (peer, s) in secretOfPeer)
+            if (s == secret && Remotes.TryGetValue(peer, out var old) && now - old.LastPoseAt < 1.5) return peer;
+        return 0;
+    }
+
     /// <summary>Zone de retour d'un secret connu (et libre pour ce joueur), sinon -1.</summary>
     int ReturningZone(string secret, int peer)
     {

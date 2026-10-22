@@ -504,6 +504,24 @@ public partial class OnlineLobby : Node
         int peer = Multiplayer.GetRemoteSenderId();
         if (Flooding(peer) || members.ContainsKey(peer)) return;   // une seule demande par pair
         pendingPeers.Remove(peer);
+        token ??= "";
+        if (State == LobbyState.InMatch && NetSession.Current?.LivePeerOf(token) is int live and not 0 && live != peer)
+        {
+            // L'ancienne connexion de ce joueur parlait encore il y a moins de 1,5 s (il a relancé très vite après un crash) :
+            // on laisse passer ce délai pour la juger, morte (on lui rend sa place) ou vivante (copie du secret : nouvelle place).
+            GD.Print($"[Lobby] Retour du pair {peer} : ancienne connexion {live} encore active, décision dans 1,6 s");
+            GetTree().CreateTimer(1.6).Timeout += () =>
+            {
+                if (IsHost && System.Array.IndexOf(Multiplayer.GetPeers(), peer) >= 0 && !members.ContainsKey(peer))
+                    HandleJoinRequest(peer, protocol, version, name, token, vr, team);
+            };
+            return;
+        }
+        HandleJoinRequest(peer, protocol, version, name, token, vr, team);
+    }
+
+    void HandleJoinRequest(int peer, int protocol, string version, string name, string token, bool vr, int team)
+    {
         // Retour d'un joueur dont l'ancienne connexion n'est pas encore tombée (salle pleine) : l'ancienne place se libère d'abord.
         if (State == LobbyState.InMatch && NetSession.Current?.StalePeerOf(token ?? "") is int stale and not 0 && stale != peer && members.Remove(stale))
             GD.Print($"[Lobby] Ancienne connexion du joueur qui revient (pair {stale}) retirée de la salle");
