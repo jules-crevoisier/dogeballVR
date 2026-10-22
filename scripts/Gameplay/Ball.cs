@@ -214,6 +214,14 @@ public partial class Ball : RigidBody3D
         bool first = netTarget == Vector3.Zero;
         netTarget = position;
         if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
+        // Client : Hold et Release ne tournent que chez l'hôte, les effets de prise et de lancer partent des changements d'état.
+        if (!first && held && !IsHeld)
+        {
+            bool steal = OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed;
+            bool fromAlly = !steal && OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != ownerId && LinearVelocity.Length() > 1f;
+            Visual.BallFx.Caught(this, GlobalPosition, LinearVelocity, team, steal ? Visual.BallFx.Catch.Steal : fromAlly ? Visual.BallFx.Catch.Pass : Visual.BallFx.Catch.Pickup, false);
+        }
+        else if (!first && !held && IsHeld) Visual.BallFx.Thrown(this, position, velocity, team, charge, ThrowMode);
         LinearVelocity = velocity;
         OwnerTeam = team;
         OwnerPlayerId = ownerId;
@@ -256,6 +264,7 @@ public partial class Ball : RigidBody3D
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
         bool fromAlly = OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId;
+        CatchFx(team, playerId, perfect);
         int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect);
         if (next != Charge) { ResetCharge(); for (int i = 0; i < next; i++) AddCharge(); }
         EndArc();
@@ -292,6 +301,17 @@ public partial class Ball : RigidBody3D
         GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
         if (kind == KindBomb && velocity.Length() < LobHitMinSpeed) Spent();   // lâchée sans élan (tacle, KO) : bombe neutre, pas d'explosion aux pieds
         Released?.Invoke(this);
+        Visual.BallFx.Thrown(this, GlobalPosition, velocity, OwnerTeam, Charge, mode);   // lâcher sans élan (KO, bot) : rien
+    }
+
+    /// <summary>Effet de prise (BallFx), avant que la balle ne passe dans la main : tir adverse, passe d'un allié ou ramassage.</summary>
+    void CatchFx(int team, int playerId, bool perfect)
+    {
+        if (!IsInsideTree()) return;
+        bool steal = OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed;
+        bool pass = !steal && OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId && LinearVelocity.Length() > 1f;
+        var how = steal ? Visual.BallFx.Catch.Steal : pass ? Visual.BallFx.Catch.Pass : Visual.BallFx.Catch.Pickup;
+        Visual.BallFx.Caught(this, GlobalPosition, LinearVelocity, team, how, perfect);
     }
 
     /// <summary>La balle a touché : elle devient neutre (plus personne n'est blessé tant qu'elle n'est pas reprise).</summary>

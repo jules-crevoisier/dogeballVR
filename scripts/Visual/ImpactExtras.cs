@@ -69,7 +69,7 @@ public static class ImpactExtras
     };
 
     /// <summary>Étoile d'impact dentelée face caméra : jaillit en 0,05 s, tient, puis s'efface ; derrière l'éclat blanc d'ImpactFx.</summary>
-    static void Burst(Node context, Vector3 pos, Color color, float size, float duration, float spin)
+    internal static void Burst(Node context, Vector3 pos, Color color, float size, float duration, float spin)
     {
         if (UI.GameSettings.ReduceFlashes) size *= 0.6f;
         burstMesh ??= BurstMesh();
@@ -88,7 +88,7 @@ public static class ImpactExtras
     }
 
     /// <summary>Traits de vitesse rayonnants (plan face caméra) qui s'écartent et s'amincissent.</summary>
-    static void Streaks(Node context, Vector3 pos, Color color, float size, float duration)
+    internal static void Streaks(Node context, Vector3 pos, Color color, float size, float duration)
     {
         streakMesh ??= StreakMesh();
         var mat = Unlit(color.Lerp(Colors.White, 0.55f), true);

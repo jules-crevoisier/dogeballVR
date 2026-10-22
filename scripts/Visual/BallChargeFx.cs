@@ -103,6 +103,7 @@ public partial class BallChargeFx : Node3D
     /// <summary>Couleurs et quantités du palier : équipe du porteur, rose vif au palier max.</summary>
     void Restyle(int charge)
     {
+        bool up = charge > shownCharge && shownCharge >= 0 && !ChargeTest;
         shownCharge = charge;
         shownTeam = Ball.OwnerTeam;
         bool on = charge > 0;
@@ -116,5 +117,6 @@ public partial class BallChargeFx : Node3D
         sparks.ColorRamp = ramp;
         sparks.Amount = charge >= Gameplay.Ball.MaxCharge ? 24 : charge == 2 ? 12 : 6;
         sparks.Emitting = on;
+        if (up) BallFx.ChargeUp(this, Ball.GlobalPosition, c, charge);   // palier gagné : onde et gerbe
     }
 }
