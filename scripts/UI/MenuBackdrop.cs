@@ -28,6 +28,9 @@ public partial class MenuBackdrop : Node3D
             var arena = ArenaBuilder.Build(map, -1, true);
             AddChild(arena.Root);
             ClearShot(arena.Root, CamPos, new Vector3(-2.8f, 1.2f, -9.9f));
+            // Distributeur juste devant la caméra : son plot hexagonal faisait une grosse dalle grise plate au premier plan.
+            foreach (var n in arena.Root.FindChildren("*", "", true, false))
+                if (n is PickupBeacon pb && pb.GetParent() is Node3D stand && stand.GlobalPosition.DistanceTo(CamPos) < 7f) stand.Visible = false;
         }
 
         // Héros orange au premier plan, de trois quarts, balle levée derrière la tête.
@@ -64,10 +67,48 @@ public partial class MenuBackdrop : Node3D
             hero.PlayAction("Celebration", double.MaxValue);
             held.Visible = false;
         }
+        // Au fond, plus personne au repos (le « Repos » du modèle est presque une pose en A, figée de loin) : chacun enchaîne
+        // des gestes calés sur la balle. Le coéquipier lance quand elle part, le rival attrape quand elle arrive, et entre deux,
+        // ils restent fléchis, prêts (milieu de l'esquive, tenu). Le troisième esquive puis attrape à contretemps.
+        Choreograph(mate, (Cycle - ThrowRelease, "Lancer", 0.6), (1.0, "Esquive", 0.36));
+        Choreograph(rival, (Flight - CatchAt, "Attrape", 0.4), (0.5, "Esquive", 0.36));
+        Choreograph(other, (0.6, "Esquive", 0.4), (2.0, "Attrape", 0.3));
 
         camera = new Camera3D { Fov = 62f, Current = true, Near = 0.05f };
         AddChild(camera);
         PoseAll(0);
+    }
+
+    const double Cycle = 3.2, Flight = 2.4;          // un tir toutes les 3,2 s, 2,4 s de vol
+    const double ThrowRelease = 0.48, CatchAt = 0.35;  // instant du lâcher dans « Lancer », de la prise dans « Attrape »
+
+    readonly System.Collections.Generic.List<(AnimationPlayer ap, (double at, string anim, double hold)[] cues)> loops = new();
+
+    /// <summary>
+    /// Gestes joués à des instants fixes du cycle de la balle, chacun figé à l'instant « hold » jusqu'au suivant : les
+    /// animations du modèle finissent toutes droites, bras le long du corps, et l'on veut des joueurs en action.
+    /// </summary>
+    void Choreograph(Avatar a, params (double at, string anim, double hold)[] cues)
+    {
+        if (a.FindChild("AnimationPlayer", true, false) is not AnimationPlayer ap) return;
+        foreach (var (_, anim, _) in cues) if (!ap.HasAnimation(anim)) return;
+        a.PlayAction(cues[^1].anim, double.MaxValue);   // l'Avatar ne reprend plus la main (repos ou course)
+        ap.SpeedScale = 0f;                              // le temps de l'animation est fixé ici, image par image
+        System.Array.Sort(cues, (x, y) => x.at.CompareTo(y.at));
+        loops.Add((ap, cues));
+    }
+
+    void RunLoops(double time)
+    {
+        double p = time % Cycle;
+        foreach (var (ap, cues) in loops)
+        {
+            var (at, anim, hold) = cues[^1];   // avant le premier repère : le dernier geste du cycle précédent continue
+            foreach (var c in cues) if (c.at <= p) (at, anim, hold) = c;
+            double since = Mathf.PosMod(p - at, Cycle);
+            if (ap.AssignedAnimation != anim) ap.Play(anim);
+            ap.Seek(Mathf.Min(since, hold), true);
+        }
     }
 
     void PoseAll(double time)
@@ -111,9 +152,10 @@ public partial class MenuBackdrop : Node3D
     public override void _Process(double delta)
     {
         t += delta;
+        RunLoops(t);
         PoseAll(t);
-        // La balle part de la main du héros vers le rival, en boucle (2,4 s), avec une légère cloche.
-        double cycle = (t % 3.2) / 2.4;
+        // La balle part du coéquipier vers le rival, en boucle (2,4 s de vol toutes les 3,2 s), avec une légère cloche.
+        double cycle = (t % Cycle) / Flight;
         if (ball != null)
         {
             if (cycle < 1.0)
