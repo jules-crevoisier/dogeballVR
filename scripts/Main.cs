@@ -106,6 +106,7 @@ public partial class Main : Node3D
         UI.GameSettings.Apply(xrActive ? null : GetViewport());
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
+        Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
