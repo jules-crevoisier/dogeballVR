@@ -22,6 +22,9 @@ public class NetConfig
     /// <summary>Nom de la map (dossier maps/). L'hôte et les clients doivent utiliser la même.</summary>
     public string Map { get; private set; } = "neon_court";
 
+    /// <summary>Choix fait depuis le menu principal.</summary>
+    public void Choose(NetMode mode, string address = "127.0.0.1") { Mode = mode; Address = address; Map = "croix_neon"; }
+
     public static NetConfig Parse()
     {
         var cfg = new NetConfig();

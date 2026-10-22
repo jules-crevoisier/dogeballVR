@@ -48,7 +48,7 @@ public partial class RemotePlayer : Node3D
 
     public override void _Ready()
     {
-        Avatar = Avatar.Create(Team, bot: false);
+        Avatar = Avatar.Create(Team, bot: false, PlayerId);
         AddChild(Avatar);
         Body = new Node3D { Name = "Body" };
         AddChild(Body);

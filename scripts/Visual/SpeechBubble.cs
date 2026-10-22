@@ -14,7 +14,7 @@ public partial class SpeechBubble : Label3D
         var b = new SpeechBubble
         {
             Text = text, FontSize = 96, PixelSize = 0.0035f, Modulate = color, OutlineModulate = Palette.Panel, OutlineSize = 24,
-            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, NoDepthTest = true,
+            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, NoDepthTest = true, Font = GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf"),
         };
         scene.AddChild(b);
         b.GlobalPosition = position;

@@ -40,10 +40,25 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
+        Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
+        bool forceMenu = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0;   // captures du menu
+        if (!xrActive && DisplayServer.GetName() != "headless" && (forceMenu || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
+        {
+            var menu = new Visual.MainMenu { Name = "MainMenu" };
+            menu.Chosen += (mode, address) => { menu.QueueFree(); cfg.Choose(mode, address); StartMatch(xrActive); };
+            AddChild(menu);
+            return;
+        }
+        StartMatch(xrActive);
+    }
+
+    void StartMatch(bool xrActive)
+    {
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";

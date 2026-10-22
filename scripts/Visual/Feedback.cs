@@ -21,6 +21,9 @@ public partial class Feedback : Node
     record struct BallState(bool Held, int Charge, int Owner, bool Pass, float Speed, Vector3 Pos);
     readonly Dictionary<Ball, BallState> balls = new();
     readonly Dictionary<Hurtbox, bool> eliminated = new();
+    readonly Dictionary<Hurtbox, int> lastLives = new();
+    static readonly string[] HitWords = { "POW !", "BAM !", "WHAM !", "BOUM !" };
+    int wordIndex;
     readonly HashSet<Hurtbox> withHearts = new();
     ColorRect? gray;
 
@@ -58,6 +61,7 @@ public partial class Feedback : Node
                 else if (cur.Held && cur.Charge > prev.Charge) Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
                 if (!prev.Pass && cur.Pass && cur.Owner >= 0) SpeechBubble.Spawn(this, "PASSE !", pos + new Vector3(0, 0.5f, 0), Palette.Team(cur.Owner));
             }
+            if (cur.Speed > 7f && !cur.Held) Juice.TrailGhost(this, pos, cur.Charge >= 2 ? new Color(1f, 0.35f, 0.75f) : new Color(1f, 0.85f, 0.3f), 0.1f + 0.03f * cur.Charge);
             balls[ball] = cur;
         }
         foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) balls.Remove(dead);
@@ -72,11 +76,26 @@ public partial class Feedback : Node
                 hearts.Follow = h;
                 AddChild(hearts);
             }
+            int lives = Lives(h.PlayerId);
+            if (lastLives.TryGetValue(h, out var before) && lives < before && !h.Eliminated)
+            {
+                var hit = h.GlobalPosition + new Vector3(0, 1.2f, 0);
+                var teamColor = Palette.Team(h.Team);
+                Juice.Burst(this, hit, teamColor);
+                Juice.Shock(this, hit, Colors.White);
+                SpeechBubble.Spawn(this, HitWords[wordIndex++ % HitWords.Length], hit + new Vector3(0, 0.4f, 0), Colors.White);
+                Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
+                Juice.HitStop(this, h == Local ? 0.09f : 0.06f);
+            }
+            lastLives[h] = lives;
             bool was = eliminated.TryGetValue(h, out var w) && w;
             if (h.Eliminated && !was)
             {
                 var pos = h.GlobalPosition + new Vector3(0, 0.9f, 0);
                 SpeechBubble.Spawn(this, "KO !", pos, Palette.Team(h.Team));
+                Juice.Burst(this, pos, Palette.Team(h.Team), 60, 8f);
+                Juice.Shock(this, pos, Palette.Team(h.Team), 2.2f);
+                Juice.HitStop(this, 0.12f, 0.08f);
                 Sfx.Play(this, SfxKind.Ko, pos);
             }
             eliminated[h] = h.Eliminated;
