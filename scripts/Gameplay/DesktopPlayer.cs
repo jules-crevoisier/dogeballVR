@@ -1102,6 +1102,9 @@ public partial class DesktopPlayer : Node3D
 
     // ---------------------------------------------------------------- mode test
 
+    /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
+    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
+
     PcInput AutoplayInput(double delta)
     {
         var input = new PcInput();
@@ -1151,7 +1154,9 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() < 10f) continue;
                 var rel = head.GlobalPosition - b.GlobalPosition;
-                if (rel.Length() < 6f && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
+                // --bande-annonce : appui au dernier moment, dans la fenêtre d'attrape parfaite (la balle gagne un palier à chaque échange)
+                float reach = TrailerTakes ? b.LinearVelocity.Length() * (float)PerfectCatchWindow * 0.8f + 0.6f : 6f;
+                if (rel.Length() < reach && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
             }
 
         // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche. Pas avant le « GO ! » : un lancer relâché
