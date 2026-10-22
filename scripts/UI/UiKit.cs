@@ -187,12 +187,11 @@ public static class UiKit
     /// <summary>Voile plein écran derrière un menu : le jeu flouté puis teinté bleu nuit (alpha = force de la teinte).</summary>
     public static ColorRect Dim(float alpha = 0.6f)
     {
-        var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = blurMaterial ??= BlurMaterial() };
+        var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = BlurMaterial() };   // pas de cache static : un ShaderMaterial gardé en static fuit à la fermeture
         r.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         return r;
     }
 
-    static ShaderMaterial? blurMaterial;
     static ShaderMaterial BlurMaterial() => new()
     {
         Shader = new Shader
