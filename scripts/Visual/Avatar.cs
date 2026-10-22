@@ -57,6 +57,7 @@ public partial class Avatar : Node3D
     double steadyFor;
     float crouchDrop;            // descente de la tête du modèle (m, monde) : accroupi
     float modelScale = 1f;       // modèle à la taille du joueur (0,8 à 1,2)
+    Vector3 lastBallAt;          // dernière position de la balle tenue (fondu de l'armé après le lâcher)
     float headFix;               // correction du bassin qui ramène la tête du modèle sur la vraie tête (accroupi)
     float trackL = 1f, trackR = 1f;   // bras suivis (0 : manette perdue)
     bool airborne;               // tête au-dessus de la taille debout : saut
@@ -545,7 +546,9 @@ public partial class Avatar : Node3D
         {
             // La main droite tient la balle là où elle est (bot : près de l'oreille ; joueur PC : point de visée de DesktopPlayer).
             var shoulder = Shoulder(headPos, 1f);
-            var ball = heldBall!.GlobalPosition;
+            // Balle partie (fondu de sortie de l'armé, sans coup de bras) : dernière position tenue.
+            if (holding) lastBallAt = heldBall!.GlobalPosition;
+            var ball = lastBallAt;
             var toBall = ball - shoulder;
             ik.RightTarget = ball - (toBall.LengthSquared() > 1e-4f ? toBall.Normalized() * BallGrip * s : Vector3.Zero);
             ik.RightElbowOut = Mathf.SmoothStep(-0.05f * s, 0.2f * s, ball.Y - shoulder.Y);
