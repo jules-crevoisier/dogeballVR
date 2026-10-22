@@ -66,7 +66,7 @@ public partial class ClientWorld : Node3D
                 AddChild(avatar);
                 avatars[p.Id] = avatar;
                 poseTargets[p.Id] = p.Pose;
-                avatar.Pose(p.Pose.Head, p.Pose.Yaw, p.Pose.Left, p.Pose.Right);
+                avatar.Pose(p.Pose.Head, p.Pose.Yaw, p.Pose.Left, p.Pose.Right, p.Pose.Elevation);
                 var marker = new Hurtbox { Name = $"Aim{p.Id}", PlayerId = p.Id, Team = team, Passive = true };
                 AddChild(marker);
                 aimTargets[p.Id] = marker;
@@ -158,7 +158,7 @@ public partial class ClientWorld : Node3D
             var cur = new PoseData(avatar.Head.Position, avatar.Head.Rotation.Y, avatar.LeftHand.Position, avatar.RightHand.Position);
             var sampled = clockKnown ? Sample(id, renderTime) : null;
             var next = sampled is { } s ? cur.Lerp(s, tFine) : cur.Lerp(poseTargets[id], t);
-            avatar.Pose(next.Head, next.Yaw, next.Left, next.Right);
+            avatar.Pose(next.Head, next.Yaw, next.Left, next.Right, sampled?.Elevation ?? poseTargets[id].Elevation);   // sol de la pose (l'état courant de l'avatar n'a pas d'altitude)
         }
     }
 }

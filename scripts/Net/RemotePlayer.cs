@@ -53,7 +53,7 @@ public partial class RemotePlayer : Node3D
         Body = new Node3D { Name = "Body" };
         AddChild(Body);
         SetPose(StartPose);
-        Avatar.Pose(StartPose.Head, StartPose.Yaw, StartPose.Left, StartPose.Right);
+        Avatar.Pose(StartPose.Head, StartPose.Yaw, StartPose.Left, StartPose.Right, StartPose.Elevation);
         Hurtbox = new Hurtbox { Name = $"Hurtbox{PlayerId}", PlayerId = PlayerId, Team = Team, Head = Avatar.Head, HitGraceSeconds = Assist.HitGraceSeconds };   // VR et PC : une prise partie juste avant la touche chez le client doit compter
         AddChild(Hurtbox);
     }
@@ -91,7 +91,7 @@ public partial class RemotePlayer : Node3D
     {
         if (!hasPose) return;
         current = current.Lerp(target, 1f - Mathf.Exp(-25f * (float)delta));
-        Avatar.Pose(current.Head, current.Yaw, current.Left, current.Right);
+        Avatar.Pose(current.Head, current.Yaw, current.Left, current.Right, current.Elevation);
         Body.Position = new Vector3(current.Head.X, current.Elevation, current.Head.Z);
         Hurtbox.Elevation = current.Elevation;
         Hurtbox.DashInvulnerable = Time.GetTicksMsec() / 1000.0 < DashUntil;

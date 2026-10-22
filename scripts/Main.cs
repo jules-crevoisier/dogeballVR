@@ -118,6 +118,7 @@ public partial class Main : Node3D
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
         if (Tools.DevFlags.Has("--assist-test")) { AddChild(new AssistSelfTest()); return; }
+        if (Tools.DevFlags.Has("--avatar-test")) { AddChild(new Visual.AvatarSelfTest { Name = "AvatarSelfTest" }); return; }
         // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
         {

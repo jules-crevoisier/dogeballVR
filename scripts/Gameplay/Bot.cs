@@ -91,10 +91,11 @@ public partial class Bot : Node3D
     public override void _Ready()
     {
         rng.Randomize();
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
-        AddChild(holdPoint);
         Avatar = Avatar.Create(Hurtbox.Team, bot: true, Hurtbox.PlayerId);
         AddChild(Avatar);
+        // Balle tenue dans la main armée de l'avatar (pose d'armé), qui tourne avec lui vers sa cible.
+        holdPoint = new Node3D { Name = "HoldPoint", Position = Avatar.ArmedBall };
+        Avatar.AddChild(holdPoint);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);
     }
