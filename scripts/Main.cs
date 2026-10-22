@@ -218,22 +218,24 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// Sécurité VR : près du bord de la zone physique, les deux manettes vibrent (plus fort et plus souvent à mesure qu'on
-    /// approche) et un son court part toutes les 1,5 s. Le mur de limite ne se voit que si l'on regarde devant soi ;
-    /// la vibration prévient aussi en reculant ou en tournant le dos au bord.
+    /// Sécurité VR : près du bord de la zone physique, les deux manettes vibrent (impulsions longues et douces, de plus en plus
+    /// serrées) et un clic grave part toutes les 1,5 s. Le mur de limite ne se voit que si l'on regarde devant soi ;
+    /// la vibration prévient aussi en reculant ou en tournant le dos au bord. Motif distinct des impulsions courtes de
+    /// l'alerte de tir, qui garde la main quand un tir arrive, sauf tout près du bord (0,3 m).
     /// </summary>
     void WarnEdgeVr(float distance, double now, ref double lastPulse, ref double lastSound)
     {
         float closeness = 1f - Mathf.Clamp(distance / Mathf.Max(map.EdgeWarningDistance, 0.01f), 0f, 1f);
-        if (now - lastPulse >= Mathf.Lerp(0.5f, 0.15f, closeness))
+        bool shotIncoming = Visual.ThreatIndicator.LocalTimeToImpact < Visual.ThreatIndicator.WarnSeconds;
+        if ((!shotIncoming || distance < 0.3f) && now - lastPulse >= Mathf.Lerp(0.6f, 0.3f, closeness))
         {
             lastPulse = now;
-            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.3f, 0.9f, closeness), 0.08f);
+            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.25f, 0.6f, closeness), 0.25f);
         }
         if (now - lastSound >= 1.5)
         {
             lastSound = now;
-            Audio.Sfx.Play(this, Audio.SfxKind.UiBack, volumeDb: -4f);
+            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f);   // bus SFX : le volume des menus ne le coupe pas
         }
     }
 
@@ -247,10 +249,18 @@ public partial class Main : Node3D
             var camera = new XRCamera3D { Name = "XRCamera3D" };
             var left = new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = localHurtbox };
             var right = new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = localHurtbox };
-            // Le joueur voit ses mains : sans elles, on ne sait pas où est la main par rapport à la balle à attraper.
-            left.AddChild(Visual.Avatar.Glove());
-            right.AddChild(Visual.Avatar.Glove());
             origin.AddChild(camera);
+            // Le joueur voit ses mains : sans elles, on ne sait pas où est la main par rapport à la balle à attraper.
+            // Gant posé sur la pose « grip » (la paume), pas sur la pose par défaut des HandThrower (pointe de la manette).
+            // Orientation à régler au casque.
+            foreach (var tracker in new[] { "left_hand", "right_hand" })
+            {
+                var grip = new Xr.GripGlove { Name = tracker == "left_hand" ? "LeftGlove" : "RightGlove", Tracker = tracker };
+                var glove = Visual.Avatar.Glove();
+                if (tracker == "left_hand") glove.Scale = new Vector3(-1, 1, 1);   // main gauche : gant en miroir (pouce côté droit)
+                grip.AddChild(glove);
+                origin.AddChild(grip);
+            }
             origin.AddChild(left);
             origin.AddChild(right);
             localHurtbox.Head = camera;
@@ -598,7 +608,7 @@ public partial class Main : Node3D
         if (left != null)
         {
             var hearts = Visual.HeartsDisplay.Create(() => lives(localZone.Id), maxLives, Visual.Palette.Team(localZone.Team), 0.0007f, false);
-            hearts.Position = new Vector3(0, 0.08f, 0.04f);
+            hearts.Position = new Vector3(0, 0.14f, 0.04f);   // au-dessus du gant (paume vers 0,09-0,11 m)
             hearts.RotationDegrees = new Vector3(-90, 0, 0);
             left.AddChild(hearts);
         }

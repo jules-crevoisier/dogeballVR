@@ -47,6 +47,8 @@ public partial class LiftController : Node
 
     float standing = DefaultStanding;
     bool measured;
+    float steadyHead;
+    double steadyFor;
     State state = State.Low;
     double holdTimer, stateTimer, cooldown;
     bool applied;
@@ -60,8 +62,7 @@ public partial class LiftController : Node
                 cooldown -= dt;
                 bool onPad = new Vector2(HeadPosition().X - Lift.Pad.X, HeadPosition().Z - Lift.Pad.Z).Length() < Lift.Pad.Radius;
                 float head = HeadHeight();
-                // Hauteur debout = la plus haute tête vue (la première mesure remplace la valeur par défaut).
-                if (head > 0.5f && (!measured || head > standing)) { standing = Mathf.Min(head, 2.1f); measured = true; }
+                MeasureStanding(head, dt);
                 bool ready = cooldown <= 0 && onPad && head < CrouchThreshold(standing) && !Locked() && !Eliminated();
                 holdTimer = ready ? holdTimer + dt : 0;
                 if (holdTimer >= Rules.HoldCrouchSeconds) StartMove(State.FadingUp);
@@ -76,6 +77,19 @@ public partial class LiftController : Node
                 if (stateTimer >= Lift.MaxHighSeconds || forced) StartMove(State.FadingDown);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Hauteur debout = la plus haute tête tenue immobile (à 3 cm près) pendant 0,5 s : un saut ou un casque levé à bout de bras
+    /// ne compte pas. La première tenue remplace la valeur par défaut.
+    /// </summary>
+    void MeasureStanding(float head, double dt)
+    {
+        if (Mathf.Abs(head - steadyHead) > 0.03f) { steadyHead = head; steadyFor = 0; return; }
+        steadyFor += dt;
+        if (steadyFor < 0.5 || head < 0.5f || (measured && head <= standing)) return;
+        standing = Mathf.Min(head, 2.1f);
+        measured = true;
     }
 
     void StartMove(State next)

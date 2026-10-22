@@ -32,9 +32,17 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 - Connus : une fenêtre d'environ 0,2 s où deux coéquipiers peuvent monter ensemble (pas de réservation côté hôte), l'accroupi d'1 s et le verrou de balle chargée ne sont vérifiés que côté client, rien ne réinitialise le lift entre manches, les bots n'utilisent pas le lift.
 - Revue La Fosse 3 : le pad est testé sur la tête acceptée (après zone et vitesse), l'état du lift ne change plus sur un paquet de pose ignoré (anti-inondation), cas « tête spoofée sur le pad » ajouté au test CI.
 - Revue La Fosse 4 : la recharge du lift est tenue par zone (une reconnexion ne la remet pas à zéro), l'hôte exige un accroupi tenu 0,8 s sur le pad avant de monter, marge de durée de 1 s.
-- Toujours non fait : verrou « balle chargée » côté hôte, seuil d'accroupi relatif à la taille du joueur (borne d'arcade : un enfant peut déclencher le lift debout), remise à zéro du lift entre manches, bots qui utilisent le lift, mesure sur casque.
+- Toujours non fait : verrou « balle chargée » côté hôte, remise à zéro du lift entre manches, bots qui utilisent le lift, mesure sur casque.
 - Revue La Fosse 5 : la recharge du lift démarre aussi si le joueur part en haut. L'accroupi est lu sur la hauteur de tête envoyée par le client : il protège d'un bug, pas d'un client modifié (limite assumée, bornée à 6 s toutes les 18 s sur le pad).
-- Audit du 22/10 (sécurité VR) : le seuil d'accroupi du lift suit la taille du joueur (72 % de la plus haute tête vue, entre 0,6 et 1,2 m ; 1,15 m pour l'adulte moyen). En VR, le garde-corps n'est plus qu'une ligne au sol (sa collision invisible retient toujours les balles) : il était posé sur la limite de la zone physique, et un joueur qui s'y appuie n'a rien pour le retenir. À valider au casque.
+- Audit du 22/10 (sécurité VR) : le seuil d'accroupi du lift suit la taille du joueur : 72 % de la plus haute tête tenue immobile 0,5 s (un saut ne compte pas), entre 0,6 et 1,2 m, soit 1,15 m pour l'adulte moyen. En VR, le garde-corps n'est plus qu'une ligne au sol, sans collision : il était posé sur la limite de la zone physique, et un joueur qui s'y appuie n'a rien pour le retenir ; une balle qui passe le bord tombe et revient par le recyclage. À valider au casque.
+
+## Sécurité VR en salle (audit du 22/10)
+
+- **Mains** : un gant (modèle `main`, en miroir à gauche) suit la pose « grip » de chaque manette, c'est-à-dire la paume. Les cœurs restent au dos de la main gauche, au-dessus du gant. Orientation à régler au casque.
+- **Balle neutre sans moyeu** (Néon court, La Fosse) : elle tombe à la verticale au-dessus d'une zone occupée de l'équipe menée, celle qui a le moins de balles (à tour de rôle à égalité), hors des couverts. Avant, elle tombait sur la jonction entre deux zones de coéquipiers, et les deux joueurs marchaient vers le même point ; un lob vers le centre de la zone, essayé d'abord, rebondissait jusqu'au mur, hors de la zone physique.
+- **Bord de zone** : à moins de `edgeWarningDistance` du bord (1,5 m sur les cartes de jeu), les deux manettes vibrent par impulsions longues et douces, de plus en plus serrées, et un clic grave part toutes les 1,5 s. Quand un tir arrive, l'alerte de tir garde les vibrations, sauf à moins de 0,3 m du bord.
+- **Échange de plaques** : coupé en VR (voir « Échanges de plaques »).
+- **Non fait** : l'écart entre les zones de joueurs adverses (0 m sur la démo 2v2 et Tour 4v4) dépend du plan de la salle EVA ; la balle tenue d'un client VR n'est pas recalée sur la main locale (elle suit la pose renvoyée par l'hôte).
 
 ## Clavier-souris (joueur PC)
 - Inspiré des commandes de Knockout City : ZQSD/WASD, Maj sprint (7,5 m/s contre 5,5 de marche, 3,8 en armant un lancer), Espace saut (~0,5 m), Ctrl/C accroupi, E esquive (10 m/s pendant 0,18 s, recharge 1,2 s), souris pour viser. Accélération courte (pas de glissade).
@@ -62,8 +70,6 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 - **PC libre** : caméra à la 3e personne (épaule droite, 3 m), course constante 7,5 m/s sans sprint, saut d'environ 1 m, déplacement sur toute l'arène (bornes ±0,5 m), pylône central plein.
 - **Dash** : Maj, 4 m en 0,2 s, 2 charges, 1,6 s de recharge par charge, invulnérable pendant l'impulsion (`Hurtbox.DashInvulnerable`).
 - **Moyeu** : un lanceur envoie une balle neutre toutes les 6 s vers le plateau qui en a le moins (l'équipe menée gagne les égalités).
-- **Balle neutre sans moyeu** (Néon court, La Fosse) : depuis l'audit du 22/10, elle vise le centre d'une zone de l'équipe menée, à tour de rôle. Avant, elle tombait sur la jonction entre deux zones de coéquipiers, et les deux joueurs marchaient vers le même point.
-- **Bord de zone en VR** : en approchant du bord (1 m), les deux manettes vibrent, plus fort et plus souvent près du bord, avec un son court toutes les 1,5 s.
 - **Réseau** : l'hôte valide la pose avec les bornes de l'arène entière, course 9 m/s (26 m/s pendant un dash validé : 2 charges tenues par l’hôte, 1,6 s chacune, compteur de dashs dans la pose, invulnérabilité côté hôte 0,3 s), vitesse verticale 5,5 m/s, tête sous 2,9 m ; retour de KO : l’hôte remet la copie au point d’apparition et ignore les poses du client éloignées de plus de 3 m pendant 1,5 s au plus (`NetSession.FreeRoam`). Les valeurs VR gardent leurs plafonds.
 - **Pas encore fait** (phases suivantes) : passes, feinte, effet, lob, attrape parfaite, KO au palier 2, gouffre et tremplins (cartes B et C), rotor, échanges de plateaux, balles spéciales. Les bots restent des tireurs fixes sur leur plateau.
 - **Test** : `--map=croix_neon --pc-autoplay` en solo et en réseau (étape CI « jeu libre Croix Néon »).

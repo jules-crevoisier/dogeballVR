@@ -254,16 +254,20 @@ public static class ArenaBuilder
         platform.AddChild(slab);
         // Garde-corps du bord avant (côté adverse) : 0,9 m, il retient les balles et sert d'appui visuel en hauteur.
         // Sécurité VR : il est posé exactement sur la limite de la zone physique et rien ne le porte dans la salle ;
-        // un joueur en casque qui s'y appuierait tomberait au-delà de sa zone. En VR on ne montre qu'une ligne au sol,
-        // la collision (invisible) retient toujours les balles.
+        // un joueur en casque qui s'y appuierait tomberait au-delà de sa zone. En VR il n'en reste qu'une ligne au sol,
+        // sans collision (une barre invisible ferait rebondir les balles sur du vide) : une balle qui passe le bord tombe
+        // et revient par le recyclage.
         float rail = map.LiftRules.RailingHeight;
         if (rail > 0f)
         {
             var railSize = new Vector3(map.ZoneWidth, rail, 0.06f);
             var railing = new StaticBody3D { Name = "GardeCorps", Basis = basis, Position = zone.Center + basis * new Vector3(0, rail * 0.5f, -map.ZoneDepth * 0.5f) };
-            if (pcProfile) railing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = railSize }, MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+            if (pcProfile)
+            {
+                railing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = railSize }, MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+                railing.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = railSize } });
+            }
             else railing.AddChild(new MeshInstance3D { Name = "LigneDeBord", Mesh = new BoxMesh { Size = new Vector3(map.ZoneWidth, 0.02f, 0.1f) }, Position = new Vector3(0, -rail * 0.5f + 0.01f, 0), MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
-            railing.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = railSize } });
             platform.AddChild(railing);
         }
         platform.AddChild(new MeshInstance3D
