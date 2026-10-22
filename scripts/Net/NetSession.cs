@@ -694,13 +694,27 @@ public partial class NetSession : Node
     {
         if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
-        if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) { CatchRefused(remote, "bras pris ou main pleine"); return; }   // une seule balle par joueur
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
-            if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
+            if (n is not Ball ball || ball.NetId != ballId) continue;
+            if (ball.IsHeld || ball.IsQueuedForDeletion()) { CatchRefused(remote, "balle déjà prise ou disparue"); return; }
+            if (remote.Hurtbox.LastHitBall == ball && catchNow - remote.Hurtbox.LastHitAt < 0.5)
+                GD.Print($"[Net] Prise arrivée {(catchNow - remote.Hurtbox.LastHitAt) * 1000:0} ms après la touche pour la zone {remote.Hurtbox.PlayerId}");
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
-            if (!Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            // La copie de l'hôte suit le client avec un lissage (et sa latence) : la main est aussi jugée à la dernière pose reçue,
+            // sinon un joueur qui court vers une balle au sol se la voit refuser à 1,3 m (mesuré : un tiers des refus à 0 ms).
+            var t = remote.TargetPose;
+            var handLatest = remote.Avatar.GlobalTransform * (hand == 0 ? t.Left : t.Right);
+            float ballSpeed = ball.LinearVelocity.Length();
+            // Ramassage d'une balle lente au sol (joueur PC) : jugé depuis les pieds, comme chez le client (point de ramassage à 0,9 m).
+            bool scoop = ballSpeed < 3.5f && ball.GlobalPosition.DistanceTo(remote.Avatar.GlobalTransform * (t.Head + Vector3.Down * 0.85f)) <= 1.5f;
+            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ballSpeed) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ballSpeed))
+            {
+                CatchRefused(remote, $"balle à {Mathf.Min(ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition), ball.GlobalPosition.DistanceTo(handLatest)):0.0} m de la main à {ballSpeed:0} m/s");
+                return;
+            }
             if (ball.IsPass && ball.OwnerTeam != remote.Hurtbox.Team) return;   // une passe ne s'intercepte pas (phase 2)
             // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
@@ -715,6 +729,9 @@ public partial class NetSession : Node
             return;
         }
     }
+
+    /// <summary>Prise demandée par un client et refusée : journal (réglage de la compensation de latence).</summary>
+    static void CatchRefused(RemotePlayer remote, string why) => GD.Print($"[Net] Prise refusée pour la zone {remote.Hurtbox.PlayerId} : {why}");
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ParryRpc(int ballId, int hand, Vector3 normal)
