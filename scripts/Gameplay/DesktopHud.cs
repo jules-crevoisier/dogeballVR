@@ -1649,7 +1649,7 @@ public partial class DesktopHud : CanvasLayer
             GD.Print($"[HUD] {s.Phase} : manche {s.Round}/{s.MaxRounds}, manches {s.Rounds0}-{s.Rounds1}, KO {s.Kos0}-{s.Kos1}, gagnant {s.Winner}{(View.HasStats ? "" : " (client)")}");
 
         // Touché : flash crème du côté du coup (0,3 s) ; le cœur perdu se brise près des cœurs (UpdateHearts).
-        if (n < lastLives && n >= 0) { HurtFrom(); if (hudTest) vignette.From = Vector2.Left; vignette.Strength = 1f; }
+        if (n < lastLives && n >= 0) { HurtFrom(); if (hudTest) vignette.From = Vector2.Left; vignette.Strength = GameSettings.ReduceFlashes ? 0.4f : 1f; }
         lastLives = n;
         vignette.Strength = Mathf.Max(0, vignette.Strength - (float)delta / 0.3f);
         vignette.QueueRedraw();

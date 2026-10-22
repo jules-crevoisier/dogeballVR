@@ -27,6 +27,8 @@ public partial class PlayerTag : Node3D
     static Font? font;
     static readonly List<PlayerTag> all = new();
     Label3D nameLabel = null!, hearts = null!;
+    Sprite3D symbol = null!;   // option daltonisme : rond pour l'équipe orange, triangle pour la bleue, à gauche du nom
+    float nameEm = 1f;
     string lastHearts = "", lastName = "";
     bool? throughWalls;
     float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 24 px pour un adversaire)
@@ -76,6 +78,12 @@ public partial class PlayerTag : Node3D
             FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 44, Modulate = color, OutlineModulate = Palette.Panel,
             VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * (28f / 24f),
         };
+        symbol = new Sprite3D
+        {
+            Texture = SymbolTexture(Target.Team), PixelSize = 0.9f / 64f, Modulate = color, Shaded = false, RenderPriority = 1,
+            Billboard = BaseMaterial3D.BillboardModeEnum.Disabled, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps, Visible = false,
+        };
+        AddChild(symbol);
         foreach (var l in new[] { nameLabel, hearts })
         {
             l.Billboard = BaseMaterial3D.BillboardModeEnum.Disabled;
@@ -114,7 +122,7 @@ public partial class PlayerTag : Node3D
         {
             nameLabel.Text = n;
             lastName = n;
-            float nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.65f;
+            nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.65f;
             widthEm = Mathf.Max(nameEm, Max * 0.85f * (28f / 24f) + 0.7f);
         }
         unitPx = 24f * k * GetViewport().GetVisibleRect().Size.Y / 720f;
@@ -123,7 +131,36 @@ public partial class PlayerTag : Node3D
         if (t != lastHearts) { hearts.Text = t; lastHearts = t; }
         SetAlpha(nameLabel, alpha);
         SetAlpha(hearts, alpha);
+        symbol.Visible = UI.GameSettings.TeamSymbols;
+        if (symbol.Visible)
+        {
+            symbol.Position = new Vector3(-(nameEm / 2f + 0.5f), 1.05f + 0.45f, 0);
+            symbol.NoDepthTest = nameLabel.NoDepthTest;
+            var sm = symbol.Modulate; sm.A = alpha; symbol.Modulate = sm;
+        }
         Visible = true;
+    }
+
+    /// <summary>Forme de l'équipe, blanche à contour sombre (teintée par Modulate) : rond (orange), triangle pointe en haut (bleue).</summary>
+    static ImageTexture SymbolTexture(int team)
+    {
+        team = Mathf.Clamp(team, 0, 1);   // une texture par étiquette (64x64) : rien de statique qui survivrait à la fermeture
+        const int n = 64;
+        var img = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
+        var dark = new Color(Palette.Panel, 1f);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;   // -1..1, v vers le bas
+                // Distance signée approchée à la forme (négative dedans), en unités de l'image.
+                float d = team == 0
+                    ? Mathf.Sqrt(u * u + v * v) - 0.78f
+                    : Mathf.Max(v - 0.72f, Mathf.Max(-0.866f * u - 0.5f * v, 0.866f * u - 0.5f * v) - 0.36f);
+                if (d < -0.16f) img.SetPixel(x, y, Colors.White);
+                else if (d < 0f) img.SetPixel(x, y, dark);
+                else if (d < 0.03f) img.SetPixel(x, y, new Color(dark, 1f - d / 0.03f));
+            }
+        return ImageTexture.CreateFromImage(img);
     }
 
     static void SetAlpha(Label3D l, float a)

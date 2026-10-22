@@ -82,6 +82,7 @@ public static class ImpactFx
     /// <summary>Éclat blanc : disque doux face caméra, 0,1 à 0,16 s.</summary>
     static void Flash(Node context, Vector3 pos, float size, float duration)
     {
+        if (UI.GameSettings.ReduceFlashes) size *= 0.35f;   // photosensibilité : éclair réduit à une petite lueur
         flashTex ??= Radial(new[] { 0f, 0.35f, 1f }, new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.85f), new Color(1, 1, 1, 0) });
         var mat = Billboard(flashTex, Colors.White);
         var q = new MeshInstance3D { Mesh = new QuadMesh { Size = Vector2.One }, MaterialOverride = mat, Scale = Vector3.One * size * 0.45f, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };

@@ -104,7 +104,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Succès (`docs/steam/achievements.csv`), suivis sur l'hôte et sur les clients (touches relayées par l'hôte), repli local sans Steam | code | scripts/Online/Steam/AchievementTracker.cs ; /doc/features/achievements |
 | [x] | Rich presence FR/EN (`docs/steam/rich_presence_fr_en.vdf`, clé `steam_display`) : menu, salle, en partie, « Rejoindre » | code | scripts/Online/Steam/RichPresence.cs ; /doc/api/ISteamFriends#richpresencelocalization |
 | [~] | Steam Cloud pour `user://settings.cfg` et `user://progress.cfg` (Auto-Cloud, rien à coder : chemins à saisir par jules, voir ACTIONS-JULES.md) ; `identity.cfg`, `sessions/`, `crash/` restent locaux | jules | /doc/features/cloud |
-| [x] | Journaux de crash : au lancement suivant, le journal d'une session morte est copié dans `user://crash` (10 gardés), exceptions .NET non gérées comprises ; pas d'envoi (pas de politique de confidentialité à écrire) | code | scripts/Online/CrashReporter.cs ; |
+| [x] | Journaux de crash : au lancement suivant, le journal d'une session morte est copié dans `%APPDATA%/DogeballVR/crash` (10 gardés), exceptions .NET non gérées comprises. Rapport lisible en tête (ce qui s'est passé, machine, dernière activité de la partie, erreurs regroupées) ; bandeau au lancement suivant avec « Ouvrir le dossier ». Pas d'envoi (pas de politique de confidentialité à écrire) | code | scripts/Online/CrashReporter.cs |
 | [x] | Compatibilité vérifiée à la connexion : version du jeu et empreinte des messages réseau, refus clair « mettez le jeu à jour » | code | scripts/Net/NetHandshake.cs |
 | [x] | Ping affiché et bannière « connexion instable » / « reconnexion » | code | scripts/Online/NetStatusOverlay.cs |
 | [ ] | Overlay Steam : vérifier qu'il s'affiche (Maj+Tab) en mode écran avec le renderer Vulkan, et la pause quand il s'ouvre | code | /doc/features/overlay |
@@ -143,8 +143,8 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [~] | Options audio (général, musique, effets) | code (fil interfaces) | |
 | [~] | Touches réassignables (aujourd'hui ZQSD et WASD actifs ensemble, pas de rebind) | code (fil interfaces) | |
 | [ ] | Inversion de l'axe Y | code | docs/CHOIX-REGLES.md (noté manquant) |
-| [ ] | Taille du texte / HUD, daltonisme (équipes distinguées autrement que par la couleur) | code + art | |
-| [ ] | Réduction des secousses d'écran et des flashs (photosensibilité) | code | |
+| [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
+| [x] | Réduction des secousses d'écran (curseur), de l'arrêt sur image (option) et des flashs (option : éclairs d'impact à 35 %, voile de dégâts à 40 %) | code | scripts/UI/OptionsMenu.cs |
 | [ ] | Confort VR : rotation par crans ou continue, vignette, hauteur, main dominante | code | voir section 10 |
 | [ ] | Support manette en mode écran (nécessaire pour Steam Deck « Vérifié » et pour cocher Full Controller Support) | code | /doc/steamdeck/compat |
 
@@ -156,7 +156,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Hôte qui fait autorité (anti-triche de base : vitesses, portée, validation des prises) | code | docs/CHOIX-REGLES.md |
 | [x] | Dossier des sauvegardes fixé, indépendant du nom du jeu : `%APPDATA%/DogeballVR/` (Windows), `~/.local/share/DogeballVR/` (Linux) ; chemins Auto-Cloud alignés dans ACTIONS-JULES.md | code | project.godot (`config/use_custom_user_dir`) |
 | [ ] | Pas d'alerte OpenXR au démarrage sans casque (réglage `xr/openxr/startup_alert` à vérifier dans Godot 4.3) et pas de lancement involontaire de SteamVR en mode écran | code | project.godot, scripts/Xr/XrBootstrap.cs |
-| [ ] | Performance mesurée : 60 i/s stables en mode écran sur la config minimale ; 90 i/s en VR (72 sur Quest Link) | code | |
+| [~] | Performance : CPU mesuré (`--perf-log`) sur partie complète, 140 i/s plafonnées sur 4 cœurs, pauses du ramasse-miettes supprimées (pire image 30 à 53 ms au lieu de 150 à 380), sons préchargés ; préréglages bas / moyen / haut (MSAA, ombres, glow, SSAO), moyen par défaut sur puce intégrée. Reste : mesurer les i/s GPU sur un vrai PC modeste (800 à 900 appels de dessin, 200 k triangles sur Croix Néon) et 90 i/s en VR | code + jules | scripts/Tools/PerfProbe.cs, scripts/Tools/GcPacer.cs |
 | [~] | Interpolation des autres joueurs sur l'horloge de l'hôte avec retard adaptatif à la gigue (fait, testé en CI à 80 ms et 5 % de perte) ; rembobinage côté hôte et prédiction du lancer côté client (à faire) | code | scripts/Net/ClientWorld.cs |
 | [x] | Déconnexions : client qui revient dans sa zone (coupure ou crash, secret émis par l'hôte, 45 s), bot qui reprend la place en attendant ; hôte qui ferme : les clients sont prévenus et reviennent au menu (pas de migration d'hôte) ; testé en CI | code | scripts/Net/NetSession.cs, scripts/Online/OnlineLobby.cs |
 | [x] | Test de bout en bout en CI : salle à 4 (hôte + 3 clients + 4 bots, Tour 4v4), deux parties enchaînées par la revanche, zones distinctes, chaque client joue | code | .github/workflows/build.yml |

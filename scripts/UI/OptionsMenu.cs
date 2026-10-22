@@ -107,6 +107,8 @@ public partial class OptionsMenu : Control
         listeningButton = null;
     }
 
+    static readonly float[] UiScales = { 0.85f, 1f, 1.15f, 1.3f };
+
     void ShowTab(int i)
     {
         tab = i;
@@ -126,6 +128,9 @@ public partial class OptionsMenu : Control
                 Toggle("Arrêt sur image aux impacts", GameSettings.HitStop, v => GameSettings.HitStop = v);
                 Toggle("Marqueur de touche", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
                 Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
+                Choice("Taille du texte et de l'interface", new[] { "Petite", "Normale", "Grande", "Très grande" }, Array.IndexOf(UiScales, GameSettings.UiScale) is int u and >= 0 ? u : 1, k => { GameSettings.UiScale = UiScales[k]; GameSettings.Apply(GetViewport()); });
+                Toggle("Réduire les flashs (photosensibilité)", GameSettings.ReduceFlashes, v => GameSettings.ReduceFlashes = v);
+                Toggle("Symboles d'équipe (daltonisme)", GameSettings.TeamSymbols, v => GameSettings.TeamSymbols = v);
                 break;
             case 1:
                 Section("Clique sur une touche puis appuie sur la nouvelle (Échap annule)");
@@ -157,6 +162,7 @@ public partial class OptionsMenu : Control
             case 0:
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = 100f;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
+                GameSettings.UiScale = 1f; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
             case 2: GameSettings.MasterVolume = 0.85f; GameSettings.MusicVolume = 0.6f; GameSettings.SfxVolume = 0.9f; GameSettings.UiVolume = 0.8f; break;
