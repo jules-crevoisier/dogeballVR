@@ -15,7 +15,7 @@ public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     /// <summary>Version du protocole réseau : l'hôte refuse un client d'une autre version (snapshots et RPC incompatibles).</summary>
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;   // 3 : le Hello porte la carte jouée
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
@@ -71,6 +71,8 @@ public partial class NetSession : Node
 
     /// <summary>Secret de reconnexion reçu de l'hôte lors d'une entrée précédente (vide la première fois), renvoyé dans le Hello.</summary>
     public string Token { get; set; } = "";
+    /// <summary>Carte réellement jouée ici (après un repli VR) : l'hôte refuse un client qui joue une autre carte.</summary>
+    public string MapName { get; set; } = "";
     /// <summary>Client : aller-retour mesuré avec l'hôte (ms, lissé), -1 tant qu'inconnu.</summary>
     public double RttMs { get; private set; } = -1;
     /// <summary>Client : instant (horloge locale, s) du dernier snapshot reçu ; sert à afficher « connexion instable ».</summary>
@@ -196,7 +198,7 @@ public partial class NetSession : Node
     void SendHello()
     {
         helloAt = clientClock;
-        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token);
+        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token, MapName);
     }
 
     void OnServerDisconnected()
@@ -414,7 +416,7 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void HelloRpc(int protocol, int zoneId, string secret)
+    void HelloRpc(int protocol, int zoneId, string secret, string mapName)
     {
         if (!IsHost || OverBudget(Sender, nameof(HelloRpc))) return;
         int peer = Sender;
@@ -422,6 +424,13 @@ public partial class NetSession : Node
         {
             GD.Print($"[Net] Pair {peer} refusé : protocole {protocol}, attendu {ProtocolVersion}");
             RpcId(peer, MethodName.RefusedRpc, "VERSION DIFFÉRENTE : METTEZ LE JEU À JOUR");
+            return;
+        }
+        if (MapName != "" && (mapName ?? "") != MapName)
+        {
+            // Casque replié sur une carte VR alors que l'hôte joue une carte PC (lancement direct) : deux parties différentes.
+            GD.Print($"[Net] Pair {peer} refusé : carte {Clip(mapName)}, l'hôte joue {MapName}");
+            RpcId(peer, MethodName.RefusedRpc, "CARTE DIFFÉRENTE : L'HÔTE JOUE UNE CARTE RÉSERVÉE AU PC");
             return;
         }
         if (Remotes.TryGetValue(peer, out var already))
@@ -481,6 +490,7 @@ public partial class NetSession : Node
     }
 
     static string Short(string token) => token.Length <= 6 ? token : token[..6];
+    static string Clip(string? text) => text == null ? "" : text.Length <= 32 ? text : text[..32];
 
     /// <summary>Client : l'hôte confirme l'entrée, la zone attribuée (elle peut différer de la demande) et le secret de reconnexion.</summary>
     public event Action<int, string>? Welcomed;

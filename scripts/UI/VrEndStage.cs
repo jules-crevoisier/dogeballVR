@@ -130,9 +130,13 @@ public partial class VrEndStage : Node3D
         look = look.LengthSquared() < 1e-4f ? Vector3.Forward : look.Normalized();
         var feet = new Vector3(eye.X, FloorY(), eye.Z);
         placedAt = ClearDistance(feet, look);
-        stage!.GlobalPosition = feet + look * placedAt;
+        // Réduction centrée sur la hauteur des yeux (pas sur le sol) : chaque élément garde l'angle sous lequel on le voit
+        // dans la mise en page de référence ; le podium flotte alors un peu au-dessus du sol, comme un hologramme.
+        float scale = Mathf.Min(1f, placedAt / LayoutDistance);
+        float eyeHeight = Mathf.Max(0.5f, eye.Y - feet.Y);
+        stage!.GlobalPosition = feet + look * placedAt + Vector3.Up * (1f - scale) * eyeHeight;
         stage.GlobalRotation = new Vector3(0, Mathf.Atan2(look.X, look.Z), 0);
-        stage.Scale = Vector3.One * Mathf.Min(1f, placedAt / LayoutDistance);
+        stage.Scale = Vector3.One * scale;
     }
 
     /// <summary>
@@ -165,7 +169,7 @@ public partial class VrEndStage : Node3D
         var board = new Node3D { Name = "Tableau", Position = new Vector3(1.9f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(20), 0) };
         stage!.AddChild(board);
         int rows = Mathf.Max(1, View.Players.Count);
-        float top = 2.45f, step = 0.19f, height = 0.45f + rows * step;   // au-dessus des couverts (1,3 m)
+        float top = 2.45f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
         board.AddChild(new MeshInstance3D
         {
             Mesh = new BoxMesh { Size = new Vector3(2.9f, height, 0.04f) }, Position = new Vector3(0, top - height / 2 + 0.2f, 0.05f),
@@ -175,15 +179,15 @@ public partial class VrEndStage : Node3D
                 RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
             },
         });
-        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 44)
+        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52)
         {
             var l = AddText(text, new Vector3(x, y, 0), 0.0032f, size, c, board);
             l.HorizontalAlignment = align;
         }
-        Cell("JOUEUR", ColumnName, top, UiKit.Lavender, HorizontalAlignment.Left, 34);
-        Cell("KO", ColumnKo, top, UiKit.Lavender, size: 34);
-        Cell("TOUCHES", ColumnHits, top, UiKit.Lavender, size: 34);
-        Cell("ATTRAPES", ColumnCatches, top, UiKit.Lavender, size: 34);
+        Cell("JOUEUR", ColumnName, top, UiKit.Lavender, HorizontalAlignment.Left, 40);
+        Cell("KO", ColumnKo, top, UiKit.Lavender, size: 40);
+        Cell("TOUCHES", ColumnHits, top, UiKit.Lavender, size: 40);
+        Cell("ATTRAPES", ColumnCatches, top, UiKit.Lavender, size: 40);
         // Décompte sous le tableau.
         footer = AddText("", new Vector3(0, top - height - 0.1f, 0), 0.0042f, 56, Palette.Lines, board);
         if (stats == null)
@@ -202,7 +206,7 @@ public partial class VrEndStage : Node3D
             float y = top - step * (i + 1.3f);
             var c = Palette.Team(p.Team);
             string name = (p.Id == mvp ? "★ " : "") + View.NameOf(p.Id);
-            if (name.Length > 14) name = name[..13] + "…";
+            if (name.Length > 12) name = name[..11] + "…";   // la colonne KO commence 1,15 m plus loin
             Cell(name, ColumnName, y, p.Id == View.LocalId ? UiKit.Yellow : c, HorizontalAlignment.Left);
             Cell($"{st?.Kos ?? 0}", ColumnKo, y, c);
             Cell($"{st?.Hits ?? 0}", ColumnHits, y, c);

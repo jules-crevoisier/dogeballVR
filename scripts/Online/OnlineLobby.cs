@@ -483,7 +483,7 @@ public partial class OnlineLobby : Node
         switch (State)
         {
             case LobbyState.Searching:
-                var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers).OrderByDescending(r => r.Players).FirstOrDefault();
+                var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && VrCanJoin(r)).OrderByDescending(r => r.Players).FirstOrDefault();
                 if (room != null) { Lan.StopListening(); GD.Print($"[Lobby] Partie trouvée : {room.Name} ({room.Address}:{room.GamePort})"); JoinAddress(room.Address, room.GamePort); }
                 else if (stateClock > searchFor)
                 {
@@ -494,7 +494,7 @@ public partial class OnlineLobby : Node
                 break;
             case LobbyState.InRoom when IsHost && quickHosted && members.Count == 1:
                 // Deux « parties rapides » simultanées ont chacune ouvert une salle : la salle seule rejoint celle d'identifiant plus petit.
-                var other = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && !r.InMatch && string.CompareOrdinal(r.Id, roomId) < 0).FirstOrDefault();
+                var other = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && !r.InMatch && VrCanJoin(r) && string.CompareOrdinal(r.Id, roomId) < 0).FirstOrDefault();
                 if (other != null) { GD.Print($"[Lobby] Autre salle ouverte en même temps ({other.Address}:{other.GamePort}) : on la rejoint"); var (a, gp) = (other.Address, other.GamePort); Reset(); JoinAddress(a, gp); }
                 break;
             case LobbyState.Connecting:
@@ -857,12 +857,15 @@ public partial class OnlineLobby : Node
     static readonly Dictionary<string, bool> vrMaps = new();
     public static bool MapAllowsVr(string name)
     {
+        if (!MapChoices.Contains(name)) return true;   // nom venu du réseau (annonce LAN) : seules nos cartes sont chargées
         if (!vrMaps.TryGetValue(name, out bool ok)) vrMaps[name] = ok = LoadMap(name)?.VrAllowed ?? true;
         return ok;
     }
     /// <summary>Carte prise quand un joueur en casque arrive dans une salle réglée sur une carte réservée au PC.</summary>
     public const string VrFallbackMap = "croix_neon";
     bool AnyVr => members.Values.Any(m => m.Vr);
+    /// <summary>Partie rapide en casque : on écarte les salles qui refuseraient le casque (mêmes règles que <see cref="HandleJoinRequest"/>).</summary>
+    static bool VrCanJoin(LanDiscovery.Room r) => !IsVr || MapAllowsVr(r.Map) || !r.InMatch && r.Players < MapZoneCount(VrFallbackMap);
 
     /// <summary>La carte est choisie ici, une seule fois pour toute la salle : chaque machine joue la même carte, avec les mêmes zones.</summary>
     void EnsureVrMap(string why)

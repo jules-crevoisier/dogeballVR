@@ -7,7 +7,7 @@ namespace DogeballVR.UI;
 /// Lus au lancement en casque, dans cet ordre (le suivant l'emporte) :
 /// 1. `user://eva.cfg`, section [eva] (sur Quest : Android/data/&lt;paquet&gt;/files/eva.cfg, poussé par l'opérateur avec adb) ;
 /// 2. options de lancement : --eva-haptics=0..100, --eva-volume=0..100, --eva-reduce-flashes, --eva-end-hold=SECONDES.
-/// Pourcentages : une valeur sous 1 (0.8) est lue comme une fraction (80 %), l'erreur la plus probable d'un opérateur.
+/// Pourcentages : une valeur jusqu'à 1 (0.8, 1) est lue comme une fraction (80 %, 100 %), l'erreur la plus probable d'un opérateur.
 /// Seuls les réglages présents remplacent ceux du joueur (settings.cfg) ; l'alerte de bord de zone garde
 /// <see cref="SafetyFloor"/> quoi qu'il arrive. Ce sont des réglages de salle, valables aussi en version de sortie.
 /// </summary>
@@ -57,6 +57,6 @@ public static class EvaSettings
         if (volumeSet || flashesSet) GameSettings.Apply(null);
     }
 
-    static float Percent(float v) => v > 0f && v < 1f ? v : Mathf.Clamp(v, 0f, 100f) / 100f;
+    static float Percent(float v) => v > 0f && v <= 1f ? v : Mathf.Clamp(v, 0f, 100f) / 100f;   // 1 = 100 % (fraction), pas 1 %
     static float Hold(float s) => Mathf.Clamp(s, 5f, 120f);
 }

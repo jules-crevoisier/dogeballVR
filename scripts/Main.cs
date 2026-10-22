@@ -227,7 +227,7 @@ public partial class Main : Node3D
 
         if (cfg.Mode != NetMode.Offline)
         {
-            net = new NetSession { Name = "NetSession", Token = Online.ReconnectSecret.Get() };
+            net = new NetSession { Name = "NetSession", Token = Online.ReconnectSecret.Get(), MapName = map.Name };
             AddChild(net);
             if (DisplayServer.GetName() != "headless") AddChild(new Online.NetStatusOverlay { Name = "NetStatus", Net = net });
             if (client) BallActions.Net = net;
@@ -261,7 +261,9 @@ public partial class Main : Node3D
     {
         float closeness = 1f - Mathf.Clamp(distance / Mathf.Max(map.EdgeWarningDistance, 0.01f), 0f, 1f);
         bool shotIncoming = Visual.ThreatIndicator.LocalTimeToImpact < Visual.ThreatIndicator.WarnSeconds;
-        if ((!shotIncoming || distance < 0.3f) && now - lastPulse >= Mathf.Lerp(0.6f, 0.3f, closeness))
+        // Vibrations de jeu coupées par l'opérateur : l'alerte de tir ne vibre pas, le bord garde donc la main.
+        bool shotVibrates = UI.EvaSettings.Haptics >= UI.EvaSettings.SafetyFloor;
+        if ((!shotIncoming || !shotVibrates || distance < 0.3f) && now - lastPulse >= Mathf.Lerp(0.6f, 0.3f, closeness))
         {
             lastPulse = now;
             foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.25f, 0.6f, closeness), 0.25f, safety: true);
@@ -269,10 +271,7 @@ public partial class Main : Node3D
         if (now - lastSound >= 1.5)
         {
             lastSound = now;
-            // Bus SFX : le volume des menus ne le coupe pas ; volume de salle bas : le clic remonte jusqu'au plancher de sécurité.
-            float heard = UI.GameSettings.MasterVolume * UI.GameSettings.SfxVolume;
-            float boost = heard < UI.EvaSettings.SafetyFloor ? Mathf.LinearToDb(UI.EvaSettings.SafetyFloor / Mathf.Max(heard, 0.01f)) : 0f;
-            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f, volumeDb: Mathf.Min(boost, 24f));
+            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f, bus: UI.AudioBuses.Safety);   // gain fixe : aucun réglage de volume ne le coupe
         }
     }
 
@@ -468,6 +467,9 @@ public partial class Main : Node3D
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
+        // Partie lancée depuis la salle : retour à la salle après l'écran de fin ; au format VR (un casque dans la salle),
+        // après la durée choisie par l'opérateur EVA, la même que celle affichée dans les casques.
+        double backToRoomAfter = cfg.OnlineFormat ? UI.EndScreen.BackToRoomSeconds : UI.EvaSettings.EndHoldSeconds;
         if (localBody is DesktopPlayer desktop)
         {
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
@@ -477,21 +479,25 @@ public partial class Main : Node3D
             AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
             if (!Tools.DevFlags.Has("--vr-end-stage"))   // capture de la fin VR au clavier : pas d'écran de fin 2D par-dessus
             {
-                var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+                var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected, BackToRoomAfter = backToRoomAfter };
                 AddChild(end);
                 AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
             }
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
             match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
-        // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt).
+        // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt) ;
+        // l'hôte ne relance pas lui-même, sinon une partie pourrait démarrer juste avant le retour à la salle.
         if (cfg.Preconnected)
-            match.MatchEnded += _ => GetTree().CreateTimer(UI.EndScreen.BackToRoomSeconds).Timeout += () => { if (IsInstanceValid(match) && match.IsInsideTree()) Online.OnlineLobby.Instance?.ReturnToLobby(); };
+        {
+            match.AutoRestart = false;
+            match.MatchEnded += _ => GetTree().CreateTimer(backToRoomAfter).Timeout += () => { if (IsInstanceValid(match) && match.IsInsideTree()) Online.OnlineLobby.Instance?.ReturnToLobby(); };
+        }
         if (xrOrigin != null || Tools.DevFlags.Has("--vr-end-stage"))
         {
             // Fin de partie dans le casque : podium et tableau devant le joueur, 20 s (réglage de l'opérateur) avant la partie suivante.
             match.MatchEndSeconds = UI.EvaSettings.EndHoldSeconds;
-            AddVrEndStage(MatchView.ForHost(match, map, localZone.Id, localZone.Team), match.AutoRestart ? UI.EvaSettings.EndHoldSeconds : 0f);
+            AddVrEndStage(MatchView.ForHost(match, map, localZone.Id, localZone.Team), match.AutoRestart || cfg.Preconnected ? UI.EvaSettings.EndHoldSeconds : 0f);
         }
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
@@ -708,7 +714,7 @@ public partial class Main : Node3D
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
             AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
             AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
-            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected, BackToRoomAfter = cfg.OnlineFormat ? UI.EndScreen.BackToRoomSeconds : UI.EvaSettings.EndHoldSeconds };
             AddChild(end);
             AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
         }
