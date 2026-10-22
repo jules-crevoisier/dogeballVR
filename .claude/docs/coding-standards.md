@@ -17,6 +17,9 @@
   observation is a retained screenshot in `production/qa/evidence/`. Procedure
   per engine: `.claude/docs/run-and-observe.md`. Not waived at
   `qa.level: minimal` — tests are, the look is not.
+  > **dogeballVR:** cloud sessions have no Godot. There, a green CI run quoted
+  > in the PR stands in for the screenshot (see CLAUDE.md); take screenshots
+  > when a session does have Godot.
 
 # Design Document Standards
 

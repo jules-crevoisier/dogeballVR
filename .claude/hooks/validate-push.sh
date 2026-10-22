@@ -265,6 +265,14 @@ if [ -z "$MATCHED_BRANCH" ] && echo "$PUSH_SEG" | grep -qE "([[:space:]+:]|refs/
     MATCHED_BRANCH=$(echo "$PUSH_SEG" | grep -oE "release/[^[:space:]:]+" | head -1)
 fi
 
+# dogeballVR: main is jules's to merge. A push to main or master is refused;
+# work goes through a branch and a PR.
+case "$MATCHED_BRANCH" in
+    main|master)
+        echo "BLOCKED (dogeballVR): no push to $MATCHED_BRANCH. Push your branch and open a PR; jules merges." >&2
+        exit 2 ;;
+esac
+
 if [ -n "$MATCHED_BRANCH" ]; then
     # Allow the push, but warn where it is seen. stderr on exit 0 goes to the
     # debug log only, so this warning reached neither the user nor Claude.

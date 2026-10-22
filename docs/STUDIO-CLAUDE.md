@@ -12,9 +12,10 @@ faire avancer le jeu.
 Claude Code charge `CLAUDE.md`, `.claude/agents/`, `.claude/skills/` et les hooks
 **au démarrage d'une session ouverte à la racine du dépôt**. Une session qui part
 de `main` n'a donc le kit que lorsque la PR d'installation est fusionnée. Avant
-cela, une session peut récupérer les fichiers du kit sans fusionner
-(`git checkout origin/claude/project-thread-kqje36 -- .claude CLAUDE.md project.yaml .gitignore .gitattributes design production docs/engine-reference docs/architecture docs/registry docs/STUDIO-CLAUDE.md docs/adoption-plan-2026-10-22.md`).
-Elle peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs
+cela, une session peut lire les fichiers du kit sans les ajouter à sa branche
+(`git show origin/claude/project-thread-kqje36:<chemin>`), mais les agents,
+skills et hooks ne s'activent qu'au démarrage d'une session sur une branche qui
+les contient : ne jamais committer ces fichiers dans une PR de travail. Elle peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs
 consignes à la main.
 
 Au démarrage, le hook `session-start.sh` affiche la branche, les derniers
@@ -49,9 +50,10 @@ dans une PR.
 - Le travail demandé passe d'abord. Les documents du plan d'adoption ne
   s'écrivent que si c'est le sujet du fil, ou en fin de PR pour le système
   touché.
-- Rien dans l'outillage n'empêche de pousser sur `main` ou de fusionner. Seule
-  la règle l'interdit. Une protection de branche sur GitHub
-  (Settings › Branches) la rendrait sûre.
+- Le hook `validate-push.sh` refuse tout push sur `main` ou `master`. En
+  revanche, aucun outil n'empêche de fusionner une PR : seule la règle
+  l'interdit. Une protection de branche sur GitHub (Settings › Branches) le
+  rendrait sûr.
 - Pas de Godot ni de .NET dans les conteneurs cloud. Le build, les tests et le
   smoke check passent par la CI : on pousse, puis on lit son résultat.
 - Revue en boucle avant livraison : au moins un agent indépendant note le
@@ -106,6 +108,16 @@ de rattrapage est dans `docs/adoption-plan-2026-10-22.md`, produit par l'audit
 quelle skill utiliser et quel document existant convertir. Une fois les docs en
 place, les fils travaillent par story (`/create-stories` → dev-story →
 `/code-review` → story-done).
+
+Tant qu'il n'y a ni story ni ADR, dev-story s'arrête : elle exige un ADR
+accepté. Pour un travail demandé directement (« ajoute X ») :
+
+1. `/quick-design` si une règle du jeu change (sinon rien).
+2. Faire coder l'agent spécialiste : `godot-csharp-specialist`, plus
+   `network-programmer` si `scripts/Net` est touché.
+3. Faire relire avec `/code-review`, puis par un agent indépendant (note ≥ 8/10).
+4. Pousser, attendre la CI verte et la citer dans la PR, avec une section
+   « Choix faits ».
 
 ## 7. Ce qui a été adapté dans le kit
 

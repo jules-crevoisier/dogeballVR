@@ -59,8 +59,9 @@ usually have nobody to answer questions, and jules wants full autonomy.
   `production/session-logs/decision-log.md` is gitignored and disappears with
   the container: it is a scratch copy, never the record.
 - Work on a branch, commit, push, open a PR and drive the CI to green. **Never
-  push to `main`, never merge a PR**: jules reviews and merges. Nothing in the
-  tooling blocks it, so this rule is on you.
+  push to `main`, never merge a PR**: jules reviews and merges. The hook `validate-push.sh`
+  refuses a push to `main`/`master`; nothing blocks merging a PR, so that
+  rule is on you.
 - Stop and ask only for irreversible actions or anything outside the project
   (deleting files or data, production, messages to other people) —
   `modes.automation_always_ask: [file_deletions]`.
@@ -69,8 +70,8 @@ usually have nobody to answer questions, and jules wants full autonomy.
   **not** to delete.
 - **The task you were given comes first.** Kit documents (GDD, ADR, stories
   from `docs/adoption-plan-2026-10-22.md`) are written only when they are the
-  thread's subject, or at the end of a PR for the system it touched. Tick the
-  plan's boxes in your own PR.
+  thread's subject, or at the end of a PR for the system it touched. Tick only your
+  own step's box in the plan, in your PR.
 - `/gate-check` and `/setup-engine` always ask a human (kit exemption): prepare
   their report, then leave the decision to jules.
 - **No Godot or .NET in the cloud containers**: `commands.*` cannot run there.
