@@ -26,10 +26,10 @@ from props_kit import sweep  # noqa: E402
 # (équipe, variante, action, image, position, regard en degrés : 0 = vers +X)
 DY = 9.0   # scène décalée vers le parapet nord : immeubles derrière, pas le cercle sombre du moyeu
 CAST = [
-    ("orange", 0, "Lancer", 12, (-2.2, DY + 0.2, 0), -28),       # Riko lâche la balle
+    ("orange", 0, "Lancer", 5, (-2.2, DY + 0.2, 0), -28),       # Riko lâche la balle
     ("orange", 1, "Course", 6, (-4.6, DY + 2.0, 0), -15),       # Bo arrive en renfort
-    ("bleu", 0, "Esquive", 8, (2.6, DY - 0.6, 0), 218),        # Nova plonge sous le tir
-    ("bleu", 1, "Attrape", 5, (4.6, DY + 1.7, 0), 205),        # Kai tend les mains
+    ("bleu", 0, "Esquive", 6, (2.6, DY - 0.6, 0), 218),        # Nova plonge sous le tir
+    ("bleu", 1, "Attrape", 1, (4.6, DY + 1.7, 0), 205),        # Kai tend les mains
 ]
 BALL = Vector((0.9, DY - 0.25, 1.62))
 
