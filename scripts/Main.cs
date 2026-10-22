@@ -469,7 +469,7 @@ public partial class Main : Node3D
     /// <summary>Menu pause du joueur clavier-souris (Échap).</summary>
     void AddPauseMenu(bool canFreeze, System.Action? restart)
     {
-        var lockLayer = new CanvasLayer { Name = "LockOn", Layer = 5 };
+        var lockLayer = new CanvasLayer { Name = "LockOn", Layer = 4 };   // sous le HUD (5) : les crochets ne passent plus sur le tableau des scores
         lockLayer.AddChild(new UI.LockOnMarker { Player = desktopPlayer! });
         AddChild(lockLayer);
         AddChild(new UI.PauseMenu { Name = "PauseMenu", CanFreeze = canFreeze, Restart = restart, QuitToMenu = GoToMenu });
