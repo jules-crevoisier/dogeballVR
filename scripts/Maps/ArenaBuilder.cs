@@ -51,7 +51,7 @@ public static class ArenaBuilder
     }
 
     /// <summary>Ciel de jour dégradé, brume lointaine, soleil chaud : l'ambiance de la DA Knockout City. Le glow n'est activé qu'au clavier-souris.</summary>
-    static void AddKcEnvironment(Node3D root, bool pcProfile)
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile)
     {
         var sky = new ProceduralSkyMaterial
         {

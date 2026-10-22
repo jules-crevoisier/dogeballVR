@@ -46,7 +46,8 @@ public partial class Main : Node3D
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
         // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
-        if (!xrActive && DisplayServer.GetName() != "headless" && OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1)
+        bool forceMenu = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0;   // captures du menu
+        if (!xrActive && DisplayServer.GetName() != "headless" && (forceMenu || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
         {
             var menu = new Visual.MainMenu { Name = "MainMenu" };
             menu.Chosen += (mode, address) => { menu.QueueFree(); cfg.Choose(mode, address); StartMatch(xrActive); };

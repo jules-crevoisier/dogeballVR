@@ -257,7 +257,7 @@ def hero(team):
              "hanche": (0.11, 0.11), "cuisse": (0.12, 0.125), "genou": (0.088, 0.092), "mollet": (0.088, 0.092), "cheville": (0.05, 0.05)}
         jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#1E3A78", "#8FE3FF", "#F2C6A0"
     body = body_mesh(r)
-    jc, jd, rb, pc, sc, sk = (_c(jacket, 0.45 if orange else 0.85), _c(jacket_d, 0.45 if orange else 0.85), _c(rib, 0.9),
+    jc, jd, rb, pc, sc, sk = (_c(jacket, 0.62 if orange else 0.85), _c(jacket_d, 0.62 if orange else 0.85), _c(rib, 0.9),
                               _c(pants, 0.85), _c(stripe, 0.7), _c(skin, 0.55))
 
     def col(co, n):

@@ -32,16 +32,12 @@ public partial class MainMenu : CanvasLayer
 
     public override void _Ready()
     {
-        var bg = new ColorRect { Color = new Color("4C8DE8") };
-        bg.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(bg);
-        var glow = new ColorRect { Color = new Color(1f, 0.87f, 0.73f, 0.55f) };
-        glow.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
-        glow.OffsetTop = -380;
-        AddChild(glow);
+        AddChild(BuildStage());
+        // voile sombre à gauche pour la lisibilité des boutons, la scène 3D reste à droite
+        var shade = new ColorRect { Color = new Color(0.06f, 0.09f, 0.19f, 0.35f), AnchorRight = 0.5f, AnchorBottom = 1f };
+        AddChild(shade);
 
-        var center = new CenterContainer();
-        center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        var center = new CenterContainer { AnchorRight = 0.5f, AnchorBottom = 1f };
         AddChild(center);
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 16);
@@ -71,12 +67,42 @@ public partial class MainMenu : CanvasLayer
         col.AddChild(MakeButton("REJOINDRE", new Color("3A7BD5"), () => Chosen?.Invoke(NetMode.Client, address.Text.Trim())));
         col.AddChild(MakeButton("QUITTER", new Color("55607F"), () => GetTree().Quit()));
 
-        var help = new Label { Text = "ZQSD bouger · Souris viser · Clic gauche lancer (maintenu = plus fort) · Clic droit attraper · E esquive · F1 aide", HorizontalAlignment = HorizontalAlignment.Center };
+        var help = new Label { Text = "ZQSD bouger · Souris viser · Clic gauche lancer (maintenu = plus fort) · Clic droit attraper · E esquive · F1 aide", HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(420, 0) };
         help.AddThemeFontSizeOverride("font_size", 18);
-        help.AddThemeColorOverride("font_color", new Color("101830"));
+        help.AddThemeColorOverride("font_color", Colors.White);
         col.AddChild(help);
 
         Input.MouseMode = Input.MouseModeEnum.Visible;
         play.GrabFocus();
+    }
+
+    /// <summary>Scène de fond : le toit de la map, Riko qui célèbre et Nova au repos, cadrés sur la droite de l'écran.</summary>
+    static Node3D BuildStage()
+    {
+        var stage = new Node3D { Name = "MenuStage" };
+        Maps.ArenaBuilder.AddKcEnvironment(stage, pcProfile: true);
+        foreach (var name in new[] { "toit", "toit_ville" })
+            if (ModelLibrary.Instance(name) is Node3D decor) stage.AddChild(decor);
+        void Hero(string model, Vector3 pos, float yaw, string anim)
+        {
+            if (ModelLibrary.Instance(model) is not Node3D hero) return;
+            hero.Position = pos;
+            hero.RotationDegrees = new Vector3(0, yaw, 0);
+            stage.AddChild(hero);
+            if (hero.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation(anim))
+            {
+                ap.GetAnimation(anim).LoopMode = Animation.LoopModeEnum.Linear;
+                ap.Play(anim);
+            }
+        }
+        // les modèles regardent vers -Z : demi-tour pour faire face à la caméra
+        Hero("avatar_orange_rig", new Vector3(0.55f, 0, 3.0f), 180 + 18, "Celebration");
+        Hero("avatar_bleu_rig", new Vector3(-0.55f, 0, 3.4f), 180 - 12, "Repos");
+        var cam = new Camera3D { Fov = 42, Current = true };
+        stage.AddChild(cam);
+        cam.Position = new Vector3(-1.6f, 1.3f, 7.4f);
+        cam.LookAtFromPosition(cam.Position, new Vector3(-1.45f, 1.05f, 3.1f));   // persos dans le tiers droit, boutons à gauche
+        return stage;
     }
 }

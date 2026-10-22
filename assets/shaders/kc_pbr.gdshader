@@ -22,7 +22,7 @@ void fragment() {
     SPECULAR = 0.5;
     RIM = rim_amount;
     RIM_TINT = 0.6;
-    if (pattern == 8 || pattern == 9) { RIM = 0.6; RIM_TINT = 0.2; }   // personnages : liseré fort, lisibles de loin
+    if (pattern == 8 || pattern == 9) { RIM = 0.4; RIM_TINT = 0.3; }   // personnages : liseré fort, lisibles de loin
     float lit_window = 0.0;
     if (pattern == 5) {
         vec2 w = vec2(face_uv(wpos, n).x * pattern_scale / 3.0, face_uv(wpos, n).y * pattern_scale / 3.6);
