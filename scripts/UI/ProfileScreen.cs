@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using DogeballVR.Audio;
 using DogeballVR.Online;
 using DogeballVR.Online.Steam;
 
@@ -87,7 +88,8 @@ public partial class ProfileScreen : Control
         int unlocked = 0;
         foreach (var a in AchievementDefs.All) if (Achievements.IsUnlocked(a.Id)) unlocked++;
         right.AddChild(Heading($"SUCCÈS  {unlocked} / {AchievementDefs.All.Count}"));
-        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 470), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        // Manette et Deck : chaque succès prend le focus (croix haut/bas) et la liste défile pour le suivre.
+        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 470), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
         var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         list.AddThemeConstantOverride("separation", 6);
         scroll.AddChild(list);
@@ -125,11 +127,16 @@ public partial class ProfileScreen : Control
 
     static Control AchievementRow(AchievementDef a, bool unlocked)
     {
-        var row = new PanelContainer();
-        // Débloqué : encart doré à liseré jaune (comme la barre du menu) ; à faire : encart sombre.
+        var row = new PanelContainer { FocusMode = FocusModeEnum.All, MouseFilter = MouseFilterEnum.Pass };
+        // Débloqué : encart doré à liseré jaune (comme la barre du menu) ; à faire : encart sombre. Sélectionné : liseré jaune épais.
         var box = unlocked ? UiKit.InsetBox(new Color(UiKit.Gold, 0.2f), 10, 2, new Color(UiKit.Yellow, 0.8f)) : UiKit.InsetBox(null, 10);
         box.ContentMarginTop = box.ContentMarginBottom = 6;
+        var lit = box.Copy();
+        lit.BorderWidth = 4;
+        lit.BorderColor = UiKit.Yellow;
         row.AddThemeStyleboxOverride("panel", box);
+        row.FocusEntered += () => { row.AddThemeStyleboxOverride("panel", lit); Sfx.Play(row, SfxKind.UiHover); };
+        row.FocusExited += () => row.AddThemeStyleboxOverride("panel", box);
         var h = new HBoxContainer();
         h.AddThemeConstantOverride("separation", 14);
         h.AddChild(UiKit.Text(unlocked ? "★" : "·", 30, unlocked ? UiKit.Yellow : UiKit.Grey, 4, HorizontalAlignment.Center));

@@ -39,7 +39,7 @@ DogeballVR is a fast, team-based dodgeball game built for two ways to play: thro
 [h2]Catching is everything[/h2]
 [list]
 [*][b]Catch[/b] incoming throws instead of dodging them. Nail the timing for a [b]perfect catch[/b]: you get a heart back and the ball leaves your hand already charged.
-[*][b]Pass to power up[/b]: every pass to a teammate charges the ball. A fully charged ball knocks out in one hit.
+[*][b]Pass and catch to power up[/b]: a pass from a teammate charges the ball, and a perfect catch of an enemy throw adds one more level. From level 2, the ball knocks out in one hit.
 [*][b]Trick shots[/b]: curve your throw around cover, lob it over a wall, or fake a throw to bait the catch.
 [*]In VR, block a weak shot with an open palm parry.
 [/list]
@@ -62,7 +62,7 @@ Every match draws one special ball family. The hub launches it toward the team t
 [list]
 [*][b]VR[/b]: natural throwing and catching with tracked controllers, threat alerts with haptics, plate swaps that reshuffle the arena mid-round.
 [*][b]Keyboard & mouse[/b]: third-person movement with dash charges, jump, tackle, aim assist and fully rebindable keys.
-[*]Short, intense matches: five two-minute rounds, sudden-death overtime on a tie.
+[*]Short, intense matches: best of three online, five two-minute rounds against bots and in VR, sudden-death overtime on a tie.
 [/list]
 
 [h2]Online with friends[/h2]
@@ -82,7 +82,7 @@ DogeballVR est un dodgeball en équipe, rapide, pensé pour deux façons de joue
 [h2]Tout se joue à l'attrape[/h2]
 [list]
 [*][b]Attrape[/b] les tirs au lieu de les esquiver. Au bon moment, c'est une [b]attrape parfaite[/b] : tu regagnes un cœur et la balle repart déjà chargée.
-[*][b]Passe pour charger[/b] : chaque passe à un coéquipier charge la balle. Une balle chargée à fond met KO en un seul coup.
+[*][b]Passe et attrape pour charger[/b] : une passe d'un coéquipier charge la balle, et une attrape parfaite d'un tir adverse lui ajoute un palier. Dès le palier 2, elle met KO en un seul coup.
 [*][b]Coups spéciaux[/b] : courbe ton tir autour d'un abri, lobe par-dessus un mur, ou feinte pour piéger l'attrape adverse.
 [*]En VR, dévie un tir faible d'une parade de la paume.
 [/list]
@@ -105,7 +105,7 @@ Chaque match tire au sort une famille de balles spéciales. Le moyeu l'envoie ve
 [list]
 [*][b]VR[/b] : lancers et attrapes naturels avec les manettes, alertes de menace avec vibrations, échanges de plaques qui rebattent l'arène en pleine manche.
 [*][b]Clavier-souris[/b] : déplacement à la troisième personne avec charges de dash, saut, tacle, aide à la visée et touches entièrement réassignables.
-[*]Des matchs courts et intenses : 5 manches de 2 minutes, prolongation à mort subite en cas d'égalité.
+[*]Des matchs courts et intenses : 2 manches gagnantes en ligne, 5 manches de 2 minutes contre les bots et en VR, prolongation à mort subite en cas d'égalité.
 [/list]
 
 [h2]En ligne entre amis[/h2]
@@ -216,7 +216,7 @@ Durée visée : 75 s. Musique électro rythmée, coupes sur les temps.
 | 2 | 0:04–0:08 | Plan large qui tourne | Croix Néon de haut, 4 plaques, le rotor tourne, 8 balles en vol | logo du jeu |
 | 3 | 0:08–0:14 | 3e personne, clavier-souris | Course, dash, tir chargé qui touche un adversaire (flash, cœur perdu) | CATCH. |
 | 4 | 0:14–0:20 | Vue VR | Attrape parfaite (anneau, son), renvoi immédiat, KO | CHARGE. |
-| 5 | 0:20–0:26 | 3e personne | Passe à un allié, la balle passe au palier 2 (double halo), tir KO en un coup | SEND IT BACK. |
+| 5 | 0:20–0:26 | 3e personne | Passe à un allié (palier 1), attrape parfaite d'un tir adverse : palier 2 (double halo), tir KO en un coup | SEND IT BACK. |
 | 6 | 0:26–0:32 | Plan latéral | Tir à effet qui contourne un couvert ; cloche par-dessus un mur | — |
 | 7 | 0:32–0:38 | Fosse croisée | Tacle en dash, l'adversaire tombe dans la fosse (ring-out) | — |
 | 8 | 0:38–0:43 | Tremplin | Vol guidé vers la terrasse, tir plongeant depuis le haut | — |
@@ -238,7 +238,7 @@ Exigences : 1920x1080 au moins, 16:9, au moins 5 sur la page, au moins 4 marqué
 3. **Clavier-souris 3e personne** : joueur en pleine charge de tir, viseur rouge sur un adversaire, jauges de dash visibles.
 4. **Ring-out sur la Fosse croisée** : adversaire poussé au bord de la fosse par un tacle, traînée de dash.
 5. **Explosion de bombe** : souffle qui touche deux adversaires, cœurs qui sautent.
-6. **Passe et balle chargée** : balle au palier 2 (double halo et anneau) dans la main d'un allié.
+6. **Balle chargée** : balle au palier 2 (double halo et anneau) juste après une attrape parfaite.
 7. **Tour 4v4** : vue d'ensemble des huit plaques en plein match, tableau de score visible.
 8. **Menu / salon** : écran de salon avec amis Steam et sélection de carte (une fois le menu du fil interfaces livré) ; sinon terrasse et tremplin en vol.
 

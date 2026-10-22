@@ -13,6 +13,8 @@ namespace DogeballVR.Online;
 /// Les exceptions C# non rattrapées sont aussi écrites là. Le joueur peut joindre ces fichiers à un rapport de bug.
 /// Le rapport commence par un résumé lisible (ce qui s'est passé, machine, dernière activité, erreurs regroupées), puis la fin du journal.
 /// Au lancement qui suit un plantage, un bandeau le signale au joueur avec un bouton qui ouvre le dossier.
+/// Données personnelles : pseudos, SteamID, adresses IP et codes de salle sont masqués avant l'écriture du rapport,
+/// et seule la fin des journaux est lue (un journal gonflé ne ralentit pas le lancement).
 /// </summary>
 public partial class CrashReporter : Node
 {
@@ -59,10 +61,11 @@ public partial class CrashReporter : Node
         string log = "";
         var logs = LogBackups();
         if (logs.Count > 0 && Time.GetUnixTimeFromSystem() - FileAccess.GetModifiedTime($"{LogDir}/{logs[^1]}") < 300)
-            log = FileAccess.GetFileAsString($"{LogDir}/{logs[^1]}");
+            log = Tail($"{LogDir}/{logs[^1]}");
         else log = "(journal de la session introuvable : sans doute effacé par la rotation des journaux de Godot)";
         var lines = log.Split('\n');
         string openedAt = session.Length >= 19 ? session[..19] : session;
+        lines = lines.Select(Scrub).ToArray();
         LastReport = Write("crash", Summary(
             $"le jeu s'est fermé sans passer par « Quitter » (plantage, arrêt forcé ou coupure). Session ouverte le {openedAt}.", lines)
             + "\n--- fin du journal (300 dernières lignes) ---\n" + string.Join('\n', lines.Skip(Math.Max(0, lines.Length - 300))));
@@ -89,8 +92,42 @@ public partial class CrashReporter : Node
 
     static string[] CurrentLog()
     {
-        try { return FileAccess.GetFileAsString("user://logs/godot.log").Split('\n'); }
+        try { return Tail("user://logs/godot.log").Split('\n').Select(Scrub).ToArray(); }
         catch (Exception) { return Array.Empty<string>(); }
+    }
+
+    const long TailBytes = 256 * 1024;
+
+    /// <summary>Les 256 derniers Ko d'un journal (la première ligne, coupée, est retirée).</summary>
+    static string Tail(string path)
+    {
+        using var f = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+        if (f == null) return "";
+        ulong len = f.GetLength();
+        if (len <= TailBytes) return f.GetBuffer((long)len).GetStringFromUtf8();
+        f.Seek(len - (ulong)TailBytes);
+        string text = f.GetBuffer(TailBytes).GetStringFromUtf8();
+        int cut = text.IndexOf('\n');
+        return cut >= 0 ? text[(cut + 1)..] : text;
+    }
+
+    static readonly Regex SteamId = new(@"\b7656119\d{10}\b");
+    static readonly Regex Ipv4 = new(@"\b(\d{1,3}\.){3}\d{1,3}\b");
+    static readonly Regex RoomCode = new(@"\b[0-9A-Z]{5}(-[0-9A-Z]{1,5}){1,3}\b");   // JoinCode : groupes de 5, IP+port ou salon Steam
+    // Lignes qui citent un pseudo (OnlineLobby, SteamPlatform) : « [Lobby] X entre dans la salle », « Partie trouvée : X (… ».
+    static readonly Regex NamedBefore = new(@"^(\[Lobby\] ).{1,40}?( entre dans la salle| a quitté la salle)");
+    static readonly Regex NamedAfter = new(@"(Partie trouvée : |Connecté : ).{1,40}? \(");
+
+    /// <summary>Masque ce qui identifie quelqu'un : notre pseudo, les SteamID, les adresses IP, les codes de salle et les pseudos annoncés.</summary>
+    static string Scrub(string line)
+    {
+        string me = Identity.Name;
+        if (me.Length >= 2) line = line.Replace(me, "<pseudo>");
+        line = SteamId.Replace(line, "<steamid>");
+        line = Ipv4.Replace(line, m => m.Value is "127.0.0.1" or "0.0.0.0" ? m.Value : "<ip>");
+        line = RoomCode.Replace(line, "<code>");
+        line = NamedBefore.Replace(line, m => m.Groups[1].Value + "<joueur>" + m.Groups[2].Value);
+        return NamedAfter.Replace(line, m => m.Groups[1].Value + "<joueur> (");
     }
 
     /// <summary>Résumé lisible : ce qui s'est passé, machine, dernières lignes d'activité de la partie, erreurs regroupées par message.</summary>
@@ -117,7 +154,7 @@ public partial class CrashReporter : Node
         sb.AppendLine(errors.Count == 0 ? "Erreurs relevées : aucune" : $"Erreurs relevées ({errors.Count} différentes, les 15 dernières) :");
         foreach (var (msg, count) in errors.TakeLast(15)) sb.AppendLine($"  {(count > 1 ? $"{count}× " : "")}{msg}");
         sb.AppendLine();
-        sb.AppendLine("Pour nous aider : joindre ce fichier au rapport de bug (il ne contient ni mot de passe ni donnée personnelle).");
+        sb.AppendLine("Pour nous aider : joindre ce fichier au rapport de bug. Pseudos, identifiants Steam, adresses IP et codes de salle y sont masqués.");
         return sb.ToString();
     }
 
@@ -129,7 +166,7 @@ public partial class CrashReporter : Node
             using var f = FileAccess.Open(path, FileAccess.ModeFlags.Write);
             f?.StoreString($"{body}\n");
             // On garde les 10 derniers rapports.
-            var old = DirAccess.GetFilesAt(CrashDir).OrderBy(n => n).ToList();
+            var old = DirAccess.GetFilesAt(CrashDir).OrderBy(n => FileAccess.GetModifiedTime($"{CrashDir}/{n}")).ThenBy(n => n[(n.IndexOf('-') + 1)..]).ToList();
             for (int i = 0; i < old.Count - 10; i++) DirAccess.RemoveAbsolute($"{CrashDir}/{old[i]}");
             return path;
         }
