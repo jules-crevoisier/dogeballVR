@@ -55,6 +55,7 @@ def logo(width, tagline=True):
 
 def vignette(img, strength=0.55):
     """Assombrit les bords et le bas pour que le logo se lise sur la capture."""
+    img = img.convert("RGB")
     w, h = img.size
     mask = Image.new("L", (w, h), 0)
     d = ImageDraw.Draw(mask)
@@ -76,20 +77,23 @@ def with_logo(bg, logo_width_ratio, anchor="center", tagline=True):
     return out.convert("RGB")
 
 
-def busiest(paths):
-    """Capture la plus riche (écart type des couleurs) : souvent celle où il se passe le plus de choses."""
-    return max(paths, key=lambda p: sum(ImageStat.Stat(Image.open(p).convert("RGB")).stddev))
+def detail(path):
+    """Densité de contours : haute pour un plan large et riche, basse pour un plan bouché par un mur proche."""
+    return ImageStat.Stat(Image.open(path).convert("L").filter(ImageFilter.FIND_EDGES)).mean[0]
 
 
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "steam", "captures")
-    shots = sorted(p for p in glob.glob(os.path.join(src, "*.png")) if "menu" not in os.path.basename(p) and "fin-de-partie" not in os.path.basename(p))
+    # Fonds des capsules : captures sans HUD (« capsule-* ») si elles existent, sinon les captures de jeu.
+    shots = sorted(glob.glob(os.path.join(src, "capsule-*.png"))) or sorted(
+        p for p in glob.glob(os.path.join(src, "*.png")) if "menu" not in os.path.basename(p) and "fin-de-partie" not in os.path.basename(p))
     if not shots:
         sys.exit(f"Aucune capture dans {src} : lancer tools/steam/shots.sh d'abord")
     out = os.path.join(src, "capsules")
     os.makedirs(out, exist_ok=True)
-    hero_src = busiest([p for p in shots if "tour" in p] or shots)
-    main_src = busiest([p for p in shots if "croix" in p] or shots)
+    ranked = sorted(shots, key=detail, reverse=True)
+    main_src = ranked[0]
+    hero_src = ranked[1] if len(ranked) > 1 else ranked[0]
     print(f"Capture principale : {os.path.basename(main_src)} ; héros de bibliothèque : {os.path.basename(hero_src)}")
     main_img, hero_img = Image.open(main_src), Image.open(hero_src)
 
@@ -102,7 +106,7 @@ def main():
         "library_header_920x430.png": with_logo(crop_to(main_img, 920, 430), 0.62),
         "page_background_1438x810.png": vignette(crop_to(hero_img, 1438, 810), 0.75),
         # Héros de bibliothèque : aucun texte, l'action dans la zone sûre centrale (860x380).
-        "library_hero_3840x1240.png": crop_to(hero_img, 3840, 1240, (0.5, 0.55)),
+        "library_hero_3840x1240.png": crop_to(hero_img, 3840, 1240, (0.5, 0.55)).convert("RGB"),
     }
     for name, img in jobs.items():
         img.save(os.path.join(out, name))

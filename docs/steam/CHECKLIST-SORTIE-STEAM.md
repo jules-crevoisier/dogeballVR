@@ -53,6 +53,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 |---|---|---|---|
 | [x] | Textes : accroche FR/EN ≤ 300 caractères, description longue BBCode FR/EN, tags, genres, fonctionnalités | code | docs/steam/PAGE-STORE.md |
 | [ ] | Relecture des textes par jules, nom définitif, retrait des passages non livrés (tableau « Conditions ») | jules | docs/steam/PAGE-STORE.md §3 |
+| [~] | Outil de captures et capsules : `tools/steam/shots.sh` prend les captures dans le vrai jeu (`--shots`, `--shots-clean` sans HUD) et `tools/steam/capsules.py` sort toutes les capsules aux tailles ci-dessous avec le logo du menu. Jeu provisoire du 22/10 (rendu logiciel, nom de travail) dans le dossier du projet `steam/captures-provisoires/` : à refaire sur le PC de jules en rendu complet, et à remplacer par une vraie illustration pour les capsules | code (fait) + art | tools/steam/ |
 | [ ] | Header capsule **920x430** (obligatoire) | art | /doc/store/assets/standard |
 | [ ] | Small capsule **462x174** (obligatoire ; Steam en tire 120x45 et 184x69 : le logo doit rester lisible en tout petit) | art | /doc/store/assets/standard |
 | [ ] | Main capsule **1232x706** (obligatoire) | art | /doc/store/assets/standard |

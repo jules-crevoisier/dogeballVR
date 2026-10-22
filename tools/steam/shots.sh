@@ -16,6 +16,8 @@ shoot() { # nom carte instants options...
   "${RUN[@]}" "$GODOT" --path . "${DRIVER[@]}" --resolution "$RES" -- --map="$map" --pc-autoplay --shots="$OUT" --shots-name="$name" --shots-at="$at" "$@" 2>&1 | grep -E "\[Captures\]|ERROR: (System|Unhandled)" || true
 }
 shoot croix-neon croix_neon 9,16,23,31
+# Fonds des capsules : même jeu, sans HUD ni étiquettes.
+shoot capsule croix_neon 8,13,19,26,34 --shots-clean
 shoot tour-4v4 tour_4v4 9,18,27
 shoot fosse-croisee fosse_croisee 10,20
 shoot fin-de-partie croix_neon 19 --end-screen-test
