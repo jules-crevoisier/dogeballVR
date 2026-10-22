@@ -5,7 +5,8 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Test headless (--assist-test) des aides VR de Assist, sans casque : attrape par fenêtre de grip à 80 ms de latence,
-/// main fermée en permanence, temps de vol minimal d'un tir, attrape parfaite à 3 m. Quitte avec le code 0 si tout passe.
+/// main fermée en permanence, contrôle de l'hôte (prise à distance refusée, avance de 30 à 150 ms et rebond acceptés),
+/// temps de vol minimal d'un tir, attrape parfaite à 3 m, règles de manche avec un joueur parti. Quitte avec le code 0 si tout passe.
 /// </summary>
 public partial class AssistSelfTest : Node
 {
@@ -143,6 +144,27 @@ public partial class AssistSelfTest : Node
         for (int i = 0; i < 30; i++) (fxRot, _, _) = Visual.CameraFx.Step(1f / 60f);
         Visual.CameraFx.Reset();
         Check("Ressort de caméra stable", float.IsFinite(fxRot.X) && Mathf.Abs(fxRot.X) < 0.5f && Mathf.Abs(fxRot.Y) < 0.5f, $"après une image de 0,5 s : {fxRot}");
+
+        // Joueur parti (identifiant inconnu des règles) : aucune exception, rien de compté, pas de boucle.
+        {
+            var rules = new Rules.MatchRules();
+            rules.AddPlayer(1, 0);
+            rules.AddPlayer(2, 1);
+            bool threw = false, eliminatedUnknown = true;
+            try
+            {
+                rules.RegisterHit(1, 99);
+                rules.RegisterHit(99, 2);
+                rules.RegisterFall(99);
+                rules.RegisterPerfectCatch(99);
+                rules.Respawn(99);
+                eliminatedUnknown = rules.Eliminate(1, 99) || rules.Eliminate(99, 2);
+            }
+            catch (System.Exception) { threw = true; }
+            bool ringOut = rules.Eliminate(1, 2) && rules.LivesOf(2) == 0 && rules.Kos[0] == 1 && !rules.Eliminate(1, 2);
+            Check("règles avec un joueur parti", !threw && !eliminatedUnknown && rules.LivesOf(99) == 0 && !rules.HasPlayer(99) && ringOut,
+                $"exception {threw}, KO d'un inconnu {eliminatedUnknown}, ring-out compté une fois {ringOut}");
+        }
 
         GD.Print(ok ? "[AssistTest] TOUT OK" : "[AssistTest] ÉCHEC");
         GetTree().Quit(ok ? 0 : 1);

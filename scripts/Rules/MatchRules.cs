@@ -151,7 +151,7 @@ public class MatchRules
     }
 
     /// <summary>Un KO revient en jeu avec toutes ses vies.</summary>
-    public void Respawn(int playerId) => lives[playerId] = LivesPerPlayer;
+    public void Respawn(int playerId) { if (lives.ContainsKey(playerId)) lives[playerId] = LivesPerPlayer; }
 
     /// <summary>Nouvelle manche : vies et KO remis à zéro.</summary>
     public void StartRound()

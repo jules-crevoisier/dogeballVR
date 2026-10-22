@@ -157,8 +157,9 @@ public partial class OnlineLobby : Node
         NetHandshake.Release();
     }
 
-    /// <summary>Options de test de la ligne de commande (CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
-    /// avec <c>--auto-ready</c> et <c>--autostart=N</c> (l'hôte lance dès que N joueurs sont prêts). Vrai si une option a été trouvée.</summary>
+    /// <summary>Modes de lancement de la salle (aussi utilisés par la CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
+    /// lisibles dans l'export de sortie ; <c>--auto-ready</c> et <c>--autostart=N</c> (l'hôte lance dès que N joueurs sont prêts) sont des
+    /// options de test, lues par <see cref="Tools.DevFlags"/>. Vrai si un mode a été trouvé.</summary>
     public static bool RunCommandLine(SceneTree tree)
     {
         var cfg = NetConfig.Parse();
