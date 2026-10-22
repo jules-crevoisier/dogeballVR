@@ -111,17 +111,18 @@ public partial class Main : Node3D
             var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
             AddChild(backdrop);
             var menu = new UI.MainMenu { Name = "MainMenu" };
-            void Begin(NetMode mode, string address, bool tutorial)
+            void Begin(NetMode mode, string address, bool tutorial, string map = "croix_neon")
             {
                 menu.QueueFree();
                 backdrop.QueueFree();
-                cfg.Choose(mode, address);
+                cfg.Choose(mode, address, map);
                 Tutorial = tutorial;
                 StartMatch(xrActive);
                 FadeIn();
             }
             menu.Chosen += (mode, address) => Begin(mode, address, false);
             menu.TutorialChosen += () => Begin(NetMode.Offline, "", true);
+            menu.SoloChosen += map => Begin(NetMode.Offline, "", false, map);
             AddChild(menu);
             return;
         }

@@ -143,13 +143,14 @@ public partial class AssistSelfTest : Node
             $"{s0:0.0} / {tier1:0.0} / {s2:0.0} / {s3:0.0} m/s, plafond {capped:0.0}");
         check("n° 2 : lift VR +1", KcRules.ChargeAfterLift(0) == 1 && KcRules.ChargeAfterLift(Ball.MaxCharge) == Ball.MaxCharge, $"0 → {KcRules.ChargeAfterLift(0)}");
 
-        // n° 3 : une passe adverse s'intercepte par toute attrape, +1 palier si parfaite (passe au palier 1 → 2).
+        // n° 3 : une passe adverse s'intercepte par toute attrape ; parfaite, elle monte au palier 1 au plus (audit : sinon palier 2 = balle de KO).
         bool take = KcRules.CanTake(true, 1, 0) && KcRules.CanTake(true, 0, 0) && KcRules.PerfectOnPass;
-        bool tiers = Ball.ChargeOnCatch(1, false, true, true) == 2 && Ball.ChargeOnCatch(1, false, true, false) == 0;
+        bool tiers = Ball.ChargeOnCatch(1, false, true, true, true) == 1 && Ball.ChargeOnCatch(0, false, true, true, true) == 1
+                     && Ball.ChargeOnCatch(1, false, true, true) == 2 && Ball.ChargeOnCatch(1, false, true, false, true) == 0;
         KcRules.Configure(new Maps.RulesDef { InterceptPasses = false }, true);
         bool off = !KcRules.CanTake(true, 1, 0) && KcRules.CanTake(true, 0, 0);
         KcRules.Configure(defaults, true);
-        check("n° 3 : passes interceptables", take && tiers && off, "toute attrape, parfaite = palier 2 ; interceptPasses = false la protège");
+        check("n° 3 : passes interceptables", take && tiers && off, "toute attrape, parfaite = palier 1 au plus (un tir garde +1) ; interceptPasses = false la protège");
 
         // n° 4 : vraie tentative = balle adverse lancée (≥ 5 m/s) à moins de 0,6 s du corps ou de la main.
         var body = new Vector3(0, 1.2f, 0);
@@ -201,7 +202,9 @@ public partial class AssistSelfTest : Node
             var map = Maps.MapData.Load($"res://maps/{name}.json");
             KcRules.Configure(map.Rules, true);
             bool m = KcRules.Damage(2) == 1 && KcRules.HeartRegenSeconds(true) == 10f && KcRules.HeartRegenSeconds(false) == 0f && !KcRules.CatchHeals
-                && KcRules.PlateSwapTimes(false).Length == 0 && KcRules.CanTake(true, 1, 0) && KcRules.RoundBreakSeconds(true) == 20f && KcRules.ChargeAfterLift(0) == 1;
+                && KcRules.PlateSwapTimes(false).Length == 0 && KcRules.CanTake(true, 1, 0) && KcRules.RoundBreakSeconds(true) == 20f && KcRules.ChargeAfterLift(0) == 1
+                // audit (jules, 22/10) : 0,4 s d'invulnérabilité après une touche (le tir croisé marche), 1,5 s de protection au retour
+                && map.Rules.InvulnerableAfterHitSeconds <= 0.4f && Mathf.IsEqualApprox(map.Rules.RespawnProtectionSeconds, 1.5f);
             if (!m) mapsDetail += name + " ";
             mapsOk &= m;
         }

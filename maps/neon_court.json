@@ -60,7 +60,7 @@
     "roundWin": "2 cœurs par joueur, 1 cœur par coup quel que soit le palier ; à 0 cœur, KO ; la manche va à la première équipe à 3 KO, sinon à celle qui a le plus de KO après 2 min (égalité : 30 s de mort subite)",
     "stuckBallReturnSeconds": 3,
     "friendlyFire": false,
-    "invulnerableAfterHitSeconds": 1.5,
+    "invulnerableAfterHitSeconds": 0.4,
     "catchReward": "attraper ne rend pas de cœur et n'en retire pas au lanceur ; une attrape parfaite renvoie la balle avec 1 palier de plus ; en VR, +1 cœur après 10 s sans être touché",
     "eliminatedPlayer": "un joueur KO revient 3 s plus tard avec ses 2 cœurs",
     "returnedBallDispenser": "distributeur de l'équipe adverse du dernier lanceur dont le stock est le plus bas",

@@ -237,12 +237,15 @@ public partial class Ball : RigidBody3D
 
     /// <summary>
     /// Palier après une prise. Balle reçue d'un allié : palier 1 au plus, comme Knockout City (sinon deux passes donnent un KO
-    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite.
+    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite
+    /// (une passe interceptée : palier 1 au plus).
     /// </summary>
-    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect)
+    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect, bool wasPass = false)
     {
         if (fromAlly) return Mathf.Max(charge, 1);
-        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, MaxCharge) : 0;   // attrape parfaite : la balle garde sa charge, +1
+        // Attrape parfaite : la balle garde sa charge, +1. Une passe interceptée monte au palier 1 au plus (sinon intercepter une passe
+        // alliée au palier 1 donnait une balle de KO au palier 2, et passer devenait un risque sans contrepartie).
+        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, wasPass ? 1 : MaxCharge) : 0;
         return charge;
     }
 
@@ -251,7 +254,7 @@ public partial class Ball : RigidBody3D
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
         bool fromAlly = OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId;
-        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect);
+        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect, IsPass);
         if (next != Charge) { ResetCharge(); for (int i = 0; i < next; i++) AddCharge(); }
         EndArc();
         SpeedCap = 0;

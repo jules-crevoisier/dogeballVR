@@ -97,7 +97,8 @@ public partial class MatchController : Node3D
     double neutralTimer;
     double returnSeconds = 3;
     int maxBallsInPlay;
-    double invulnerableSeconds;
+    double invulnerableSeconds, respawnProtection = 1.5;
+    readonly Dictionary<int, double> protectedUntil = new();
     readonly Dictionary<int, double> lastHitAt = new();
     readonly Dictionary<int, double> lastDamageAt = new();   // dernier cœur perdu ou regagné : repart le délai de régénération
     float heartRegenSeconds;
@@ -217,6 +218,7 @@ public partial class MatchController : Node3D
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
+        respawnProtection = map.Rules.RespawnProtectionSeconds;
         heartRegenSeconds = KcRules.HeartRegenSeconds(!PcProfile);   // VR : toutes les cartes ; clavier-souris : aucune
         ringMap = PcProfile && map.PitRect != null ? map : null;
         terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
@@ -255,7 +257,8 @@ public partial class MatchController : Node3D
         StatsOf(hurtbox.PlayerId);
         Rules.AddPlayer(hurtbox.PlayerId, hurtbox.Team);
         hurtbox.Hit += OnHit;
-        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && gameClock - t < invulnerableSeconds);
+        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && gameClock - t < invulnerableSeconds)
+                                   && !(protectedUntil.TryGetValue(hurtbox.PlayerId, out double until) && gameClock < until);
         // Un joueur KO remplacé (départ, arrivée) reste KO jusqu'à son retour : pas d'invulnérabilité à 0 vie.
         if (Rules.LivesOf(hurtbox.PlayerId) <= 0)
         {
@@ -378,6 +381,7 @@ public partial class MatchController : Node3D
         double clock = gameClock;
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
+        if (protectedUntil.TryGetValue(targetId, out double until) && clock < until) return;   // retour de KO ou de chute
         lastHitAt[targetId] = clock;
         lastDamageAt[targetId] = clock;
         if (throwDistance >= 0f) hitsByRange[RangeBucket(throwDistance)]++;
@@ -429,7 +433,7 @@ public partial class MatchController : Node3D
         {
             if (now < respawnAt[id]) continue;
             if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
-            else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
+            protectedUntil[id] = now + respawnProtection;      // KO ou chute : protégé à l'apparition
             hurtboxes[id].Eliminated = false;
             ringGraceUntil[id] = now + 1.6;
             respawnAt.Remove(id);

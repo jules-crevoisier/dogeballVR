@@ -656,7 +656,7 @@
     "heldBallMaxSeconds": 10,
     "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
     "heartRegen": "remis à 2 au respawn ; en VR, +1 cœur après 10 s sans être touché (heartRegenSeconds) ; au clavier, aucune régénération (pcHeartRegenSeconds = 0)",
-    "invulnerableAfterHitSeconds": 1.5,
+    "invulnerableAfterHitSeconds": 0.4,
     "catchReward": "attraper ne rend pas de cœur (catchHealsHeart = false) ; une attrape parfaite d'un tir adverse renvoie la balle avec 1 palier de plus (palier 3 au plus)",
     "respawnSeconds": 3,
     "chargeByPass": "paliers 0 à 3 : une passe d'allié porte la balle au palier 1 (pas plus), une attrape parfaite ajoute 1 palier ; le palier ne change pas les dégâts : en VR il raccourcit la fenêtre d'attrape normale de celui qui reçoit (0,35 / 0,30 / 0,27 / 0,25 s, vrCatchWindowCutByCharge), au clavier il accélère le tir (+15 % par palier : 24 / 27,6 / 31,7 / 36,5 m/s, plafond 40)",

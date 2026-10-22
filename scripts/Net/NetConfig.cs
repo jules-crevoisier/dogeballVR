@@ -23,7 +23,7 @@ public class NetConfig
     public string Map { get; private set; } = "neon_court";
 
     /// <summary>Choix fait depuis le menu principal.</summary>
-    public void Choose(NetMode mode, string address = "127.0.0.1") { Mode = mode; Address = address; Map = "croix_neon"; }
+    public void Choose(NetMode mode, string address = "127.0.0.1", string map = "croix_neon") { Mode = mode; Address = address; Map = map; }
 
     public static NetConfig Parse()
     {

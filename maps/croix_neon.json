@@ -267,7 +267,7 @@
     "heldBallMaxSeconds": 10,
     "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
     "heartRegen": "remis à 2 au respawn ; en VR, +1 cœur après 10 s sans être touché (heartRegenSeconds) ; au clavier, aucune régénération (pcHeartRegenSeconds = 0)",
-    "invulnerableAfterHitSeconds": 1.5,
+    "invulnerableAfterHitSeconds": 0.4,
     "heartRegenSeconds": 10,
     "koTarget": 6,
     "catchReward": "attraper ne rend pas de cœur (catchHealsHeart = false) ; une attrape parfaite d'un tir adverse renvoie la balle avec 1 palier de plus (palier 3 au plus)",

@@ -15,6 +15,18 @@ public partial class MainMenu : CanvasLayer
 {
     public event Action<NetMode, string>? Chosen;
     public event Action? TutorialChosen;
+    /// <summary>Partie solo contre les bots sur la carte choisie (nom du fichier de maps/).</summary>
+    public event Action<string>? SoloChosen;
+
+    /// <summary>Cartes proposées en solo, dans l'ordre du sélecteur.</summary>
+    static readonly (string Map, string Name, string Info)[] SoloMaps =
+    {
+        ("croix_neon", "CROIX NÉON", "2 contre 2. Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
+        ("fosse_croisee", "FOSSE CROISÉE", "2 contre 2. Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
+        ("tour_4v4", "TOUR 4V4", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
+        ("la_fosse", "LA FOSSE", "2 contre 2. Zones face à face, vue à la première personne."),
+        ("neon_court", "NÉON COURT", "2 contre 2. Terrain court en zones, vue à la première personne."),
+    };
 
     Control root = null!;
     VBoxContainer column = null!;
@@ -110,7 +122,7 @@ public partial class MainMenu : CanvasLayer
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
         ShowMain();
-        // Captures d'écran : --menu-page=online | lan | credits | first ouvre la page au bout d'une seconde.
+        // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in OS.GetCmdlineUserArgs())
             if (arg.StartsWith("--menu-page="))
             {
@@ -121,6 +133,7 @@ public partial class MainMenu : CanvasLayer
                     else if (page == "lan") ShowLan();
                     else if (page == "credits") ShowCredits();
                     else if (page == "first") { GameSettings.TutorialDone = false; PlayBots(); }
+                    else if (page == "maps") ShowMapPicker();
                 };
             }
     }
@@ -284,7 +297,7 @@ public partial class MainMenu : CanvasLayer
 
     void PlayBots()
     {
-        if (GameSettings.TutorialDone) { Leave(() => Chosen?.Invoke(NetMode.Offline, "")); return; }
+        if (GameSettings.TutorialDone) { ShowMapPicker(); return; }
         // Première partie : on propose le tutoriel (2 minutes), sans l'imposer.
         var card = new PanelContainer();
         var col = new VBoxContainer();
@@ -301,10 +314,34 @@ public partial class MainMenu : CanvasLayer
         {
             GameSettings.TutorialDone = true;
             GameSettings.Save();
-            Leave(() => Chosen?.Invoke(NetMode.Offline, ""));
+            ShowMapPicker();
         }, 28, new Vector2(320, 64)));
         OpenOverlay(Centered(card));
         yes.CallDeferred(Control.MethodName.GrabFocus);
+    }
+
+    /// <summary>Solo : choix de la carte, à la Knockout City (liste à gauche, description de la carte sélectionnée dessous).</summary>
+    void ShowMapPicker()
+    {
+        var card = new PanelContainer();
+        var col = new VBoxContainer();
+        col.AddThemeConstantOverride("separation", 10);
+        card.AddChild(col);
+        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52));
+        var info = UiKit.Text("", 22, UiKit.Cream, 6, HorizontalAlignment.Center);
+        info.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        info.CustomMinimumSize = new Vector2(560, 64);
+        Button? first = null;
+        foreach (var (map, name, text) in SoloMaps)
+        {
+            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(560, 62));
+            b.FocusEntered += () => info.Text = text;
+            col.AddChild(b);
+            first ??= b;
+        }
+        col.AddChild(info);
+        OpenOverlay(Centered(card));
+        first?.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     void ShowCredits()

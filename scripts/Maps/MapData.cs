@@ -128,6 +128,8 @@ public class RulesDef
 {
     /// <summary>Après une touche, la cible ne peut plus être blessée pendant ce temps (0 = pas d'invulnérabilité).</summary>
     public float InvulnerableAfterHitSeconds { get; set; }
+    /// <summary>Protection au retour (KO ou chute) : on ne peut pas être touché ni taclé pendant ce temps, contre les KO à l'apparition.</summary>
+    public float RespawnProtectionSeconds { get; set; } = 1.5f;
     /// <summary>VR : un cœur perdu revient après ce délai sans être touché (0 = jamais). Toutes les cartes (décision n° 5 : on ne peut pas fuir au casque).</summary>
     public float HeartRegenSeconds { get; set; } = 10f;
     /// <summary>Clavier-souris : régénération d'un cœur (0 = jamais, comme Knockout City).</summary>
