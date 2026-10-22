@@ -12,7 +12,8 @@ namespace DogeballVR.Visual;
 /// « PRISE ! », « BAM ! », « KO ! » (<see cref="SpeechBubble"/>) réservés à ce qui concerne le joueur local (il touche, il est touché,
 /// il attrape, on attrape sa balle, KO par ou contre lui : le reste du terrain ne pose pas de mots) ; nom et cœurs au-dessus des autres
 /// joueurs (<see cref="PlayerTag"/>) ;
-/// écran grisé du joueur KO (clavier-souris : en VR, un voile gris plein champ gênerait ; le spectateur y reste libre de ses mouvements).
+/// écran désaturé du joueur KO (clavier-souris : en VR, un voile plein champ gênerait ; le spectateur y reste libre de ses mouvements).
+/// Au clavier-souris, le KO n'a pas d'autocollant : le HUD l'annonce déjà (bandeau « KO ! », fil des KO, grand titre du joueur KO).
 /// </summary>
 public partial class Feedback : Node
 {
@@ -33,15 +34,45 @@ public partial class Feedback : Node
     readonly HashSet<Hurtbox> withTags = new();
     MatchController? match;
     ColorRect? gray;
+    ShaderMaterial? grayMaterial;
+    Tween? grayTween;
 
     public override void _Ready()
     {
         if (!GrayWhenKo) return;
-        var layer = new CanvasLayer { Name = "KoLayer", Layer = 50 };
-        gray = new ColorRect { Color = new Color(0.45f, 0.47f, 0.52f, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Sous le HUD (calque 5) et les crochets de verrou (4) : seul le monde 3D se désature, le titre « KO ! » et le score restent
+        // nets et en couleur. Shader plein écran sur la copie de l'écran (rendus Compatibilité, Mobile et Forward+).
+        var layer = new CanvasLayer { Name = "KoLayer", Layer = 3 };
+        grayMaterial = new ShaderMaterial { Shader = new Shader { Code = GrayShader } };   // pas de cache static : un ShaderMaterial gardé en static fuit à la fermeture
+        gray = new ColorRect { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore, Material = grayMaterial };
         gray.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         layer.AddChild(gray);
         AddChild(layer);
+    }
+
+    /// <summary>Monde désaturé à 85 %, un peu assombri et refroidi ; amount fait le fondu d'entrée.</summary>
+    const string GrayShader = @"shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
+uniform float amount = 1.0;
+void fragment() {
+    vec3 c = texture(screen_tex, SCREEN_UV).rgb;
+    float l = dot(c, vec3(0.299, 0.587, 0.114));
+    vec3 g = mix(c, vec3(l), 0.85 * amount);
+    g = mix(g, g * vec3(0.72, 0.75, 0.84), amount);
+    COLOR = vec4(g, 1.0);
+}";
+
+    /// <summary>Voile du joueur KO : fondu d'entrée de 0,3 s, retrait immédiat au retour.</summary>
+    void SetGray(bool on)
+    {
+        if (gray == null || grayMaterial == null || gray.Visible == on) return;
+        gray.Visible = on;
+        grayTween?.Kill();
+        if (!on) return;
+        var mat = grayMaterial;
+        mat.SetShaderParameter("amount", 0f);
+        grayTween = gray.CreateTween();
+        grayTween.TweenMethod(Callable.From<float>(a => mat.SetShaderParameter("amount", a)), 0f, 1f, 0.3);
     }
 
     public override void _EnterTree() => MatchController.HitScored += OnHitScored;
@@ -139,7 +170,7 @@ public partial class Feedback : Node
             lastLives[h] = lives;
             eliminated[h] = h.Eliminated;
         }
-        if (gray != null) gray.Visible = Local.Eliminated;
+        SetGray(IsInstanceValid(Local) && Local.Eliminated);
         if (ImpactTest) RunImpactTest(cam, delta);
     }
 
@@ -231,7 +262,9 @@ public partial class Feedback : Node
         if (ko)
         {
             ImpactFx.Ko(this, hit, shooterColor);
-            if (word) Sticker("KO !", h, shooterColor, SpeechBubble.Size.Big);
+            // Au clavier-souris, pas d'autocollant « KO ! » : le KO d'un adversaire a déjà le bandeau et le fil des KO,
+            // le mien le grand titre central et le bandeau « KO ! par X ». En VR (sans HUD), l'autocollant reste.
+            if (word && !GrayWhenKo) Sticker("KO !", h, shooterColor, SpeechBubble.Size.Big);
             if (localTarget || localShooter || near) Juice.HitStop(this, 0.12f, 0.08f);
             if (GrayWhenKo) CameraFx.Shake(localTarget ? 0.75f : near ? 0.1f + 0.15f * closeness : 0f);
             Sfx.Play(this, SfxKind.Ko, hit);

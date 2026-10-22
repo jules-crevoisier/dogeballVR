@@ -9,7 +9,7 @@ namespace DogeballVR.Gameplay;
 /// <summary>
 /// HUD du joueur clavier-souris (dessiné pour 1920x1080, mis à l'échelle par le projet), dans l'esprit de Knockout City :
 /// tableau de score en haut (KO de la manche, manches gagnées, chrono), cœurs en bas à gauche, balle tenue et jauges
-/// d'attrape et de dash en bas au centre (avec leurs touches), jauge de charge en arc autour du viseur, marqueur de touche,
+/// d'attrape et de dash en petit en bas à droite (avec leurs touches), jauge de charge en arc autour du viseur, marqueur de touche,
 /// fil des KO et bandeau « KO ! » / « TOUCHÉ ! » du joueur (haut gauche), liseré orange et arc vers le tireur au coup reçu, cœur perdu qui se brise,
 /// alerte « on te vise » (liseré au bord et chevron autour du viseur, vers la menace),
 /// lignes de vitesse au dash, annonces centrales (une seule à la fois), tableau des scores (Tab), aide des touches (F1),
@@ -459,7 +459,7 @@ public partial class DesktopHud : CanvasLayer
         heartBreak.Advance((float)delta);
     }
 
-    // ------------------------------------------------------------------ balle tenue, attrape, dash (bas centre)
+    // ------------------------------------------------------------------ balle tenue, attrape, dash (bas droite)
 
     BallSlot ballSlot = null!;
     RoundGauge catchGauge = null!, dashGauge = null!;
@@ -557,49 +557,56 @@ public partial class DesktopHud : CanvasLayer
 
     Control bottomHolder = null!;
     Label fireAction = null!;
-    // La caméra d'épaule place le personnage à gauche du centre (pieds vers x = 650-820 en 1080p) : le groupe d'icônes est
-    // décalé à droite et remonté pour ne pas toucher ses pieds, et laisse la place au nom de l'action sous chaque icône.
-    const float BottomShift = 250f;
+    // Bloc d'actions compact en bas à droite (au-dessus du rappel « F1 commandes ») : loin des pieds du personnage, que la caméra
+    // d'épaule place à gauche du centre, et des cœurs en bas à gauche. Icônes à 60 % (IconScale) ; nom de l'action et touche
+    // en petit dessous. Les icônes sont dans un parent réduit : UiKit.Punch remet leur propre échelle à 1.
+    const float IconScale = 0.6f;
+    const float ActionsWidth = 300f, ActionsHeight = 140f;
 
     void BuildBottomCenter()
     {
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
-        holder.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        holder.OffsetLeft = -230 + BottomShift; holder.OffsetRight = 230 + BottomShift; holder.OffsetTop = -232; holder.OffsetBottom = -32;
+        holder.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        holder.OffsetRight = -30; holder.OffsetLeft = -30 - ActionsWidth; holder.OffsetBottom = -84; holder.OffsetTop = -84 - ActionsHeight;
         root.AddChild(holder);
         bottomHolder = holder;
+        var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
+        holder.AddChild(icons);
         catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(10, 30), Size = new Vector2(110, 110) };
         catchGauge.PivotOffset = new Vector2(55, 40);
-        holder.AddChild(catchGauge);
+        icons.AddChild(catchGauge);
         ballSlot = new BallSlot { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(170, 4), Size = new Vector2(120, 120) };
         ballSlot.PivotOffset = ballSlot.Size / 2;
-        holder.AddChild(ballSlot);
+        icons.AddChild(ballSlot);
         dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(340, 30), Size = new Vector2(110, 110) };
         dashGauge.PivotOffset = new Vector2(55, 40);
-        holder.AddChild(dashGauge);
-        // Sous chaque emplacement, centrés : le nom de l'action puis sa touche (attraper, lancer la balle tenue, esquive).
-        ActionUnder(holder, 10, 110, 131, "Attraper");
-        fireAction = ActionUnder(holder, 170, 120, 131, "Lancer");
-        ActionUnder(holder, 340, 110, 131, "Esquive");
-        catchKey = KeyUnder(holder, 10, 110, 163);
-        fireKey = KeyUnder(holder, 170, 120, 163);
-        dashKey = KeyUnder(holder, 340, 110, 163);
+        icons.AddChild(dashGauge);
+        // Sous chaque icône, centrés sur elle : le nom de l'action puis sa touche (attraper, lancer la balle tenue, esquive).
+        float Center(float x, float w) => icons.Position.X + (x + w / 2) * IconScale;
+        ActionUnder(holder, Center(10, 110), 84, "Attraper");
+        fireAction = ActionUnder(holder, Center(170, 120), 84, "Lancer");
+        ActionUnder(holder, Center(340, 110), 84, "Esquive");
+        catchKey = KeyUnder(holder, Center(10, 110), 108);
+        fireKey = KeyUnder(holder, Center(170, 120), 108);
+        dashKey = KeyUnder(holder, Center(340, 110), 108);
     }
 
-    Label ActionUnder(Control parent, float x, float width, float y, string text)
+    const float ActionColumn = 98f;   // largeur d'une colonne (nom, touche) : écart entre deux icônes
+
+    Label ActionUnder(Control parent, float centerX, float y, string text)
     {
-        var l = UiKit.Text(text, 22, Colors.White, 7, HorizontalAlignment.Center);
-        l.Position = new Vector2(x - 20, y);
-        l.Size = new Vector2(width + 40, 30);
+        var l = UiKit.Text(text, 17, Colors.White, 6, HorizontalAlignment.Center);
+        l.Position = new Vector2(centerX - ActionColumn / 2, y);
+        l.Size = new Vector2(ActionColumn, 22);
         parent.AddChild(l);
         return l;
     }
 
-    Label KeyUnder(Control parent, float x, float width, float y)
+    Label KeyUnder(Control parent, float centerX, float y)
     {
-        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, y), Size = new Vector2(width, 34) };
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(centerX - ActionColumn / 2, y), Size = new Vector2(ActionColumn, 30) };
         parent.AddChild(center);
-        var l = KeyCap("", 19);
+        var l = KeyCap("", 15);
         center.AddChild(l);
         return l;
     }
@@ -775,6 +782,7 @@ public partial class DesktopHud : CanvasLayer
     void OnHit(int shooter, int target, bool kill)
     {
         // Touché sans KO : bandeau « TOUCHÉ ! » à la couleur du tireur, avec son nom (le KO du joueur a son grand titre central).
+        if (target == View.LocalId && shooter >= 0 && shooter != View.LocalId) lastHurtBy = (shooter, age);
         if (target == View.LocalId && !kill && shooter >= 0 && shooter != View.LocalId)
             ShowSideBanner("TOUCHÉ !", $"par {View.NameOf(shooter)}", Palette.Team(View.TeamOf(shooter)), 80);
         if (shooter != View.LocalId) return;
@@ -786,6 +794,19 @@ public partial class DesktopHud : CanvasLayer
     }
 
     (int victim, double at, int kos) pendingKo = (-1, 0, 0);
+    (int by, double at) lastHurtBy = (-1, -10);
+
+    /// <summary>
+    /// Je suis KO : le bandeau dit « KO ! par X » à la couleur du tireur (il remplace un « TOUCHÉ ! » encore affiché).
+    /// Tireur inconnu (chute, client sans relais de la touche) : le dernier qui m'a touché dans les 2 s, sinon « KO ! » seul
+    /// si un bandeau est à l'écran.
+    /// </summary>
+    void LocalKoBanner(int by)
+    {
+        if ((by < 0 || by == View.LocalId) && age - lastHurtBy.at < 2.0) by = lastHurtBy.by;
+        if (by >= 0 && by != View.LocalId) ShowSideBanner("KO !", $"par {View.NameOf(by)}", Palette.Team(View.TeamOf(by)), 92);
+        else if (koBanner.Visible) ShowSideBanner("KO !", "", Palette.Team(1 - View.LocalTeam), 92);
+    }
 
     /// <summary>KO annoncé par l'hôte : bandeau quand la victime n'a plus de cœur ou que le score de mon équipe monte (dans la seconde).</summary>
     void ConfirmKo(MatchView.Snapshot s)
@@ -841,11 +862,13 @@ public partial class DesktopHud : CanvasLayer
         koBannerName.Text = name;
         koBand.AddThemeStyleboxOverride("panel", UiKit.Box(band, 0, -0.3f, 5, UiKit.Navy, 6));
         koBannerTween?.Kill();
+        // Bandeau déjà en place (« TOUCHÉ ! » suivi du KO) : le texte change sur place, sans ressortir de l'écran.
+        bool shown = koBanner.Visible && koBanner.Position.X > -200;
         koBanner.Visible = true;
         koBanner.Modulate = Colors.White;
-        koBanner.Position = koBanner.Position with { X = -720 };
+        if (!shown) koBanner.Position = koBanner.Position with { X = -720 };
         var tw = koBannerTween = koBanner.CreateTween();
-        tw.TweenProperty(koBanner, "position:x", 0.0, 0.22).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(koBanner, "position:x", 0.0, shown ? 0.1 : 0.22).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         tw.TweenInterval(1.05);
         tw.TweenProperty(koBanner, "position:x", -720.0, 0.23).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.In);
         tw.Parallel().TweenProperty(koBanner, "modulate:a", 0.0, 0.23);
@@ -898,6 +921,7 @@ public partial class DesktopHud : CanvasLayer
 
     void OnKo(int by, int victim)
     {
+        if (victim == View.LocalId) LocalKoBanner(by);
         bool mine = by == View.LocalId || victim == View.LocalId;
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 10, -0.15f, mine ? 3 : 0, UiKit.Yellow, 3);
@@ -1229,7 +1253,8 @@ public partial class DesktopHud : CanvasLayer
         notice.PivotOffset = new Vector2(360, 25);
         toast = CenterLabel("", 34, Colors.White, 10, 250, 50);
         pop = CenterLabel("", 96, UiKit.Yellow, 18, 600, 120);
-        koTitle = CenterLabel("KO !", 150, UiKit.Cream, 24, 330, 180);
+        // Titre du joueur KO à la couleur de l'équipe adverse : il ressort net sur le monde désaturé (Feedback, calque sous le HUD).
+        koTitle = CenterLabel("KO !", 150, Palette.Team(1 - View.LocalTeam).Lightened(0.1f), 24, 330, 180);
         koSub = CenterLabel("", 40, Colors.White, 10, 500, 60);
         resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60, root);
         foreach (var l in new[] { countdown, countdownRound, notice, toast, pop, koTitle, koSub }) l.Visible = false;
@@ -1424,7 +1449,7 @@ public partial class DesktopHud : CanvasLayer
             if (toast.Visible) UiKit.Punch(toast, 1.4f, 0.25);
         }
 
-        // Joueur KO : grand titre « KO ! » et retour dans n secondes (l'écran est grisé par Feedback). Il occupe le centre :
+        // Joueur KO : grand titre « KO ! » et retour dans n secondes (le monde est désaturé par Feedback, sous le HUD). Il occupe le centre :
         // un éclat en cours s'efface, ceux qui suivent attendent.
         bool ko = lives <= 0 && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         if (ko && koSince < 0)
@@ -1532,6 +1557,9 @@ public partial class DesktopHud : CanvasLayer
         float hintAlpha = helpWanted ? 0f : Mathf.Clamp((float)(HintSeconds - age) / 0.5f, 0f, 1f);
         helpHint.Modulate = new Color(1, 1, 1, hintAlpha);
         helpHint.Visible = hintAlpha > 0.01f;
+        // L'aide ouverte occupe le coin bas droit : le bloc d'actions s'efface derrière elle.
+        float actions = Mathf.MoveToward(bottomHolder.Modulate.A, helpShown ? 0f : 1f, (float)GetProcessDeltaTime() * 6f);
+        bottomHolder.Modulate = new Color(1, 1, 1, actions);
     }
 
     // ------------------------------------------------------------------ tableau des scores (Tab)
