@@ -57,11 +57,17 @@ public partial class EndScreen : CanvasLayer
         if (autoLabel != null) autoLabel.Text = $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor)))} s";
     }
 
+    /// <summary>Statistiques affichées : celles de l'hôte, ou celles du test de capture (voir <see cref="TestStats"/>).</summary>
+    IReadOnlyDictionary<int, MatchController.PlayerStats>? stats;
+    int winner = -1;
+
     void Open()
     {
         IsOpen = true;
         if (!Autoplay) Input.MouseMode = Input.MouseModeEnum.Visible;
         var s = View.State;
+        winner = s.Winner;
+        stats = TestStats(View.Stats, s.Winner);
         bool win = s.Winner == View.LocalTeam;
         Audio.Music.Stinger(win ? SfxKind.Victory : SfxKind.Defeat);   // jingle + foule, la musique de match s'efface
 
@@ -184,23 +190,51 @@ public partial class EndScreen : CanvasLayer
         if (capture && !Autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
-    /// <summary>Meilleur joueur : note du MVP, puis KO à égalité.</summary>
+    /// <summary>
+    /// MVP pris dans l'équipe gagnante (comme Knockout City, qui sacre le meilleur des vainqueurs) : note du MVP, puis KO à égalité.
+    /// Partie sans vainqueur : le meilleur des deux équipes.
+    /// </summary>
     int MvpId()
     {
         int best = -1, bestScore = -1, bestKos = -1;
         foreach (var p in View.Players)
         {
-            if (View.Stats == null || !View.Stats.TryGetValue(p.Id, out var st)) continue;
+            if (winner >= 0 && p.Team != winner) continue;
+            if (stats == null || !stats.TryGetValue(p.Id, out var st)) continue;
             if (st.Score > bestScore || (st.Score == bestScore && st.Kos > bestKos)) { best = p.Id; bestScore = st.Score; bestKos = st.Kos; }
         }
         return bestScore > 0 ? best : -1;
     }
 
+    /// <summary>
+    /// Test de capture (--end-screen-test) : la partie est déclarée finie d'office avant que personne n'ait marqué, d'où un
+    /// tableau à zéro. Pour juger l'écran, on y montre une partie crédible (3-2 : les vainqueurs un peu devant). Seulement
+    /// dans ce test et seulement si personne n'a marqué : une vraie partie garde ses chiffres.
+    /// </summary>
+    IReadOnlyDictionary<int, MatchController.PlayerStats>? TestStats(IReadOnlyDictionary<int, MatchController.PlayerStats>? real, int champion)
+    {
+        if (real == null || Array.FindIndex(OS.GetCmdlineUserArgs(), a => a.StartsWith("--end-screen-test")) < 0) return real;
+        foreach (var st in real.Values) if (st.Kos > 0) return real;
+        // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, arrêts parfaits, lancers.
+        int[][] winners = { new[] { 5, 8, 4, 2, 17 }, new[] { 3, 6, 2, 0, 14 }, new[] { 2, 4, 1, 1, 11 } };
+        int[][] losers = { new[] { 4, 7, 3, 1, 16 }, new[] { 2, 5, 1, 0, 12 }, new[] { 1, 3, 2, 0, 10 } };
+        var fake = new Dictionary<int, MatchController.PlayerStats>();
+        int[] rank = new int[2];
+        foreach (var p in View.Players)
+        {
+            if (p.Team is < 0 or > 1) continue;
+            var table = p.Team == champion ? winners : losers;
+            var v = table[Mathf.Min(rank[p.Team]++, table.Length - 1)];
+            fake[p.Id] = new MatchController.PlayerStats { Kos = v[0], Hits = v[1], Catches = v[2], PerfectCatches = v[3], Throws = v[4] };
+        }
+        return fake;
+    }
+
     Control? MvpCard()
     {
         int id = MvpId();
-        if (id < 0 || View.Stats == null) return null;
-        var st = View.Stats[id];
+        if (id < 0 || stats == null) return null;
+        var st = stats[id];
         int team = View.TeamOf(id);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(360, 0) };
         var box = UiKit.Box(TeamRow(team, true), 22, 0f, 5, UiKit.Yellow, 8);
@@ -216,13 +250,14 @@ public partial class EndScreen : CanvasLayer
         col.AddChild(UiKit.Text("MVP", 64, UiKit.Yellow, 14, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
         col.AddChild(UiKit.Spacer(6));
-        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
-        col.AddChild(UiKit.Text($"{Plural(st.Catches, "attrape")}   ·   {Plural(st.PerfectCatches, "parfaite")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "arrêt parfait", "arrêts parfaits"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }
 
-    static string Plural(int n, string word) => $"{n} {word}{(n > 1 ? "s" : "")}";
+    static string Plural(int n, string one, string many) => $"{n} {(n > 1 ? many : one)}";
 
     Control StatsTable()
     {
@@ -233,13 +268,13 @@ public partial class EndScreen : CanvasLayer
         var rows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         rows.AddThemeConstantOverride("separation", 6);
         panel.AddChild(rows);
-        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "ATTRAPES", "PARFAITES", "LANCERS" }, false));
+        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "BALLES\nATTRAPÉES", "ARRÊTS\nPARFAITS", "LANCERS" }, false));
         int mvp = MvpId();
         // Mon équipe d'abord, puis l'adverse ; dans chaque équipe, du meilleur score MVP au moins bon (KO à égalité).
         var ordered = new List<MatchView.PlayerInfo>();
-        foreach (var p in View.Players) if (View.Stats!.ContainsKey(p.Id)) ordered.Add(p);
-        int Score(int id) => View.Stats![id].Score;
-        int Kos(int id) => View.Stats![id].Kos;
+        foreach (var p in View.Players) if (stats!.ContainsKey(p.Id)) ordered.Add(p);
+        int Score(int id) => stats![id].Score;
+        int Kos(int id) => stats![id].Kos;
         ordered.Sort((a, b) =>
         {
             bool ma = a.Team == View.LocalTeam, mb = b.Team == View.LocalTeam;
@@ -251,7 +286,7 @@ public partial class EndScreen : CanvasLayer
         int i = 0, lastTeam = -1;
         foreach (var p in ordered)
         {
-            var st = View.Stats![p.Id];
+            var st = stats![p.Id];
             if (lastTeam >= 0 && p.Team != lastTeam) rows.AddChild(UiKit.Spacer(8));   // les deux équipes, bien séparées
             lastTeam = p.Team;
             var row = Row(p, View.NameOf(p.Id) + (p.Id == mvp ? "  ★" : ""), new[] { st.Kos.ToString(), st.Hits.ToString(), st.Catches.ToString(), st.PerfectCatches.ToString(), st.Throws.ToString() }, p.Id == mvp);
@@ -279,11 +314,14 @@ public partial class EndScreen : CanvasLayer
         var color = header ? UiKit.Sky : Colors.White;
         var n = UiKit.Text(name, size, color, local ? 9 : 6);   // blanc : le jaune ne se lit pas sur l'orange
         n.CustomMinimumSize = new Vector2(220, 0);
+        n.VerticalAlignment = VerticalAlignment.Center;
         line.AddChild(n);
         foreach (var c in cells)
         {
             var l = UiKit.Text(c, size, color, 6, HorizontalAlignment.Center);
-            l.CustomMinimumSize = new Vector2(128, 0);
+            l.CustomMinimumSize = new Vector2(136, 0);
+            l.VerticalAlignment = VerticalAlignment.Center;
+            if (header) l.AddThemeConstantOverride("line_spacing", -4);   // en-têtes sur deux lignes, serrées
             line.AddChild(l);
         }
         return row;
