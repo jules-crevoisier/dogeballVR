@@ -266,6 +266,7 @@ public partial class Main : Node3D
             }
             origin.AddChild(left);
             origin.AddChild(right);
+            if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
             localHurtbox.Head = camera;
             origin.AddChild(localHurtbox);
             AddChild(origin);
@@ -603,6 +604,18 @@ public partial class Main : Node3D
     const float GloveRollDegrees = 90f;
     /// <summary>Tangage du gant : l'axe -Z de la pose grip suit le poing fermé (les jointures) ; à régler au casque si les doigts piquent.</summary>
     const float GlovePitchDegrees = 0f;
+
+    /// <summary>
+    /// Essai au casque dans une pièce (APK « Essai maison », <c>--essai-maison</c>, export de debug seulement) : le joueur
+    /// démarre sur le pad du lift de sa zone (à 5 m du centre de la zone sur La Fosse), à 2,9 m du bord intérieur, et
+    /// regarde vers le terrain adverse. Lift, voile du garde-corps et vibration du bord s'essaient alors en 2 m de recul.
+    /// </summary>
+    static void PlaceForHomeTest(XROrigin3D origin, ZoneDef zone)
+    {
+        origin.RotationDegrees = new Vector3(0, zone.FacingDegrees, 0);
+        if (zone.Lift != null) origin.Position = new Vector3(zone.Lift.Pad.X, zone.Y, zone.Lift.Pad.Z);
+        GD.Print($"[Essai maison] Départ en ({origin.Position.X:0.0}, {origin.Position.Z:0.0}), face au terrain adverse ({zone.FacingDegrees:0}°)");
+    }
 
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
