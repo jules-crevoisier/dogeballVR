@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using DogeballVR.Gameplay;
 
@@ -24,9 +25,40 @@ public partial class PlayerTag : Node3D
     public Func<int> ViewerTeam { get; set; } = () => -1;
 
     static Font? font;
+    static readonly List<PlayerTag> all = new();
     Label3D nameLabel = null!, hearts = null!;
     string lastHearts = "", lastName = "";
     bool? throughWalls;
+    float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 24 px pour un adversaire)
+    float unitPx;         // taille d'un em en pixels de la fenêtre, à la dernière image affichée
+
+    public override void _EnterTree() => all.Add(this);
+    public override void _ExitTree() => all.Remove(this);
+
+    /// <summary>Étiquettes actuellement affichées (pour que les autocollants « BAM ! » évitent de les couvrir).</summary>
+    public static IEnumerable<PlayerTag> Shown()
+    {
+        foreach (var t in all) if (IsInstanceValid(t) && t.Visible && t.unitPx > 0f) yield return t;
+    }
+
+    /// <summary>Étiquette posée au-dessus de ce joueur, s'il en a une.</summary>
+    public static PlayerTag? Of(Node3D? target)
+    {
+        if (target == null) return null;
+        foreach (var t in all) if (IsInstanceValid(t) && t.Target == target) return t;
+        return null;
+    }
+
+    /// <summary>Rectangle occupé à l'écran (pixels de la fenêtre), contours compris ; null si l'étiquette est cachée.</summary>
+    public Rect2? ScreenRect(Camera3D cam)
+    {
+        if (!Visible || unitPx <= 0f || cam.IsPositionBehind(GlobalPosition)) return null;
+        var p = cam.UnprojectPosition(GlobalPosition);
+        float half = 0.5f * widthEm * unitPx;
+        return new Rect2(p.X - half, p.Y - TopEm * unitPx, 2f * half, (TopEm + BottomEm) * unitPx);
+    }
+
+    const float TopEm = 2.6f, BottomEm = 0.35f;   // du pied des cœurs au haut du nom (contours compris)
 
     public override void _Ready()
     {
@@ -78,7 +110,14 @@ public partial class PlayerTag : Node3D
         GlobalTransform = new Transform3D(basis * Basis.FromScale(Vector3.One * em), head + basis.Y * (6f * mpp));
 
         string n = PlayerName();
-        if (n != lastName) { nameLabel.Text = n; lastName = n; }
+        if (n != lastName)
+        {
+            nameLabel.Text = n;
+            lastName = n;
+            float nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.65f;
+            widthEm = Mathf.Max(nameEm, Max * 0.85f * (28f / 24f) + 0.7f);
+        }
+        unitPx = 24f * k * GetViewport().GetVisibleRect().Size.Y / 720f;
         int lives = Mathf.Clamp(Lives(), 0, Max);
         var t = new string('♥', lives) + new string('♡', Max - lives);
         if (t != lastHearts) { hearts.Text = t; lastHearts = t; }

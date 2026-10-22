@@ -7,8 +7,9 @@ namespace DogeballVR.Visual;
 /// « Autocollant » de texte façon « GOTCHA! » (Knockout City) : « BAM ! », « PRISE ! », « PASSE ! », « KO ! ».
 /// Lettres blanches grasses, contour épais bleu nuit, liseré extérieur à la couleur de l'équipe, légère inclinaison.
 /// Taille stable à l'écran, toujours devant le décor (pas de test de profondeur), face à la caméra.
-/// Animation : pop d'échelle 1,3 → 1 en 0,15 s, tenue, puis montée et fondu. Placé au-dessus de la tête, décalé sur le côté
-/// (vers l'extérieur de l'écran) pour ne cacher ni le visage ni le réticule.
+/// Animation : pop d'échelle 1,3 → 1 en 0,15 s, tenue, puis montée et fondu. Placé à hauteur de tête, décalé sur le côté
+/// (vers l'extérieur de l'écran) pour ne cacher ni le visage ni le réticule, à 40 px au moins de l'étiquette nom/cœurs du joueur
+/// concerné, et remonté au-dessus des autres étiquettes qu'il couvrirait (<see cref="PlayerTag"/>).
 /// </summary>
 public partial class SpeechBubble : Node3D
 {
@@ -42,9 +43,9 @@ public partial class SpeechBubble : Node3D
         var b = new SpeechBubble
         {
             Name = "Sticker", TopLevel = true, follow = follow,
-            emPx = size switch { Size.Small => 30f, Size.Big => 62f, _ => 44f },
+            emPx = size switch { Size.Small => 45f, Size.Big => 93f, _ => 66f },
         };
-        b.widthEm = font.GetStringSize(text, HorizontalAlignment.Left, -1, 96).X / 96f + 0.3f;   // + contours
+        b.widthEm = font.GetStringSize(text, HorizontalAlignment.Left, -1, 96).X / 96f;
         b.anchor = follow != null ? position - follow.GlobalPosition : position;
         b.tilt = Mathf.DegToRad((float)GD.RandRange(5.0, 9.0)) * (GD.Randf() < 0.5f ? -1f : 1f);
         // Liseré à la couleur de l'équipe, éclairci pour rester vif sur fond sombre.
@@ -80,32 +81,76 @@ public partial class SpeechBubble : Node3D
         if (mpp <= 0f) { Visible = false; return; }
         var camBasis = cam!.GlobalTransform.Basis.Orthonormalized();
 
-        // Côté choisi une fois : à l'opposé du centre (le réticule), sauf près d'un bord où l'on revient vers le centre pour rester entier.
-        if (side == 0f)
-        {
-            float w = cam.GetViewport().GetVisibleRect().Size.X;
-            float x = cam.UnprojectPosition(basePos).X - w * 0.5f;
-            side = x < 0f ? -1f : 1f;
-            if (Mathf.Abs(x) > w * 0.3f) side = -side;
-            var align = side < 0f ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-            front.HorizontalAlignment = back.HorizontalAlignment = align;
-            front.VerticalAlignment = back.VerticalAlignment = VerticalAlignment.Bottom;
-        }
-
         float t = (float)age;
         float scale = t < Pop ? Mathf.Lerp(1.3f, 1f, EaseOutBack(t / Pop)) : 1f;
         float fadeT = Mathf.Clamp((t - Pop - Hold) / Fade, 0f, 1f);
         float rise = 34f * fadeT * fadeT;                       // pixels : la montée accélère pendant le fondu
         float alpha = 1f - fadeT * fadeT;
-
-        // Décalage en pixels écran : à côté de la tête (pas dessus), un peu au-dessus.
-        var offset = camBasis.X * (side * 40f * mpp) + camBasis.Y * ((14f + rise) * mpp);
         float em = emPx * mpp * scale;
+
+        Vector3 offset;
+        if (cam is XRCamera3D)
+        {
+            if (side == 0f) ChooseSide(cam, basePos, 0f);
+            offset = camBasis.X * (side * 40f * mpp) + camBasis.Y * ((14f + rise) * mpp);
+        }
+        else
+        {
+            var view = cam.GetViewport().GetVisibleRect().Size;
+            float f = view.Y / 720f;
+            // Écart horizontal : la moitié de l'étiquette du joueur (s'il en a une) + 40 px, + le liseré gauche du texte.
+            float tagHalf = PlayerTag.Of(follow)?.ScreenRect(cam) is Rect2 own ? own.Size.X * 0.5f / f : 0f;
+            float gap = tagHalf + MinGap + RimEm * emPx * scale;
+            if (side == 0f) ChooseSide(cam, basePos, gap + (widthEm + RimEm) * emPx * scale);
+            float upPx = 14f + rise;
+            // Autres étiquettes couvertes : on monte l'autocollant juste au-dessus (deux passes, elles peuvent s'empiler).
+            for (int pass = 0; pass < 2; pass++)
+            {
+                var r = ScreenRectAt(cam, basePos + Offset(camBasis, gap, upPx, mpp), emPx * scale * f);
+                foreach (var tag in PlayerTag.Shown())
+                {
+                    if (tag.Target == follow || tag.ScreenRect(cam) is not Rect2 tr) continue;
+                    tr = tr.Grow(10f * f);
+                    if (r.Intersects(tr)) { float need = (r.End.Y - tr.Position.Y) / f; upPx += need; r.Position -= new Vector2(0, need * f); }
+                }
+            }
+            offset = Offset(camBasis, gap, upPx, mpp);
+        }
         offset += KeepOnScreen(cam, basePos + offset, emPx * scale, camBasis, mpp);
         GlobalTransform = new Transform3D(camBasis * new Basis(Vector3.Back, tilt * -side) * Basis.FromScale(Vector3.One * em), basePos + offset);
         SetAlpha(front, alpha);
         SetAlpha(back, alpha);
         Visible = true;
+    }
+
+    const float MinGap = 40f;    // pixels (image de 720 lignes) entre l'étiquette nom/cœurs et le mot
+    const float RimEm = 0.45f;   // liseré extérieur (contour 84 sur une police de 96) qui déborde des lettres
+
+    Vector3 Offset(Basis camBasis, float sidePx, float upPx, float mpp) => camBasis.X * (side * sidePx * mpp) + camBasis.Y * (upPx * mpp);
+
+    /// <summary>Côté choisi une fois : à l'opposé du centre (le réticule), sauf si le mot n'y tient pas en entier.</summary>
+    void ChooseSide(Camera3D cam, Vector3 basePos, float reach720)
+    {
+        var view = cam.GetViewport().GetVisibleRect().Size;
+        float x = cam.UnprojectPosition(basePos).X;
+        float reach = reach720 * view.Y / 720f + 8f;
+        side = x < view.X * 0.5f ? -1f : 1f;
+        bool fits = side > 0f ? x + reach < view.X : x - reach > 0f;
+        bool otherFits = side > 0f ? x - reach > 0f : x + reach < view.X;
+        if (!fits && otherFits) side = -side;
+        var align = side < 0f ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        front.HorizontalAlignment = back.HorizontalAlignment = align;
+        front.VerticalAlignment = back.VerticalAlignment = VerticalAlignment.Bottom;
+    }
+
+    /// <summary>Rectangle approximatif du mot à l'écran (liseré et inclinaison compris), l'origine étant le coin bas côté tête.</summary>
+    Rect2 ScreenRectAt(Camera3D cam, Vector3 origin, float emScreenPx)
+    {
+        var p = cam.UnprojectPosition(origin);
+        float w = (widthEm + 2f * RimEm) * emScreenPx;
+        float h = (1.2f + 2f * RimEm) * emScreenPx + 0.16f * w;   // inclinaison de 5 à 9° : le bout du mot monte ou descend
+        float x = side > 0f ? p.X - RimEm * emScreenPx : p.X - w + RimEm * emScreenPx;
+        return new Rect2(x, p.Y - h + RimEm * emScreenPx + 0.08f * w, w, h);
     }
 
     /// <summary>Décalage (en mètres) qui ramène l'autocollant entier dans l'écran, marge de 8 px, s'il dépasse d'un bord.</summary>
@@ -115,7 +160,7 @@ public partial class SpeechBubble : Node3D
         var size = cam.GetViewport().GetVisibleRect().Size;
         float f = size.Y / 720f;
         var p = cam.UnprojectPosition(origin);
-        float width = widthEm * emPx720 * f, height = 1.15f * emPx720 * f, pad = 8f * f;
+        float width = (widthEm + RimEm) * emPx720 * f, height = 1.15f * emPx720 * f, pad = 8f * f;
         float dx = 0f, dy = 0f;
         if (side > 0f && p.X + width > size.X - pad) dx = size.X - pad - (p.X + width);
         else if (side < 0f && p.X - width < pad) dx = pad - (p.X - width);
