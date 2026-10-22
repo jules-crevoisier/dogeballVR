@@ -10,7 +10,7 @@ Travailler dans l'ordre, cocher au fur et à mesure, relancer `/adopt` après l'
 Sources hors dépôt (lecture seule, à convertir, jamais à copier) : `/mnt/project-files/masterclasse/` (noté `MC/` ci-dessous).
 Si ce dossier n'est pas accessible dans la session, partir de `README.md`, `docs/ARCHITECTURE.md`, `docs/CHOIX-REGLES.md` et du code, puis le signaler dans la PR.
 Règle de priorité : le travail demandé au fil passe avant ce plan (voir `CLAUDE.md`). `/gate-check` est toujours soumis à jules.
-Travail en parallèle : avant de prendre une étape, lister les PR ouvertes du dépôt ; prendre la première case qu'aucune PR ne couvre, une étape par PR, et dire dans le titre de la PR quelle étape elle traite.
+Travail en parallèle : avant de prendre une étape, lister les PR ouvertes du dépôt ; prendre la première case qu'aucune PR ne couvre, une étape par PR, et dire dans le titre de la PR quelle étape elle traite. Si l'étape dont elle dépend est encore dans une PR ouverte, partir de cette branche (y fusionner la branche de la PR) ou prendre une étape indépendante (1.3, 1.4, 4.3).
 
 ## Résumé de l'audit
 
@@ -57,7 +57,7 @@ Ordre imposé : ADR → `/architecture-review` → manifest → sprint.
 - [ ] **3.2 Vue d'ensemble** — `/create-architecture` (reprend `docs/ARCHITECTURE.md` en l'élargissant). Produit : `docs/architecture/architecture.md`.
 - [ ] **3.3 Registre d'exigences** — `/architecture-review` : remplit `docs/architecture/tr-registry.yaml` (aujourd'hui vide) et `requirements-traceability.md`.
 - [ ] **3.4 Manifeste de contrôle** — `/create-control-manifest`. Produit : `docs/architecture/control-manifest.md` (règles : C# 4.3, `scripts/`, PascalCase, interdits Godot 4.4+).
-- [ ] **3.5 Stage** — `/gate-check` (Technical Setup puis Pre-Production ; le projet est déjà noté `Production`, le gate dira ce qui manque réellement). Ne pas modifier `project.yaml` à la main.
+- [ ] **3.5 Stage** — ne pas lancer `/gate-check` dans un fil (la skill attend toujours un humain). Écrire dans la PR le rapport de ce qui manque encore pour chaque étape (voir `.claude/docs/effects-map.md` § project.stage) ; jules lance `/gate-check` lui-même. Ne pas modifier `project.yaml` à la main.
 
 Relancer `/adopt` ici : BLOCKING et HIGH doivent être à zéro.
 
@@ -85,7 +85,7 @@ Relancer `/adopt` ici : BLOCKING et HIGH doivent être à zéro.
 
 - [ ] **6.1** `/perf-profile` sur Quest (72 i/s, 13,9 ms ; allocations par snapshot, matériaux transparents sur les balles) — `performance-analyst`.
 - [ ] **6.2** `/security-audit` du réseau (tolérance de latence large, anti-triche, hôte-autorité) — `security-engineer`.
-- [ ] **6.3** `/vertical-slice` puis `/gate-check` vers la phase suivante ; `/release-checklist` et `/launch-checklist` en s'appuyant sur `MC/plan/plan-steam.md` et le gabarit `certification-steam.md` ; `/localize` si le jeu sort en plusieurs langues.
+- [ ] **6.3** `/vertical-slice` puis rapport de gate pour jules (il lance `/gate-check`) ; `/release-checklist` et `/launch-checklist` en s'appuyant sur `MC/plan/plan-steam.md` et le gabarit `.claude/docs/templates/certification-steam.md` ; `/localize` si le jeu sort en plusieurs langues.
 
 ---
 

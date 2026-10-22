@@ -8,6 +8,8 @@ paths:
   - "Source/**/{Core,core}/**/*.{h,cpp}"
 ---
 
+> **dogeballVR:** `scripts/Main.cs` wires the game together and may reference gameplay; the dependency rule applies to new engine-level code. Do not refactor existing files only to satisfy it.
+
 # Engine Code Rules
 
 - ZERO allocations in hot paths (update loops, rendering, physics) — pre-allocate, pool, reuse

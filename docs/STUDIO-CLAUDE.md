@@ -1,6 +1,7 @@
 # Studio Claude : mode d'emploi du kit dans dogeballVR
 
 Ce dépôt embarque **Claude Code Game Studios** (CCGS, v1.2.0, licence MIT,
+© 2026 Donchitos, texte dans `.claude/LICENSE-CCGS`,
 github.com/Donchitos/Claude-Code-Game-Studios) : 49 agents spécialisés
 (directeurs, leads, programmeurs, spécialistes Godot), 74 skills (`/commande`)
 et des hooks. Ce document dit comment chaque session Claude s'en sert pour
@@ -92,7 +93,9 @@ La liste complète est dans `.claude/docs/skills-reference.md` et
 Cinq skills ne peuvent pas être lancées par un modèle : elles ne démarrent que
 si un humain tape la commande. Ce sont `/dev-story`, `/story-done`, `/hotfix`,
 `/day-one-patch` et `/launch-checklist`. Dans un fil autonome, il faut lire
-`.claude/skills/<nom>/SKILL.md` et suivre ses étapes à la main. jules peut aussi
+`.claude/skills/<nom>/SKILL.md` et suivre ses étapes à la main. Ses lignes
+`` !`bash "${CLAUDE_SKILL_DIR}/…" resolve_config …` `` ne s'exécutent pas dans ce
+cas : il faut lancer soi-même `bash .claude/hooks/yaml-helper.sh resolve_config`. jules peut aussi
 taper la commande lui-même dans une session Claude Code.
 
 ## 6. Premier chantier : rattraper les documents

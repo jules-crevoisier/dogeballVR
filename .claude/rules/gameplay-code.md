@@ -7,6 +7,8 @@ paths:
   - "Source/**/{Gameplay,gameplay}/**/*.{h,cpp}"
 ---
 
+> **dogeballVR:** match tuning lives as named constants in `scripts/Rules/MatchRules.cs` and map layouts in `maps/*.json`; that is accepted. Move a value to data only when the task needs it, never as a drive-by refactor.
+
 # Gameplay Code Rules
 
 - ALL gameplay values MUST come from external config/data files, NEVER hardcoded

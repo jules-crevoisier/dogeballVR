@@ -65,7 +65,8 @@ usually have nobody to answer questions, and jules wants full autonomy.
   (deleting files or data, production, messages to other people) —
   `modes.automation_always_ask: [file_deletions]`.
 - A question with no answer is not an answer: take the default, write it in
-  the PR, and say so in the final report.
+  the PR, and say so in the final report. For a deletion the default is
+  **not** to delete.
 - **The task you were given comes first.** Kit documents (GDD, ADR, stories
   from `docs/adoption-plan-2026-10-22.md`) are written only when they are the
   thread's subject, or at the end of a PR for the system it touched. Tick the
@@ -77,9 +78,10 @@ usually have nobody to answer questions, and jules wants full autonomy.
   test and the smoke check.
 - `project.stage` is `Production` because the game runs, although the kit's
   documents are still missing.
-- The CI is the test evidence: `/story-done` and `/smoke-check` checks that
-  need a local run or a screenshot are satisfied by a green CI run, quoted in
-  the PR (`testing.strict` is off in `project.yaml`).
+- The CI is the test evidence: `/story-done` checks that need a local run or a
+  screenshot are satisfied by a green CI run, quoted in the PR (`testing.strict`
+  is off in `project.yaml`). `/smoke-check` phase 2 reports NOT ASSESSED (no
+  gdUnit4): expected, quote the CI instead.
 - Every `**/*.cs` under the repo is compiled by `DogeballVR.csproj`. A test or
   prototype project in `tests/` or `prototypes/` must be excluded with
   `<Compile Remove="tests/**;prototypes/**" />` in the same PR. Do not run

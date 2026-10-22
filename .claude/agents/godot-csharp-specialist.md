@@ -266,7 +266,9 @@ var weaponData = GD.Load<WeaponData>("res://data/weapons/sword.tres");
 
 ## .csproj Configuration
 
-Recommended settings for Godot 4 C# projects:
+Recommended settings for Godot 4 C# projects (dogeballVR: keep `net6.0`
+and C# 10 as in `DogeballVR.csproj`, no `LangVersion` bump, unless an ADR and
+jules decide an upgrade):
 ```xml
 <PropertyGroup>
   <TargetFramework>net8.0</TargetFramework>
