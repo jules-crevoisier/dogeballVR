@@ -363,7 +363,7 @@ public partial class EndScreen : CanvasLayer
     {
         if (real == null || Array.FindIndex(OS.GetCmdlineUserArgs(), a => a.StartsWith("--end-screen-test")) < 0) return real;
         foreach (var st in real.Values) if (st.Kos > 0) return real;
-        // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, arrêts parfaits, lancers.
+        // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, attrapes parfaites, lancers.
         int[][] winners = { new[] { 5, 8, 4, 2, 17 }, new[] { 3, 6, 2, 0, 14 }, new[] { 2, 4, 1, 1, 11 } };
         int[][] losers = { new[] { 4, 7, 3, 1, 16 }, new[] { 2, 5, 1, 0, 12 }, new[] { 1, 3, 2, 0, 10 } };
         var fake = new Dictionary<int, MatchController.PlayerStats>();
@@ -401,7 +401,7 @@ public partial class EndScreen : CanvasLayer
         col.AddChild(UiKit.Spacer(6));
         col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
-        col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "arrêt parfait", "arrêts parfaits"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "attrape parfaite", "attrapes parfaites"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }

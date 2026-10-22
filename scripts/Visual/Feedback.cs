@@ -84,7 +84,7 @@ void fragment() {
     public override void _EnterTree() { current = this; MatchController.HitScored += OnHitScored; Ball.CaughtThrow += OnCaughtThrow; PerfectCatchNoted += OnPerfectCatch; Ball.Exploded += OnBombExploded; }
     public override void _ExitTree() { if (current == this) current = null; MatchController.HitScored -= OnHitScored; Ball.CaughtThrow -= OnCaughtThrow; PerfectCatchNoted -= OnPerfectCatch; Ball.Exploded -= OnBombExploded; }
 
-    /// <summary>Attrape parfaite signalée hors de l'hôte (client PC) : l'autocollant devient « PRISE PARFAITE ! ».</summary>
+    /// <summary>Attrape parfaite signalée hors de l'hôte (client PC) : l'autocollant devient « ATTRAPE PARFAITE ! ».</summary>
     public static void NotePerfectCatch(int playerId) => PerfectCatchNoted?.Invoke(playerId);
     static event System.Action<int>? PerfectCatchNoted;
     readonly Dictionary<int, ulong> perfectAt = new();
@@ -101,14 +101,14 @@ void fragment() {
 
     void OnCaughtThrow(int catcherId, bool perfect) { if (perfect) OnPerfectCatch(catcherId); }
 
-    /// <summary>Une seule annonce par attrape : si « PRISE ! » vient d'être posé pour ce joueur, il est remplacé par « PRISE PARFAITE ! ».</summary>
+    /// <summary>Une seule annonce par attrape : si « PRISE ! » vient d'être posé pour ce joueur, il est remplacé par « ATTRAPE PARFAITE ! ».</summary>
     void OnPerfectCatch(int catcherId)
     {
         perfectAt[catcherId] = Time.GetTicksMsec();
         if (lastSteal.Id == catcherId && Time.GetTicksMsec() - lastSteal.Ms < 500 && HurtboxOf(catcherId) is { } catcher)
         {
             lastSteal = (-1, 0);
-            Sticker("PRISE PARFAITE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Small);
+            Sticker("ATTRAPE PARFAITE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Small);
         }
     }
 
@@ -173,17 +173,17 @@ void fragment() {
                     // « PRISE ! » seulement si le joueur local attrape, ou si c'est sa balle qu'on attrape (pas pour un ramassage de bot).
                     if (steal && (IsLocal(cur.OwnerId) || IsLocal(prev.OwnerId)) && HurtboxOf(cur.OwnerId) is { } catcher)
                     {
-                        // Attrape parfaite (notée juste avant par l'hôte) : un seul mot, « PRISE PARFAITE ! », jamais « PRISE ! » + un second message.
+                        // Attrape parfaite (notée juste avant par l'hôte) : un seul mot, « ATTRAPE PARFAITE ! », jamais « PRISE ! » + un second message.
                         bool perfect = perfectAt.TryGetValue(cur.OwnerId, out var at) && Time.GetTicksMsec() - at < 500;
                         if (perfect) perfectAt.Remove(cur.OwnerId);
                         lastSteal = perfect ? (-1, 0) : (cur.OwnerId, Time.GetTicksMsec());
-                        Sticker(perfect ? "PRISE PARFAITE !" : "PRISE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Normal);
+                        Sticker(perfect ? "ATTRAPE PARFAITE !" : "PRISE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Normal);
                     }
                 }
                 else if (prev.Held && !cur.Held)
                 {
-                    // Passe : souffle plus aigu et plus doux qu'un tir (on entend tout de suite si c'est une passe ou une attaque).
-                    if (ball.Kind != Ball.KindBomb && cur.Speed > 1.5f) Sfx.Play(this, SfxKind.Throw, pos, cur.Pass ? 1.3f : 0.8f + 0.35f * prev.Charge, cur.Pass ? -6f : 0f);
+                    // Passe : souffle aigu et doux. Tir : plus grave et plus fort à chaque palier de charge (le tir le plus dangereux pèse le plus).
+                    if (ball.Kind != Ball.KindBomb && cur.Speed > 1.5f) Sfx.Play(this, SfxKind.Throw, pos, cur.Pass ? 1.35f : 1f - 0.07f * prev.Charge, cur.Pass ? -6f : 1.5f * prev.Charge);
                     // Vrai lancer seulement (une balle lâchée au KO ou au décompte ne vibre pas).
                     if (IsLocal(prev.OwnerId) && cur.Speed > 1.5f) Haptic?.Invoke(prev.Hand, cur.Pass ? 0.25f : 0.35f + 0.15f * prev.Charge, 0.05f);
                 }
@@ -350,11 +350,10 @@ void fragment() {
         }
     }
 
-    /// <summary>Arrêt sur image : au clavier-souris tel quel ; en VR plus court et moins appuyé (un monde figé dans le casque ressemble à une saccade).</summary>
+    /// <summary>Arrêt sur image, au clavier-souris seulement (et hors ligne, voir Juice.HitStop).</summary>
     void Stop(float seconds, float scale = 0.12f)
     {
-        if (Vr) Juice.HitStop(this, seconds * 0.5f, Mathf.Max(scale, 0.35f));
-        else Juice.HitStop(this, seconds, scale);
+        if (!Vr) Juice.HitStop(this, seconds, scale);   // VR : jamais (un monde figé au casque est une saccade) ; la vibration porte le choc
     }
 
     /// <summary>Touche ou KO sur un joueur, vu par tout le monde : impact, autocollant, son ; au PC, secousse et arrêt sur image dosés.</summary>
@@ -390,7 +389,7 @@ void fragment() {
                 Sfx.Play(this, SfxKind.KoConfirm);   // au clavier-souris, DesktopHud le joue déjà
             }
             if (GrayWhenKo) CameraFx.Shake(localTarget ? 0.75f : near ? 0.1f + 0.15f * closeness : 0f);
-            Sfx.Play(this, SfxKind.Ko, hit);
+            Sfx.Play(this, SfxKind.Ko, hit, 1f, localTarget ? -6f : 0f);   // KO subi : HurtSelf porte déjà le coup, la somme saturait
             return;
         }
         ImpactFx.Hit(this, hit, shooterColor);
