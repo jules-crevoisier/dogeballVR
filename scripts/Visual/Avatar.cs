@@ -6,7 +6,7 @@ namespace DogeballVR.Visual;
 /// Avatar de la DA v3 : combinaison unie à la couleur de l'équipe, jambes sombres, épaules marquées, tête sphérique avec
 /// visière sombre, grandes mains blanches, disque blanc (équipe 1) ou losange blanc (équipe 2) sur le torse.
 /// Sert pour les bots et (réseau) pour les joueurs distants.
-/// Personnage riggé : touché = animation « Touche » + recul court à l'opposé du tireur + éclat blanc de 0,1 s ; KO = animation « KO »,
+/// Personnage riggé : touché = animation « Recul » (tirée de « Touche », bras baissés, voir AddRecoil) + recul court à l'opposé du tireur + éclat blanc de 0,1 s ; KO = animation « KO »,
 /// jouée par une copie du modèle laissée sur place quand le joueur disparaît aussitôt (bot ou joueur distant masqué au KO).
 /// </summary>
 public partial class Avatar : Node3D
@@ -53,6 +53,7 @@ public partial class Avatar : Node3D
             avatar.AddChild(rigged);
             foreach (var loop in new[] { "Repos", "Course" })
                 if (avatar.anim?.HasAnimation(loop) == true) avatar.anim.GetAnimation(loop).LoopMode = Animation.LoopModeEnum.Linear;
+            if (avatar.anim != null) AddRecoil(avatar.anim);
             avatar.anim?.Play("Repos");
             // Nœuds attendus par les appelants (tête, mains) : vides, le modèle animé porte le rendu.
             avatar.Head = new Node3D { Name = "Head" };
@@ -113,6 +114,31 @@ public partial class Avatar : Node3D
         return avatar;
     }
 
+    /// <summary>
+    /// Réaction de touche « Recul », fabriquée à l'exécution (le modèle n'est pas modifié) : le clip « Touche » du modèle lève les deux
+    /// bras à l'horizontale pendant 0,45 s, ce qui se lit comme une pose en T. On garde son buste et sa tête rejetés en arrière et son
+    /// recul de bassin, avec les bras du repos (le long du corps). Ajouté une fois à la bibliothèque partagée du modèle.
+    /// </summary>
+    static void AddRecoil(AnimationPlayer ap)
+    {
+        if (ap.HasAnimation(RecoilName) || !ap.HasAnimation("Touche") || !ap.HasAnimation("Repos")) return;
+        var hit = (Animation)ap.GetAnimation("Touche").Duplicate();
+        var idle = ap.GetAnimation("Repos");
+        for (int t = 0; t < hit.GetTrackCount(); t++)
+        {
+            string path = hit.TrackGetPath(t).ToString();
+            if (hit.TrackGetType(t) != Animation.TrackType.Rotation3D || !(path.EndsWith(":Bras.D") || path.EndsWith(":Bras.G") || path.EndsWith(":AvantBras.D") || path.EndsWith(":AvantBras.G"))) continue;
+            int i = idle.FindTrack(hit.TrackGetPath(t), Animation.TrackType.Rotation3D);
+            if (i < 0 || idle.TrackGetKeyCount(i) == 0) continue;
+            var down = (Quaternion)idle.TrackGetKeyValue(i, 0);
+            while (hit.TrackGetKeyCount(t) > 0) hit.TrackRemoveKey(t, 0);
+            hit.RotationTrackInsertKey(t, 0, down);
+        }
+        if (ap.HasAnimationLibrary("")) ap.GetAnimationLibrary("").AddAnimation(RecoilName, hit);
+    }
+
+    const string RecoilName = "Recul";
+
     static Node3D MakeGlove(Material white, Node3D? model)
     {
         var glove = new Node3D { Name = "Glove" };
@@ -148,7 +174,7 @@ public partial class Avatar : Node3D
     void OnHit(int shooterId, int targetId, bool kill)
     {
         if (targetId != playerId || playerId < 0 || body == null) return;
-        PlayAction(kill ? "KO" : "Touche", kill ? 3.0 : 0.45);
+        PlayAction(kill ? "KO" : anim?.HasAnimation(RecoilName) == true ? RecoilName : "Repos", kill ? 3.0 : 0.45);
         Flash();
         if (kill) { ghostWindow = 0.25; koTransform = body.GlobalTransform; return; }
         // Recul : à l'opposé du tireur (sinon vers l'arrière du personnage, +Z : il regarde vers -Z).

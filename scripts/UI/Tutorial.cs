@@ -33,6 +33,8 @@ public partial class Tutorial : CanvasLayer
     RichTextLabel body = null!;
     ColorRect progress = null!;
 
+    const string CatchTitle = "ATTRAPE UN TIR";
+
     static string K(string action) => $"[color=#ffd23f]{InputSetup.KeyName(action)}[/color]";
 
     public override void _Ready()
@@ -40,6 +42,7 @@ public partial class Tutorial : CanvasLayer
         Layer = 30;
         Running = true;
         Bot.Gentle = true;
+        Bot.Calm = true;   // dès la première image : pas de tir pendant « REGARDE AUTOUR DE TOI » (Next arrive en différé)
         MatchController.HitScored += OnHit;
         steps.Add(new("REGARDE AUTOUR DE TOI", () => "Bouge la souris pour tourner la caméra.", p => p.LookTravel - start["look"] > 3.5f));
         steps.Add(new("DÉPLACE-TOI", () => $"{K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")} pour courir sur le toit.", p => p.WalkTravel - start["walk"] > 8f));
@@ -48,7 +51,7 @@ public partial class Tutorial : CanvasLayer
         steps.Add(new("RAMASSE UNE BALLE", () => "Cours sur une balle jaune (ou sur le plot de ton camp) pour la prendre.", p => p.HeldBall != null));
         steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger (la jauge se remplit), relâche pour lancer.", p => p.ChargedThrows > start["charged"]));
         steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un bleu (le viseur prend sa couleur) et lance avec {K("fire")}. L'aide à la visée corrige les presque-touches.", _ => hitsByMe > 0));
-        steps.Add(new("ATTRAPE UN TIR", () => $"Quand un bleu te vise (liseré bleu au bord de l'écran, chevron près du viseur), appuie sur {K("catch")} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", p => p.Catches > start["catches"]));
+        steps.Add(new(CatchTitle, () => $"Quand un bleu te vise (liseré bleu au bord de l'écran, chevron près du viseur), appuie sur {K("catch")} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", p => p.Catches > start["catches"]));
         steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main, {K("pass")} l'envoie à ton coéquipier orange : une passe charge la balle.", p => p.Passes > start["passes"]));
         steps.Add(new("FEINTE", () => $"Balle en main, {K("feint")} fait mine de lancer : l'adversaire attrape dans le vide.", p => p.Feints > start["feints"]));
 
@@ -92,6 +95,7 @@ public partial class Tutorial : CanvasLayer
     {
         Running = false;
         Bot.Gentle = false;
+        Bot.Calm = false;
         MatchController.HitScored -= OnHit;
     }
 
@@ -114,6 +118,8 @@ public partial class Tutorial : CanvasLayer
         index++;
         doneAt = -1;
         check.Visible = false;
+        // Bots calmes (ils ramassent et bougent, sans lancer) jusqu'à l'étape où il faut attraper un tir : on apprend à viser en paix.
+        Bot.Calm = index < steps.Count && index < steps.FindIndex(st => st.Title == CatchTitle);
         if (index >= steps.Count) { Finish(); return; }
         Snapshot();
         var s = steps[index];

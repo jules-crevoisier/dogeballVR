@@ -17,6 +17,10 @@ public partial class Bot : Node3D
 
     /// <summary>Entraînement (tutoriel) : les bots attendent plus longtemps et lancent moins fort, pour qu'on apprenne à attraper.</summary>
     public static bool Gentle { get; set; }
+    /// <summary>Entraînement, premières étapes (regarder, bouger, ramasser) : les bots ne lancent pas du tout.</summary>
+    public static bool Calm { get; set; }
+    /// <summary>Vrai tant que les lancers sont interdits (compte à rebours de manche) ; posé par Main.</summary>
+    public System.Func<bool>? HoldFire { get; set; }
 
     public ZoneDef Zone { get; set; } = null!;
     public float ZoneWidth { get; set; } = 15f;
@@ -173,6 +177,8 @@ public partial class Bot : Node3D
     {
         throwDelay -= delta;
         if (throwDelay > 0 || held == null) return;
+        // Pas de lancer avant le « GO ! » ni pendant les étapes calmes de l'entraînement : la balle reste en main.
+        if (Calm || HoldFire?.Invoke() == true) { throwDelay = rng.RandfRange(0.2f, 0.6f); return; }
         // Cible : l'adversaire le plus proche de préférence, parfois l'allié pour charger la balle.
         bool pass = rng.Randf() < 0.15f;
         Node3D? target = null;

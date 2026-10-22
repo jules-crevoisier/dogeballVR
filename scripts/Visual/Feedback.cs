@@ -172,6 +172,9 @@ public partial class Feedback : Node
         testClock = 0.8;
         int step = testStep++ % 4;
         var enemy = CentralEnemy(cam);
+        if (enemy == null && step == 2)   // « le local est touché » : le tireur peut être hors champ (l'adversaire visible est à terre)
+            foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+                if (n is Hurtbox h && h != Local && !h.Eliminated && IsInstanceValid(Local) && h.Team != Local.Team) { enemy = h; break; }
         GD.Print($"[Impact] test {step} sur {(enemy != null ? enemy.PlayerId : -1)}, image {Engine.GetFramesDrawn()}");
         if (enemy != null && IsInstanceValid(Local))
         {
@@ -191,8 +194,11 @@ public partial class Feedback : Node
                 case 1:   // le local met un adversaire KO (un autre que le précédent s'il y en a un)
                     var ko = CentralEnemy(cam, enemy) ?? enemy;
                     lastShooter[ko.PlayerId] = (Local.PlayerId, now);
-                    OnTouched(ko, cam, true);
                     Avatar.React(Local.PlayerId, ko.PlayerId, true);
+                    // Comme un vrai KO : la cible passe à terre (bot masqué, sa copie joue la chute, étiquette cachée), ce qui déclenche
+                    // l'impact et le mot par le chemin normal ; elle revient 1,6 s plus tard (le test ne touche ni aux vies ni au score).
+                    ko.Eliminated = true;
+                    GetTree().CreateTimer(1.6, false).Timeout += () => { if (IsInstanceValid(ko) && Lives(ko.PlayerId) > 0) ko.Eliminated = false; };
                     break;
                 default:  // le local attrape
                     Sticker("PRISE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Normal);
