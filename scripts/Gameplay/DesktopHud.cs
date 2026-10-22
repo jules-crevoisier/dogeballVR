@@ -178,19 +178,18 @@ public partial class DesktopHud : CanvasLayer
         board.AddChild(overtime);
     }
 
-    /// <summary>Pastille ronde de manche gagnée (pleine) ou à jouer (creuse).</summary>
+    /// <summary>Pastille de manche gagnée (pleine) ou à jouer (creuse) : petit pavé penché, comme les boutons du menu.</summary>
     sealed partial class Pip : Control
     {
         public Color Color;
         public bool On;
         public override void _Draw()
         {
-            var c = Size / 2;
-            float r = Size.X / 2;
-            DrawCircle(c + new Vector2(0, 2), r, new Color(0, 0, 0, 0.45f));
-            DrawCircle(c, r, UiKit.Navy);
-            DrawCircle(c, r * 0.7f, On ? Color : new Color(1, 1, 1, 0.18f));
-            if (On) DrawCircle(c + new Vector2(-r * 0.25f, -r * 0.25f), r * 0.22f, new Color(1, 1, 1, 0.7f));
+            float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, k = h * 0.3f;
+            Vector2[] Quad(float g, Vector2 o) => new[] { o + new Vector2(k + g * 0.3f, y + g), o + new Vector2(w - g, y + g), o + new Vector2(w - k - g * 0.3f, y + h - g), o + new Vector2(g, y + h - g) };
+            DrawColoredPolygon(Quad(0, new Vector2(0, 2)), new Color(0, 0, 0, 0.45f));
+            DrawColoredPolygon(Quad(0, Vector2.Zero), UiKit.Navy);
+            DrawColoredPolygon(Quad(3.5f, Vector2.Zero), On ? Color : new Color(1, 1, 1, 0.18f));
         }
     }
 
@@ -612,21 +611,14 @@ public partial class DesktopHud : CanvasLayer
     }
 
     /// <summary>
-    /// Touche de clavier dessinée : cadre clair arrondi, liseré gris, tranche plus foncée en bas (relief), texte marine.
+    /// Touche de clavier dessinée : pavé crème penché, tranche grise en bas (relief), texte marine (UiKit.KeyBox).
     /// Sert sous les jauges, dans l'aide (F1) et dans le rappel « F1 : commandes ».
     /// </summary>
     public static Label KeyCap(string text, int size)
     {
         var l = UiKit.Text(text, size, UiKit.Navy, 0, HorizontalAlignment.Center);
         l.VerticalAlignment = VerticalAlignment.Center;
-        l.AddThemeStyleboxOverride("normal", new StyleBoxFlat
-        {
-            BgColor = new Color("f6f1e7"), AntiAliasing = true,
-            CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
-            BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 5, BorderColor = new Color("8d97ad"),
-            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 1, ContentMarginBottom = 3,
-            ShadowColor = new Color(UiKit.Navy, 0.6f), ShadowSize = 3,
-        });
+        l.AddThemeStyleboxOverride("normal", UiKit.KeyBox());
         return l;
     }
 
@@ -1510,7 +1502,7 @@ public partial class DesktopHud : CanvasLayer
     void BuildHelp()
     {
         help = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 14, 0f, 0, null, 4);
+        var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 0, -0.1f, 0, null, 4);
         box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 12; box.ContentMarginBottom = 14;
         help.AddThemeStyleboxOverride("panel", box);
         help.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
