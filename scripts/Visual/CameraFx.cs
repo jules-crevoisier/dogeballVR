@@ -39,17 +39,16 @@ public static class CameraFx
     {
         time += dt;
         trauma = Mathf.Max(0f, trauma - Decay * dt);
-        // Ressort amorti pour le coup directionnel (retour en ~0,2 s, sans rebond marqué).
-        // Pas fixes de 1/240 s : en un seul pas, une image lente (machine chargée, chargement, Alt+Tab : dt jusqu'à 0,1 s)
-        // rend le ressort instable, il diverge en NaN et la caméra ne rend plus rien (écran vide jusqu'à la fin de la partie).
-        const float k = 260f, c = 26f, step = 1f / 240f;
-        for (float left = dt; left > 0f; left -= step)
+        // Ressort amorti pour le coup directionnel (retour en ~0,2 s, sans rebond marqué). Intégré en petits pas fixes :
+        // en un seul pas, une image longue (PC lent, chargement, Alt+Tab) le fait diverger et la caméra passe en NaN.
+        const float k = 260f, c = 26f, h = 1f / 240f;
+        for (float left = Mathf.Min(dt, 0.25f); left > 0f; left -= h)
         {
-            float h = Mathf.Min(step, left);
-            kickVel += (-k * kick - c * kickVel) * h;
-            kick += kickVel * h;
+            float step = Mathf.Min(h, left);
+            kickVel += (-k * kick - c * kickVel) * step;
+            kick += kickVel * step;
         }
-        if (!kick.IsFinite() || !kickVel.IsFinite()) { kick = Vector2.Zero; kickVel = Vector2.Zero; }
+        if (!float.IsFinite(kick.X) || !float.IsFinite(kick.Y) || !float.IsFinite(kickVel.X) || !float.IsFinite(kickVel.Y)) { kick = Vector2.Zero; kickVel = Vector2.Zero; }
         fovPunch = Mathf.MoveToward(fovPunch, 0f, dt * Mathf.Max(8f, fovPunch * 4f));
 
         float s = trauma * trauma;

@@ -18,6 +18,7 @@ public partial class MainMenu : CanvasLayer
     VBoxContainer column = null!;
     Control? overlay;
     ColorRect fade = null!;
+    Panel plate = null!;
     bool leaving;
 
     public override void _Ready()
@@ -50,11 +51,28 @@ public partial class MainMenu : CanvasLayer
         bob.TweenProperty(logoBox, "rotation_degrees", -2.5f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
         bob.TweenProperty(logoBox, "rotation_degrees", -4f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
 
-        column = new VBoxContainer { Position = new Vector2(110, 300) };
+        // Panneau incliné derrière la colonne de boutons, comme les menus de Knockout City.
+        plate = new Panel { Position = new Vector2(64, 284), Size = new Vector2(560, 640), MouseFilter = Control.MouseFilterEnum.Ignore };
+        plate.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.Navy, 0.72f), 22, -0.08f, 3, new Color(UiKit.Yellow, 0.5f), 10));
+        root.AddChild(plate);
+        UiKit.SlideIn(plate, 0f, -120f);
+
+        // Aides clavier en bas à gauche.
+        var hints = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, AutowrapMode = TextServer.AutowrapMode.Off, MouseFilter = Control.MouseFilterEnum.Ignore };
+        hints.Text = "[color=#ffd23f]Entrée[/color]  Choisir      [color=#ffd23f]Échap[/color]  Retour      [color=#ffd23f]Souris[/color]  Naviguer";
+        hints.AddThemeFontSizeOverride("normal_font_size", 22);
+        hints.AddThemeConstantOverride("outline_size", 6);
+        hints.AddThemeColorOverride("font_outline_color", UiKit.Navy);
+        hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        hints.OffsetLeft = 72; hints.OffsetTop = -56; hints.OffsetRight = 900; hints.OffsetBottom = -20;
+        root.AddChild(hints);
+
+        column = new VBoxContainer { Position = new Vector2(100, 310) };
         column.AddThemeConstantOverride("separation", 14);
         root.AddChild(column);
 
-        var version = UiKit.Text($"v{ProjectSettings.GetSetting("application/config/version", "0.1").AsString()}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
+        string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
+        var version = UiKit.Text($"Accès anticipé · v{(ver == "" ? "0.1" : ver)}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
         root.AddChild(version);
@@ -67,6 +85,13 @@ public partial class MainMenu : CanvasLayer
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
         ShowMain();
+    }
+
+    public override void _Process(double delta)
+    {
+        // Le panneau suit la hauteur de la page affichée (menu, en ligne, réseau local, crédits).
+        var want = column.Size + new Vector2(76, 52);
+        plate.Size = plate.Size.Lerp(want, 1f - Mathf.Exp(-14f * (float)delta));
     }
 
     void Fill(params Control[] items)
@@ -88,8 +113,8 @@ public partial class MainMenu : CanvasLayer
             UiKit.Button("ENTRAÎNEMENT", UiKit.Blue, () => Leave(() => TutorialChosen?.Invoke())),
             UiKit.Button("EN LIGNE", UiKit.Blue, ShowOnline),
             UiKit.Button("OPTIONS", UiKit.Blue, () => OpenOverlay(new OptionsMenu())),
-            UiKit.Button("CRÉDITS", UiKit.Grey, ShowCredits),
-            UiKit.Button("QUITTER", UiKit.Grey, () => GetTree().Quit()));
+            UiKit.TextButton("CRÉDITS", ShowCredits),
+            UiKit.TextButton("QUITTER", () => GetTree().Quit()));
     }
 
     /// <summary>

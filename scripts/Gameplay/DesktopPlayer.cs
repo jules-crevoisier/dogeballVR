@@ -34,7 +34,7 @@ public partial class DesktopPlayer : Node3D
     const float VoidMargin = 0.8f;        // le dash s'arrête à 0,8 m du vide
     const float PushSpeed = 8f, PushTime = 0.25f;   // poussée de tacle : 2 m en 0,25 s
     const float TackleRadius = 1.1f;      // un dash qui passe à moins de 1,1 m d'un adversaire le tacle
-    const float CameraDistance = 3.4f;   // 3e personne : distance de la caméra derrière la tête (assez loin pour voir autour de soi)
+    const float CameraDistance = 3.8f;   // 3e personne : distance de la caméra derrière la tête (assez loin pour voir autour de soi)
     const float EyeHeight = 1.6f;
     const float CrouchHeight = 0.9f;
     const float EyeSpeed = 3.5f;         // m/s : l'hôte plafonne la vitesse verticale à 4 m/s
@@ -1036,7 +1036,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camFraction > 0.25f;   // caméra collée au joueur : on le fond pour ne pas masquer le viseur
+            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > 1.6f;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
         }
     }
