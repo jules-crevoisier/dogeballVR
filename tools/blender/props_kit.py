@@ -10,6 +10,7 @@ Axes Blender : Z haut, origine au sol au centre du prop, échelle en mètres. Ex
 
     python3 -I tools/blender/props_kit.py assets/models/props            # tous les props
     python3 -I tools/blender/props_kit.py assets/models/props cone pneus # quelques-uns
+    python3 -I tools/blender/props_kit.py assets/models/props_quest --quest   # versions allégées Quest
 """
 import math
 import os
@@ -1357,10 +1358,20 @@ def panneau_avertissement():
 PROPS = {f.__name__: f for f in _REG}
 
 
+QUEST_RATIO = None   # --quest : maillages réduits (fusion d'arêtes) pour le casque autonome
+
+
 def build(name, out_dir):
     lib.reset()
     P = PROPS[name]()
     objs = P.bake()
+    if QUEST_RATIO:
+        for ob in objs:
+            if len(ob.data.polygons) > 200:
+                m = ob.modifiers.new("allege", "DECIMATE")
+                m.ratio = QUEST_RATIO
+                with bpy.context.temp_override(object=ob, active_object=ob):
+                    bpy.ops.object.modifier_apply(modifier=m.name)
     path = os.path.join(out_dir, name + ".glb")
     n = lib.export(path, objs)
     return n
@@ -1377,4 +1388,7 @@ def main(out_dir, names=None):
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
+    if "--quest" in argv:
+        argv.remove("--quest")
+        QUEST_RATIO = 0.45
     main(argv[0] if argv else "assets/models/props", argv[1:] or None)

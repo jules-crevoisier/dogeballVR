@@ -22,5 +22,9 @@ public partial class VistaCamera : Camera3D
         GlobalPosition = from;
         LookAt(from + dir * 10f + new Vector3(0, 2.2f, 0), Vector3.Up);
         Current = true;
+        if (++frames % 60 == 0)   // budget mesuré : appels de rendu et triangles de l'image
+            GD.Print($"[Budget] {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame)} appels, " +
+                     $"{Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame)} triangles, {Performance.GetMonitor(Performance.Monitor.RenderTotalObjectsInFrame)} objets");
     }
+    int frames;
 }

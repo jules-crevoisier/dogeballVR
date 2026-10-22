@@ -50,6 +50,7 @@ public partial class Main : Node3D
     {
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
+        Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }

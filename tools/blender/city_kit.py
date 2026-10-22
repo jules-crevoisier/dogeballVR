@@ -19,6 +19,7 @@ import lib
 from props_kit import C, Prop, TAU, box, cyl, mix, sstep, text_mesh
 
 FLOOR = 3.3
+QUEST = False   # version Quest : sans meneaux, escaliers de secours, auvents rayés ni bric-à-brac de toit
 
 
 def _glass(P, w, h, loc):
@@ -52,7 +53,7 @@ def facade(P, rnd, w, floors, y, wall, trim, bay=2.6, depth=0.35, lit=None, rot=
     P.add(box((sx, sy, gh), (gx, gy, gz), bev=0.0, seg=1), lambda p, n, f: mix(C("#121A30"), C("#2E4672"), 0.5 + 0.5 * math.sin(p.z * 0.37 + p.x * 0.21)),
           wear=0, grime=0, noise_amt=0.0, rough=0.22)
     # meneaux : un montant clair au milieu de chaque baie, devant le vitrage
-    for i in range(nb):
+    for i in range(0 if QUEST else nb):
         x = -w / 2 + (i + 0.5) * bw
         add((0.09, 0.12, gh), (x, y + depth - 0.08, z0 + gh / 2), trim, wear=0.2, grime=0, bev=0.0)
     # piliers
@@ -93,7 +94,7 @@ def storefront(P, rnd, w, y, wall, awning, rot=0.0, sign=None, cx=0.0):
     for x in (-w / 2 + 0.3, w / 2 - 0.3):
         P.add(box(sz(0.6, 0.6, zt), at(x, y + 0.2, zt / 2), bev=0.04, seg=1), wall, wear=0.5)
     # auvent rayé en pente
-    n = max(4, int(w / 0.8))
+    n = 1 if QUEST else max(4, int(w / 0.8))
     a1, a2 = C(awning), C("#F2EFE6")
     for i in range(n):
         x = -w / 2 + 0.7 + (i + 0.5) * (w - 1.4) / n
@@ -188,9 +189,10 @@ def building(i, seed=5):
     cornice(P, w, d, H, trim_h, crown)
     if tower:
         water_tower(P, rnd.uniform(-w / 5, w / 5), rnd.uniform(0, d / 5), H + 1.45)
-    if escape:
+    if escape and not QUEST:
         fire_escape(P, 0, -w / 2 - 0.35, floors, w=min(4.0, d * 0.4), rot=-math.pi / 2)
-    rooftop_clutter(P, rnd, w, d, H)
+    if not QUEST:
+        rooftop_clutter(P, rnd, w, d, H)
     objs = P.bake()
     if lit:
         m = lib.mat("lumiere_fenetre", "#FFD9A0", emissive=1.2)

@@ -36,8 +36,10 @@ def _ball_core(kind):
 
 
 def ball(kind):  # noqa
+    """Balles de jeu : ball_kit.py (coque caoutchouc peinte, couture lumineuse). _ball_core reste pour mémoire."""
     def f():
-        return _ball_core(kind)
+        import ball_kit
+        return ball_kit.parts(kind)
     return f
 
 
@@ -344,6 +346,18 @@ def avatar_rig(team, variant=0):
     return lambda: out
 
 
+def avatar_rig_quest(team, variant=0, ratio=0.5):
+    """Version allégée Quest : même rig et mêmes animations, maillage réduit par fusion d'arêtes (les poids suivent)."""
+    rig_obj, body = avatar_rig(team, variant)()
+    m = body.modifiers.new("allege", "DECIMATE")
+    m.ratio = ratio
+    m.use_collapse_triangulate = True
+    with bpy.context.temp_override(object=body, active_object=body):
+        bpy.ops.object.modifier_move_to_index(modifier=m.name, index=0)
+        bpy.ops.object.modifier_apply(modifier=m.name)
+    return lambda: [rig_obj, body]
+
+
 def L(f, *a):
     return lambda: f(*a)()
 
@@ -355,6 +369,8 @@ ASSETS = {
     "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
     "avatar_orange_rig": L(avatar_rig, "orange"), "avatar_bleu_rig": L(avatar_rig, "bleu"),
     "avatar_orange2_rig": L(avatar_rig, "orange", 1), "avatar_bleu2_rig": L(avatar_rig, "bleu", 1),
+    "avatar_orange_rig_quest": L(avatar_rig_quest, "orange"), "avatar_bleu_rig_quest": L(avatar_rig_quest, "bleu"),
+    "avatar_orange2_rig_quest": L(avatar_rig_quest, "orange", 1), "avatar_bleu2_rig_quest": L(avatar_rig_quest, "bleu", 1),
     "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
     "moyeu": L(hub), "mur": L(wall), "mur_orange": L(wall, "orange"), "mur_bleu": L(wall, "bleu"), "sol_tuile": L(floor_tile), "sol_tuile_orange": L(floor_tile, "orange"), "sol_tuile_bleu": L(floor_tile, "bleu"), "abri": L(cover_block),
     "tremplin": L(ramp), "bord_fosse": L(pit_edge), "tableau_score": L(scoreboard), "lampe": L(lamp),

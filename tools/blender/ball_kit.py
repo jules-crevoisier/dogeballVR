@@ -143,15 +143,20 @@ def rebond():
 BALLS = {"normale": normale, "bombe": bombe, "rebond": rebond}
 
 
-def build(kind, out_dir):
-    lib.reset()
+def parts(kind):
+    """Pièces cuites d'une balle (sans export) : coque peinte + rainure et étincelle lumineuses."""
     P, lights = BALLS[kind]()
     objs = P.bake()
     objs[0].name = objs[0].data.name = "Coque"
     for lo in lights:
         lo.data.shade_smooth()
-    path = os.path.join(out_dir, f"balle_{kind}.glb")
-    return lib.export(path, objs + lights)
+    return objs + lights
+
+
+def build(kind, out_dir):
+    lib.reset()
+    objs = parts(kind)
+    return lib.export(os.path.join(out_dir, f"balle_{kind}.glb"), objs)
 
 
 if __name__ == "__main__":
