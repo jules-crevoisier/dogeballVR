@@ -36,3 +36,4 @@ Steam (test)
   Ne supprime pas ces deux fichiers. (La vraie version Steam n'aura pas steam_appid.txt : Steam lui donne son propre AppID.)
 
 Si quelque chose ne va pas (trop rapide, trop lent, bots trop forts ou trop faibles), dis-le : tout est réglable.
+Journal du jeu et rapports de plantage : %APPDATA%\DogeballVR\logs et %APPDATA%\DogeballVR\crash (à joindre si un bug se produit).

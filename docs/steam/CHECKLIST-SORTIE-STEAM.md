@@ -153,7 +153,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 |---|---|---|---|
 | [x] | CI : compilation C#, parties simulées, tests réseau hôte + client | code | .github/workflows/build.yml |
 | [x] | Hôte qui fait autorité (anti-triche de base : vitesses, portée, validation des prises) | code | docs/CHOIX-REGLES.md |
-| [ ] | Chemin des sauvegardes vérifié : `user://` = `%APPDATA%/Godot/app_userdata/DogeballVR/` sous Windows, `~/.local/share/godot/app_userdata/DogeballVR/` sous Linux (sans `use_custom_user_dir`) ; il dépend de `config/name` : si on renomme le jeu, activer `application/config/use_custom_user_dir` avec un nom fixe **avant** la sortie et mettre à jour Auto-Cloud | code | project.godot ; docs Godot « Data paths » |
+| [x] | Dossier des sauvegardes fixé, indépendant du nom du jeu : `%APPDATA%/DogeballVR/` (Windows), `~/.local/share/DogeballVR/` (Linux) ; chemins Auto-Cloud alignés dans ACTIONS-JULES.md | code | project.godot (`config/use_custom_user_dir`) |
 | [ ] | Pas d'alerte OpenXR au démarrage sans casque (réglage `xr/openxr/startup_alert` à vérifier dans Godot 4.3) et pas de lancement involontaire de SteamVR en mode écran | code | project.godot, scripts/Xr/XrBootstrap.cs |
 | [ ] | Performance mesurée : 60 i/s stables en mode écran sur la config minimale ; 90 i/s en VR (72 sur Quest Link) | code | |
 | [~] | Interpolation des autres joueurs sur l'horloge de l'hôte avec retard adaptatif à la gigue (fait, testé en CI à 80 ms et 5 % de perte) ; rembobinage côté hôte et prédiction du lancer côté client (à faire) | code | scripts/Net/ClientWorld.cs |
