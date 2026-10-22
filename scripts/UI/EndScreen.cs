@@ -27,6 +27,8 @@ public partial class EndScreen : CanvasLayer
     Control? root;
     double overFor = -1;
     Label? autoLabel;
+    Sunburst? burst;
+    Star? star;
 
     public override void _Ready()
     {
@@ -46,6 +48,9 @@ public partial class EndScreen : CanvasLayer
             return;
         }
         overFor = overFor < 0 ? 0 : overFor + delta;
+        // Animations dessinées pilotées d'ici : le _Process des classes imbriquées n'est pas appelé par Godot.
+        if (burst != null) { burst.Angle += (float)delta * 0.12f; burst.QueueRedraw(); }
+        if (star != null) { star.T += (float)delta; star.QueueRedraw(); }
         if (root == null && overFor >= OpenDelay) Open();
         // Le menu pause refermé reprend la souris : sur l'écran de fin, il faut la rendre pour cliquer.
         if (root != null && !Autoplay && !PauseMenu.IsOpen && Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
@@ -68,9 +73,8 @@ public partial class EndScreen : CanvasLayer
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
-        var burst = new Sunburst { Color = win ? UiKit.Yellow : UiKit.Sky, MouseFilter = Control.MouseFilterEnum.Ignore };
-        burst.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        burst.OffsetLeft = -500; burst.OffsetRight = 500; burst.OffsetTop = -380; burst.OffsetBottom = 620;
+        burst = new Sunburst { Color = win ? UiKit.Yellow : UiKit.Sky, MouseFilter = Control.MouseFilterEnum.Ignore };
+        burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(burst);
 
         var col = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -175,6 +179,8 @@ public partial class EndScreen : CanvasLayer
         root?.QueueFree();
         root = null;
         autoLabel = null;
+        burst = null;
+        star = null;
         if (capture && !Autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
@@ -197,13 +203,15 @@ public partial class EndScreen : CanvasLayer
         var st = View.Stats[id];
         int team = View.TeamOf(id);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(360, 0) };
-        var box = UiKit.Box(team == 0 ? UiKit.Orange.Darkened(0.15f) : UiKit.Blue, 22, -0.06f, 5, UiKit.Yellow, 8);
+        var box = UiKit.Box(TeamRow(team, true), 22, 0f, 5, UiKit.Yellow, 8);
+        box.AntiAliasingSize = 1.25f;
+        panel.Rotation = -0.03f;
         box.ContentMarginTop = 18; box.ContentMarginBottom = 22;
         panel.AddThemeStyleboxOverride("panel", box);
         var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddThemeConstantOverride("separation", 4);
         panel.AddChild(col);
-        var star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
+        star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(star);
         col.AddChild(UiKit.Text("MVP", 64, UiKit.Yellow, 14, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
@@ -219,7 +227,7 @@ public partial class EndScreen : CanvasLayer
     Control StatsTable()
     {
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
-        var box = UiKit.Box(new Color(UiKit.NavySoft, 0.92f), 20, 0f, 0, null, 8);
+        var box = UiKit.Box(UiKit.Navy, 20, 0f, 3, new Color("2a3a6a"), 8);   // opaque : la partie ne transparaît plus
         box.ContentMarginLeft = 24; box.ContentMarginRight = 24; box.ContentMarginTop = 16; box.ContentMarginBottom = 18;
         panel.AddThemeStyleboxOverride("panel", box);
         var rows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -227,12 +235,25 @@ public partial class EndScreen : CanvasLayer
         panel.AddChild(rows);
         rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "ATTRAPES", "PARFAITES", "LANCERS" }, false));
         int mvp = MvpId();
-        var ordered = new List<MatchView.PlayerInfo>(View.Players);
-        ordered.Sort((a, b) => a.Team != b.Team ? a.Team.CompareTo(b.Team) : (View.Stats![b.Id].Score).CompareTo(View.Stats![a.Id].Score));
-        int i = 0;
+        // Mon équipe d'abord, puis l'adverse ; dans chaque équipe, du meilleur score MVP au moins bon (KO à égalité).
+        var ordered = new List<MatchView.PlayerInfo>();
+        foreach (var p in View.Players) if (View.Stats!.ContainsKey(p.Id)) ordered.Add(p);
+        int Score(int id) => View.Stats![id].Score;
+        int Kos(int id) => View.Stats![id].Kos;
+        ordered.Sort((a, b) =>
+        {
+            bool ma = a.Team == View.LocalTeam, mb = b.Team == View.LocalTeam;
+            if (ma != mb) return ma ? -1 : 1;
+            if (a.Team != b.Team) return a.Team.CompareTo(b.Team);
+            int c = Score(b.Id).CompareTo(Score(a.Id));
+            return c != 0 ? c : Kos(b.Id).CompareTo(Kos(a.Id));
+        });
+        int i = 0, lastTeam = -1;
         foreach (var p in ordered)
         {
-            if (!View.Stats!.TryGetValue(p.Id, out var st)) continue;
+            var st = View.Stats![p.Id];
+            if (lastTeam >= 0 && p.Team != lastTeam) rows.AddChild(UiKit.Spacer(8));   // les deux équipes, bien séparées
+            lastTeam = p.Team;
             var row = Row(p, View.NameOf(p.Id) + (p.Id == mvp ? "  ★" : ""), new[] { st.Kos.ToString(), st.Hits.ToString(), st.Catches.ToString(), st.PerfectCatches.ToString(), st.Throws.ToString() }, p.Id == mvp);
             rows.AddChild(row);
             UiKit.SlideIn(row, 0.25f + 0.05f * i++, 60f);   // SlideIn attend deux fois le retard : 0,5 s puis 0,1 s par ligne
@@ -245,16 +266,18 @@ public partial class EndScreen : CanvasLayer
         bool header = p == null;
         bool local = p != null && p.Id == View.LocalId;
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var bg = header ? new Color(0, 0, 0, 0) : new Color(Palette.Team(p!.Team), local ? 0.6f : 0.3f);
-        var box = UiKit.Box(bg, 8, -0.1f, local ? 3 : 0, UiKit.Yellow, 0);
+        // Couleurs pleines et vives par équipe (orange / bleu) ; ma ligne plus claire, cerclée de jaune avec un halo.
+        var bg = header ? new Color(0, 0, 0, 0) : TeamRow(p!.Team, local);
+        var box = UiKit.Box(bg, 8, 0f, local ? 4 : 0, UiKit.Yellow, header ? 0 : 3);
         box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 16; box.ContentMarginRight = 16;
+        if (local) { box.ShadowColor = new Color(UiKit.Yellow, 0.35f); box.ShadowSize = 10; }
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 6);
         row.AddChild(line);
         int size = header ? 20 : 30;
-        var color = header ? UiKit.Sky : mvp ? UiKit.Yellow : Colors.White;
-        var n = UiKit.Text(name, size, color, 6);
+        var color = header ? UiKit.Sky : Colors.White;
+        var n = UiKit.Text(name, size, color, local ? 9 : 6);   // blanc : le jaune ne se lit pas sur l'orange
         n.CustomMinimumSize = new Vector2(220, 0);
         line.AddChild(n);
         foreach (var c in cells)
@@ -266,32 +289,40 @@ public partial class EndScreen : CanvasLayer
         return row;
     }
 
-    /// <summary>Rayons qui tournent lentement derrière le titre.</summary>
+    /// <summary>Fond de ligne du tableau (et de la carte MVP) : orange ou bleu vifs et opaques, plus clairs pour le joueur local.</summary>
+    static Color TeamRow(int team, bool bright) => team == 0
+        ? (bright ? new Color("ff7a1f") : new Color("d9520c"))
+        : (bright ? new Color("2f8fff") : new Color("1f63c9"));
+
+    /// <summary>Rayons lumineux qui tournent lentement derrière le titre, avec un halo au centre (animés par l'écran).</summary>
     sealed partial class Sunburst : Control
     {
         public Color Color = UiKit.Yellow;
-        float angle;
-        public override void _Process(double delta) { angle += (float)delta * 0.25f; QueueRedraw(); }
+        public float Angle;
         public override void _Draw()
         {
-            var c = new Vector2(Size.X / 2, 470);
-            float r = Size.X * 0.75f;
-            for (int i = 0; i < 16; i++)
+            var c = new Vector2(Size.X / 2, 260);
+            float r = Size.Length();
+            const int n = 18;
+            for (int i = 0; i < n; i++)
             {
-                float a = angle + Mathf.Tau * i / 16f;
-                DrawColoredPolygon(new[] { c, c + Vector2.FromAngle(a) * r, c + Vector2.FromAngle(a + 0.17f) * r }, new Color(Color, 0.07f));
+                float a = Angle + Mathf.Tau * i / n;
+                var tip0 = c + Vector2.FromAngle(a) * r;
+                var tip1 = c + Vector2.FromAngle(a + Mathf.Tau / n * 0.5f) * r;
+                DrawPolygon(new[] { c, tip0, tip1 }, new[] { new Color(Color, 0.28f), new Color(Color, 0.04f), new Color(Color, 0.04f) });
             }
+            for (int k = 6; k >= 1; k--) DrawCircle(c, 70f * k, new Color(Color, 0.035f));   // halo doux derrière le titre
         }
     }
 
     /// <summary>Étoile dorée du MVP, qui respire.</summary>
     sealed partial class Star : Control
     {
-        float t;
-        public override void _Process(double delta) { t += (float)delta; QueueRedraw(); }
+        public float T;
         public override void _Draw()
         {
             var c = Size / 2;
+            float t = T;
             float r = 40f * (1f + 0.06f * Mathf.Sin(t * 4f));
             Vector2[] Pts(float outer, float inner)
             {
