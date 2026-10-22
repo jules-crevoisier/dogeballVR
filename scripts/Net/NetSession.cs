@@ -132,9 +132,12 @@ public partial class NetSession : Node
     }
 
     /// <summary>Hôte : la connexion est déjà ouverte par le lobby (ENet ou Steam) ; la session la reprend.</summary>
-    public void AdoptHost()
+    /// <summary>Hôte : la connexion est déjà ouverte (par la salle, <paramref name="fromLobby"/>) ou vient d'être ouverte par <see cref="Host"/>.
+    /// Hôte de salle : un joueur n'entre que dans la zone que la salle lui a réservée (ou celle de son secret).</summary>
+    public void AdoptHost(bool fromLobby = false)
     {
         Mode = NetMode.Host;
+        LobbyMode = fromLobby;
         Multiplayer.PeerDisconnected += OnPeerDisconnected;
         Multiplayer.PeerConnected += OnPeerConnected;
     }
@@ -163,10 +166,21 @@ public partial class NetSession : Node
         ZoneId = zoneId;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
         GD.Print($"[Net] Connexion du lobby reprise, zone {zoneId}");
+        // Hôte parti pendant le chargement : la salle a vu la coupure avant que la session n'écoute, on la signale ici.
+        if (!Connected) { GD.Print("[Net] Connexion du lobby déjà perdue"); Callable.From(OnServerDisconnected).CallDeferred(); return; }
         SendHello();
     }
 
-    void SendHello() => RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token);
+    // Pas de réponse au Hello (hôte figé, pair mort sans signal) : coupure déclarée au bout de WelcomeTimeout.
+    const double WelcomeTimeout = 10.0;
+    double helloAt = -1;
+    bool welcomed;
+
+    void SendHello()
+    {
+        helloAt = clientClock;
+        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token);
+    }
 
     void OnServerDisconnected()
     {
@@ -237,6 +251,13 @@ public partial class NetSession : Node
             OnServerDisconnected();
             return;
         }
+        if (!welcomed && helloAt >= 0 && clientClock - helloAt > WelcomeTimeout && !lost)
+        {
+            GD.Print("[Net] Pas de réponse de l'hôte : connexion perdue");
+            Multiplayer.MultiplayerPeer.Close();
+            OnServerDisconnected();
+            return;
+        }
         pingTimer += delta;
         if (pingTimer >= 0.5 && Connected)
         {
@@ -274,7 +295,21 @@ public partial class NetSession : Node
     readonly Dictionary<string, int> zoneOfSecret = new();
     readonly Dictionary<int, string> secretOfPeer = new();
     readonly Dictionary<int, (int peer, string secret, double until)> reserved = new();
-    readonly RandomNumberGenerator secretRng = new();
+    /// <summary>Hôte ouvert par la salle : les zones viennent de la salle (réservations), pas du Hello.</summary>
+    public bool LobbyMode { get; private set; }
+
+    /// <summary>Secret de reconnexion : 128 bits d'un générateur cryptographique (le PCG de Godot se devine à partir de ses sorties).</summary>
+    static string NewSecret() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+
+    /// <summary>Hôte de salle : la zone que la salle a attribuée à ce pair (lancement ou entrée en cours de partie), gardée le temps qu'il charge.</summary>
+    public void ReserveForLoading(int zone, int peer) => reserved[zone] = (peer, "", Time.GetTicksMsec() / 1000.0 + LoadingHold);
+
+    int ReservedZoneOf(int peer)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (zone, r) in reserved) if (r.peer == peer && now <= r.until) return zone;
+        return -1;
+    }
     /// <summary>Zone tenue par un bot qui passe le filtre, de l'équipe demandée si possible (-1 : indifférent) ; -1 si aucune.</summary>
     public Func<int, Func<int, bool>, int>? PickZone { get; set; }
     /// <summary>Vrai si la zone peut accueillir un joueur distant (tenue par un bot).</summary>
@@ -307,6 +342,16 @@ public partial class NetSession : Node
         return true;
     }
 
+    /// <summary>Pair encore en jeu avec ce secret mais muet depuis 1,5 s (il revient avant que l'hôte ait vu sa coupure), sinon 0.</summary>
+    public int StalePeerOf(string secret)
+    {
+        if (secret.Length != 32) return 0;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (peer, s) in secretOfPeer)
+            if (s == secret && Remotes.TryGetValue(peer, out var old) && now - old.LastPoseAt >= 1.5) return peer;
+        return 0;
+    }
+
     /// <summary>Zone de retour d'un secret connu (et libre pour ce joueur), sinon -1.</summary>
     int ReturningZone(string secret, int peer)
     {
@@ -336,14 +381,26 @@ public partial class NetSession : Node
             RpcId(peer, MethodName.RefusedRpc, "VERSION DIFFÉRENTE : METTEZ LE JEU À JOUR");
             return;
         }
-        if (Remotes.ContainsKey(peer)) return;   // un seul Hello par pair
+        if (Remotes.TryGetValue(peer, out var already))
+        {
+            // Hello répété par le même pair (scène rechargée pour corriger sa zone) : on reconfirme, sans nouvelle entrée.
+            if (secretOfPeer.TryGetValue(peer, out var current)) RpcId(peer, MethodName.WelcomeRpc, already.PlayerId, current);
+            return;
+        }
         secret ??= "";
         if (secret.Length != 32) secret = "";
         int back = ReturningZone(secret, peer);
         if (back >= 0 && back != zoneId) { GD.Print($"[Net] Reconnexion : le secret {Short(secret)} retrouve la zone {back}"); zoneId = back; }
         else if (back < 0 && !zoneOfSecret.ContainsKey(secret)) secret = "";   // secret inconnu (autre partie) : nouvelle entrée
+        if (LobbyMode && back < 0)
+        {
+            // Partie de salle : seule la zone attribuée par la salle est permise (pas de changement d'équipe par un Hello forgé).
+            int booked = ReservedZoneOf(peer);
+            if (booked < 0) { GD.Print($"[Net] Pair {peer} refusé : aucune zone attribuée par la salle"); RpcId(peer, MethodName.RefusedRpc, "ENTREZ PAR LA SALLE"); return; }
+            zoneId = booked;
+        }
         // Zone non imposée (-1) ou déjà prise : l'hôte en choisit une tenue par un bot.
-        if (!IsFree(zoneId, peer, secret)) zoneId = PickFree(-1, peer, secret);
+        else if (!IsFree(zoneId, peer, secret)) zoneId = PickFree(-1, peer, secret);
         GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
         PeerHello?.Invoke(peer, zoneId);
         if (!Remotes.ContainsKey(peer))
@@ -351,7 +408,9 @@ public partial class NetSession : Node
             RpcId(peer, MethodName.RefusedRpc, "PARTIE PLEINE OU ZONE INCONNUE");
             return;
         }
-        if (secret == "" || secretOfPeer.ContainsValue(secret)) secret = $"{secretRng.Randi():x8}{secretRng.Randi():x8}{secretRng.Randi():x8}{secretRng.Randi():x8}";
+        // Nouveau secret à chaque entrée : l'ancien (peut-être lu sur le réseau) ne sert plus.
+        if (secret != "") zoneOfSecret.Remove(secret);
+        secret = NewSecret();
         secretOfPeer[peer] = secret;
         zoneOfSecret[secret] = zoneId;
         reserved.Remove(zoneId);
@@ -385,6 +444,7 @@ public partial class NetSession : Node
     void WelcomeRpc(int zoneId, string secret)
     {
         GD.Print($"[Net] Entrée acceptée par l'hôte, zone {zoneId}");
+        welcomed = true;
         Token = secret;
         Welcomed?.Invoke(zoneId, secret);
     }

@@ -105,6 +105,10 @@ public static class SteamLobbies
     public static bool SetData(ulong lobbyId, string key, string value) =>
         SteamPlatform.Available && SteamMatchmaking.SetLobbyData(new CSteamID(lobbyId), key, value);
 
+    /// <summary>Places du salon (propriétaire seulement) : suit le nombre de zones de la carte choisie.</summary>
+    public static bool SetMemberLimit(ulong lobbyId, int max) =>
+        SteamPlatform.Available && SteamMatchmaking.SetLobbyMemberLimit(new CSteamID(lobbyId), max);
+
     public static string GetData(ulong lobbyId, string key) =>
         SteamPlatform.Available ? SteamMatchmaking.GetLobbyData(new CSteamID(lobbyId), key) : "";
 

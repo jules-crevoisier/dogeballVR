@@ -20,6 +20,8 @@ public sealed class SteamMessagesPipe : IP2PPipe
     Callback<SteamNetworkingMessagesSessionRequest_t>? sessionRequestCb;
     Callback<SteamNetworkingMessagesSessionFailed_t>? sessionFailedCb;
     bool disposed;
+    // Demande de session arrivée avant que le salon nous ait montré ce membre (LobbyChatUpdate en retard) : réessayée 10 s.
+    readonly Dictionary<ulong, (SteamNetworkingIdentity identity, ulong since)> pendingSessions = new();
 
     public ulong LocalAddress { get; }
     public int MaxPacketSize => Constants.k_cbMaxSteamNetworkingSocketsMessageSizeSend;
@@ -37,15 +39,26 @@ public sealed class SteamMessagesPipe : IP2PPipe
             var identity = r.m_identityRemote;
             ulong id = identity.GetSteamID().m_SteamID;
             if (AcceptFrom(id)) SteamNetworkingMessages.AcceptSessionWithUser(ref identity);
-            else GD.Print($"[P2P] Session refusée : {id} n'est pas dans le salon");
+            else pendingSessions[id] = (identity, Time.GetTicksMsec());
         });
         sessionFailedCb = Callback<SteamNetworkingMessagesSessionFailed_t>.Create(r =>
             GD.Print($"[P2P] Session Steam perdue avec {r.m_info.m_identityRemote.GetSteamID().m_SteamID} ({r.m_info.m_eEndReason}) {r.m_info.m_szEndDebug}"));
     }
 
+    void RetryPendingSessions()
+    {
+        if (pendingSessions.Count == 0) return;
+        foreach (var (id, (identity, since)) in new Dictionary<ulong, (SteamNetworkingIdentity, ulong)>(pendingSessions))
+        {
+            var who = identity;
+            if (AcceptFrom(id)) { pendingSessions.Remove(id); SteamNetworkingMessages.AcceptSessionWithUser(ref who); }
+            else if (Time.GetTicksMsec() - since > 10_000) { pendingSessions.Remove(id); GD.Print($"[P2P] Session refusée : {id} n'est pas dans le salon"); }
+        }
+    }
+
     public void Send(ulong target, byte[] data, bool reliable, int channel)
     {
-        if (disposed) return;
+        if (disposed || !SteamPlatform.Available) return;   // Steam déjà éteint (fermeture du jeu)
         var identity = new SteamNetworkingIdentity();
         identity.SetSteamID(new CSteamID(target));
         int flags = (reliable ? Constants.k_nSteamNetworkingSend_ReliableNoNagle : Constants.k_nSteamNetworkingSend_UnreliableNoNagle)
@@ -63,6 +76,7 @@ public sealed class SteamMessagesPipe : IP2PPipe
     {
         var received = new List<(ulong, byte[], int)>();
         if (disposed) return received;
+        RetryPendingSessions();
         for (int ch = 0; ch < channels; ch++)
         {
             int n;

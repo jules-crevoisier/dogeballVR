@@ -16,6 +16,7 @@ public static class SteamBridge
     /// <summary>Salon Steam visé par un client (0 : connexion ENet), pour la reconnexion.</summary>
     public static ulong Target { get; set; }
     static ulong hostedLobby;
+    static int generation;   // numéro de la demande Steam en cours : une réponse d'une demande annulée est ignorée
     static bool hooked;
 
     public static bool Available => Init();
@@ -43,9 +44,13 @@ public static class SteamBridge
     public static void QuickMatch(OnlineLobby lobby)
     {
         lobby.SetSearching("Recherche d'une partie en ligne…");
-        SteamLobbies.Search(new Dictionary<string, string> { [SteamLobbies.KeyVersion] = NetHandshake.Fingerprint, ["state"] = "open" }, list =>
+        int ticket = ++generation;
+        SteamLobbies.Search(new Dictionary<string, string> { [SteamLobbies.KeyVersion] = NetHandshake.Fingerprint }, list =>
         {
-            var pick = list.Where(l => l.Members < l.Max).OrderByDescending(l => l.Members).FirstOrDefault();
+            if (ticket != generation) return;   // recherche annulée entre-temps
+            // Salles en attente d'abord (state=open), puis parties en cours qui acceptent un joueur à la place d'un bot.
+            var pick = list.Where(l => l.Members < l.Max)
+                .OrderBy(l => SteamLobbies.GetData(l.Id, "state") == "open" ? 0 : 1).ThenByDescending(l => l.Members).FirstOrDefault();
             if (pick.Id != 0) { GD.Print($"[Steam] Partie trouvée : salon {pick.Id} ({pick.Members}/{pick.Max})"); Join(lobby, pick.Id); }
             else { GD.Print("[Steam] Aucune partie ouverte : création d'un salon public"); Host(lobby, publicLobby: true, lobby.Map); }
         });
@@ -54,8 +59,10 @@ public static class SteamBridge
     public static void Host(OnlineLobby lobby, bool publicLobby, string map)
     {
         lobby.SetSearching("Création du salon Steam…");
-        SteamLobbies.Create(publicLobby, NetSession.MaxPlayers, id =>
+        int ticket = ++generation;
+        SteamLobbies.Create(publicLobby, lobby.MaxPlayers, id =>
         {
+            if (ticket != generation) { if (id is ulong) SteamLobbies.Leave(); return; }   // annulé pendant la création : on ne garde pas un salon fantôme
             if (id is not ulong lobbyId) { lobby.FailExternal("Steam : impossible de créer le salon"); return; }
             hostedLobby = lobbyId;
             SteamLobbies.SetData(lobbyId, SteamLobbies.KeyVersion, NetHandshake.Fingerprint);
@@ -72,8 +79,10 @@ public static class SteamBridge
     {
         Target = lobbyId;
         lobby.SetSearching("Entrée dans le salon Steam…");
+        int ticket = ++generation;
         SteamLobbies.Join(lobbyId, ok =>
         {
+            if (ticket != generation) { if (ok) SteamLobbies.Leave(); return; }   // annulé pendant l'entrée
             if (!ok) { lobby.FailExternal("Salon Steam introuvable ou plein"); return; }
             if (SteamLobbies.GetData(lobbyId, SteamLobbies.KeyVersion) is { Length: > 0 } v && v != NetHandshake.Fingerprint)
             {
@@ -98,11 +107,16 @@ public static class SteamBridge
     public static void Reconnect(OnlineLobby lobby)
     {
         if (SteamLobbies.Current == Target) ConnectToOwner(lobby, Target);
-        else SteamLobbies.Join(Target, ok => { if (ok) ConnectToOwner(lobby, Target); });
+        else
+        {
+            int ticket = ++generation;
+            SteamLobbies.Join(Target, ok => { if (ok && ticket == generation) ConnectToOwner(lobby, Target); });
+        }
     }
 
     public static void Leave()
     {
+        generation++;   // les réponses Steam encore en route sont périmées
         if (!SteamPlatform.Available) return;
         SteamLobbies.Leave();
         hostedLobby = 0;
@@ -122,6 +136,8 @@ public static class SteamBridge
     {
         if (!SteamPlatform.Available || hostedLobby == 0) return;
         if (lobby.State == LobbyState.InRoom) SteamLobbies.SetData(hostedLobby, "state", "open");
+        SteamLobbies.SetData(hostedLobby, SteamLobbies.KeyMap, lobby.Map);
+        SteamLobbies.SetMemberLimit(hostedLobby, lobby.MaxPlayers);
         RichPresence.SetJoinable(hostedLobby, lobby.Members.Count);
     }
 
@@ -130,6 +146,4 @@ public static class SteamBridge
         ulong id = hostedLobby != 0 ? hostedLobby : SteamLobbies.Current ?? 0;
         if (id != 0) SteamLobbies.OpenInviteOverlay(id);
     }
-
-    public static void Flush() { }
 }

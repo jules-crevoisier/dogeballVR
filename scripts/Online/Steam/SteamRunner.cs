@@ -21,6 +21,14 @@ public partial class SteamRunner : Node
         if ((what == NotificationWMCloseRequest || what == NotificationPredelete) && !shutDown)
         {
             shutDown = true;
+            if (what == NotificationWMCloseRequest && SteamPlatform.Available)
+            {
+                // Avant d'éteindre Steam : la salle prévient les joueurs et le transport P2P dit « bye » (sinon 10 s de silence
+                // puis 30 s de reconnexion chez eux), et on laisse au relais le temps de partir.
+                OnlineLobby.Instance?.AnnounceHostClosing();
+                if (GetTree().GetMultiplayer().MultiplayerPeer is SteamMultiplayerPeer p2p) p2p.Close();
+                OS.DelayMsec(150);
+            }
             SteamPlatform.Shutdown();
         }
     }

@@ -246,8 +246,10 @@ public partial class SteamMultiplayerPeer : MultiplayerPeerExtension
         ushort version = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(5));
         if (byAddress.TryGetValue(source, out var known))
         {
-            if (known.Id == id) { known.LastHeard = now; SendTo(source, new[] { MsgHelloAck }, true); }   // hello répété : on reconfirme
-            return;
+            if (known.Id == id) { known.LastHeard = now; SendTo(source, new[] { MsgHelloAck }, true); return; }   // hello répété : on reconfirme
+            // Même joueur avec un nouvel id : il a relancé le jeu (crash) avant que l'ancienne connexion n'expire. L'ancienne part.
+            GD.Print($"[P2P] {source} revient avec l'id {id} : l'ancienne connexion (pair {known.Id}) est fermée");
+            Drop(known, sendBye: false);
         }
         string? refusal = refuseNew ? "connexions fermées"
             : version != ProtocolVersion ? $"protocole {version} au lieu de {ProtocolVersion}"

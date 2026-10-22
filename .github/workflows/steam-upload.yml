@@ -103,6 +103,14 @@ jobs:
           unzip -q templates.tpz -d tpl
           mv tpl/templates/* "$HOME/.local/share/godot/export_templates/4.3.stable.mono/"
 
+      - name: Inscrire l'AppID dans le jeu
+        env:
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+        run: |
+          # ShippedAppId : relance par Steam si l'exe est ouvert hors Steam, et succès rattachés au bon jeu.
+          sed -i -E "s/public const uint ShippedAppId = [0-9]+;/public const uint ShippedAppId = ${STEAM_APP_ID};/" scripts/Online/Steam/SteamPlatform.cs
+          grep -q "ShippedAppId = ${STEAM_APP_ID};" scripts/Online/Steam/SteamPlatform.cs || { echo "::error::ShippedAppId introuvable dans SteamPlatform.cs"; exit 1; }
+
       - name: Exporter pour Windows
         run: |
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"

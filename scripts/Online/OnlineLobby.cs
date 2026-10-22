@@ -73,6 +73,7 @@ public partial class OnlineLobby : Node
     bool autoReady;
     int autoStart;
     Upnp? upnp;
+    int upnpTicket;   // salle pour laquelle le port est demandé : une ouverture qui aboutit après la fermeture est annulée
 
     // ------------------------------------------------------------------ création
 
@@ -110,21 +111,18 @@ public partial class OnlineLobby : Node
     }
 
     /// <summary>Hôte qui ferme : les joueurs reviennent tout de suite au menu, sans attendre 45 s de reconnexion inutile.</summary>
-    void AnnounceHostClosing()
+    internal void AnnounceHostClosing()
     {
         if (!IsHost || State is not (LobbyState.InRoom or LobbyState.InMatch)) return;
         foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.HostClosingRpc);
         if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet) enet.Host?.Flush();
-        SteamBridge.Flush();
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HostClosingRpc()
     {
         GD.Print("[Lobby] L'hôte a fermé la partie");
-        bool inGame = State == LobbyState.InMatch;
         Fail("L'hôte a quitté la partie");
-        if (inGame) GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
 
     public override void _ExitTree()
@@ -253,8 +251,17 @@ public partial class OnlineLobby : Node
     /// <summary>Invitation Steam acceptée, « Rejoindre la partie », ou code « S… » : entre dans le salon Steam.</summary>
     public void JoinSteamLobby(ulong lobbyId)
     {
-        Reset();
+        // Invitation acceptée pendant une salle ou une partie : on la quitte proprement (les autres sont prévenus),
+        // et la scène de jeu laisse la place à l'écran de salle pendant que l'on rejoint l'ami.
+        bool inGame = GetTree().CurrentScene?.GetNodeOrNull("NetSession") != null;
+        if (State != LobbyState.Idle) Leave();
+        else Reset();
         if (!SteamBridge.Available) { Fail("Steam n'est pas lancé"); return; }
+        if (inGame)
+        {
+            GameLaunch.ShowLobby = true;
+            GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+        }
         SteamBridge.Join(this, lobbyId);
     }
 
@@ -318,7 +325,11 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost || State != LobbyState.InMatch) return;
         foreach (var (peer, zone) in matchZones)
-            if (peer != 1 && members.ContainsKey(peer)) RpcId(peer, MethodName.StartRpc, Map, zone);
+            if (peer != 1 && members.ContainsKey(peer))
+            {
+                NetSession.Current?.ReserveForLoading(zone, peer);   // un joueur qui entre pendant ce chargement ne prend pas sa place
+                RpcId(peer, MethodName.StartRpc, Map, zone);
+            }
     }
 
     /// <summary>Hôte, fin de partie : tout le monde revient dans la salle (mêmes joueurs, mêmes équipes).</summary>
@@ -369,7 +380,6 @@ public partial class OnlineLobby : Node
     {
         if (IsHost) return;
         Fail(reason);
-        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
 
     // ------------------------------------------------------------------ boucle
@@ -399,7 +409,7 @@ public partial class OnlineLobby : Node
                 break;
             case LobbyState.Reconnecting:
                 reconnectClock += delta;
-                if (reconnectClock > ReconnectWindow) { Fail("Reconnexion impossible : l'hôte a quitté la partie"); GameLaunch.ShowLobby = false; GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene); break; }
+                if (reconnectClock > ReconnectWindow) { Fail("Reconnexion impossible : l'hôte a quitté la partie"); break; }
                 if (reconnectClock >= nextReconnect && Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer)
                 {
                     nextReconnect = reconnectClock + ReconnectEvery;
@@ -494,6 +504,9 @@ public partial class OnlineLobby : Node
         int peer = Multiplayer.GetRemoteSenderId();
         if (Flooding(peer) || members.ContainsKey(peer)) return;   // une seule demande par pair
         pendingPeers.Remove(peer);
+        // Retour d'un joueur dont l'ancienne connexion n'est pas encore tombée (salle pleine) : l'ancienne place se libère d'abord.
+        if (State == LobbyState.InMatch && NetSession.Current?.StalePeerOf(token ?? "") is int stale and not 0 && stale != peer && members.Remove(stale))
+            GD.Print($"[Lobby] Ancienne connexion du joueur qui revient (pair {stale}) retirée de la salle");
         string? refusal = null;
         if (protocol != NetSession.ProtocolVersion) refusal = $"Version différente (hôte {GameVersion}, vous {Identity.Clean(version)}) : mettez le jeu à jour";
         else if (members.Count >= MaxPlayers && !members.ContainsKey(peer)) refusal = "Partie pleine";
@@ -524,7 +537,6 @@ public partial class OnlineLobby : Node
     {
         GD.Print($"[Lobby] Refusé par l'hôte : {reason}");
         Fail(reason);
-        if (GetTree().CurrentScene?.GetNodeOrNull("NetSession") != null) GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -654,9 +666,14 @@ public partial class OnlineLobby : Node
     void Fail(string reason)
     {
         GD.Print($"[Lobby] Échec : {reason}");
+        // Échec pendant une partie (refus, reconnexion ratée, hôte parti) : on quitte la scène de jeu morte pour le menu.
+        bool inGame = State is LobbyState.InMatch or LobbyState.Reconnecting || GetTree().CurrentScene?.GetNodeOrNull("NetSession") != null;
         Reset();
         SetState(LobbyState.Idle, reason);
         Failed?.Invoke(reason);
+        if (!inGame) return;
+        GameLaunch.ShowLobby = false;
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
 
     void Reset()
@@ -703,16 +720,22 @@ public partial class OnlineLobby : Node
     // UPnP : ouverture automatique du port sur la box (souvent refusée ; sinon, ouvrir le port UDP à la main ou passer par Steam).
     void OpenPortMapping(int mapPort)
     {
+        int ticket = upnpTicket;
         System.Threading.Tasks.Task.Run(() =>
         {
             try
             {
                 var u = new Upnp();
                 if (u.Discover(2000, 2, "") != (int)Upnp.UpnpResult.Success || u.GetGateway() is not { } gw || !gw.IsValidGateway()) { GD.Print("[Lobby] UPnP : pas de box compatible"); return; }
-                if (u.AddPortMapping(mapPort, mapPort, "Dogeball", "UDP", 0) != (int)Upnp.UpnpResult.Success) { GD.Print("[Lobby] UPnP : ouverture du port refusée"); return; }
+                if (u.AddPortMapping(mapPort, mapPort, "Dogeball", "UDP", 4 * 3600) != (int)Upnp.UpnpResult.Success) { GD.Print("[Lobby] UPnP : ouverture du port refusée"); return; }
                 string external = u.QueryExternalAddress();
                 Callable.From(() =>
                 {
+                    if (ticket != upnpTicket || !IsHost)
+                    {
+                        System.Threading.Tasks.Task.Run(() => { try { u.DeletePortMapping(mapPort, "UDP"); } catch (Exception) { } });
+                        return;
+                    }
                     upnp = u;
                     if (IsHost && external.Count(c => c == '.') == 3) { Code = JoinCode.FromAddress(external, mapPort); CodeIsInternet = true; GD.Print($"[Lobby] UPnP : port {mapPort} ouvert, code Internet {Code}"); Changed?.Invoke(); }
                 }).CallDeferred();
@@ -723,8 +746,11 @@ public partial class OnlineLobby : Node
 
     void ClosePortMapping()
     {
+        upnpTicket++;
         if (upnp == null) return;
-        try { upnp.DeletePortMapping(port, "UDP"); } catch (Exception) { }
+        var u = upnp;
+        int mapped = port;
         upnp = null;
+        System.Threading.Tasks.Task.Run(() => { try { u.DeletePortMapping(mapped, "UDP"); } catch (Exception) { } });   // la box peut mettre 2 s à répondre
     }
 }

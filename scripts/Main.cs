@@ -298,7 +298,7 @@ public partial class Main : Node3D
             net.PeerLeft += OnPeerLeft;
             net.ZoneAvailable = id => bots.ContainsKey(id) && id != localZone.Id;
             net.PickZone = PickFreeZone;
-            if (cfg.Mode == NetMode.Host && cfg.Preconnected) net.AdoptHost();
+            if (cfg.Mode == NetMode.Host && cfg.Preconnected) net.AdoptHost(fromLobby: true);
             else if (cfg.Mode == NetMode.Host)
             {
                 var err = net.Host(cfg.Port);

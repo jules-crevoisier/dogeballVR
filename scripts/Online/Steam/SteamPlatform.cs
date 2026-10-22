@@ -68,6 +68,7 @@ public static class SteamPlatform
                 return Fail($"{result.ToString().Replace("k_ESteamAPIInitResult_", "")} : {message}".Trim());
 
             Available = true;
+            AppId = SteamUtils.GetAppID().m_AppId;   // l'AppId réel donné par Steam (lancé depuis Steam : pas de steam_appid.txt)
             LocalSteamId = SteamUser.GetSteamID().m_SteamID;
             PersonaName = SteamFriends.GetPersonaName();
             lobbyJoinCb = Callback<GameLobbyJoinRequested_t>.Create(r => RequestLobbyJoin(r.m_steamIDLobby.m_SteamID, "invitation"));

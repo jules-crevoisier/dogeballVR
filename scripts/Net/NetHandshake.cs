@@ -78,7 +78,7 @@ public partial class HandshakeNode : RefCounted
         GD.Print($"[Net] Version différente : la nôtre {NetHandshake.Fingerprint}, celle du pair {id} {theirs}");
         if (id == 1) { NetHandshake.Fail("Version différente de celle de l'hôte : mettez le jeu à jour"); return; }
         // Hôte : on laisse une seconde à notre empreinte pour arriver, le client affiche alors « mettez le jeu à jour ».
-        if (Engine.GetMainLoop() is SceneTree tree) tree.CreateTimer(1.0).Timeout += () => { if (System.Array.IndexOf(api.GetPeers(), id) >= 0 || api.MultiplayerPeer != null) api.DisconnectPeer(id); };
+        if (Engine.GetMainLoop() is SceneTree tree) tree.CreateTimer(1.0).Timeout += () => { if (System.Array.IndexOf(api.GetAuthenticatingPeers(), id) >= 0 || System.Array.IndexOf(api.GetPeers(), id) >= 0) api.DisconnectPeer(id); };   // seulement s'il est encore là
         else api.DisconnectPeer(id);
     }
 }
