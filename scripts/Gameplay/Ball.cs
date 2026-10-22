@@ -208,6 +208,7 @@ public partial class Ball : RigidBody3D
     public override void _Ready()
     {
         AddToGroup("balls");
+        AddChild(new Visual.BallChargeFx { Ball = this });   // anneaux et étincelles des paliers de charge
         Mass = 0.6f;
         GravityScale = GravityFactor; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
