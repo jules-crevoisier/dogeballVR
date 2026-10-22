@@ -427,7 +427,8 @@ public partial class Main : Node3D
         Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
-        if (Tools.DevFlags.Has("--essai-maison")) Bot.Level = 0;   // essai maison : bots faciles, le lift et le bord s'essaient sans être éliminé
+        // Essai maison : bots faciles et doux (tirs à 12-15 m/s espacés de 2 à 3,5 s) : on reste sur place dans une pièce.
+        if (Tools.DevFlags.Has("--essai-maison")) { Bot.Level = 0; Bot.Gentle = true; }
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 

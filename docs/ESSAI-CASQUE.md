@@ -19,28 +19,32 @@ Compter 45 minutes la première fois, dont 15 pour le mode développeur.
    le casque > Paramètres du casque > Mode développeur. **Redémarrer le casque.**
 3. **Sur le PC Windows,** installer **Meta Quest Developer Hub** (MQDH, gratuit, sur
    developers.meta.com) ou `adb` (Android platform-tools).
-4. **Brancher le casque en USB-C.** Dans le casque, accepter « Autoriser le débogage
-   USB » et cocher **Toujours autoriser depuis cet ordinateur**.
+4. **Brancher le casque au PC** avec un câble USB qui transfère des données : celui livré
+   avec le casque ne le fait pas toujours, et un câble USB-A vers USB-C convient si le PC
+   n'a pas d'USB-C. Dans le casque, accepter « Autoriser le débogage USB » et cocher
+   **Toujours autoriser depuis cet ordinateur**.
 
-Quest 2, 3, 3S et Pro conviennent.
+L'APK déclare les Quest 2, 3 et Pro. Le Quest 3S devrait l'accepter aussi en
+installation directe, mais personne ne l'a encore vérifié.
 
 ## 2. Récupérer les APK
 
-Dans l'onglet **Actions** du dépôt, ouvrir le dernier run **Build Quest** de la branche.
+Dans l'onglet **Actions** du dépôt, ouvrir le dernier run **Build Quest** de la PR #28
+(branche `claude/project-thread-otf5l0`).
 En bas de la page se trouve l'artifact **DogeballVR-quest-debug** (un zip ; il faut être
 connecté à GitHub). Il contient deux APK :
 
 | Fichier | Nom dans le casque | Au lancement |
 |---|---|---|
 | `DogeballVR-quest.apk` | Dogeball VR | Comme à EVA : Néon court, au centre de la zone 0 (15 × 8 m), contre les bots |
-| `DogeballVR-quest-essai.apk` | Dogeball Essai maison | La Fosse, départ **sur le pad du lift**, face au terrain adverse, bots faciles |
+| `DogeballVR-quest-essai.apk` | Dogeball Essai maison | La Fosse, départ **sur le pad du lift**, face au terrain adverse, bots faciles et lents |
 
 Les deux applis s'installent côte à côte. Le keystore de debug de la CI est toujours le
 même : un nouvel APK s'installe par-dessus l'ancien.
 
 ## 3. Installer et lancer
 
-- **Avec MQDH :** Device Manager > Apps > **Add Build**, puis choisir l'APK.
+- **Avec adb** (Android platform-tools : MQDH en contient un, mais pas dans le PATH) :
 - **Avec adb :**
 
   ```
@@ -68,8 +72,15 @@ la tête du joueur :
 
 Si l'image n'est pas calée, maintenir le bouton Meta de la manette droite pour
 recentrer. Si cela ne suffit pas, quitter l'appli, se replacer au milieu en regardant
-vers l'avant, puis relancer. Un pilier se trouve à 1 m devant : ne pas avancer dedans (l'écran passe au
-noir quand la tête y entre, c'est normal).
+vers l'avant, puis relancer. Ouvrir le menu Meta pendant un test ne déplace plus rien,
+mais un recentrage, si : ne le faire qu'au milieu de la pièce, face à l'avant.
+
+Un pilier se trouve à 1 m droit devant. On passe à travers sans effet, alors ne pas
+avancer : il cache juste une partie de la fosse.
+
+**Les bots tirent, doucement :** 12 à 15 m/s, un tir toutes les 2 à 3,5 s. Rester sur
+place et attraper ou encaisser. **Ne pas esquiver en se déplaçant** dans une petite
+pièce. Si l'image saccade ou si la nausée vient, retirer le casque.
 
 | # | Test | Ce qui est attendu | À noter |
 |---|---|---|---|
@@ -77,7 +88,7 @@ noir quand la tête y entre, c'est normal).
 | B | **Gants** | Un gant sur chaque main, posé sur la paume. Manette tenue normalement : paume vers l'intérieur, pouce en haut. Le gant gauche est en miroir. Les cœurs (vies) sont sur le dos de la main gauche | Si la paume est tournée de travers : d'un quart de tour, et dans quel sens ? Si les doigts piquent vers le haut ou vers le bas : de combien ? |
 | C | **Lift** | Rester debout immobile 1 s (le jeu mesure la taille), puis s'accroupir et tenir 1 s. Le fondu passe au noir et le plateau monte de 1,6 m. Il redescend seul après 6 s au plus. Il faut ensuite **18 s** avant de pouvoir remonter | Se tenir debout ou sauter ne doit pas le déclencher. Le seuil est à 72 % de la taille debout : se déclenche-t-il trop tôt, ou trop tard ? |
 | D | **Voile du garde-corps** | Une fois en haut, regarder vers la fosse. On voit une ligne au sol de la couleur de l'équipe et un voile lumineux très transparent, **sans barre** à laquelle on voudrait s'appuyer | Le bord se voit-il assez ? Le voile gêne-t-il la vue ? Ne pas marcher vers lui : il est à 6 m dans le jeu, donc derrière le mur de la pièce |
-| E | **Vibration du bord** | Redescendu, **se retourner, dos à la fosse**, et avancer doucement. Après environ 0,6 m, les deux manettes vibrent par impulsions douces, de plus en plus serrées en approchant du bord. Un clic grave part toutes les 1,5 s et un mur de lumière apparaît. En revenant sur le pad, tout s'arrête | Se sent-elle sans regarder ? Trop forte, trop faible, agaçante ? Le clic s'entend-il ? |
+| E | **Vibration du bord** | Redescendu, **se retourner, dos à la fosse**, et avancer doucement. Après environ 0,6 m, les deux manettes vibrent par impulsions douces, un peu plus serrées en approchant du bord (dans 2 × 2 m, on n'arrive qu'à 1,1 m du bord : la progression se sent à peine). Un clic grave part toutes les 1,5 s et un mur de lumière apparaît. En revenant sur le pad, tout s'arrête | Se sent-elle sans regarder ? Trop forte, trop faible, agaçante ? Le clic s'entend-il ? |
 | F | **Balle neutre** (à l'œil) | La Fosse n'a pas de moyeu. La balle neutre tombe **à la verticale** au-dessus d'une zone de l'équipe menée, hors des couverts. Elle tombe à 3 m ou plus du pad, parfois dans la zone voisine : on ne va pas la chercher | Tombe-t-elle bien à la verticale, sans rebondir jusqu'au mur ? |
 | G | **Attraper** | Attraper un tir des bots sans quitter le pad. Pendant qu'un tir arrive, la vibration de tir remplace celle du bord, sauf à moins de 0,3 m du bord. Les balles à ramasser sont trop loin pour un essai à la maison | Limite connue : la balle tenue paraît environ 10 cm devant le gant |
 
@@ -99,8 +110,8 @@ sert qu'à vérifier qu'elle démarre et qu'elle tourne bien.
 - Pour les gants, le sens et l'angle de la correction suffisent. Ce sont deux constantes
   de `scripts/Main.cs` : `GloveRollDegrees` (90° aujourd'hui) et `GlovePitchDegrees`
   (0°).
-- Une vidéo filmée dans le casque aide beaucoup : bouton Meta > Appareil photo >
-  Enregistrer la vidéo.
+- Une vidéo filmée dans le casque aide beaucoup. Bouton Meta > Appareil photo >
+  Enregistrer la vidéo : le faire au milieu de la pièce, face à l'avant.
 - En cas de plantage, joindre `journal-quest.txt`.
 
 ## 7. Limites de ce build
