@@ -239,6 +239,7 @@ public partial class DesktopPlayer : Node3D
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
             selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
+            selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
             selfAvatar.TopLevel = true;
             AddChild(selfAvatar);
         }

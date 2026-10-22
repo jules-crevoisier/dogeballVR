@@ -14,7 +14,7 @@ namespace DogeballVR.Visual;
 /// </summary>
 public partial class AvatarSelfTest : Node3D
 {
-    enum Kind { Vr, VrFromBot, VrToBot, VrBallClient, Pc, PcLan, PcBall, PcBallClient, Bot, BotWindup, BotCatch, BotSteal }
+    enum Kind { Vr, VrFromBot, VrToBot, VrBallClient, VrSwitch, Pc, PcLan, PcBall, PcSelf, PcBallClient, Bot, BotWindup, BotCatch, BotSteal, BotThrow }
 
     /// <param name="TurnDeg">Coup d'œil : à 2 s la tête tourne de cet angle, les mains restent devant.</param>
     /// <param name="DuckAt">Baissé brusque à cet instant (s) : la tête passe à <c>DuckTo</c> ; vérifié 0,1 s plus tard.</param>
@@ -44,6 +44,9 @@ public partial class AvatarSelfTest : Node3D
         new("VR balle en main, vu d'un client", Kind.VrBallClient, new(0, 1.65f, 0), new(-0.25f, 1.25f, -0.45f), new(0.32f, 1.75f, 0.18f), OffCamera: true),
         new("PC balle en main, vu d'un client", Kind.PcBallClient, new(0, 1.6f, 0), default, default, OffCamera: true),
         new("bot, balle volée", Kind.BotSteal, default, default, default, OffCamera: true),
+        new("bot, lâcher", Kind.BotThrow, default, default, default, OffCamera: true),
+        new("PC local balle en main", Kind.PcSelf, new(0, 1.6f, 0), default, default, OffCamera: true),
+        new("VR, balle changée de main", Kind.VrSwitch, new(0, 1.65f, 0), new(-0.25f, 1.25f, -0.45f), new(0.32f, 1.75f, 0.18f), OffCamera: true),
         new("chute dans la fosse", Kind.Vr, new(0, -1.2f, 0), new(-0.3f, -1.5f, -0.3f), new(0.3f, -1.5f, -0.3f), OffCamera: true),
     };
     const float Spacing = 1.15f;
@@ -57,13 +60,16 @@ public partial class AvatarSelfTest : Node3D
     Node3D? stealer;
     readonly Dictionary<int, float> catchChecked = new();
     readonly Dictionary<int, Node3D> holds = new();   // point de tenue du jeu (hôte) : le point de lâcher ne doit pas bouger
-    bool pcSpinTracked;                               // PC en LAN : bras pris pour des bras VR pendant le coup de souris
+    bool pcSpinTracked;
+    double thrownAt = -1;
+    float throwJump = -1f;   // déplacement des visuels à l'image du lâcher, au-delà du vol de la balle
+    Vector3 lastShown;                               // PC en LAN : bras pris pour des bras VR pendant le coup de souris
     bool swapped;   // tête du modèle 0,1 s après le baissé
     double clock;
     bool done;
 
-    static float X(int i) => Cases[i].OffCamera ? 40f + 3f * i : (i - (Visible - 1) / 2f) * Spacing;
-    static readonly int Visible = System.Array.FindAll(Cases, c => !c.OffCamera).Length;
+    static float X(int i) => Cases[i].OffCamera ? 40f + 3f * i : (i - (Shown - 1) / 2f) * Spacing;
+    static readonly int Shown = System.Array.FindAll(Cases, c => !c.OffCamera).Length;
     const double Duration = 2.5;   // la taille debout se mesure sur 1 s de tête stable, l'échelle suit ensuite
     float Yaw(int i) => sideYaw + Mathf.DegToRad(Cases[i].YawDeg);
     Vector3 At(int i) => new(X(i), 0, 0);
@@ -79,10 +85,11 @@ public partial class AvatarSelfTest : Node3D
         for (int i = 0; i < Cases.Length; i++)
         {
             var c = Cases[i];
-            bool bot = c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch or Kind.BotSteal;
+            bool bot = c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch or Kind.BotSteal or Kind.BotThrow;
             var avatar = Avatar.Create(i % 2, bot || c.Kind == Kind.VrFromBot, playerId: 100 + i);
             if (c.Kind == Kind.VrFromBot) avatar.IsBot = false;   // comme ClientWorld quand un joueur prend la zone d'un bot
-            if (c.Kind is Kind.Pc or Kind.PcBall or Kind.PcBallClient) avatar.TrackHands = false;
+            if (c.Kind is Kind.Pc or Kind.PcBall or Kind.PcSelf or Kind.PcBallClient) avatar.TrackHands = false;
+            if (c.Kind == Kind.PcSelf) avatar.ShowsHeldBall = false;   // comme l'avatar du joueur PC local (DesktopPlayer)
             AddChild(avatar);
             avatars.Add(avatar);
             if (bot) { avatar.Position = At(i); avatar.Rotation = new Vector3(0, Yaw(i), 0); }   // un bot déplace son nœud, sans Pose
@@ -97,12 +104,12 @@ public partial class AvatarSelfTest : Node3D
                 hold = new Node3D { Position = new Vector3(0, 1.4f, 0) };
                 avatar.AddChild(hold);
             }
-            else if (c.Kind == Kind.PcBall)
+            else if (c.Kind is Kind.PcBall or Kind.PcSelf)
             {
                 hold = new Node3D { Position = World(i, c.Head + PcRight) };
                 AddChild(hold);
             }
-            if (c.Kind is Kind.VrBallClient or Kind.PcBallClient)
+            if (c.Kind is Kind.VrBallClient or Kind.PcBallClient or Kind.VrSwitch)
             {
                 // Client : marionnette tenue par ce joueur, extrapolée 0,5 m devant sa main réseau (avatar en retard d'affichage).
                 var puppet = Gameplay.Ball.CreatePuppet(1000 + i);
@@ -153,9 +160,16 @@ public partial class AvatarSelfTest : Node3D
                 AddChild(stealer);
                 stolen.Hold(stealer, 999, 1 - i % 2);
             }
-            if (c.Kind is Kind.VrBallClient or Kind.PcBallClient && balls.TryGetValue(i, out var net))
+            if (c.Kind == Kind.BotThrow && balls.TryGetValue(i, out var thrown))
             {
-                var hand = World(i, c.Kind == Kind.PcBallClient ? c.Head + PcRight : c.Right);
+                // lâcher sur l'hôte : la balle de jeu part du point de tenue, ses visuels quittent la main sans sauter
+                if (thrownAt < 0 && clock > 1.8) { thrownAt = clock; thrown.Release(new Basis(Vector3.Up, Yaw(i)) * new Vector3(0, 2f, -10f), 0f); }
+                else if (thrownAt > 0 && throwJump < 0) throwJump = thrown.ShownPosition.DistanceTo(lastShown) - 10.2f * (float)delta;
+                lastShown = thrown.ShownPosition;
+            }
+            if (c.Kind is Kind.VrBallClient or Kind.PcBallClient or Kind.VrSwitch && balls.TryGetValue(i, out var net))
+            {
+                var hand = World(i, c.Kind == Kind.PcBallClient ? c.Head + PcRight : c.Kind == Kind.VrSwitch && clock > 2.0 ? c.Left : c.Right);
                 net.ApplyNet(hand + new Vector3(0, 0, -0.5f), new Vector3(0, 0, -4f), i % 2, 100 + i, 0, true);
             }
             if (c.Kind == Kind.VrToBot && clock > 1.5 && !swapped)
@@ -163,7 +177,7 @@ public partial class AvatarSelfTest : Node3D
                 swapped = true;
                 avatars[i].IsBot = true;   // comme ClientWorld : un bot prend la zone (et a la taille du modèle)
             }
-            if (c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch or Kind.BotSteal)
+            if (c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch or Kind.BotSteal or Kind.BotThrow)
             {
                 // bot : pas de pose, comme en jeu (il se déplace comme un nœud) ; élan = animation « Lancer » balle en main
                 if (c.Kind == Kind.BotWindup && clock > 1.8) avatars[i].PlayAction("Lancer", 5.0);
@@ -175,7 +189,7 @@ public partial class AvatarSelfTest : Node3D
                     catchChecked[i] = caught.ShownPosition.DistanceTo(cik.FinalWristR);
                 continue;
             }
-            bool pc = c.Kind is Kind.Pc or Kind.PcLan or Kind.PcBall or Kind.PcBallClient;
+            bool pc = c.Kind is Kind.Pc or Kind.PcLan or Kind.PcBall or Kind.PcSelf or Kind.PcBallClient;
             var head = c.DuckAt > 0f && clock >= c.DuckAt ? new Vector3(c.Head.X, c.DuckTo, c.Head.Z) : c.Head;
             if (c.Kind == Kind.VrToBot && swapped) head = new Vector3(c.Head.X, 1.62f, c.Head.Z);
             var left = pc ? c.Head + PcLeft : c.Left;
@@ -257,6 +271,22 @@ public partial class AvatarSelfTest : Node3D
             }
             if (c.Kind == Kind.PcBallClient)
                 Check($"{c.Name} : bras armé", ik.FinalWristR.Y > 1.4f, $"poignet lanceur à {ik.FinalWristR.Y:0.00} m");
+            if (c.Kind == Kind.PcSelf && balls.TryGetValue(i, out var self))
+            {
+                float d = self.ShownPosition.DistanceTo(self.GlobalPosition);
+                Check($"{c.Name} : balle gardée au point de visée", d < 0.001f, $"visuels à {d:0.000} m de la balle de jeu");
+            }
+            if (c.Kind == Kind.VrSwitch && balls.TryGetValue(i, out var switched))
+            {
+                float d = switched.ShownPosition.DistanceTo(ik.FinalWristL);
+                Check($"{c.Name} : balle passée dans la main gauche", d < 0.2f, $"centre de la balle à {d:0.00} m du poignet gauche");
+            }
+            if (c.Kind == Kind.BotThrow && balls.TryGetValue(i, out var flown))
+            {
+                float rest = flown.ShownPosition.DistanceTo(flown.GlobalPosition);
+                Check($"{c.Name} : visuels sans saut au lâcher", throwJump >= 0f && throwJump < 0.25f, $"saut de {throwJump:0.00} m à l'image du lâcher");
+                Check($"{c.Name} : visuels revenus sur la balle en vol", rest < 0.01f, $"écart de {rest:0.000} m");
+            }
             if (c.Kind == Kind.BotSteal)
                 Check($"{c.Name} : bras rendus à l'animation", ik.RightWeight < 0.05f && ik.LeftWeight < 0.05f, $"poids de l'IK {ik.RightWeight:0.00}");
             if (c.Kind == Kind.PcLan)

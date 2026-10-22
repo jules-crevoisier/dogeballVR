@@ -351,11 +351,18 @@ public partial class Avatar : Node3D
                 seenBalls[ball] = cur;
             }
             // Main qui tient la balle (VR) : la plus proche de la balle à la prise, ou à l'arrivée d'un avatar qui la voit déjà tenue.
+            // Elle change de main quand l'autre main est plus près de 15 cm (position de jeu de la balle, pas celle affichée).
             if (heldBall != shownBall) { shownBall = heldBall; heldLeft = null; }
-            if (heldBall != null && heldLeft == null) heldLeft = netLeft.DistanceSquaredTo(heldBall.GlobalPosition) < netRight.DistanceSquaredTo(heldBall.GlobalPosition);
+            if (heldBall != null)
+            {
+                var at = heldBall.NetPosition;
+                float toL = netLeft.DistanceTo(at), toR = netRight.DistanceTo(at);
+                if (heldLeft == null) heldLeft = toL < toR;
+                else if (heldLeft == true ? toR < toL - 0.15f : toL < toR - 0.15f) heldLeft = !heldLeft;
+            }
             // La balle tenue se voit dans la main de l'avatar (UpdateIk place shownHold) : chez un client la marionnette y va, sur
             // l'hôte seuls ses visuels s'y décalent (point de lâcher inchangé). Sauf la balle du joueur local (son point de visée).
-            showing = heldBall != null && heldBall.LocalHoldOverride == null && IkEnabled && ik != null;
+            showing = ShowsHeldBall && heldBall != null && heldBall.LocalHoldOverride == null && IkEnabled && ik != null;
             if (showing)
             {
                 shownHold ??= new Node3D { Name = "ShownHold", TopLevel = true };
@@ -528,6 +535,11 @@ public partial class Avatar : Node3D
     }
 
     const float BodyYawLimit = 0.87f;   // 50°
+
+    /// <summary>
+    /// Montre la balle tenue dans la main (faux pour l'avatar du joueur PC local : sa balle reste à son point de visée).
+    /// </summary>
+    public bool ShowsHeldBall { get; set; } = true;
 
     /// <summary>Bras pilotés par les mains réseau (joueur VR).</summary>
     public bool ArmsTracked => HandsTracked;

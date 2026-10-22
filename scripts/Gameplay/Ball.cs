@@ -101,21 +101,33 @@ public partial class Ball : RigidBody3D
     /// </summary>
     public Node3D? ShownAt { get; set; }
     public int ShownFor { get; set; } = -1;
-    Vector3 visualShift;   // décalage des visuels (repère de la balle), balle de jeu montrée dans une main
+    Vector3 shownOffset;   // balle de jeu montrée dans une main : écart monde des visuels, ramené à zéro en 80 ms au lâcher
+    readonly System.Collections.Generic.Dictionary<Node3D, Vector3> shifted = new();   // décalage appliqué à chaque visuel
 
     /// <summary>Position où la balle se voit (centre des visuels).</summary>
-    public Vector3 ShownPosition => visualShift == Vector3.Zero ? GlobalPosition : ToGlobal(visualShift);
+    public Vector3 ShownPosition => GlobalPosition + shownOffset;
+
+    /// <summary>Position de jeu : celle de l'hôte (marionnette : dernier état reçu, même quand elle s'affiche dans une main).</summary>
+    public Vector3 NetPosition => IsPuppet ? netTarget : GlobalPosition;
 
     bool Shown => IsHeld && ShownFor == OwnerPlayerId && ShownAt != null && IsInstanceValid(ShownAt);
 
-    void ShiftVisuals()
+    void ShiftVisuals(float dt)
     {
-        var shift = !IsPuppet && Shown ? ToLocal(ShownAt!.GlobalPosition) : Vector3.Zero;
-        if (shift.IsEqualApprox(visualShift)) return;
-        var delta = shift - visualShift;
-        visualShift = shift;
+        if (!IsPuppet && Shown) shownOffset = ShownAt!.GlobalPosition - GlobalPosition;
+        else if (shownOffset != Vector3.Zero)
+            shownOffset = shownOffset.LengthSquared() < 1e-6f ? Vector3.Zero : shownOffset.Lerp(Vector3.Zero, 1f - Mathf.Exp(-40f * dt));
+        if (shownOffset == Vector3.Zero && shifted.Count == 0) return;
+        var local = shownOffset == Vector3.Zero ? Vector3.Zero : ToLocal(GlobalPosition + shownOffset);
         foreach (var child in GetChildren())
-            if (child is Node3D n and not CollisionShape3D && !n.TopLevel) n.Position += delta;
+        {
+            if (child is not Node3D n || n is CollisionShape3D || n.TopLevel) continue;
+            shifted.TryGetValue(n, out var applied);   // visuel ajouté entre-temps (alerte, effets) : rien d'appliqué encore
+            if (applied.IsEqualApprox(local)) continue;
+            n.Position += local - applied;
+            if (local == Vector3.Zero) shifted.Remove(n); else shifted[n] = local;
+        }
+        if (local == Vector3.Zero) shifted.Clear();
     }
     bool overridden;
     Vector3 netTarget;
@@ -405,9 +417,8 @@ public partial class Ball : RigidBody3D
         else if (IsPuppet && Shown)
         {
             if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
-            GlobalPosition = ShownAt.GlobalPosition;
+            GlobalPosition = ShownAt!.GlobalPosition;   // netTarget garde la position de jeu (NetPosition) : le lâcher en repart
             Visible = true;
-            netTarget = GlobalPosition;
         }
         else if (IsPuppet)
         {
@@ -418,7 +429,7 @@ public partial class Ball : RigidBody3D
             netTarget += LinearVelocity * (float)delta;
             GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
         }
-        ShiftVisuals();
+        ShiftVisuals((float)delta);
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
         if (Charge >= 2)
@@ -429,7 +440,7 @@ public partial class Ball : RigidBody3D
         UpdateAlertAndRing();
         UpdateFlightLook((float)delta);
 
-        var p = GlobalPosition;
+        var p = ShownPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
         float h = Mathf.Clamp(1f - p.Y / 4f, 0.2f, 1f);
         shadow.Scale = new Vector3(h, 1f, h);
