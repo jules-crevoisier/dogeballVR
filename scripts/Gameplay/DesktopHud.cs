@@ -1160,8 +1160,8 @@ public partial class DesktopHud : CanvasLayer
 
     void BuildCenterTexts()
     {
-        countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 300, 70);
-        countdown = CenterLabel("", 220, UiKit.Yellow, 26, 360, 260);
+        countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 220, 70);   // au-dessus du chiffre, même quand il grossit au punch
+        countdown = CenterLabel("", 220, UiKit.Yellow, 26, 400, 260);
         notice = CenterLabel("", 34, UiKit.Yellow, 10, 190, 50);
         notice.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.8f), 12, -0.12f, 0, null, 4));
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);

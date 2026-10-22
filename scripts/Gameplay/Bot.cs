@@ -54,6 +54,7 @@ public partial class Bot : Node3D
         catchCooldown -= delta;
         TrackTargets(delta);
         Dodge(delta);
+        FaceNearestEnemy(delta);
         if (held == null && catchCooldown <= 0) TryCatch();
         else ThinkThrow(delta);
     }
@@ -106,6 +107,27 @@ public partial class Bot : Node3D
         local.Z = Mathf.Clamp(local.Z, -limitZ, limitZ);
         local.Y = 0;
         GlobalPosition = Zone.Center + basis * local;
+    }
+
+    /// <summary>Le modèle se tourne vers l'adversaire le plus proche (il ne reste plus figé face au même mur).</summary>
+    void FaceNearestEnemy(double delta)
+    {
+        if (Avatar == null) return;
+        Node3D? best = null;
+        float bestD = float.MaxValue;
+        for (int i = 0; i < Targets.Count; i++)
+        {
+            if (TargetTeams[i] == Hurtbox.Team || !IsInstanceValid(Targets[i])) continue;
+            float d = Targets[i].GlobalPosition.DistanceSquaredTo(GlobalPosition);
+            if (d < bestD) { bestD = d; best = Targets[i]; }
+        }
+        if (best == null) return;
+        var to = best.GlobalPosition - GlobalPosition;
+        if (to.X * to.X + to.Z * to.Z < 0.01f) return;
+        float want = Mathf.Atan2(-to.X, -to.Z) - GlobalRotation.Y;   // les modèles regardent vers -Z
+        var r = Avatar.Rotation;
+        r.Y = Mathf.LerpAngle(r.Y, want, 1f - Mathf.Exp(-8f * (float)delta));
+        Avatar.Rotation = r;
     }
 
     void TryCatch()
