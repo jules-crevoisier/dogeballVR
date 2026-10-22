@@ -147,6 +147,10 @@ public static class Sfx
                 else if (c is AudioStreamPlayer3D p3) { p3.Stop(); p3.Stream = null; }
             }
         holder = null;
+        // Les enveloppes C# gardent une référence sur chaque son jusqu'au ramasse-miettes, qui ne passe pas avant la fermeture :
+        // on la rend tout de suite, sinon Godot signale les .ogg « encore utilisés ».
+        foreach (var list in files.Values) foreach (var s in list) s?.Dispose();
+        foreach (var w in synth.Values) w?.Dispose();
         files.Clear(); synth.Clear(); voices.Clear(); lastVariant.Clear();
     }
 

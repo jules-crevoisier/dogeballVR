@@ -59,7 +59,9 @@ public partial class Tutorial : CanvasLayer
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
         card = new PanelContainer { CustomMinimumSize = new Vector2(760, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
-        card.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.Navy, 0.88f), 20, 0f, 3, UiKit.Yellow, 8));
+        var cardBox = UiKit.PanelBox(16, 26);   // la fenêtre du menu, liseré jaune : la consigne se détache du jeu
+        cardBox.BorderColor = UiKit.Yellow;
+        card.AddThemeStyleboxOverride("panel", cardBox);
         card.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         card.OffsetLeft = -380; card.OffsetRight = 380; card.OffsetTop = 150;
         root.AddChild(card);
@@ -72,7 +74,7 @@ public partial class Tutorial : CanvasLayer
         counter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         head.AddChild(counter);
         head.AddChild(UiKit.Text("Entrée : passer l'étape", 22, UiKit.Cream, 6));
-        title = UiKit.Text("", 44, UiKit.Yellow, 10);
+        title = UiKit.Title("", 46, HorizontalAlignment.Left);
         col.AddChild(title);
         body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(720, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
         body.AddThemeFontSizeOverride("normal_font_size", 26);
@@ -176,7 +178,7 @@ public partial class Tutorial : CanvasLayer
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 16);
         panel.AddChild(col);
-        col.AddChild(UiKit.Text("TU ES PRÊT !", 72, UiKit.Yellow, 16, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("TU ES PRÊT !", 76));
         int koTarget = KcRules.Def.KoTarget > 0 ? KcRules.Def.KoTarget : 3;   // seuil de la carte (6 sur Croix Néon), 3 par défaut (MatchRules)
         col.AddChild(UiKit.Text($"Première équipe à {koTarget} KO gagne la manche. 5 manches, prolongation en mort subite.\n1 cœur par coup, et attraper ne soigne pas.", 24, Colors.White, 6, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };

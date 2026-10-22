@@ -1245,13 +1245,20 @@ public partial class DesktopHud : CanvasLayer
     {
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
-        countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 158, 76);
-        countdownRound.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.85f), 14, -0.12f, 0, null, 4));
+        countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
+        // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
+        var roundBox = UiKit.PanelBox(16, 4);
+        roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
+        countdownRound.AddThemeStyleboxOverride("normal", roundBox);
+        if (UiKit.Italic is Font it) countdownRound.AddThemeFontOverride("font", it);
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
         // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
         // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
         notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        notice.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 14, -0.12f, 3, UiKit.Yellow, 4));
+        var noticeBox = UiKit.PanelBox(14, 18);
+        noticeBox.BorderWidth = 4; noticeBox.BorderColor = UiKit.Yellow; noticeBox.ShadowOffset = new Vector2(7, 7); noticeBox.StripOffset = new Vector2(12, 12);
+        noticeBox.ContentMarginTop = noticeBox.ContentMarginBottom = 6;
+        notice.AddThemeStyleboxOverride("panel", noticeBox);
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         notice.GrowHorizontal = Control.GrowDirection.Both;
         notice.OffsetLeft = 0; notice.OffsetRight = 0; notice.OffsetTop = 186; notice.OffsetBottom = 186;
@@ -1378,7 +1385,7 @@ public partial class DesktopHud : CanvasLayer
             if (roundTitle != "")
             {
                 // Bandeau à la largeur du texte (posée avant le glissé, qui part de la position courante).
-                float w = (UiKit.Font?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 50).X ?? 900f) + 72f;
+                float w = (UiKit.Font?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 50).X ?? 900f) + 96f;
                 countdownRound.OffsetLeft = -w / 2; countdownRound.OffsetRight = w / 2;
                 countdownRound.PivotOffset = new Vector2(w / 2, 38);
                 countdownRound.Text = roundTitle;
@@ -1922,9 +1929,7 @@ public partial class DesktopHud : CanvasLayer
         table.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(table);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8);
-        box.ContentMarginLeft = 36; box.ContentMarginRight = 36; box.ContentMarginTop = 24; box.ContentMarginBottom = 28;
-        panel.AddThemeStyleboxOverride("panel", box);
+        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(18, 30));   // la fenêtre du menu principal
         table.AddChild(panel);
         tableRows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         tableRows.AddThemeConstantOverride("separation", 6);
@@ -1958,9 +1963,9 @@ public partial class DesktopHud : CanvasLayer
     {
         var color = team == 0 ? UiKit.Orange : UiKit.Blue;
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.NavySoft, 0.9f), 10, -0.1f, 0, null, 0);
-        box.BorderWidthLeft = 12; box.BorderColor = color;
-        box.ContentMarginTop = 4; box.ContentMarginBottom = 4; box.ContentMarginLeft = 22; box.ContentMarginRight = 22;
+        var box = UiKit.InsetBox(new Color("0a0f22", 0.55f), 8);
+        box.AccentColor = color; box.AccentWidth = 12;
+        box.ContentMarginTop = 4; box.ContentMarginBottom = 4; box.ContentMarginLeft = 26; box.ContentMarginRight = 22;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 10);
@@ -1998,8 +2003,8 @@ public partial class DesktopHud : CanvasLayer
         // Couleurs d'équipe pleines et vives (comme l'écran de fin) ; ma ligne plus claire et cerclée de jaune.
         bool me = p != null && p.Id == View.LocalId;
         var bg = header ? new Color(0, 0, 0, 0) : p!.Team == 0 ? new Color(me ? "ff7a1f" : "d9520c") : new Color(me ? "2f8fff" : "1f63c9");
-        var box = UiKit.Box(bg, 8, -0.1f, p != null && p.Id == View.LocalId ? 3 : 0, UiKit.Yellow, 0);
-        box.ContentMarginTop = 2; box.ContentMarginBottom = 2; box.ContentMarginLeft = 18; box.ContentMarginRight = 18;
+        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 8, BorderWidth = me ? 3 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        box.ContentMarginTop = 2; box.ContentMarginBottom = 2; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 8);
