@@ -5,8 +5,8 @@ namespace DogeballVR.Xr;
 /// <summary>
 /// Essai maison (<c>--essai-maison</c>) : recale le jeu sur la tête du joueur. OpenXR démarre en espace « Stage » : sans
 /// recentrage, le point de départ est le centre du Guardian et l'avant du jeu suit l'orientation du Guardian, pas le regard.
-/// Recentre 1 s après le lancement et au premier focus de la session, puis seulement quand le joueur le demande (bouton
-/// Meta maintenu) : rouvrir le menu Meta en plein test ne déplace pas le pad sous ses pieds.
+/// Recentre 1 s après le lancement et au premier focus de la session, puis à chaque recentrage du système (bouton Meta
+/// maintenu, souvent aussi quand on remet le casque) : rouvrir le menu Meta en plein test ne déplace pas le pad sous ses pieds.
 /// </summary>
 public partial class HomeTestRecenter : Node
 {

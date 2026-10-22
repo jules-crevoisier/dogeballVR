@@ -2,7 +2,7 @@
 # Prépare le dépôt pour l'export « Meta Quest » (APK Android, OpenXR, rendu Vulkan mobile).
 # Utilisé par la CI (.github/workflows/quest.yml) et utilisable à la main sous Linux ou Git Bash (Windows).
 #
-#   GODOT=/chemin/vers/godot-mono ANDROID_HOME=... JAVA_HOME=... tools/quest/prepare-android.sh
+#   ANDROID_HOME=... JAVA_HOME=... tools/quest/prepare-android.sh
 #
 # 1. Plugin Godot OpenXR Vendors 3.1.2 (chargeur OpenXR de Meta), réduit aux fichiers utiles.
 # 2. Keystore de debug (tools/quest/debug.keystore ; pas de clé de release : APK à installer soi-même, pas pour le Store).
@@ -13,7 +13,6 @@ set -euo pipefail
 
 VENDORS_VERSION=3.1.2-stable
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-: "${GODOT:?Indiquer GODOT (exécutable Godot 4.3 .NET)}"
 : "${ANDROID_HOME:?Indiquer ANDROID_HOME (SDK Android avec build-tools 34, platform 34, NDK 23.2.8568313)}"
 : "${JAVA_HOME:?Indiquer JAVA_HOME (JDK 17)}"
 
