@@ -252,12 +252,15 @@ public partial class Main : Node3D
             origin.AddChild(camera);
             // Le joueur voit ses mains : sans elles, on ne sait pas où est la main par rapport à la balle à attraper.
             // Gant posé sur la pose « grip » (la paume), pas sur la pose par défaut des HandThrower (pointe de la manette).
-            // Orientation à régler au casque.
+            // OpenXR, pose grip : l'axe X est normal à la paume (vers la paume à droite, à l'opposé à gauche) ; le modèle a la paume
+            // vers le bas, d'où un roulis de ∓GloveRollDegrees. Valeur à confirmer au casque.
             foreach (var tracker in new[] { "left_hand", "right_hand" })
             {
-                var grip = new Xr.GripGlove { Name = tracker == "left_hand" ? "LeftGlove" : "RightGlove", Tracker = tracker };
+                bool leftHand = tracker == "left_hand";
+                var grip = new Xr.GripGlove { Name = leftHand ? "LeftGlove" : "RightGlove", Tracker = tracker };
                 var glove = Visual.Avatar.Glove();
-                if (tracker == "left_hand") glove.Scale = new Vector3(-1, 1, 1);   // main gauche : gant en miroir (pouce côté droit)
+                if (leftHand) glove.Scale = new Vector3(-1, 1, 1);   // main gauche : gant en miroir (pouce côté droit)
+                glove.RotationDegrees = new Vector3(0, 0, leftHand ? GloveRollDegrees : -GloveRollDegrees);
                 grip.AddChild(glove);
                 origin.AddChild(grip);
             }
@@ -596,6 +599,9 @@ public partial class Main : Node3D
             LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
         });
 
+    /// <summary>Roulis du gant sur la pose grip (paume du modèle vers le bas → paume vers le côté). À régler au casque.</summary>
+    const float GloveRollDegrees = 90f;
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
@@ -603,8 +609,9 @@ public partial class Main : Node3D
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
         AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
         if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
-        // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
-        var left = hands.Find(h => h.Tracker == "left_hand");
+        // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet. Accrochés au gant (pose grip,
+        // repère du modèle : dos de la main vers +Y), pas à la manette (pointe), pour rester sur la main.
+        Node3D? left = xrOrigin?.GetNodeOrNull<Node3D>("LeftGlove/Glove") ?? hands.Find(h => h.Tracker == "left_hand");
         if (left != null)
         {
             var hearts = Visual.HeartsDisplay.Create(() => lives(localZone.Id), maxLives, Visual.Palette.Team(localZone.Team), 0.0007f, false);

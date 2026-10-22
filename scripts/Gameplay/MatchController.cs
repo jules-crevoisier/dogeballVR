@@ -827,17 +827,15 @@ public partial class MatchController : Node3D
     /// <summary>Point au hasard près du centre de la zone (±rx, ±rz), hors des couverts bas : une balle posée dessus roulerait hors de portée.</summary>
     Vector3 FreeSpot(ZoneDef zone, float rx, float rz, float height)
     {
-        var spot = new Vector3(zone.X, zone.Y + height, zone.Z);
         for (int attempt = 0; attempt < 8; attempt++)
         {
             var c = new Vector3(zone.X + rng.RandfRange(-rx, rx), zone.Y + height, zone.Z + rng.RandfRange(-rz, rz));
             bool blocked = false;
             foreach (var o in mapObstacles)
                 if (o.Kind != "pit" && o.Y < 1.5f && Mathf.Abs(c.X - o.X) < o.Sx * 0.5f + 0.6f && Mathf.Abs(c.Z - o.Z) < o.Sz * 0.5f + 0.6f) { blocked = true; break; }
-            spot = c;
-            if (!blocked) break;
+            if (!blocked) return c;
         }
-        return spot;
+        return new Vector3(zone.X, zone.Y + height, zone.Z);   // huit tirages bloqués : le centre de la zone
     }
 
     readonly int[] neutralZoneTurn = new int[2];
