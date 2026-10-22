@@ -25,7 +25,7 @@ public partial class AvatarIk : SkeletonModifier3D
     public Vector3 FinalWristL, FinalWristR, FinalHead;
     public float FinalAnkleY;
 
-    /// <summary>Descente du bassin au-delà de laquelle les jambes ne plient plus (squat profond du modèle).</summary>
+    /// <summary>Descente du bassin au-delà de laquelle les jambes ne plient plus (squat profond, mètres du modèle à l'échelle 1).</summary>
     public const float MaxCrouch = 0.48f;
 
     bool resolved, valid;
@@ -67,7 +67,7 @@ public partial class AvatarIk : SkeletonModifier3D
             var ankleL = skel.GetBoneGlobalPose(leg[2]);
             var ankleR = skel.GetBoneGlobalPose(leg[5]);
             var hipPose = skel.GetBonePose(hips);
-            skel.SetBonePosePosition(hips, hipPose.Origin - up * Mathf.Min(Crouch, MaxCrouch) * scale);
+            skel.SetBonePosePosition(hips, hipPose.Origin - up * Mathf.Min(Crouch * scale, MaxCrouch));
             if (Lean > 0.001f)
             {
                 // Bassin basculé vers l'avant (la moitié), le dos fait le reste : le buste reste au-dessus des pieds.
@@ -122,6 +122,19 @@ public partial class AvatarIk : SkeletonModifier3D
         float la = a.DistanceTo(b), lb = b.DistanceTo(c);
         if (la < 1e-4f || lb < 1e-4f) return;
         var toTarget = target - a;
+        // Cible hors de portée (bras réel plus long que celui du modèle) : bras étiré jusqu'à 10 %, comme Gorilla Tag ou VRIK,
+        // pour que la main reste sur la manette ou la balle.
+        float stretch = 1f + (Mathf.Clamp(toTarget.Length() / ((la + lb) * 0.999f), 1f, MaxStretch) - 1f) * Mathf.Clamp(weight, 0f, 1f);
+        if (stretch > 1.0001f)
+        {
+            skel.SetBonePosePosition(lower, skel.GetBonePosePosition(lower) * stretch);
+            skel.SetBonePosePosition(end, skel.GetBonePosePosition(end) * stretch);
+            gLower = skel.GetBoneGlobalPose(lower);
+            b = gLower.Origin;
+            c = skel.GetBoneGlobalPose(end).Origin;
+            la = a.DistanceTo(b);
+            lb = b.DistanceTo(c);
+        }
         float d = Mathf.Clamp(toTarget.Length(), Mathf.Abs(la - lb) + 1e-3f, (la + lb) * 0.999f);
         var dir = toTarget.LengthSquared() > 1e-8f ? toTarget.Normalized() : (c - a).Normalized();
         var bend = pole - a;
@@ -150,6 +163,8 @@ public partial class AvatarIk : SkeletonModifier3D
         skel.SetBonePoseRotation(upper, localUpper);
         skel.SetBonePoseRotation(lower, localLower);
     }
+
+    const float MaxStretch = 1.1f;
 
     /// <summary>Rotation la plus courte qui amène la direction <paramref name="from"/> sur <paramref name="to"/>.</summary>
     static Quaternion Between(Vector3 from, Vector3 to)

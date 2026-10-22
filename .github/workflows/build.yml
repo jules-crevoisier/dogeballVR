@@ -220,9 +220,10 @@ jobs:
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 400 -- --avatar-test 2>&1 | tee avatar.log
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 400 -- --avatar-test --avatar-side 2>&1 | tee avatar-side.log
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 400 -- --avatar-test --ik-off > avatar-off.log 2>&1 || true
-          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" avatar.log avatar-off.log; then echo "Erreur à l'exécution (avatars)"; exit 1; fi
-          grep -q "\[AvatarTest\] TOUT OK" avatar.log || { echo "IK des avatars : poignets, pieds ou armé hors des tolérances"; exit 1; }
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" avatar.log avatar-side.log avatar-off.log; then echo "Erreur à l'exécution (avatars)"; exit 1; fi
+          grep -q "\[AvatarTest\] TOUT OK" avatar.log && grep -q "\[AvatarTest\] TOUT OK" avatar-side.log || { echo "IK des avatars : poignets, pieds ou armé hors des tolérances"; exit 1; }
           grep -q "\[AvatarTest\] À REVOIR" avatar-off.log || { echo "Le témoin sans IK passe : le test ne mesure plus rien"; exit 1; }
 
       - name: Test balles spéciales (annonce, lancer du moyeu, souffle de la bombe)

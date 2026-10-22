@@ -535,7 +535,8 @@ public partial class Main : Node3D
     static PoseData BotPose(Bot bot, ZoneDef z)
     {
         var a = bot.Avatar!;
-        return new PoseData(a.Head.GlobalPosition, Mathf.DegToRad(z.FacingDegrees), a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
+        // lacet réel de l'avatar (il pivote vers sa cible) : chez les clients, la main armée et la balle tenue tournent ensemble
+        return new PoseData(a.Head.GlobalPosition, a.GlobalRotation.Y, a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
     }
 
     /// <summary>Un joueur distant prend la place du bot de sa zone.</summary>
