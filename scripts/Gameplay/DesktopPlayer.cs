@@ -121,6 +121,17 @@ public partial class DesktopPlayer : Node3D
     float camDist = CameraDistance;  // distance caméra libre de décor, lissée (rapproche vite, recule doucement)
     float raise;                     // 0 → 1 : caméra montée par-dessus un couvert bas derrière le joueur
     const float ShoulderOffset = 1.0f;   // décalage à droite : le personnage occupe le tiers gauche, le viseur reste dégagé
+    // Bascule d'épaule façon Knockout City : épaule bouchée (panneau, pylône) → la caméra passe en douceur sur l'autre épaule.
+    int sideTarget = 1;                  // +1 épaule droite (côté normal), -1 épaule gauche
+    float sideT = 1f;                    // 0 → 1 : position lissée de la bascule (gauche → droite)
+    double sideSince = -10;              // instant de la dernière bascule (hystérésis)
+    bool overTarget;                     // les deux épaules bouchées : caméra rapprochée au-dessus de la tête
+    float overT;                         // 0 → 1 : position lissée de cette vue haute
+    double overSince = -10;
+    const float SideBlockedArm = 1.4f;   // bras de caméra libre plus court que ça : l'épaule est bouchée
+    const float SideSwapTime = 0.25f;    // durée de la bascule (s)
+    const double SideHold = 1.0;         // on garde un côté au moins ce temps-là avant de rebasculer
+    const float ViewProbe = 4f;          // portée du test de vue devant la caméra (m)
     const float CamRadius = 0.25f;       // sphère de la caméra : l'objectif ne frôle plus un mur (plan proche dans le décor = écran blanc)
     const float CamMinDistance = 1.2f;   // plus près que ça d'un couvert, la caméra préfère passer par-dessus
     const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
@@ -997,7 +1008,7 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>
-    /// 3e personne : la caméra flotte derrière l'épaule droite, orientée comme la tête, et reste dans l'arène.
+    /// 3e personne : la caméra flotte derrière l'épaule droite (la gauche si la droite est bouchée, voir ChooseShoulder), orientée comme la tête, et reste dans l'arène.
     /// Le bras de caméra est testé avec une sphère de 0,25 m (et non un rayon) : longer un muret ne fait plus entrer l'objectif dedans.
     /// Elle se rapproche aussitôt qu'un décor l'exige et ne recule qu'en douceur ; elle ne descend pas sous la ligne des yeux.
     /// </summary>
@@ -1006,18 +1017,24 @@ public partial class DesktopPlayer : Node3D
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
         var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
-        float side = velocity.Dot(right2);
-        lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
+        float strafe = velocity.Dot(right2);
+        lean = Mathf.Lerp(lean, -strafe * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
         var bnd = Zones.Map.Bounds;
         // Bras de caméra façon jeu d'épaule : d'abord le point d'épaule (à droite de la tête), puis le recul derrière ce point.
         // Si un mur rapproche la caméra, le personnage reste à gauche de l'écran au lieu de boucher le viseur.
         float lift = 0.35f + 0.8f * killCamBlend;
-        var toShoulder = basis * new Vector3(ShoulderOffset, lift, 0f);
-        var shoulder = from + toShoulder * (CamFree(from, from + toShoulder, bnd) / toShoulder.Length());
         float len = CameraDistance + 2.2f * killCamBlend;
         // Jamais sous la ligne des yeux, ni sous celle d'un joueur debout quand on est accroupi : la caméra reste au-dessus des épaules.
         float minCamY = Mathf.Max(from.Y + CamMinAboveEyes, Elevation + EyeHeight - 0.1f);
+        ChooseShoulder(dt, basis, from, lift, minCamY, len, bnd);
+        // Côté lissé (-1 → +1) et vue haute : épaule plus proche du centre, pivot plus haut, bras plus court.
+        float side = Mathf.Lerp(-1f, 1f, Mathf.SmoothStep(0f, 1f, sideT));
+        float over = Mathf.SmoothStep(0f, 1f, overT);
+        lift += 0.55f * over;
+        len *= 1f - 0.35f * over;
+        var toShoulder = basis * new Vector3(ShoulderOffset * side * (1f - 0.8f * over), lift, 0f);
+        var shoulder = from + toShoulder * (CamFree(from, from + toShoulder, bnd) / toShoulder.Length());
         float free = CamFree(shoulder, shoulder + Boom(basis, shoulder, minCamY, len), bnd);
         // Couvert derrière soi qui collerait la caméra au dos : elle passe par-dessus, si la vue y est nettement plus dégagée.
         bool high = false;
@@ -1041,6 +1058,45 @@ public partial class DesktopPlayer : Node3D
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
         HideDecorInFront(pos, from);
+    }
+
+    /// <summary>
+    /// Choisit l'épaule de la caméra. Chaque côté est sondé à pleine épaule : bras d'épaule, bras de caméra libre, puis vue devant l'objectif.
+    /// Côté courant bouché (bras sous ~1,4 m, épaule contre le décor ou panneau juste devant l'objectif) et autre côté nettement plus dégagé :
+    /// bascule, gardée au moins 1 s. Retour à l'épaule droite seulement quand elle est clairement libre. Les deux bouchés : vue haute.
+    /// L'orientation de la caméra ne change pas : le viseur (centre de l'écran) et la direction de tir restent les mêmes.
+    /// </summary>
+    void ChooseShoulder(float dt, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
+    {
+        var (curArm, curOpen, curBlocked) = ProbeSide(sideTarget, basis, from, lift, minCamY, len, bnd);
+        var (othArm, othOpen, othBlocked) = ProbeSide(-sideTarget, basis, from, lift, minCamY, len, bnd);
+        if (time - sideSince >= SideHold && killCamBlend < 0.01f)
+        {
+            bool swap = curBlocked && !othBlocked && othOpen > curOpen + 1f;
+            // Retour à l'épaule droite (côté normal) quand elle est clairement libre.
+            if (sideTarget < 0 && !othBlocked && othArm > 0.65f * len && othOpen > curOpen - 0.5f) swap = true;
+            if (swap) { sideTarget = -sideTarget; sideSince = time; (curBlocked, othBlocked) = (othBlocked, curBlocked); }
+        }
+        // Vue haute seulement si les deux bras sont courts (un panneau devant soi ne se contourne pas par le haut).
+        bool both = curBlocked && othBlocked && Mathf.Max(curArm, othArm) < SideBlockedArm && killCamBlend < 0.01f;
+        if (both != overTarget && (both || time - overSince >= 0.5)) { overTarget = both; overSince = time; }
+        sideT = Mathf.MoveToward(sideT, sideTarget > 0 ? 1f : 0f, dt / SideSwapTime);
+        overT = Mathf.MoveToward(overT, overTarget ? 1f : 0f, dt / 0.3f);
+    }
+
+    /// <summary>Sonde un côté à pleine épaule : bras de caméra libre (m), note d'ouverture, et s'il est bouché.</summary>
+    (float arm, float open, bool blocked) ProbeSide(int s, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
+    {
+        var toShoulder = basis * new Vector3(ShoulderOffset * s, lift, 0f);
+        float reach = CamFree(from, from + toShoulder, bnd) / toShoulder.Length();   // 0 → 1
+        var shoulder = from + toShoulder * reach;
+        var boom = Boom(basis, shoulder, minCamY, len);
+        float arm = CamFree(shoulder, shoulder + boom, bnd);
+        var cam = shoulder + boom * (arm / len);
+        float view = CamFree(cam, cam - basis.Z * ViewProbe, bnd);   // panneau collé devant l'objectif
+        float open = arm + 0.5f * view + 1.5f * reach;
+        bool blocked = arm < SideBlockedArm || reach < 0.5f || view < 1.2f;
+        return (arm, open, blocked);
     }
 
     /// <summary>Bras de caméra de longueur fixe derrière le pivot ; il ne descend pas sous minCamY (plus de caméra au ras du sol en regardant en l'air ou accroupi).</summary>
