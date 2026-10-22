@@ -60,7 +60,7 @@ public partial class HandThrower : XRController3D
     /// <summary>Une seule balle par joueur, et pas de prise tant que l'hôte n'a pas confirmé la précédente.</summary>
     bool CanCatch => held == null && Hurtbox.HeldHand < 0 && !Hurtbox.Eliminated && !Hurtbox.CatchLock.Locked(Time.GetTicksMsec() / 1000.0);
 
-    /// <summary>Une passe adverse s'intercepte par n'importe quelle attrape (décision n° 3, réglable : passInterception).</summary>
+    /// <summary>Une passe adverse s'intercepte par n'importe quelle attrape (décision n° 3, réglable : interceptPasses).</summary>
     bool Catchable(Ball ball) => !ball.IsHeld && !ball.HasExploded && KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team);
 
     static bool Hostile(Ball ball, int team) => ball.OwnerTeam >= 0 && ball.OwnerTeam != team;

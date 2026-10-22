@@ -153,12 +153,12 @@ jobs:
             [ "$ATTEMPT" = 3 ] && exit 1
           done
 
-      - name: Test des aides VR (attrape à 80 ms, main fermée, temps de vol, alerte, attrape parfaite)
+      - name: Test des aides VR et des règles KC (attrape à 80 ms, main fermée, temps de vol, alerte, attrape parfaite, décisions n° 2 à 7)
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           "$GODOT" --headless --path . -- --assist-test 2>&1 | tee assist.log
-          grep -q "TOUT OK" assist.log || { echo "Les aides VR ne respectent pas les critères"; exit 1; }
+          grep -q "TOUT OK" assist.log || { echo "Les aides VR ou les règles KC ne respectent pas les critères"; exit 1; }
 
       - name: Test rotor du moyeu (balles tendues arrêtées par un bras, témoin sans rotor)
         run: |

@@ -393,7 +393,7 @@ public partial class NetSession : Node
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
             if (!Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
-            if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, remote.Hurtbox.Team)) return;   // passe adverse : interceptable par toute attrape (passInterception)
+            if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, remote.Hurtbox.Team)) return;   // passe adverse : interceptable par toute attrape (interceptPasses)
             // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir (ou une passe) adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
             bool perfectOk = perfect && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed

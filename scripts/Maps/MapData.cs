@@ -148,7 +148,7 @@ public class RulesDef
     /// <summary>VR, La Fosse : paliers ajoutés au premier tir lancé du plateau haut (avant : 2, KO direct).</summary>
     public int LiftChargeBonus { get; set; } = 1;
     /// <summary>Une passe adverse s'intercepte par n'importe quelle attrape (+1 palier si parfaite). Faux : elle ne s'intercepte pas.</summary>
-    public bool PassInterception { get; set; } = true;
+    public bool InterceptPasses { get; set; } = true;
     /// <summary>VR : blocage (s) quand la fenêtre de grip expire sans contact après une vraie tentative (0 = pas de blocage).</summary>
     public float VrMissedCatchLockSeconds { get; set; } = 0.6f;
     /// <summary>VR : un appui est une vraie tentative si une balle adverse lancée arrive à moins de ce délai (s).</summary>

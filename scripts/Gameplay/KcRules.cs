@@ -61,10 +61,10 @@ public static class KcRules
     // ------------------------------------------------------------------ n° 3 : interception des passes
 
     /// <summary>Un joueur peut-il prendre cette balle ? Une passe adverse ne se prend que si l'interception est permise (par toute attrape).</summary>
-    public static bool CanTake(bool isPass, int ownerTeam, int team) => !isPass || ownerTeam == team || ownerTeam < 0 || Def.PassInterception;
+    public static bool CanTake(bool isPass, int ownerTeam, int team) => !isPass || ownerTeam == team || ownerTeam < 0 || Def.InterceptPasses;
 
     /// <summary>Une passe adverse interceptée peut être une attrape parfaite (+1 palier, voir Ball.ChargeOnCatch).</summary>
-    public static bool PerfectOnPass => Def.PassInterception;
+    public static bool PerfectOnPass => Def.InterceptPasses;
 
     // ------------------------------------------------------------------ n° 4 : blocage après une attrape ratée (VR)
 
