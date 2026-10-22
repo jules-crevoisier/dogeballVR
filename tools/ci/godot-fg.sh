@@ -13,4 +13,5 @@ if { [ $rc -eq 134 ] || [ $rc -eq 139 ]; } && grep -q "\[Crash\] Fermeture propr
   head -n "$line" "$log" > "$log.tmp" && mv "$log.tmp" "$log"
   exit 0
 fi
+if [ $rc -ne 0 ]; then echo "Le client s'est arrêté (code $rc), fin du journal :"; tail -40 "$log"; fi
 exit $rc

@@ -5,7 +5,8 @@ using DogeballVR.Audio;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Menu pause (Échap) du joueur clavier-souris : reprendre, options, commandes, recommencer, menu principal, quitter.
+/// Menu pause (Échap) du joueur clavier-souris : reprendre, options, recommencer, menu principal, quitter ; carte des
+/// commandes à droite, aide complète sur F1.
 /// Hors ligne, le jeu se fige ; en ligne il continue (on ne fige pas les autres joueurs) et le joueur ne reçoit plus d'entrées.
 /// </summary>
 public partial class PauseMenu : CanvasLayer
@@ -50,6 +51,8 @@ public partial class PauseMenu : CanvasLayer
 
     public override void _UnhandledInput(InputEvent e)
     {
+        // F1 pendant la pause : l'aide complète (le HUD, lui, ignore F1 tant que la pause est ouverte).
+        if (e.IsActionPressed("help") && IsOpen && sub == null) { GetViewport().SetInputAsHandled(); ShowHelp(); return; }
         if (!e.IsActionPressed("pause")) return;
         GetViewport().SetInputAsHandled();
         if (sub != null) return;   // le sous-écran gère son propre retour
@@ -99,32 +102,31 @@ public partial class PauseMenu : CanvasLayer
         col.AddChild(title);
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
-        var resume = UiKit.Button("REPRENDRE", UiKit.Orange, Close);
+        // Boutons neutres, un seul accent (orange) sur la sélection ; « Quitter le jeu » à part, plus bas.
+        var resume = UiKit.ListButton("REPRENDRE", Close);
         col.AddChild(resume);
-        col.AddChild(UiKit.Button("OPTIONS", UiKit.Blue, () => OpenSub(new OptionsMenu())));
-        col.AddChild(UiKit.Button("COMMANDES", UiKit.Blue, ShowHelp));
-        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", UiKit.Blue, () => { Close(); Restart(); }));
-        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", UiKit.NavySoft, () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
-        col.AddChild(Confirmed("QUITTER LE JEU", UiKit.NavySoft, () => GetTree().Quit()));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
+        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
+        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
+        col.AddChild(UiKit.Spacer(26));
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56)));
 
-        // À droite : rappel des commandes essentielles, en touches dessinées.
+        // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        card.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8));   // opaque : rien du jeu ne transparaît
         card.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
-        card.OffsetLeft = -620; card.OffsetRight = -120; card.OffsetTop = -230; card.OffsetBottom = 230;
+        card.GrowHorizontal = Control.GrowDirection.Begin;
+        card.GrowVertical = Control.GrowDirection.Both;
+        card.OffsetLeft = -680; card.OffsetRight = -120; card.OffsetTop = 0; card.OffsetBottom = 0;   // hauteur : celle du contenu, centrée
         root.AddChild(card);
-        var grid = new GridContainer { Columns = 2 };
-        grid.AddThemeConstantOverride("h_separation", 22);
-        grid.AddThemeConstantOverride("v_separation", 12);
-        var list = new VBoxContainer();
+        var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         list.AddThemeConstantOverride("separation", 14);
         card.AddChild(list);
-        list.AddChild(UiKit.Text("RAPPEL", 34, UiKit.Yellow, 8));
-        list.AddChild(grid);
-        foreach (var (action, what) in new[] { ("fire", "Lancer (maintenir = charger)"), ("catch", "Attraper"), ("dash", "Esquive"), ("jump", "Sauter"), ("pass", "Passe"), ("feint", "Feinte"), ("lob", "Tir en cloche"), ("scoreboard", "Scores") })
-        {
-            grid.AddChild(KeyCap(InputSetup.KeyName(action)));
-            grid.AddChild(UiKit.Text(what, 24, Colors.White, 6));
-        }
+        list.AddChild(UiKit.Text("COMMANDES", 34, UiKit.Yellow, 8));
+        list.AddChild(CommandGrid(24, 12));
+        var hint = UiKit.KeyHint(InputSetup.KeyName("help"), "Aide complète", 22);
+        hint.Modulate = new Color(1, 1, 1, 0.8f);
+        list.AddChild(hint);
         UiKit.SlideIn(card, 0.1f, 80f);
         int i = 0;
         foreach (var c in col.GetChildren()) if (c is Control ctl) UiKit.SlideIn(ctl, 0.03f * i++);
@@ -132,11 +134,11 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>Bouton à confirmer : un premier appui demande « SÛR ? », le second agit (3 s pour confirmer).</summary>
-    static Button Confirmed(string text, Color color, Action act)
+    static Button Confirmed(string text, Action act, int fontSize = 28, Vector2? minSize = null)
     {
         Button? b = null;
         double armedUntil = 0;
-        b = UiKit.Button(text, color, () =>
+        b = UiKit.ListButton(text, () =>
         {
             double now = Time.GetTicksMsec() / 1000.0;
             if (now < armedUntil) { act(); return; }
@@ -147,19 +149,41 @@ public partial class PauseMenu : CanvasLayer
             {
                 if (!IsInstanceValid(b)) return;
                 b.Text = text;
-                b.RemoveThemeColorOverride("font_color");
+                b.AddThemeColorOverride("font_color", new Color(UiKit.Cream, 0.9f));
             };
-        });
+        }, fontSize, minSize);
         return b;
     }
 
-    static Control KeyCap(string key)
+    /// <summary>
+    /// Grille des commandes en touches dessinées (carte de la pause et aide complète), avec les libellés du HUD
+    /// (<see cref="InputSetup"/>) : déplacement sur une ligne, pause et aide omises (rappelées à côté).
+    /// </summary>
+    static GridContainer CommandGrid(int size, int vsep)
     {
-        var p = new PanelContainer { CustomMinimumSize = new Vector2(96, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
-        p.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Cream, 8, 0f, 0, null, 4));
-        var l = UiKit.Text(key, 22, UiKit.Navy, 0, HorizontalAlignment.Center);
-        p.AddChild(l);
-        return p;
+        var grid = new GridContainer { Columns = 2, MouseFilter = Control.MouseFilterEnum.Ignore };
+        grid.AddThemeConstantOverride("h_separation", 22);
+        grid.AddThemeConstantOverride("v_separation", vsep);
+        void Row(Control keys, string what)
+        {
+            grid.AddChild(keys);
+            var l = UiKit.Text(what, size, Colors.White, 6);
+            l.VerticalAlignment = VerticalAlignment.Center;
+            l.SizeFlagsVertical = Control.SizeFlags.Fill;
+            grid.AddChild(l);
+        }
+        var move = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+        move.AddThemeConstantOverride("separation", 4);
+        foreach (var a in new[] { "move_forward", "move_left", "move_back", "move_right" }) move.AddChild(UiKit.KeyCap(InputSetup.KeyName(a), size - 3));
+        Row(move, "Se déplacer");
+        foreach (var a in InputSetup.Actions)
+        {
+            if (a.Name.StartsWith("move_") || a.Name is "pause" or "help") continue;
+            var key = UiKit.KeyCap(InputSetup.KeyName(a.Name), size - 3, 140);
+            key.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+            Row(key, a.Label);
+        }
+        return grid;
     }
 
     void OpenSub(Control screen)
@@ -194,25 +218,15 @@ public partial class PauseMenu : CanvasLayer
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             var panel = new PanelContainer();
+            var box = UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8);   // opaque : les étiquettes des joueurs ne transparaissent plus
+            box.ContentMarginLeft = 44; box.ContentMarginRight = 44; box.ContentMarginTop = 22; box.ContentMarginBottom = 24;
+            panel.AddThemeStyleboxOverride("panel", box);
             center.AddChild(panel);
             var col = new VBoxContainer();
-            col.AddThemeConstantOverride("separation", 12);
+            col.AddThemeConstantOverride("separation", 16);
             panel.AddChild(col);
             col.AddChild(UiKit.Text("COMMANDES", 48, UiKit.Yellow, 12, HorizontalAlignment.Center));
-            var grid = new GridContainer { Columns = 2 };
-            grid.AddThemeConstantOverride("h_separation", 40);
-            grid.AddThemeConstantOverride("v_separation", 6);
-            col.AddChild(grid);
-            foreach (var a in InputSetup.Actions)
-            {
-                if (a.Name is "pause" or "help" or "move_back" or "move_left" or "move_right") continue;
-                bool move = a.Name == "move_forward";
-                string keys = move ? $"{InputSetup.KeyName("move_forward")} {InputSetup.KeyName("move_left")} {InputSetup.KeyName("move_back")} {InputSetup.KeyName("move_right")}" : InputSetup.KeyName(a.Name);
-                var k = UiKit.Text(keys, 24, UiKit.Yellow, 6, HorizontalAlignment.Right);
-                k.CustomMinimumSize = new Vector2(160, 0);
-                grid.AddChild(k);
-                grid.AddChild(UiKit.Text(move ? "Se déplacer" : a.Label, 24, Colors.White, 6));
-            }
+            col.AddChild(CommandGrid(26, 10));
             if (Text != "") col.AddChild(UiKit.Text(Text, 20, UiKit.Sky, 5));
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
             back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
@@ -224,7 +238,7 @@ public partial class PauseMenu : CanvasLayer
 
         public override void _Input(InputEvent e)
         {
-            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel")) return;
+            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel") && !e.IsActionPressed("help")) return;
             GetViewport().SetInputAsHandled();
             Close();
         }

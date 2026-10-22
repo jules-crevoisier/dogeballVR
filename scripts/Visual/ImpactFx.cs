@@ -7,16 +7,29 @@ namespace DogeballVR.Visual;
 /// touche = gerbe d'étincelles à la couleur de l'équipe du tireur + éclat blanc bref + anneau de choc ;
 /// KO = la même chose en plus gros, avec étoiles et confettis.
 /// Éclat et anneau ignorent la profondeur (la balle frappe le corps : on ne veut pas que l'avatar les masque à moitié).
-/// Rien n'est créé en mode sans affichage (simulations de CI).
+/// Rien n'est créé en mode sans affichage (simulations de CI), ni collé à la caméra PC (joueur touché en vue subjective) ;
+/// les particules s'effacent en approchant de la caméra.
 /// </summary>
 public static class ImpactFx
 {
     static GradientTexture2D? flashTex, ringTex;
     static ArrayMesh? starMesh;
 
+    /// <summary>
+    /// En deçà de cette distance de la caméra (joueur PC touché en vue subjective), pas d'effet 3D : une étincelle devant le plan proche
+    /// devient un grand polygone plat qui traverse l'écran, et l'éclat sans test de profondeur blanchit tout. Le HUD montre le coup.
+    /// </summary>
+    const float MinCameraDistance = 1.8f;
+
+    static bool TooClose(Node context, Vector3 pos)
+    {
+        var cam = context.GetViewport()?.GetCamera3D();
+        return cam != null && cam is not XRCamera3D && cam.GlobalPosition.DistanceTo(pos) < MinCameraDistance;
+    }
+
     public static void Hit(Node context, Vector3 pos, Color shooterColor)
     {
-        if (!Usable(context)) return;
+        if (!Usable(context) || TooClose(context, pos)) return;
         float k = DistanceScale(context, pos);
         Sparks(context, pos, shooterColor, 16, 9f, 0.32f, k);
         Flash(context, pos, 0.9f * k, 0.11f);
@@ -25,7 +38,7 @@ public static class ImpactFx
 
     public static void Ko(Node context, Vector3 pos, Color shooterColor)
     {
-        if (!Usable(context)) return;
+        if (!Usable(context) || TooClose(context, pos)) return;
         float k = DistanceScale(context, pos);
         Sparks(context, pos, shooterColor, 26, 12f, 0.42f, k);
         Flash(context, pos, 1.6f * k, 0.16f);
@@ -63,6 +76,7 @@ public static class ImpactFx
             AlbedoColor = Color.FromHsv(color.H, Mathf.Min(1f, color.S * 1.35f), color.V), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             VertexColorUseAsAlbedo = false, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
+        NearFade(mat);
         var scale = new Curve();
         scale.AddPoint(new Vector2(0, 1f));
         scale.AddPoint(new Vector2(0.6f, 0.75f));
@@ -118,6 +132,7 @@ public static class ImpactFx
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, VertexColorUseAsAlbedo = true, BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled, NoDepthTest = false,
         };
+        NearFade(mat);
         var p = new CpuParticles3D
         {
             Amount = 9, Lifetime = 0.9, OneShot = true, Explosiveness = 1f, Emitting = true,
@@ -142,6 +157,7 @@ public static class ImpactFx
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, VertexColorUseAsAlbedo = true, BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
+        NearFade(mat);
         var scale = new Curve();
         scale.AddPoint(new Vector2(0, 1f));
         scale.AddPoint(new Vector2(0.75f, 1f));
@@ -156,6 +172,14 @@ public static class ImpactFx
             Mesh = new QuadMesh { Size = new Vector2(0.13f, 0.07f) }, MaterialOverride = mat,
         };
         AddOneShot(context, p, pos, 1.9);
+    }
+
+    /// <summary>Particule qui s'efface (tramée, sans tri de transparence) à moins de 2,5 m de la caméra : rien ne vient boucher l'écran.</summary>
+    static void NearFade(StandardMaterial3D mat)
+    {
+        mat.DistanceFadeMode = BaseMaterial3D.DistanceFadeModeEnum.PixelDither;
+        mat.DistanceFadeMinDistance = 1.0f;
+        mat.DistanceFadeMaxDistance = 2.5f;
     }
 
     static StandardMaterial3D Billboard(Texture2D tex, Color color) => new()

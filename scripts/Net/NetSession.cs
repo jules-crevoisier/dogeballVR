@@ -740,6 +740,7 @@ public partial class NetSession : Node
         if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
+        if (BallActions.Locked) { ball.Release(Vector3.Zero, 0f); return; }   // décompte : la balle tombe, rien ne part avant GO
         mode = Mathf.Clamp(mode, 0, 2);
         ball.Release(Assist.PlanFor(ball, velocity, mode), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;

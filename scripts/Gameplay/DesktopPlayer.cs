@@ -75,6 +75,8 @@ public partial class DesktopPlayer : Node3D
     public int CatchState => catchWindowLeft > 0 ? 1 : catchCooldownLeft > 0 ? 2 : 0;
     public float CatchCooldown01 => CatchState == 2 ? (float)(1 - catchCooldownLeft / CatchRecovery) : 1f;
     public bool Autoplay => autoplay;
+    /// <summary>Compte à rebours de manche (posé par le HUD) : on peut ramasser et armer, mais rien ne part avant le « GO ! ».</summary>
+    public bool ThrowLocked { get; set; }
     public float Sensitivity => GameSettings.Sensitivity;
     /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
     public bool Dashing => dodgeLeft > 0 && FreeRoam;
@@ -205,7 +207,7 @@ public partial class DesktopPlayer : Node3D
             AddChild(camera);
         }
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.55f };   // balle tenue réduite : elle ne masque pas l'écran
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.45f };   // balle tenue réduite : elle ne masque ni l'écran ni le HUD
         head.AddChild(holdPoint);
         if (FreeRoam) holdPoint.Scale = Vector3.One;   // à la 3e personne la balle garde sa taille
 
@@ -236,6 +238,8 @@ public partial class DesktopPlayer : Node3D
     void HideVrLimitWall()
     {
         foreach (var n in GetTree().GetNodesInGroup("limit_wall")) ((MeshInstance3D)n).Visible = false;
+        // Nom d'équipe peint au sol des zones : vu de loin et en rasant, ce n'est qu'un trait bleu écrasé (le HUD dit déjà qui est qui).
+        foreach (var n in GetTree().GetNodesInGroup("zone_label")) ((Node3D)n).Visible = false;
     }
 
     void LoadSettings()
@@ -309,6 +313,45 @@ public partial class DesktopPlayer : Node3D
         var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
         if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
         camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
+        FadeBallsNearCamera();
+    }
+
+    readonly System.Collections.Generic.Dictionary<Ball, GeometryInstance3D[]> ballMeshes = new();
+
+    const uint NearBallLayer = 1u << 19;   // calque de rendu exclu de la caméra PC : balle collée à l'objectif
+
+    /// <summary>
+    /// Balle libre qui frôle la caméra (tir reçu en vue subjective, balle qui passe devant l'objectif) : elle s'efface entre 1,4 m et 0,6 m
+    /// (transparence des maillages : rendus Mobile et Forward+), puis disparaît sous 0,6 m (calque exclu de la caméra : tous les rendus,
+    /// Compatibilité comprise), au lieu de remplir le bas de l'écran et de masquer le bloc d'actions du HUD. Rendu seulement :
+    /// la balle, sa visibilité et sa physique ne changent pas. La balle tenue par le joueur n'est pas concernée.
+    /// </summary>
+    void FadeBallsNearCamera()
+    {
+        camera.CullMask &= ~NearBallLayer;
+        var eye = camera.GlobalPosition;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball ball || ball.IsQueuedForDeletion()) continue;
+            float d = ball.GlobalPosition.DistanceTo(eye);
+            float fade = ball == held ? 0f : Mathf.Clamp((1.4f - d) / 0.8f, 0f, 1f);
+            if (!ballMeshes.TryGetValue(ball, out var meshes))
+            {
+                if (fade <= 0f) continue;
+                var found = new System.Collections.Generic.List<GeometryInstance3D>();
+                foreach (var g in ball.FindChildren("*", "GeometryInstance3D", true, false)) if (g is GeometryInstance3D gi) found.Add(gi);
+                ballMeshes[ball] = meshes = found.ToArray();
+            }
+            foreach (var g in meshes)
+            {
+                if (!IsInstanceValid(g)) continue;
+                g.Transparency = fade;
+                // Sous 0,6 m : calque 1 (le calque par défaut des balles) remplacé par le calque exclu ; rétabli au-delà.
+                g.Layers = fade >= 1f ? (g.Layers | NearBallLayer) & ~1u : (g.Layers & ~NearBallLayer) | 1u;
+            }
+            if (fade <= 0f) ballMeshes.Remove(ball);
+        }
+        foreach (var gone in new System.Collections.Generic.List<Ball>(ballMeshes.Keys)) if (!IsInstanceValid(gone)) ballMeshes.Remove(gone);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -750,7 +793,14 @@ public partial class DesktopPlayer : Node3D
         else if (held == null) fireLatch = true;          // clic déjà enfoncé au ramassage : il faut relâcher avant d'armer un lancer
         bool fire = input.Fire && !fireLatch;
 
-        if (held != null)
+        if (held != null && ThrowLocked)
+        {
+            // Avant le « GO ! » : la charge monte si on tient le clic, mais la balle reste en main (lâcher le clic annule la charge).
+            // Pas de message : le gros chiffre du compte à rebours occupe déjà le centre.
+            if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            else { charging = false; chargeTime = 0; }
+        }
+        else if (held != null)
         {
             if (input.Feint)
             {
@@ -860,7 +910,11 @@ public partial class DesktopPlayer : Node3D
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
-        var rest = new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch));
+        // Vue subjective : balle à droite, au-dessus du bloc d'actions du HUD (bas centre) et à l'écart du viseur ;
+        // en vue d'épaule, devant la poitrine du personnage, comme avant.
+        var rest = FreeRoam
+            ? new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch))
+            : new Vector3(0.62f, Mathf.Lerp(-0.2f, -0.3f, crouch), Mathf.Lerp(-0.9f, -0.75f, crouch));
         rest.Z += ThrowCharge01 * 0.15f;       // la balle se recule en armant le lancer
         return rest;
     }

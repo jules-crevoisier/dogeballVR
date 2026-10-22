@@ -9,7 +9,7 @@ namespace DogeballVR.Visual;
 /// Étiquette au-dessus d'un autre joueur : nom puis cœurs, à la couleur de son équipe, taille stable à l'écran.
 /// Adversaire à portée : visible à travers les obstacles (comme Knockout City), on sait toujours où il est.
 /// Adversaire lointain : seulement là où on le voit. Coéquipier : plus petit, plus pâle, masqué par le décor.
-/// Joueur KO : étiquette cachée jusqu'à son retour.
+/// Joueur KO : étiquette cachée jusqu'à son retour. Toutes cachées pendant le compte à rebours du joueur PC (<see cref="HideAll"/>).
 /// </summary>
 public partial class PlayerTag : Node3D
 {
@@ -33,6 +33,9 @@ public partial class PlayerTag : Node3D
     bool? throughWalls;
     float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 24 px pour un adversaire)
     float unitPx;         // taille d'un em en pixels de la fenêtre, à la dernière image affichée
+
+    /// <summary>Toutes les étiquettes cachées (compte à rebours du joueur PC : le chiffre et « GO ! » ne les chevauchent pas).</summary>
+    public static bool HideAll { get; set; }
 
     public override void _EnterTree() => all.Add(this);
     public override void _ExitTree() => all.Remove(this);
@@ -96,7 +99,7 @@ public partial class PlayerTag : Node3D
     public override void _Process(double delta)
     {
         if (!IsInstanceValid(Target)) { QueueFree(); return; }
-        if (Target.Eliminated) { Visible = false; return; }
+        if (Target.Eliminated || HideAll) { Visible = false; return; }
         var head = Target.GlobalPosition + new Vector3(0, HeadAbove, 0);
         var cam = GetViewport().GetCamera3D();
         float mpp = ScreenSize.MetersPerPixel(cam, head);

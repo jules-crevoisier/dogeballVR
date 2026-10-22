@@ -226,7 +226,9 @@ public static class ArenaBuilder
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(-map.ZoneWidth * 0.5f, 0, 0));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(map.ZoneWidth * 0.5f, 0, 0));
             if (zone.Lift != null) AddLift(root, map, zone);
-            root.AddChild(new Label3D
+            // Nom d'équipe peint au sol : lisible sous les pieds du joueur VR. Le joueur PC le voit de loin, rasant et illisible :
+            // DesktopPlayer cache le groupe « zone_label ».
+            var label = new Label3D
             {
                 Text = $"ÉQUIPE {zone.Team + 1}",
                 Position = zone.Center + new Vector3(0, 0.03f, 0),
@@ -234,7 +236,9 @@ public static class ArenaBuilder
                 FontSize = 96,
                 PixelSize = 0.006f,
                 Modulate = color,
-            });
+            };
+            label.AddToGroup("zone_label");
+            root.AddChild(label);
         }
     }
 
