@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using DogeballVR.Audio;
 
@@ -18,6 +19,7 @@ public partial class OptionsMenu : Control
     Label desc = null!;
     readonly System.Collections.Generic.List<(PanelContainer row, string text)> rows = new();
     PanelContainer? lit;
+    TextureRect moreBelow = null!;
     readonly Button[] tabs = new Button[4];
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
@@ -31,6 +33,32 @@ public partial class OptionsMenu : Control
         "Clique sur une touche puis appuie sur la nouvelle (Échap annule).",
         "Les volumes s'appliquent tout de suite.",
         "Les réglages vidéo s'appliquent tout de suite.",
+    };
+
+    /// <summary>Description de chaque option (en bas du panneau), par libellé : une ligne ajoutée ailleurs y met la sienne.</summary>
+    static readonly System.Collections.Generic.Dictionary<string, string> Help = new()
+    {
+        ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
+        ["Inverser l'axe vertical"] = "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.",
+        ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
+        ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
+        ["Secousses de l'écran"] = "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
+        ["Arrêt sur image aux impacts"] = "Le jeu se fige une fraction de seconde quand une balle touche ou est attrapée, pour bien sentir le choc.",
+        ["Marqueur de touche"] = "Une marque s'affiche sur le viseur quand ta balle touche un adversaire.",
+        ["S'accroupir : appui = bascule"] = "OUI : un appui pour s'accroupir, un autre pour se relever. NON : tu restes accroupi tant que la touche est tenue.",
+        ["Volume général"] = "Volume de tout le jeu.",
+        ["Musique"] = "Musique des menus et des parties.",
+        ["Effets sonores"] = "Lancers, impacts, foule et annonces.",
+        ["Interface"] = "Sons des menus : survol et clic.",
+        ["Plein écran"] = "Le jeu occupe tout l'écran. NON : fenêtre redimensionnable.",
+        ["Synchronisation verticale"] = "Supprime les déchirures de l'image en calant les images sur l'écran, au prix d'un peu de latence.",
+        ["Images par seconde max"] = "Plafond d'images par seconde : utile pour limiter la chauffe d'un portable.",
+        ["Qualité graphique"] = "Ombres, lumière et effets. Basse : pour les machines modestes.",
+        ["Résolution de rendu"] = "Calcule l'image en plus petit puis l'agrandit : plus fluide, un peu plus flou.",
+        ["Afficher les images par seconde"] = "Compteur d'images par seconde dans un coin de l'écran.",
+        ["Taille du texte et de l'interface"] = "Agrandit tout le texte et l'interface, menus et HUD compris.",
+        ["Réduire les flashs"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
+        ["Symboles d'équipe (daltonisme)"] = "Ajoute un symbole à la couleur de chaque équipe, pour ne pas dépendre de l'orange et du bleu.",
     };
 
     static readonly StyleBoxFlat RowIdle = RowBox(false), RowLit = RowBox(true);
@@ -75,9 +103,23 @@ public partial class OptionsMenu : Control
             tabRow.AddChild(tabs[i]);
         }
 
-        // Hauteur calée sur l'onglet Contrôles en entier (la dernière ligne n'est plus rognée) ; seul Touches défile.
-        scroll = new ScrollContainer { CustomMinimumSize = new Vector2(1060, 588), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill, FollowFocus = true };
-        col.AddChild(scroll);
+        // Zone de défilement aussi haute que l'écran le permet (l'onglet Contrôles tient en entier en 1080p) ; si la liste
+        // dépasse (onglet Touches, interface agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
+        var holder = new Control { CustomMinimumSize = new Vector2(1060, 160), SizeFlagsVertical = SizeFlags.ExpandFill };
+        col.AddChild(holder);
+        scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
+        scroll.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        holder.AddChild(scroll);
+        var fadeGrad = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { new Color(UiKit.Navy, 0f), UiKit.Navy } };
+        moreBelow = new TextureRect { Texture = new GradientTexture2D { Gradient = fadeGrad, Width = 4, Height = 64, FillFrom = new Vector2(0, 0), FillTo = new Vector2(0, 1) }, StretchMode = TextureRect.StretchModeEnum.Scale, MouseFilter = MouseFilterEnum.Ignore };
+        moreBelow.SetAnchorsPreset(LayoutPreset.BottomWide);
+        moreBelow.OffsetTop = -56; moreBelow.OffsetRight = -24;
+        holder.AddChild(moreBelow);
+        // Hauteur du panneau : tout l'écran utile (marge de 20 px en haut et en bas), quel que soit le facteur d'échelle.
+        void Fit() => panel.CustomMinimumSize = new Vector2(1120, Mathf.Min(1040f, GetViewportRect().Size.Y - 40f));
+        Fit();
+        GetViewport().SizeChanged += Fit;
+        TreeExiting += () => GetViewport().SizeChanged -= Fit;
         // Marge à droite : les valeurs et les boutons ne touchent pas la barre de défilement.
         var margin = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         margin.AddThemeConstantOverride("margin_right", 28);
@@ -89,7 +131,7 @@ public partial class OptionsMenu : Control
         margin.AddChild(list);
 
         // Description de l'option survolée (ou sélectionnée au clavier), en bas du panneau.
-        var descBox = new PanelContainer { CustomMinimumSize = new Vector2(0, 78) };
+        var descBox = new PanelContainer { CustomMinimumSize = new Vector2(0, 66) };
         var db = UiKit.Box(new Color(UiKit.NavySoft, 0.7f), 12, 0f, 0, null, 0);
         db.ContentMarginLeft = 22; db.ContentMarginRight = 22; db.ContentMarginTop = 8; db.ContentMarginBottom = 8;
         descBox.AddThemeStyleboxOverride("panel", db);
@@ -122,6 +164,8 @@ public partial class OptionsMenu : Control
     /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
     public override void _Process(double delta)
     {
+        var bar = scroll.GetVScrollBar();
+        moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
         PanelContainer? want = null;
         var mouse = GetGlobalMousePosition();
         if (scroll.GetGlobalRect().HasPoint(mouse))
@@ -179,36 +223,32 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 Section("Souris", true);
-                Slider("Sensibilité", "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
-                    GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
-                Toggle("Inverser l'axe vertical", "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.", GameSettings.InvertY, v => GameSettings.InvertY = v);
+                Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
+                Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Caméra et visée");
-                Slider("Champ de vision", "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
-                    GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
-                Slider("Aide à la visée", "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
-                    GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : $"{v * 100:0} %");
-                Slider("Secousses de l'écran", "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
-                    GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
-                Toggle("Arrêt sur image aux impacts", "Le jeu se fige une fraction de seconde quand une balle touche ou est attrapée, pour bien sentir le choc.", GameSettings.HitStop, v => GameSettings.HitStop = v);
-                Toggle("Marqueur de touche", "Une marque s'affiche sur le viseur quand ta balle touche un adversaire.", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
-                Toggle("S'accroupir : appui = bascule", "OUI : un appui pour s'accroupir, un autre pour se relever. NON : tu restes accroupi tant que la touche est tenue.", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
+                Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
+                Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : $"{v * 100:0} %");
+                Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
+                Toggle("Arrêt sur image aux impacts", GameSettings.HitStop, v => GameSettings.HitStop = v);
+                Toggle("Marqueur de touche", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
+                Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
                 break;
             case 2:
-                Slider("Volume général", "Volume de tout le jeu.", GameSettings.MasterVolume, 0f, 1f, 0.05f, v => GameSettings.MasterVolume = v, Pct, true);
-                Slider("Musique", "Musique des menus et des parties.", GameSettings.MusicVolume, 0f, 1f, 0.05f, v => GameSettings.MusicVolume = v, Pct, true);
-                Slider("Effets sonores", "Lancers, impacts, foule et annonces.", GameSettings.SfxVolume, 0f, 1f, 0.05f, v => GameSettings.SfxVolume = v, Pct, true);
-                Slider("Interface", "Sons des menus : survol et clic.", GameSettings.UiVolume, 0f, 1f, 0.05f, v => GameSettings.UiVolume = v, Pct, true);
+                Slider("Volume général", GameSettings.MasterVolume, 0f, 1f, 0.05f, v => GameSettings.MasterVolume = v, Pct, true);
+                Slider("Musique", GameSettings.MusicVolume, 0f, 1f, 0.05f, v => GameSettings.MusicVolume = v, Pct, true);
+                Slider("Effets sonores", GameSettings.SfxVolume, 0f, 1f, 0.05f, v => GameSettings.SfxVolume = v, Pct, true);
+                Slider("Interface", GameSettings.UiVolume, 0f, 1f, 0.05f, v => GameSettings.UiVolume = v, Pct, true);
                 break;
             case 3:
-                Toggle("Plein écran", "Le jeu occupe tout l'écran. NON : fenêtre redimensionnable.", GameSettings.Fullscreen, v => GameSettings.Fullscreen = v, true);
-                Toggle("Synchronisation verticale", "Supprime les déchirures de l'image en calant les images sur l'écran, au prix d'un peu de latence.", GameSettings.VSync, v => GameSettings.VSync = v, true);
-                Choice("Images par seconde max", "Plafond d'images par seconde : utile pour limiter la chauffe d'un portable.", new[] { "Illimité", "60", "120", "144", "240" }, Array.IndexOf(new[] { 0, 60, 120, 144, 240 }, GameSettings.MaxFps), k => GameSettings.MaxFps = new[] { 0, 60, 120, 144, 240 }[k]);
-                Choice("Qualité graphique", "Ombres, lumière et effets. Basse : pour les machines modestes.", new[] { "Basse", "Moyenne", "Haute" }, GameSettings.Quality, k => GameSettings.Quality = k);
-                Slider("Résolution de rendu", "Calcule l'image en plus petit puis l'agrandit : plus fluide, un peu plus flou.", GameSettings.RenderScale, 0.5f, 1f, 0.05f, v => GameSettings.RenderScale = v, Pct, true);
-                Toggle("Afficher les images par seconde", "Compteur d'images par seconde dans un coin de l'écran.", GameSettings.ShowFps, v => GameSettings.ShowFps = v);
+                Toggle("Plein écran", GameSettings.Fullscreen, v => GameSettings.Fullscreen = v, true);
+                Toggle("Synchronisation verticale", GameSettings.VSync, v => GameSettings.VSync = v, true);
+                Choice("Images par seconde max", new[] { "Illimité", "60", "120", "144", "240" }, Array.IndexOf(new[] { 0, 60, 120, 144, 240 }, GameSettings.MaxFps), k => GameSettings.MaxFps = new[] { 0, 60, 120, 144, 240 }[k]);
+                Choice("Qualité graphique", new[] { "Basse", "Moyenne", "Haute" }, GameSettings.Quality, k => GameSettings.Quality = k);
+                Slider("Résolution de rendu", GameSettings.RenderScale, 0.5f, 1f, 0.05f, v => GameSettings.RenderScale = v, Pct, true);
+                Toggle("Afficher les images par seconde", GameSettings.ShowFps, v => GameSettings.ShowFps = v);
                 break;
         }
     }
@@ -249,7 +289,7 @@ public partial class OptionsMenu : Control
     {
         panel = new PanelContainer { MouseFilter = MouseFilterEnum.Pass };
         panel.AddThemeStyleboxOverride("panel", RowIdle);
-        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 50) };
+        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 46) };
         row.AddThemeConstantOverride("separation", 18);
         var l = UiKit.Text(label, 24, Colors.White, 6);
         l.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -261,11 +301,12 @@ public partial class OptionsMenu : Control
         return row;
     }
 
+    HBoxContainer Row(string label) => Row(label, Help.GetValueOrDefault(label, ""), out _);
     HBoxContainer Row(string label, string help) => Row(label, help, out _);
 
-    void Slider(string label, string help, float value, float min, float max, float step, Action<float> set, Func<float, string> show, bool apply = false)
+    void Slider(string label, float value, float min, float max, float step, Action<float> set, Func<float, string> show, bool apply = false)
     {
-        var row = Row(label, help);
+        var row = Row(label);
         var s = new HSlider { MinValue = min, MaxValue = max, Step = step, Value = value, CustomMinimumSize = new Vector2(320, 30), SizeFlagsVertical = SizeFlags.ShrinkCenter, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.1f };
         var v = UiKit.Text(show(value), 22, UiKit.Yellow, 6);
         v.CustomMinimumSize = new Vector2(150, 0);
@@ -284,9 +325,9 @@ public partial class OptionsMenu : Control
     }
 
     /// <summary>Interrupteur OUI / NON : un clic n'importe où sur la ligne le bascule aussi.</summary>
-    void Toggle(string label, string help, bool value, Action<bool> set, bool apply = false)
+    void Toggle(string label, bool value, Action<bool> set, bool apply = false)
     {
-        var row = Row(label, help, out var panel);
+        var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
         var b = UiKit.Button(value ? "OUI" : "NON", value ? UiKit.Green.Darkened(0.2f) : UiKit.Grey, () => { }, 22, new Vector2(150, 44));
         b.Pressed += () =>
         {
@@ -306,9 +347,9 @@ public partial class OptionsMenu : Control
         row.AddChild(b);
     }
 
-    void Choice(string label, string help, string[] options, int selected, Action<int> set)
+    void Choice(string label, string[] options, int selected, Action<int> set)
     {
-        var row = Row(label, help);
+        var row = Row(label);
         var o = new OptionButton { CustomMinimumSize = new Vector2(240, 44) };
         o.AddThemeFontSizeOverride("font_size", 22);
         foreach (var x in options) o.AddItem(x);

@@ -86,12 +86,14 @@ public partial class EndScreen : CanvasLayer
 
         var col = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        col.OffsetTop = 40; col.OffsetBottom = -40;
-        col.AddThemeConstantOverride("separation", 14);
+        // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
+        bool compact = root.GetViewportRect().Size.Y < 960f;
+        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -12 : -40;
+        col.AddThemeConstantOverride("separation", compact ? 8 : 14);
         root.AddChild(col);
 
-        var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", 170, win ? UiKit.Yellow : new Color("9fb4d8"), 30, HorizontalAlignment.Center);
-        title.CustomMinimumSize = new Vector2(0, 190);
+        var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, win ? UiKit.Yellow : new Color("9fb4d8"), compact ? 24 : 30, HorizontalAlignment.Center);
+        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
         col.AddChild(title);
 
         // Score des manches, aux couleurs des équipes, avec son unité sous les chiffres.
