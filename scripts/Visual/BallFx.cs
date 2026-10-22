@@ -20,6 +20,10 @@ public static class BallFx
     static readonly Color Gold = new(1f, 0.82f, 0.25f), MaxColor = new(1f, 0.35f, 0.75f);
     static GradientTexture2D? flashTex, softTex;
     const float MinCameraDistance = 1.2f;
+    static float zoom = 1f;
+    /// <summary>--balle-fx-log : chaque effet écrit son image et sa nature (repérage des plans pour les captures).</summary>
+    static readonly bool Log = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--balle-fx-log") >= 0;
+    static void Note(string what, Vector3 pos) { if (Log) GD.Print($"[BallFx] {Engine.GetProcessFrames()} {what} {pos}"); }
 
     /// <summary>Couleur d'un tir : équipe du lanceur, rose vif au palier max (comme la charge et la traînée).</summary>
     static Color ShotColor(int team, int charge)
@@ -34,6 +38,7 @@ public static class BallFx
         if (!Usable(context, pos) || velocity.LengthSquared() < 1f) return;
         var dir = velocity.Normalized();
         var c = ShotColor(team, charge);
+        Note($"lancer mode {mode} charge {charge}", pos);
         if (mode == Gameplay.Ball.ModePass)
         {
             Ring(context, pos, dir, c.Lerp(Colors.White, 0.3f), 0.12f, 0.4f, 0.3f, 0.6f);
@@ -52,7 +57,7 @@ public static class BallFx
         if (charge >= Gameplay.Ball.MaxCharge)
         {
             Ring(context, pos + dir * 0.6f, dir, Colors.White, 0.08f, 0.6f * k, 0.26f, 0.8f);
-            ImpactExtras.Burst(context, pos, c, 0.7f, 0.12f, 0f);
+            ImpactExtras.Burst(context, pos, c, 0.7f * zoom, 0.12f, 0f);
         }
     }
 
@@ -61,14 +66,15 @@ public static class BallFx
     {
         if (!Usable(context, pos)) return;
         var c = ShotColor(team, 0);
+        Note($"prise {how}{(perfect ? " parfaite" : "")}", pos);
         switch (how)
         {
             case Catch.Steal when perfect:
             {
                 var back = incoming.LengthSquared() > 0.01f ? -incoming.Normalized() : Vector3.Up;
                 Flash(context, pos, Gold, 1.4f, 0.16f);
-                ImpactExtras.Burst(context, pos, Gold, 0.95f, 0.2f, 0.25f);
-                ImpactExtras.Streaks(context, pos, Gold, 1.6f, 0.24f);
+                ImpactExtras.Burst(context, pos, Gold, 0.95f * zoom, 0.2f, 0.25f);
+                ImpactExtras.Streaks(context, pos, Gold, 1.6f * zoom, 0.24f);
                 Ring(context, pos, back, Gold, 0.12f, 0.85f, 0.3f, 1f);
                 Ring(context, pos, Vector3.Up, Colors.White, 0.1f, 0.65f, 0.26f, 0.9f);
                 Sparks(context, pos, back, Gold, 22, 7f, 70f);
@@ -78,7 +84,7 @@ public static class BallFx
             case Catch.Steal:
             {
                 var back = incoming.LengthSquared() > 0.01f ? -incoming.Normalized() : Vector3.Up;
-                ImpactExtras.Burst(context, pos, c, 0.45f, 0.1f, 0f);
+                ImpactExtras.Burst(context, pos, c, 0.45f * zoom, 0.1f, 0f);
                 Ring(context, pos, back, c.Lerp(Colors.White, 0.35f), 0.1f, 0.5f, 0.2f, 0.85f);
                 Sparks(context, pos, back, c.Lerp(Colors.White, 0.3f), 12, 5f, 55f);
                 break;
@@ -102,6 +108,7 @@ public static class BallFx
     {
         if (!Usable(context, pos)) return;
         float k = 0.8f + 0.25f * charge;
+        Note($"palier {charge}", pos);
         Ring(context, pos, Vector3.Up, color, 0.18f, 0.5f * k, 0.25f, 0.9f);
         Ring(context, pos, new Vector3(0.6f, 0.2f, 0.75f).Normalized(), color.Lerp(Colors.White, 0.4f), 0.18f, 0.42f * k, 0.22f, 0.7f);
         Sparks(context, pos, Vector3.Up, color, 6 + 6 * charge, 3.5f + charge, 180f);
@@ -111,7 +118,9 @@ public static class BallFx
     {
         if (Off || !GodotObject.IsInstanceValid(context) || !context.IsInsideTree() || DisplayServer.GetName() == "headless" || context.GetTree().CurrentScene == null) return false;
         var cam = context.GetViewport()?.GetCamera3D();
-        return cam == null || cam is XRCamera3D || cam.GlobalPosition.DistanceTo(pos) >= MinCameraDistance;
+        float d = cam == null || cam is XRCamera3D ? 0f : cam.GlobalPosition.DistanceTo(pos);
+        zoom = Mathf.Clamp(d / 9f, 1f, 2.2f);   // au-delà de 9 m l'effet grossit (comme ImpactFx) : une prise lointaine reste lisible
+        return cam == null || cam is XRCamera3D || d >= MinCameraDistance;
     }
 
     static Vector3 Ground(Node context, Vector3 pos)
@@ -162,6 +171,7 @@ public static class BallFx
         holder.AddChild(ring);
         Add(context, holder, pos, duration + 0.1);
         holder.Basis = Facing(axis);
+        from *= zoom; to *= zoom;
         ring.Scale = new Vector3(from, from * 0.25f, from);
         var tw = ring.CreateTween().SetParallel();
         tw.TweenProperty(ring, "scale", new Vector3(to, to * 0.05f, to), duration).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
@@ -266,6 +276,7 @@ public static class BallFx
     /// <summary>Éclat rond face caméra, bref, sans test de profondeur (les mains ne le coupent pas).</summary>
     static void Flash(Node context, Vector3 pos, Color color, float size, float duration)
     {
+        size *= zoom;
         if (UI.GameSettings.ReduceFlashes) size *= 0.6f;
         flashTex ??= Radial(new[] { 0f, 0.3f, 1f }, new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.55f), new Color(1, 1, 1, 0) });
         var mat = Additive(new Color(color, 0.9f), flashTex);
