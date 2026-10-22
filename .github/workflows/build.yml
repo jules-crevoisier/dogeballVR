@@ -45,7 +45,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host > host.log 2>&1 &
           HOST_PID=$!
           sleep 3
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --net-selftest > client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --net-selftest > client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 client.log; exit $code; }
           wait $HOST_PID || true
           grep -E "\[Net|\[NetTest" host.log client.log | tail -20
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" host.log client.log; then
@@ -70,7 +70,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=la_fosse > fosse-host.log 2>&1 &
           HOST_PID=$!
           sleep 3
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 4200 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 4200 -- --join=127.0.0.1 --map=la_fosse --net-selftest > fosse-client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 fosse-client.log; exit $code; }
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fosse-host.log fosse-client.log; then
             echo "Erreur à l'exécution (La Fosse, réseau)"; exit 1
@@ -98,7 +98,7 @@ jobs:
           "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --pc-autoplay > pc-host.log 2>&1 &
           HOST_PID=$!
           sleep 3
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --pc-autoplay > pc-client.log 2>&1
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --pc-autoplay > pc-client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 pc-client.log; exit $code; }
           wait $HOST_PID || true
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" pc-host.log pc-client.log; then
             echo "Erreur à l'exécution (joueur PC, réseau)"; exit 1
@@ -122,7 +122,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --map=croix_neon --pc-autoplay > ring-host.log 2>&1 &
             HOST_PID=$!
             sleep 3
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --map=croix_neon --pc-autoplay > ring-client.log 2>&1
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --map=croix_neon --pc-autoplay > ring-client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 ring-client.log; exit $code; }
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" ring-host.log ring-client.log; then
               echo "Erreur à l'exécution (Croix Néon, réseau)"; exit 1
@@ -215,7 +215,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=fosse_croisee --pc-autoplay > fc-host.log 2>&1 &
             HOST_PID=$!
             sleep 3
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=fosse_croisee --pc-autoplay > fc-client.log 2>&1
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=fosse_croisee --pc-autoplay > fc-client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 fc-client.log; exit $code; }
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" fc-host.log fc-client.log; then
               echo "Erreur à l'exécution (Fosse croisée, réseau)"; exit 1
@@ -244,7 +244,7 @@ jobs:
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=tour_4v4 --pc-autoplay > tr-host.log 2>&1 &
             HOST_PID=$!
             sleep 3
-            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=tour_4v4 --pc-autoplay > tr-client.log 2>&1
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 4000 -- --join=127.0.0.1 --zone=1 --net-lag=30 --map=tour_4v4 --pc-autoplay > tr-client.log 2>&1 || { code=$?; echo "Le client s'est arrêté (code $code), fin du journal :"; tail -40 tr-client.log; exit $code; }
             wait $HOST_PID || true
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" tr-host.log tr-client.log; then
               echo "Erreur à l'exécution (Tour 4v4, réseau)"; exit 1
