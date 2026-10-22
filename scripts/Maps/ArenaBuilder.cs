@@ -65,7 +65,7 @@ public static class ArenaBuilder
         // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
         ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
         // La Fosse, port : matin brumeux, lumière blanche et douce
-        ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.02f, 0.6f, 0.35f, 0.95f, 0.95f),
+        ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.013f, 0.6f, 0.35f, 0.95f, 0.95f),
     };
 
     /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>
