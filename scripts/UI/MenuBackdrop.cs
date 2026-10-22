@@ -27,6 +27,7 @@ public partial class MenuBackdrop : Node3D
             var map = MapData.Load(path);
             var arena = ArenaBuilder.Build(map, -1, true);
             AddChild(arena.Root);
+            ClearShot(arena.Root, CamPos, new Vector3(-2.8f, 1.2f, -9.9f));
         }
 
         // Héros orange au premier plan, de trois quarts, balle levée derrière la tête.
@@ -64,15 +65,39 @@ public partial class MenuBackdrop : Node3D
     void PoseAll(double time)
     {
         float s = Mathf.Sin((float)time * 1.3f);
-        // Héros de trois quarts face caméra, à droite de l'écran, balle brandie dans la main droite.
-        var heroHead = new Vector3(-2.8f, 1.62f + 0.02f * s, -9.9f);
-        var yaw = Mathf.DegToRad(-45);
+        // Héros de trois quarts face caméra, à droite de l'écran : il sautille et jongle avec sa balle, prêt à tirer.
+        float hop = Mathf.Abs(Mathf.Sin((float)time * 3.4f)) * 0.05f;
+        var heroHead = new Vector3(-2.8f, 1.6f + hop + 0.02f * s, -9.9f);
+        var yaw = Mathf.DegToRad(-45 + 6 * Mathf.Sin((float)time * 0.7f));
         var basis = new Basis(Vector3.Up, yaw);
-        var rightHand = heroHead + basis * new Vector3(0.42f, 0.32f, 0.18f);
-        hero!.Pose(heroHead, yaw, heroHead + basis * new Vector3(-0.4f, -0.5f, -0.3f), rightHand);
-        if (held != null) held.GlobalPosition = rightHand + Vector3.Up * 0.2f;
+        float u = (float)(time % 1.3 / 1.3);                     // un lancer-rattraper par cycle
+        float dip = u < 0.15f ? Mathf.Sin(u / 0.15f * Mathf.Pi) : 0f;   // la main plonge puis pousse la balle
+        var rightHand = heroHead + basis * new Vector3(0.38f, 0.05f - 0.12f * dip, 0.28f);
+        var leftHand = heroHead + basis * new Vector3(-0.42f, -0.28f + 0.04f * s, 0.32f);   // garde haute, poing vers l'adversaire
+        hero!.Pose(heroHead, yaw, leftHand, rightHand);
+        if (held != null)
+        {
+            float air = u > 0.12f ? Mathf.Sin((u - 0.12f) / 0.88f * Mathf.Pi) : 0f;
+            held.GlobalPosition = rightHand + Vector3.Up * (0.18f + 0.55f * air);
+            held.Rotation = new Vector3((float)time * 5f, (float)time * 2f, 0);
+        }
         var rivalHead = new Vector3(-6.3f, 1.5f + 0.03f * Mathf.Sin((float)time * 1.7f + 1f), -3.6f);
         rival!.Pose(rivalHead, Mathf.DegToRad(-20), rivalHead + new Vector3(-0.3f, -0.35f, 0.45f), rivalHead + new Vector3(0.3f, -0.35f, 0.45f));
+    }
+
+    /// <summary>Cache le décor posé entre la caméra et le héros (borne, muret) : l'image du menu doit rester dégagée.</summary>
+    static void ClearShot(Node root, Vector3 eye, Vector3 subject)
+    {
+        foreach (var n in root.FindChildren("*", "GeometryInstance3D", true, false))
+        {
+            if (n is not GeometryInstance3D g || !g.Visible) continue;
+            var box = g.GlobalTransform * g.GetAabb();
+            if (box.Size.Length() > 8f) continue;   // sol, murs d'enceinte, immeubles : jamais
+            var c = box.GetCenter();
+            var seg = subject - eye;
+            float k = Mathf.Clamp((c - eye).Dot(seg) / seg.LengthSquared(), 0f, 1f);
+            if (k < 0.98f && (eye + seg * k).DistanceTo(c) < 1.2f + box.Size.Length() * 0.3f) g.Visible = false;
+        }
     }
 
     public override void _Process(double delta)
