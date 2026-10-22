@@ -400,6 +400,7 @@ public partial class Main : Node3D
         {
             Name = $"Bot{z.Id}", Zone = z, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
             Hurtbox = hurtbox, Position = z.Center, Targets = targets, TargetTeams = targetTeams,
+            HoldFire = () => match.CountdownLeft > 0,
         };
         AddChild(bot);
         bots[z.Id] = bot;
