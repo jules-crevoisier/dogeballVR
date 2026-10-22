@@ -338,23 +338,34 @@ def fx_spark():
     return lambda: p
 
 
-def avatar_rig(team, variant=0):
-    """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs)."""
+HERO_BUDGET = 15000   # triangles par héros (fiche modeleurs) ; au-delà, réduction douce par fusion d'arêtes
+
+
+def avatar_rig(team, variant=0, budget=None):
+    """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs), ramené au budget s'il est fourni."""
     import hero
     import rig as rigmod
-    out = rigmod.rig_character(hero.hero(team, variant), rigmod.HERO_BONES, arm_rest=-14)
-    return lambda: out
+    rig_obj, body = rigmod.rig_character(hero.hero(team, variant), rigmod.HERO_BONES, arm_rest=-14)
+    if budget:
+        tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
+        if tris > budget:
+            _decimate(body, budget * 0.97 / tris)
+    return lambda: [rig_obj, body]
 
 
-def avatar_rig_quest(team, variant=0, ratio=0.5):
-    """Version allégée Quest : même rig et mêmes animations, maillage réduit par fusion d'arêtes (les poids suivent)."""
-    rig_obj, body = avatar_rig(team, variant)()
+def _decimate(body, ratio):
     m = body.modifiers.new("allege", "DECIMATE")
     m.ratio = ratio
     m.use_collapse_triangulate = True
     with bpy.context.temp_override(object=body, active_object=body):
         bpy.ops.object.modifier_move_to_index(modifier=m.name, index=0)
         bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def avatar_rig_quest(team, variant=0, ratio=0.5):
+    """Version allégée Quest : même rig et mêmes animations, maillage réduit par fusion d'arêtes (les poids suivent)."""
+    rig_obj, body = avatar_rig(team, variant)()
+    _decimate(body, ratio)
     return lambda: [rig_obj, body]
 
 
@@ -367,8 +378,8 @@ ASSETS = {
     "avatar_orange_corps": L(avatar, "orange", "corps"), "avatar_orange_tete": L(avatar, "orange", "tete"),
     "avatar_orange": L(avatar, "orange", "tout"), "avatar_bleu": L(avatar, "bleu", "tout"),
     "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
-    "avatar_orange_rig": L(avatar_rig, "orange"), "avatar_bleu_rig": L(avatar_rig, "bleu"),
-    "avatar_orange2_rig": L(avatar_rig, "orange", 1), "avatar_bleu2_rig": L(avatar_rig, "bleu", 1),
+    "avatar_orange_rig": L(avatar_rig, "orange", 0, HERO_BUDGET), "avatar_bleu_rig": L(avatar_rig, "bleu", 0, HERO_BUDGET),
+    "avatar_orange2_rig": L(avatar_rig, "orange", 1, HERO_BUDGET), "avatar_bleu2_rig": L(avatar_rig, "bleu", 1, HERO_BUDGET),
     "avatar_orange_rig_quest": L(avatar_rig_quest, "orange"), "avatar_bleu_rig_quest": L(avatar_rig_quest, "bleu"),
     "avatar_orange2_rig_quest": L(avatar_rig_quest, "orange", 1), "avatar_bleu2_rig_quest": L(avatar_rig_quest, "bleu", 1),
     "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
