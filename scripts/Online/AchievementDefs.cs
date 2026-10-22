@@ -34,7 +34,6 @@ public static class AchievementDefs
     public const string Tackle = "ACH_TACKLE";
     public const string Flawless = "ACH_FLAWLESS";
     public const string OnlineFriend = "ACH_ONLINE_FRIEND";
-    public const string VrPlayer = "ACH_VR_PLAYER";
     public const string Wins10 = "ACH_WINS_10";
     public const string Wins50 = "ACH_WINS_50";
     public const string Matches25 = "ACH_MATCHES_25";
@@ -72,7 +71,6 @@ public static class AchievementDefs
         new(Tackle, "Plaquage", "Tackle", "Tacler un adversaire en plein dash.", "Tackle an opponent with a dash.", StatTackles, 1),
         new(Flawless, "Sans bavure", "Flawless", "Remporter un match sans perdre une manche.", "Win a match without losing a round."),
         new(OnlineFriend, "Entre potes", "Squad Up", "Jouer un match en ligne avec un ami Steam.", "Play an online match with a Steam friend."),
-        new(VrPlayer, "Immersion totale", "Full Immersion", "Jouer une partie en réalité virtuelle.", "Play a match in virtual reality."),
         new(Wins10, "Habitué du podium", "Podium Regular", "Remporter 10 matchs.", "Win 10 matches.", StatWins, 10),
         new(Wins50, "Patron du quartier", "Block Boss", "Remporter 50 matchs.", "Win 50 matches.", StatWins, 50),
         new(Matches25, "Pilier du terrain", "Court Regular", "Jouer 25 matchs.", "Play 25 matches.", StatMatches, 25),

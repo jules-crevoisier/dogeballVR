@@ -556,7 +556,7 @@ public partial class Main : Node3D
         AddChild(new Online.Steam.AchievementTracker
         {
             Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch, View = pcView,
-            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Vr = xrOrigin != null, Online = net != null,
+            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Online = net != null,
             LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
         });
 

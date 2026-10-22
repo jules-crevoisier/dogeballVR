@@ -111,6 +111,13 @@ jobs:
           sed -i -E "s/public const uint ShippedAppId = [0-9]+;/public const uint ShippedAppId = ${STEAM_APP_ID};/" scripts/Online/Steam/SteamPlatform.cs
           grep -q "ShippedAppId = ${STEAM_APP_ID};" scripts/Online/Steam/SteamPlatform.cs || { echo "::error::ShippedAppId introuvable dans SteamPlatform.cs"; exit 1; }
 
+      - name: Version Steam en mode écran seulement
+        run: |
+          # Sur Steam on vend le mode écran (PC et Steam Deck) ; la VR reste pour les arènes EVA.
+          # OpenXR coupé dans ce build : pas de SteamVR lancé par erreur, pas d'alerte de casque.
+          sed -i 's/^openxr\/enabled=true/openxr\/enabled=false/' project.godot
+          grep -q '^openxr/enabled=false' project.godot || { echo "::error::openxr/enabled introuvable dans project.godot"; exit 1; }
+
       - name: Exporter pour Windows
         run: |
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
