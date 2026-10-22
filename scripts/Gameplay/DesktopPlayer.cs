@@ -319,12 +319,14 @@ public partial class DesktopPlayer : Node3D
     readonly System.Collections.Generic.Dictionary<Ball, GeometryInstance3D[]> ballMeshes = new();
 
     const uint NearBallLayer = 1u << 19;   // calque de rendu exclu de la caméra PC : balle collée à l'objectif
+    const float NearBallFadeFrom = 2.0f, NearBallHide = 1.2f;   // début de l'effacement, seuil de disparition (m)
 
     /// <summary>
-    /// Balle libre qui frôle la caméra (tir reçu en vue subjective, balle qui passe devant l'objectif) : elle s'efface entre 1,4 m et 0,6 m
-    /// (transparence des maillages : rendus Mobile et Forward+), puis disparaît sous 0,6 m (calque exclu de la caméra : tous les rendus,
-    /// Compatibilité comprise), au lieu de remplir le bas de l'écran et de masquer le bloc d'actions du HUD. Rendu seulement :
-    /// la balle, sa visibilité et sa physique ne changent pas. La balle tenue par le joueur n'est pas concernée.
+    /// Balle qui frôle la caméra (tir reçu en vue d'épaule, balle qui passe devant l'objectif) : elle disparaît sous 1,2 m de l'objectif
+    /// (calque exclu de la caméra : marche dans tous les rendus, Compatibilité comprise), au lieu d'un disque géant qui couvre le HUD.
+    /// Dès 2 m, ses halos additifs (le grand disque lumineux) disparaissent de la même façon, et le reste s'efface là où la transparence
+    /// des maillages existe (Mobile et Forward+ ; en Compatibilité le cœur reste opaque jusqu'au seuil). Rendu seulement : la balle, sa visibilité et sa physique ne changent pas. Toutes les balles sont
+    /// concernées (libres ou tenues par d'autres), sauf celle que tient le joueur.
     /// </summary>
     void FadeBallsNearCamera()
     {
@@ -334,7 +336,7 @@ public partial class DesktopPlayer : Node3D
         {
             if (n is not Ball ball || ball.IsQueuedForDeletion()) continue;
             float d = ball.GlobalPosition.DistanceTo(eye);
-            float fade = ball == held ? 0f : Mathf.Clamp((1.4f - d) / 0.8f, 0f, 1f);
+            float fade = ball == held ? 0f : Mathf.Clamp((NearBallFadeFrom - d) / (NearBallFadeFrom - NearBallHide), 0f, 1f);
             if (!ballMeshes.TryGetValue(ball, out var meshes))
             {
                 if (fade <= 0f) continue;
@@ -346,8 +348,10 @@ public partial class DesktopPlayer : Node3D
             {
                 if (!IsInstanceValid(g)) continue;
                 g.Transparency = fade;
-                // Sous 0,6 m : calque 1 (le calque par défaut des balles) remplacé par le calque exclu ; rétabli au-delà.
-                g.Layers = fade >= 1f ? (g.Layers | NearBallLayer) & ~1u : (g.Layers & ~NearBallLayer) | 1u;
+                // Sous 1,2 m (sous 2 m pour les halos) : calque 1 (le calque par défaut des balles) remplacé par le calque exclu ; rétabli au-delà.
+                bool halo = g is MeshInstance3D { MaterialOverride: BaseMaterial3D { BlendMode: BaseMaterial3D.BlendModeEnum.Add } };
+                bool hide = fade >= 1f || (halo && fade > 0f);
+                g.Layers = hide ? (g.Layers | NearBallLayer) & ~1u : (g.Layers & ~NearBallLayer) | 1u;
             }
             if (fade <= 0f) ballMeshes.Remove(ball);
         }

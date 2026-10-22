@@ -8,8 +8,10 @@ using DogeballVR.Visual;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Écran de fin de partie du joueur clavier-souris : VICTOIRE ou DÉFAITE (point de vue du joueur local), manches,
-/// MVP mis en avant, tableau par joueur (hôte seulement : le client ne reçoit pas les statistiques), REJOUER et MENU PRINCIPAL.
+/// Écran de fin de partie du joueur clavier-souris, en deux temps comme Knockout City : d'abord le podium (<see cref="EndPodium"/> :
+/// l'équipe gagnante en 3D, le MVP devant, ~3 s), puis un glissement vers le tableau : VICTOIRE ou DÉFAITE (point de vue du
+/// joueur local), manches, MVP mis en avant, tableau par joueur (hôte seulement : le client ne reçoit pas les statistiques),
+/// REJOUER et MENU PRINCIPAL. Pendant le podium, Entrée, Échap, Espace ou un clic le passent.
 /// S'ouvre 1,8 s après la fin (le temps du bandeau), se ferme seul quand une nouvelle partie commence.
 /// Avec relance automatique (headless, --pc-autoplay) il affiche le décompte au lieu d'attendre un choix.
 /// </summary>
@@ -32,6 +34,10 @@ public partial class EndScreen : CanvasLayer
     Label? autoLabel;
     Sunburst? burst;
     Star? star;
+    EndPodium? podium;     // première phase, libérée à la fin du glissement
+    Control? page;         // tableau : null tant que le podium est à l'écran
+    double podiumLeft;
+    const double PodiumSeconds = 3.2, SlideSeconds = 0.5;
 
     public override void _Ready()
     {
@@ -55,6 +61,7 @@ public partial class EndScreen : CanvasLayer
         if (burst != null) { burst.Angle += (float)delta * 0.12f; burst.QueueRedraw(); }
         if (star != null) { star.T += (float)delta; star.QueueRedraw(); }
         if (root == null && overFor >= OpenDelay) Open();
+        if (page == null && podium != null && (podiumLeft -= delta) <= 0) ShowStats();
         // Le menu pause refermé reprend la souris : sur l'écran de fin, il faut la rendre pour cliquer.
         if (root != null && !Autoplay && !PauseMenu.IsOpen && Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
         if (autoLabel != null) autoLabel.Text = BackToRoom
@@ -76,26 +83,70 @@ public partial class EndScreen : CanvasLayer
         bool win = s.Winner == View.LocalTeam;
         Audio.Music.Stinger(win ? SfxKind.Victory : SfxKind.Defeat);   // jingle + foule, la musique de match s'efface
 
-        root = new Control { Theme = UiKit.Theme };
+        root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
+        TestKeys();
+
+        // Podium d'abord, s'il y a une équipe gagnante à montrer (toujours le cas en fin de partie, client compris).
+        bool anyWinner = false;
+        foreach (var p in View.Players) anyWinner |= p.Team == winner;
+        if (winner >= 0 && anyWinner)
+        {
+            podium = new EndPodium { Name = "Podium", View = View, Winner = winner, Stats = stats, MvpId = MvpId() };
+            podium.TreeExited += () => GD.Print("[Fin] Podium libéré");
+            root.AddChild(podium);
+            podiumLeft = PodiumSeconds;
+            GD.Print($"[Fin] Podium : équipe {MatchController.TeamName(winner)}, MVP {(podium.MvpId >= 0 ? View.NameOf(podium.MvpId) : "inconnu")}");
+            return;
+        }
+        ShowStats();
+    }
+
+    /// <summary>
+    /// Deuxième phase : le tableau. Après le podium, il arrive de la droite pendant que le podium sort par la gauche,
+    /// puis le podium (sa scène 3D) est libéré ; sa cascade d'apparition démarre au milieu du glissement.
+    /// </summary>
+    void ShowStats()
+    {
+        if (root == null || page != null) return;
+        page = new Control { Name = "Tableau", MouseFilter = Control.MouseFilterEnum.Ignore };
+        page.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(page);
+        var old = podium;
+        BuildStats(page, old != null ? (float)SlideSeconds * 0.6f : 0f, old == null);
+        if (old == null) return;
+        podium = null;
+        float w = root.Size.X;
+        page.Position = new Vector2(w, 0);
+        var tw = root.CreateTween().SetParallel();
+        tw.TweenProperty(page, "position:x", 0f, SlideSeconds).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
+        tw.TweenProperty(old, "position:x", -w, SlideSeconds).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
+        tw.Chain().TweenCallback(Callable.From(old.QueueFree));
+        Sfx.Play(this, SfxKind.Dash);
+    }
+
+    void BuildStats(Control host, float d0, bool mvpSound)
+    {
+        var s = View.State;
+        bool win = winner == View.LocalTeam;
         var dim = UiKit.Dim(0.78f);
-        root.AddChild(dim);
+        host.AddChild(dim);
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
         // Victoire : rayons dorés festifs. Défaite : pas de rayons, juste un halo gris-bleu éteint derrière le titre.
         burst = new Sunburst { Color = win ? UiKit.Yellow : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
         burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        root.AddChild(burst);
+        host.AddChild(burst);
 
         var col = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
-        bool compact = root.GetViewportRect().Size.Y < 960f;
+        bool compact = host.GetViewportRect().Size.Y < 960f;
         col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -12 : -40;
         col.AddThemeConstantOverride("separation", compact ? 8 : 14);
-        root.AddChild(col);
+        host.AddChild(col);
 
         var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, win ? UiKit.Yellow : new Color("9fb4d8"), compact ? 24 : 30, HorizontalAlignment.Center);
         title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
@@ -160,25 +211,25 @@ public partial class EndScreen : CanvasLayer
         var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76));
         buttons.AddChild(menu);
         replayKey = first != null;
-        TestKeys();
         (first ?? menu).CallDeferred(Control.MethodName.GrabFocus);
 
-        // Entrée : le titre tape, le reste glisse en cascade.
+        // Entrée : le titre tape, le reste glisse en cascade (après d0 : le temps que le tableau ait glissé à sa place).
         title.Resized += () => title.PivotOffset = title.Size / 2;
         title.Scale = Vector2.One * 2.2f;
         title.Modulate = new Color(1, 1, 1, 0);
         var tw = title.CreateTween().SetParallel();
-        tw.TweenProperty(title, "scale", Vector2.One, 0.45).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
-        tw.TweenProperty(title, "modulate:a", 1.0, 0.2);
-        Appear(score, 0.25f);
+        tw.TweenProperty(title, "scale", Vector2.One, 0.45).SetDelay(d0).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        tw.TweenProperty(title, "modulate:a", 1.0, 0.2).SetDelay(d0);
+        Appear(score, d0 + 0.25f);
         int i = 0;
-        foreach (var c in middle.GetChildren()) if (c is Control ctl) Appear(ctl, 0.35f + 0.15f * i++);
-        Appear(buttons, 0.7f);
+        foreach (var c in middle.GetChildren()) if (c is Control ctl) Appear(ctl, d0 + 0.35f + 0.15f * i++);
+        Appear(buttons, d0 + 0.7f);
         if (mvpCard != null)
         {
             var t2 = mvpCard.CreateTween();
-            t2.TweenInterval(0.9);
-            t2.TweenCallback(Callable.From(() => { UiKit.Punch(mvpCard, 1.15f, 0.3); Sfx.Play(this, SfxKind.Perfect); }));
+            t2.TweenInterval(d0 + 0.9);
+            // Le son de MVP a déjà retenti sur le podium : ici, le coup de tampon seul.
+            t2.TweenCallback(Callable.From(() => { UiKit.Punch(mvpCard, 1.15f, 0.3); if (mvpSound) Sfx.Play(this, SfxKind.Perfect); }));
         }
     }
 
@@ -216,11 +267,23 @@ public partial class EndScreen : CanvasLayer
 
     /// <summary>
     /// Raccourcis affichés sur les boutons : Entrée = rejouer, Échap (touche de pause) = menu principal.
+    /// Pendant le podium, ces touches, Espace ou un clic le passent seulement (pas de relance ni de départ par mégarde).
     /// Passe avant le menu pause, qui sinon s'ouvrirait sur Échap ; rien tant que la pause est ouverte par-dessus.
     /// </summary>
     public override void _Input(InputEvent e)
     {
         if (root == null || PauseMenu.IsOpen || Autoplay) return;
+        if (page == null)
+        {
+            bool skip = e is InputEventKey { Pressed: true, Echo: false } sk && sk.Keycode is Key.Enter or Key.KpEnter or Key.Space
+                || e.IsActionPressed("pause")
+                || e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left or MouseButton.Right };
+            if (!skip) return;
+            GetViewport().SetInputAsHandled();
+            GD.Print("[Fin] Podium passé");
+            ShowStats();
+            return;
+        }
         if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
         {
             if (!replayKey) return;
@@ -236,8 +299,10 @@ public partial class EndScreen : CanvasLayer
     }
 
     /// <summary>
-    /// Test des raccourcis (--end-screen-keys=entree | echap, avec --end-screen-test) : 2 s après l'ouverture, la touche est
-    /// injectée comme un vrai appui ; le journal doit montrer « [Fin] Rejouer » ou « [Fin] Retour au menu principal ».
+    /// Test des raccourcis (--end-screen-keys=entree | echap | clic, avec --end-screen-test) : 1,5 s après l'ouverture, un
+    /// premier appui (la touche, ou un clic gauche pour « clic ») passe le podium ; 1 s plus tard, la touche (Entrée pour « clic »)
+    /// est injectée comme un vrai appui. Le journal doit montrer « [Fin] Podium passé » puis « [Fin] Rejouer » ou
+    /// « [Fin] Retour au menu principal », et « [Fin] Podium libéré ».
     /// </summary>
     void TestKeys()
     {
@@ -245,20 +310,32 @@ public partial class EndScreen : CanvasLayer
         {
             if (!a.StartsWith("--end-screen-keys=")) continue;
             var key = a.EndsWith("echap") ? Key.Escape : Key.Enter;
-            GetTree().CreateTimer(2.0).Timeout += () =>
+            bool click = a.EndsWith("clic");
+            void Press(Key k)
             {
-                GD.Print($"[Fin] Test : appui sur {(key == Key.Escape ? "Échap" : "Entrée")}");
-                Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
-                Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
+                GD.Print($"[Fin] Test : appui sur {(k == Key.Escape ? "Échap" : "Entrée")}");
+                Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = false });
+            }
+            GetTree().CreateTimer(1.5).Timeout += () =>
+            {
+                if (!click) { Press(key); return; }
+                GD.Print("[Fin] Test : clic");
+                var at = GetViewport().GetVisibleRect().Size / 2;
+                Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = at, GlobalPosition = at });
+                Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = at, GlobalPosition = at });
             };
+            GetTree().CreateTimer(2.5).Timeout += () => Press(key);
         }
     }
 
     void Close(bool capture)
     {
         IsOpen = false;
-        root?.QueueFree();
+        root?.QueueFree();   // emporte le podium (et sa scène 3D) s'il est encore là
         root = null;
+        podium = null;
+        page = null;
         autoLabel = null;
         burst = null;
         star = null;
@@ -429,15 +506,16 @@ public partial class EndScreen : CanvasLayer
         }
     }
 
-    /// <summary>Étoile dorée du MVP, qui respire.</summary>
-    sealed partial class Star : Control
+    /// <summary>Étoile dorée du MVP, qui respire (animée par l'écran qui la montre : tableau ou podium).</summary>
+    internal sealed partial class Star : Control
     {
         public float T;
+        public float Radius = 40f;
         public override void _Draw()
         {
             var c = Size / 2;
             float t = T;
-            float r = 40f * (1f + 0.06f * Mathf.Sin(t * 4f));
+            float r = Radius * (1f + 0.06f * Mathf.Sin(t * 4f));
             Vector2[] Pts(float outer, float inner)
             {
                 var pts = new Vector2[10];

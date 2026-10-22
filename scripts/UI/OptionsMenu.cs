@@ -15,6 +15,10 @@ public partial class OptionsMenu : Control
     public event Action? Closed;
 
     VBoxContainer list = null!;
+    PanelContainer panel = null!;
+    Control holder = null!;
+    MarginContainer margin = null!;
+    const float TopMargin = 48f;
     ScrollContainer scroll = null!;
     Label desc = null!;
     readonly System.Collections.Generic.List<(PanelContainer row, string text)> rows = new();
@@ -82,10 +86,13 @@ public partial class OptionsMenu : Control
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(UiKit.Dim(0.82f));
 
+        // Panneau centré en largeur, posé à TopMargin du haut : il prend la hauteur de son contenu (les onglets ne bougent pas
+        // d'un onglet à l'autre, seul le bas suit), jusqu'à la hauteur de l'écran ; au-delà, la liste défile (voir FitHeight).
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
-        center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        center.SetAnchorsAndOffsetsPreset(LayoutPreset.TopWide);
+        center.OffsetTop = center.OffsetBottom = TopMargin;
         AddChild(center);
-        var panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 0) };
+        panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 0) };
         panel.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8));   // opaque
         center.AddChild(panel);
         var col = new VBoxContainer();
@@ -103,9 +110,9 @@ public partial class OptionsMenu : Control
             tabRow.AddChild(tabs[i]);
         }
 
-        // Zone de défilement aussi haute que l'écran le permet (l'onglet Contrôles tient en entier en 1080p) ; si la liste
-        // dépasse (onglet Touches, interface agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
-        var holder = new Control { CustomMinimumSize = new Vector2(1060, 160), SizeFlagsVertical = SizeFlags.ExpandFill };
+        // Zone de défilement à la hauteur de la liste, plafonnée par l'écran ; si la liste dépasse (onglet Touches, interface
+        // agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
+        holder = new Control { CustomMinimumSize = new Vector2(1060, 160) };
         col.AddChild(holder);
         scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
         scroll.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -115,13 +122,8 @@ public partial class OptionsMenu : Control
         moreBelow.SetAnchorsPreset(LayoutPreset.BottomWide);
         moreBelow.OffsetTop = -56; moreBelow.OffsetRight = -24;
         holder.AddChild(moreBelow);
-        // Hauteur du panneau : tout l'écran utile (marge de 20 px en haut et en bas), quel que soit le facteur d'échelle.
-        void Fit() => panel.CustomMinimumSize = new Vector2(1120, Mathf.Min(1040f, GetViewportRect().Size.Y - 40f));
-        Fit();
-        GetViewport().SizeChanged += Fit;
-        TreeExiting += () => GetViewport().SizeChanged -= Fit;
         // Marge à droite : les valeurs et les boutons ne touchent pas la barre de défilement.
-        var margin = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        margin = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         margin.AddThemeConstantOverride("margin_right", 28);
         margin.AddThemeConstantOverride("margin_left", 4);
         margin.AddThemeConstantOverride("margin_bottom", 6);
@@ -154,6 +156,20 @@ public partial class OptionsMenu : Control
         UiKit.Punch(panel, 0.9f, 0.2);
     }
 
+    /// <summary>
+    /// Hauteur de la zone de défilement : celle de la liste de l'onglet, sans dépasser l'écran (marge TopMargin en haut et en bas,
+    /// quel que soit le facteur d'échelle de l'interface). Une ligne ajoutée à un onglet agrandit le panneau d'elle-même.
+    /// </summary>
+    void FitHeight()
+    {
+        float others = panel.Size.Y - holder.Size.Y;   // titre, onglets, description, boutons et marges du panneau
+        float room = GetViewportRect().Size.Y - 2f * TopMargin - others;
+        float want = Mathf.Max(120f, Mathf.Min(margin.GetCombinedMinimumSize().Y, room));
+        if (Mathf.Abs(holder.CustomMinimumSize.Y - want) < 0.5f) return;
+        holder.CustomMinimumSize = new Vector2(holder.CustomMinimumSize.X, want);
+        panel.ResetSize();   // le panneau rétrécit aussi (un conteneur ne fait que grandir de lui-même)
+    }
+
     void Close()
     {
         GameSettings.Save();
@@ -164,6 +180,7 @@ public partial class OptionsMenu : Control
     /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
     public override void _Process(double delta)
     {
+        FitHeight();
         var bar = scroll.GetVScrollBar();
         moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
         PanelContainer? want = null;
