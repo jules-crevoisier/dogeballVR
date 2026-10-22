@@ -47,7 +47,7 @@ public partial class Tutorial : CanvasLayer
         steps.Add(new("DASH", () => $"{K("dash")} : un dash rapide, invulnérable. Tu as deux charges : enchaîne-en deux.", p => p.Dashes - start["dashes"] >= 2));
         steps.Add(new("RAMASSE UNE BALLE", () => "Cours sur une balle jaune (ou sur le plot de ton camp) pour la prendre.", p => p.HeldBall != null));
         steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger (la jauge se remplit), relâche pour lancer.", p => p.ChargedThrows > start["charged"]));
-        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un bleu (le viseur devient rouge) et lance avec {K("fire")}. L'aide à la visée corrige les presque-touches.", _ => hitsByMe > 0));
+        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un bleu (le viseur prend sa couleur) et lance avec {K("fire")}. L'aide à la visée corrige les presque-touches.", _ => hitsByMe > 0));
         steps.Add(new("ATTRAPE UN TIR", () => $"Quand un bleu te vise (alerte rouge), appuie sur {K("catch")} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", p => p.Catches > start["catches"]));
         steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main, {K("pass")} l'envoie à ton coéquipier orange : une passe charge la balle.", p => p.Passes > start["passes"]));
         steps.Add(new("FEINTE", () => $"Balle en main, {K("feint")} fait mine de lancer : l'adversaire attrape dans le vide.", p => p.Feints > start["feints"]));
