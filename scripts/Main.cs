@@ -111,6 +111,7 @@ public partial class Main : Node3D
         GetTree().Paused = false;
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
+        AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");

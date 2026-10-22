@@ -47,7 +47,7 @@ public static class GameSettings
         if (loaded) return;
         loaded = true;
         var cfg = new ConfigFile();
-        if (cfg.Load(Path) != Error.Ok) { Quality = DefaultQuality; return; }   // premier lancement : qualité selon la carte graphique
+        if (cfg.Load(Path) != Error.Ok) { Quality = DefaultQuality; UiScale = DefaultUiScale; return; }   // premier lancement : selon la machine
         Sensitivity = Mathf.Clamp(F(cfg, "pc", "sensitivity", Sensitivity), 0.0005f, 0.01f);
         InvertY = B(cfg, "controls", "invert_y", InvertY);
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
@@ -140,10 +140,26 @@ public static class GameSettings
         get
         {
             if (DisplayServer.GetName() == "headless") return 2;
+            if (OnSteamDeck) return 0;
             string gpu = (RenderingServer.GetVideoAdapterName() + " " + RenderingServer.GetVideoAdapterVendor()).ToLowerInvariant();
             bool integrated = gpu.Contains("intel") || gpu.Contains("uhd") || gpu.Contains("iris") || gpu.Contains("vega") || gpu.Contains("radeon(tm) graphics")
                 || gpu.Contains("radeon graphics") || gpu.Contains("van gogh") || gpu.Contains("llvmpipe") || gpu.Contains("swiftshader");
             return integrated ? 1 : 2;
+        }
+    }
+
+    /// <summary>Steam Deck : Steam y définit SteamDeck=1 ; sa puce graphique s'appelle « Van Gogh ».</summary>
+    public static bool OnSteamDeck =>
+        OS.GetEnvironment("SteamDeck") == "1" || RenderingServer.GetVideoAdapterName().ToLowerInvariant().Contains("van gogh");
+
+    /// <summary>Taille de l'interface au premier lancement : « Très grande » sur un petit écran (Steam Deck, 1280×800), sinon normale.</summary>
+    public static float DefaultUiScale
+    {
+        get
+        {
+            if (DisplayServer.GetName() == "headless") return 1f;
+            var screen = DisplayServer.ScreenGetSize();
+            return OnSteamDeck || screen.Y > 0 && screen.Y <= 800 ? 1.3f : 1f;
         }
     }
 
