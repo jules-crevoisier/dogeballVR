@@ -12,11 +12,12 @@ public static class GameSettings
 {
     const string Path = "user://settings.cfg";
     public const float DefaultSensitivity = 0.0022f;
+    public const float DefaultFov = 90f;   // 100° étirait trop les bords (balle en ovale géant près de l'objectif) ; le curseur va toujours de 80 à 120°
 
     // Contrôles
     public static float Sensitivity = DefaultSensitivity;   // radians par pixel de souris
     public static bool InvertY;
-    public static float Fov = 100f;                          // champ horizontal (degrés)
+    public static float Fov = DefaultFov;                    // champ horizontal (degrés)
     public static float AimAssist = 1f;                      // 0 = aucune aide, 1 = aide normale
     public static bool ToggleCrouch;
     // Confort
