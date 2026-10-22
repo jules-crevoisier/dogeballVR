@@ -1824,6 +1824,8 @@ public partial class DesktopHud : CanvasLayer
         heartsHolder.Visible = bottomHolder.Visible = feed.Visible = !matchOver;
         helpLayer.Visible = !paused && !matchOver;
         if (matchOver) { koBanner.Visible = false; table.Visible = false; vignette.Strength = 0f; heartBreak.T = -1f; }
+        // Intermission : les boutons d'action et le viseur passeraient sur le panneau ; rien à viser pendant la pause.
+        if (interVisible) bottomHolder.Visible = crosshair.Visible = false;
         root.Visible = !EndScreen.IsOpen;
         prev = s;
     }
