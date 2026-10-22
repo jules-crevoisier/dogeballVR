@@ -4,13 +4,15 @@ using Godot;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Réglages du joueur PC, enregistrés dans user://settings.cfg (sections [pc], [controls], [audio], [video]).
+/// Réglages du joueur PC, enregistrés dans user://settings.cfg (sections [pc], [controls], [audio], [game], [accessibility],
+/// recopié par Steam Cloud) et user://machine.cfg (vidéo et taille de l'interface, propres à l'ordinateur).
 /// Le fichier est relu puis réécrit à chaque sauvegarde : les sections des autres modules (réseau, Steam) sont conservées.
 /// <see cref="Apply"/> pousse les valeurs vers le moteur (volumes des bus, fenêtre, ombres…) ; le joueur relit les siennes à chaque image.
 /// </summary>
 public static class GameSettings
 {
     const string Path = "user://settings.cfg";
+    const string MachinePath = "user://machine.cfg";   // réglages propres à cet ordinateur, hors Steam Cloud
     public const float DefaultSensitivity = 0.0022f;
 
     // Contrôles
@@ -49,7 +51,20 @@ public static class GameSettings
         if (loaded) return;
         loaded = true;
         var cfg = new ConfigFile();
-        if (cfg.Load(Path) != Error.Ok) { Quality = DefaultQuality; UiScale = DefaultUiScale; return; }   // premier lancement : selon la machine
+        bool hasSettings = cfg.Load(Path) == Error.Ok;
+        // Réglages propres à la machine (vidéo, taille de l'interface) : machine.cfg, jamais synchronisé par Steam Cloud
+        // (un Deck ne doit pas recevoir la qualité haute du PC). Sans lui : ceux des anciennes versions dans settings.cfg,
+        // sinon selon la machine.
+        var machine = new ConfigFile();
+        if (machine.Load(MachinePath) != Error.Ok) { machine = cfg; Quality = DefaultQuality; UiScale = DefaultUiScale; }
+        ShowFps = B(machine, "video", "show_fps", ShowFps);
+        UiScale = Mathf.Clamp(F(machine, "accessibility", "ui_scale", UiScale), 0.85f, 1.4f);
+        Fullscreen = B(machine, "video", "fullscreen", Fullscreen);
+        VSync = B(machine, "video", "vsync", VSync);
+        MaxFps = (int)F(machine, "video", "max_fps", MaxFps);
+        Quality = Mathf.Clamp((int)F(machine, "video", "quality", Quality), 0, 2);
+        RenderScale = Mathf.Clamp(F(machine, "video", "render_scale", RenderScale), 0.5f, 1f);
+        if (!hasSettings) return;   // premier lancement
         Sensitivity = Mathf.Clamp(F(cfg, "pc", "sensitivity", Sensitivity), 0.0005f, 0.01f);
         InvertY = B(cfg, "controls", "invert_y", InvertY);
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
@@ -59,19 +74,12 @@ public static class GameSettings
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
-        ShowFps = B(cfg, "video", "show_fps", ShowFps);
-        UiScale = Mathf.Clamp(F(cfg, "accessibility", "ui_scale", UiScale), 0.85f, 1.4f);
         ReduceFlashes = B(cfg, "accessibility", "reduce_flashes", ReduceFlashes);
         TeamSymbols = B(cfg, "accessibility", "team_symbols", TeamSymbols);
         MasterVolume = Mathf.Clamp(F(cfg, "audio", "master", MasterVolume), 0f, 1f);
         MusicVolume = Mathf.Clamp(F(cfg, "audio", "music", MusicVolume), 0f, 1f);
         SfxVolume = Mathf.Clamp(F(cfg, "audio", "sfx", SfxVolume), 0f, 1f);
         UiVolume = Mathf.Clamp(F(cfg, "audio", "ui", UiVolume), 0f, 1f);
-        Fullscreen = B(cfg, "video", "fullscreen", Fullscreen);
-        VSync = B(cfg, "video", "vsync", VSync);
-        MaxFps = (int)F(cfg, "video", "max_fps", MaxFps);
-        Quality = Mathf.Clamp((int)F(cfg, "video", "quality", Quality), 0, 2);
-        RenderScale = Mathf.Clamp(F(cfg, "video", "render_scale", RenderScale), 0.5f, 1f);
         TutorialDone = B(cfg, "pc", "tutorial_done", TutorialDone);
         InputSetup.LoadBindings(cfg);
     }
@@ -93,18 +101,24 @@ public static class GameSettings
         cfg.SetValue("audio", "music", MusicVolume);
         cfg.SetValue("audio", "sfx", SfxVolume);
         cfg.SetValue("audio", "ui", UiVolume);
-        cfg.SetValue("video", "fullscreen", Fullscreen);
-        cfg.SetValue("video", "vsync", VSync);
         cfg.SetValue("game", "bot_level", BotLevel);
-        cfg.SetValue("video", "max_fps", MaxFps);
-        cfg.SetValue("video", "quality", Quality);
-        cfg.SetValue("video", "render_scale", RenderScale);
-        cfg.SetValue("video", "show_fps", ShowFps);
-        cfg.SetValue("accessibility", "ui_scale", UiScale);
         cfg.SetValue("accessibility", "reduce_flashes", ReduceFlashes);
         cfg.SetValue("accessibility", "team_symbols", TeamSymbols);
         InputSetup.SaveBindings(cfg);
+        // Vidéo et taille de l'interface : dans machine.cfg (retirées de settings.cfg, que Steam Cloud recopie d'un PC à l'autre).
+        if (cfg.HasSection("video")) cfg.EraseSection("video");
+        if (cfg.HasSectionKey("accessibility", "ui_scale")) cfg.EraseSectionKey("accessibility", "ui_scale");
         cfg.Save(Path);
+
+        var machine = new ConfigFile();
+        machine.SetValue("video", "fullscreen", Fullscreen);
+        machine.SetValue("video", "vsync", VSync);
+        machine.SetValue("video", "max_fps", MaxFps);
+        machine.SetValue("video", "quality", Quality);
+        machine.SetValue("video", "render_scale", RenderScale);
+        machine.SetValue("video", "show_fps", ShowFps);
+        machine.SetValue("accessibility", "ui_scale", UiScale);
+        machine.Save(MachinePath);
     }
 
     /// <summary>Applique au moteur : bus audio, fenêtre, synchronisation verticale, qualité, échelle de rendu.</summary>

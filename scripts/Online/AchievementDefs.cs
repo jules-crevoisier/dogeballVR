@@ -19,6 +19,9 @@ public static class AchievementDefs
     public const string StatCatches = "STAT_CATCHES";
     public const string StatTackles = "STAT_TACKLES";
     public const string StatMatches = "STAT_MATCHES";
+    public const string StatPerfects = "STAT_PERFECT_CATCHES";
+    public const string StatPasses = "STAT_PASSES";
+    public const string StatXp = "STAT_XP";
 
     public const string FirstWin = "ACH_FIRST_WIN";
     public const string Ko10 = "ACH_KO_10";
@@ -32,6 +35,17 @@ public static class AchievementDefs
     public const string Flawless = "ACH_FLAWLESS";
     public const string OnlineFriend = "ACH_ONLINE_FRIEND";
     public const string VrPlayer = "ACH_VR_PLAYER";
+    public const string Wins10 = "ACH_WINS_10";
+    public const string Wins50 = "ACH_WINS_50";
+    public const string Matches25 = "ACH_MATCHES_25";
+    public const string Perfect25 = "ACH_PERFECT_25";
+    public const string Pass50 = "ACH_PASS_50";
+    public const string HatTrick = "ACH_HAT_TRICK";
+    public const string Wall = "ACH_WALL";
+    public const string Mvp = "ACH_MVP";
+    public const string HardBots = "ACH_HARD_BOTS";
+    public const string Level10 = "ACH_LEVEL_10";
+    public const string Level25 = "ACH_LEVEL_25";
 
     public static readonly IReadOnlyList<StatDef> Stats = new StatDef[]
     {
@@ -40,6 +54,9 @@ public static class AchievementDefs
         new(StatCatches, "Attrapes", "Catches"),
         new(StatTackles, "Tacles", "Tackles"),
         new(StatMatches, "Matchs joués", "Matches played"),
+        new(StatPerfects, "Arrêts parfaits", "Perfect catches"),
+        new(StatPasses, "Passes", "Passes"),
+        new(StatXp, "XP totale", "Total XP"),
     };
 
     public static readonly IReadOnlyList<AchievementDef> All = new AchievementDef[]
@@ -56,6 +73,17 @@ public static class AchievementDefs
         new(Flawless, "Sans bavure", "Flawless", "Remporter un match sans perdre une manche.", "Win a match without losing a round."),
         new(OnlineFriend, "Entre potes", "Squad Up", "Jouer un match en ligne avec un ami Steam.", "Play an online match with a Steam friend."),
         new(VrPlayer, "Immersion totale", "Full Immersion", "Jouer une partie en réalité virtuelle.", "Play a match in virtual reality."),
+        new(Wins10, "Habitué du podium", "Podium Regular", "Remporter 10 matchs.", "Win 10 matches.", StatWins, 10),
+        new(Wins50, "Patron du quartier", "Block Boss", "Remporter 50 matchs.", "Win 50 matches.", StatWins, 50),
+        new(Matches25, "Pilier du terrain", "Court Regular", "Jouer 25 matchs.", "Play 25 matches.", StatMatches, 25),
+        new(Perfect25, "Réflexes d'acier", "Steel Reflexes", "Réussir 25 arrêts parfaits.", "Land 25 perfect catches.", StatPerfects, 25),
+        new(Pass50, "Chef d'orchestre", "Playmaker", "Faire 50 passes à ses coéquipiers.", "Make 50 passes to teammates.", StatPasses, 50),
+        new(HatTrick, "Coup du chapeau", "Hat Trick", "Mettre 3 adversaires KO dans un même match.", "Knock out 3 opponents in a single match."),
+        new(Wall, "Mur infranchissable", "The Wall", "Attraper 5 tirs adverses dans un même match.", "Catch 5 enemy throws in a single match."),
+        new(Mvp, "Joueur du match", "Match MVP", "Finir un match avec l'étoile de meilleur joueur.", "Finish a match as the MVP."),
+        new(HardBots, "Plus fort que la machine", "Machine Breaker", "Gagner un match contre des bots difficiles.", "Win a match against hard bots."),
+        new(Level10, "Montée en grade", "Moving Up", "Atteindre le niveau 10.", "Reach level 10."),
+        new(Level25, "Vétéran", "Veteran", "Atteindre le niveau 25.", "Reach level 25."),
     };
 
     public static AchievementDef? Find(string id)

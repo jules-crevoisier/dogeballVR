@@ -94,7 +94,10 @@ public partial class MainMenu : CanvasLayer
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
         ShowMain();
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
     }
+
+    void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); } });
 
     public override void _Process(double delta)
     {
@@ -125,6 +128,7 @@ public partial class MainMenu : CanvasLayer
             UiKit.Button("JOUER", UiKit.Orange, PlayBots, 38, new Vector2(460, 84)),
             UiKit.Button("ENTRAÎNEMENT", UiKit.Blue, () => Leave(() => TutorialChosen?.Invoke())),
             UiKit.Button("EN LIGNE", UiKit.Blue, ShowOnline),
+            UiKit.Button("PROFIL", UiKit.Blue, ShowProfile),
             UiKit.Button("OPTIONS", UiKit.Blue, () => OpenOverlay(new OptionsMenu())),
             UiKit.TextButton("CRÉDITS", ShowCredits),
             UiKit.TextButton("QUITTER", () => GetTree().Quit()));
