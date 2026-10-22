@@ -14,6 +14,9 @@ public static class KcShaders
 
     static Shader? toon, pbr, outline;
 
+    /// <summary>Lâche les shaders en cache à la sortie : une ressource Godot gardée dans un champ static C# fait planter la fermeture.</summary>
+    public static void ClearCache() => toon = pbr = outline = null;
+
     public static void ParseLook()
     {
         foreach (var a in OS.GetCmdlineUserArgs())

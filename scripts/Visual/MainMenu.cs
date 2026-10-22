@@ -34,7 +34,11 @@ public partial class MainMenu : CanvasLayer
     {
         AddChild(BuildStage());
         // voile sombre à gauche pour la lisibilité des boutons, la scène 3D reste à droite
-        var shade = new ColorRect { Color = new Color(0.06f, 0.09f, 0.19f, 0.35f), AnchorRight = 0.5f, AnchorBottom = 1f };
+        var fade = new Gradient();
+        fade.SetColor(0, new Color(0.06f, 0.09f, 0.19f, 0.75f));
+        fade.SetColor(1, new Color(0.06f, 0.09f, 0.19f, 0f));
+        var shade = new TextureRect { Texture = new GradientTexture2D { Gradient = fade, Width = 256, Height = 4 }, StretchMode = TextureRect.StretchModeEnum.Scale,
+            AnchorRight = 0.55f, AnchorBottom = 1f, MouseFilter = Control.MouseFilterEnum.Ignore };
         AddChild(shade);
 
         var center = new CenterContainer { AnchorRight = 0.5f, AnchorBottom = 1f };
@@ -44,7 +48,9 @@ public partial class MainMenu : CanvasLayer
         center.AddChild(col);
 
         var title = new Label { Text = "DOGEBALL", HorizontalAlignment = HorizontalAlignment.Center };
-        title.AddThemeFontSizeOverride("font_size", 110);
+        title.AddThemeFontSizeOverride("font_size", 130);
+        title.PivotOffset = new Vector2(240, 70);
+        title.Rotation = Mathf.DegToRad(-4);
         title.AddThemeColorOverride("font_color", new Color("FF6A1A"));
         title.AddThemeColorOverride("font_outline_color", new Color("101830"));
         title.AddThemeConstantOverride("outline_size", 22);
@@ -61,6 +67,8 @@ public partial class MainMenu : CanvasLayer
         address.AddThemeFontSizeOverride("font_size", 24);
 
         var play = MakeButton("JOUER CONTRE LES BOTS", new Color("FF6A1A"), () => Chosen?.Invoke(NetMode.Offline, ""));
+        play.CustomMinimumSize = new Vector2(480, 88);
+        play.AddThemeFontSizeOverride("font_size", 36);
         col.AddChild(play);
         col.AddChild(MakeButton("HÉBERGER UNE PARTIE", new Color("3A7BD5"), () => Chosen?.Invoke(NetMode.Host, "")));
         col.AddChild(address);
@@ -97,12 +105,15 @@ public partial class MainMenu : CanvasLayer
             }
         }
         // les modèles regardent vers -Z : demi-tour pour faire face à la caméra
-        Hero("avatar_orange_rig", new Vector3(0.55f, 0, 3.0f), 180 + 18, "Celebration");
-        Hero("avatar_bleu_rig", new Vector3(-0.55f, 0, 3.4f), 180 - 12, "Repos");
-        var cam = new Camera3D { Fov = 42, Current = true };
+        Hero("avatar_bleu_rig", new Vector3(-0.4f, 0, 3.0f), 180 + 20, "Repos");
+        Hero("avatar_orange_rig", new Vector3(0.7f, 0, 3.3f), 180 - 25, "Celebration");
+        // contre-jours aux couleurs d'équipe derrière chaque perso
+        stage.AddChild(new OmniLight3D { Position = new Vector3(1.3f, 2.0f, 2.2f), LightColor = new Color("FF7A2A"), LightEnergy = 0.9f, OmniRange = 3f });
+        stage.AddChild(new OmniLight3D { Position = new Vector3(-1.0f, 2.0f, 2.2f), LightColor = new Color("6FD8FF"), LightEnergy = 0.9f, OmniRange = 3f });
+        var cam = new Camera3D { Fov = 30, Current = true };
         stage.AddChild(cam);
-        cam.Position = new Vector3(-1.6f, 1.3f, 7.4f);
-        cam.LookAtFromPosition(cam.Position, new Vector3(-1.45f, 1.05f, 3.1f));   // persos dans le tiers droit, boutons à gauche
+        cam.Position = new Vector3(-1.0f, 0.95f, 7.6f);
+        cam.LookAtFromPosition(cam.Position, new Vector3(-0.95f, 1.15f, 3.2f));   // légère contre-plongée, persos dans la moitié droite
         return stage;
     }
 }

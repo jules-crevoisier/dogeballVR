@@ -15,6 +15,9 @@ public static class Sfx
     const int Rate = 22050;
     static readonly Dictionary<SfxKind, AudioStreamWav> cache = new();
 
+    /// <summary>Lâche les sons en cache à la sortie (une ressource gardée en static fait planter la fermeture).</summary>
+    public static void ClearCache() => cache.Clear();
+
     // fréquence de départ, d'arrivée (Hz), durée (s), volume, forme : 0 sinus, 1 carré doux, 2 bruit filtré
     static readonly Dictionary<SfxKind, (float f0, float f1, float dur, float gain, int wave)> Defs = new()
     {

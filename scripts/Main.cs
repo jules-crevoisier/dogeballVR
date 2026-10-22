@@ -38,6 +38,14 @@ public partial class Main : Node3D
     readonly List<int> targetTeams = new();
     readonly Dictionary<int, int> targetIndexOfZone = new();
 
+    public override void _ExitTree()
+    {
+        // ressources gardées dans des champs static : à lâcher avant l'arrêt du runtime C# (sinon « Leaked unsafe reference » puis plantage)
+        Visual.KcShaders.ClearCache();
+        Visual.Materials.ClearCache();
+        Audio.Sfx.ClearCache();
+    }
+
     public override void _Ready()
     {
         Visual.KcShaders.ParseLook();

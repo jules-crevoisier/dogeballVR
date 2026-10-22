@@ -20,7 +20,7 @@ J = {
     "epaule": (-0.2, -0.01, 1.385), "coude": (-0.39, 0.0, 1.19), "poignet": (-0.54, 0.03, 1.02), "main": (-0.59, 0.05, 0.9),
     "hanche": (-0.095, 0, 0.9), "genou": (-0.108, 0.018, 0.5), "mollet": (-0.112, -0.008, 0.3), "cheville": (-0.115, -0.005, 0.13),
 }
-HEAD_R = (0.11, 0.122, 0.138)   # demi-axes de la tête : 0,27 m de haut
+HEAD_R = (0.118, 0.13, 0.146)   # demi-axes de la tête : 0,27 m de haut
 
 
 def _c(h, rough):
@@ -77,38 +77,41 @@ def build_head(skin_hex, scalp_fn):
         k = 0.0
         for s in (-1, 1):
             k = max(k, math.exp(-((d.x - s * 0.062) ** 2 + (d.z + 0.03) ** 2) * 900) * (d.y > 0.05))
-        r, g, b = (skin[i] * (1 - 0.35 * k) + blush[i] * 0.35 * k for i in range(3))
+        w = 0.35 * k * min(1.0, sum(skin[:3]) / 1.2)   # joues discrètes sur peau foncée
+        r, g, b = (skin[i] * (1 - w) + blush[i] * w for i in range(3))
         return (r, g, b, 1.0, 0.55)
     paint(o, col, ao_rays=12, ao_dist=0.08, ao_strength=0.35)
     return o
 
 
-def face(team_iris, skin_hex, brow_hex):
+def face(team_iris, skin_hex, brow_hex, mood="moue"):
+    """mood : moue (Riko), mi-clos (Nova), sérieux (Bo), sourire (Kai)."""
     p = []
     ink = _c("#141522", 0.3)
     for s in (-1, 1):
-        ex = s * 0.43
-        c = head_point(ex, 0.06, -0.012)
-        eye = sphere(0.028, c, None, f"H_Oeil{s}", sub=3, scale=(1.05, 0.55, 0.9))
+        ex = s * 0.4
+        c = head_point(ex, 0.02, -0.012)
+        eye = sphere(0.034, c, None, f"H_Oeil{s}", sub=3, scale=(1.05, 0.55, 0.9))
         _paint_flat(eye, _c("#F7F7F2", 0.2), ao=0)
         p.append(eye)
         cv = Vector(c)
-        iris = sphere(0.0175, tuple(cv + Vector((-s * 0.004, 0.0125, -0.002))), None, f"H_Iris{s}", sub=3, scale=(1.0, 0.45, 1.05))
+        iris = sphere(0.022, tuple(cv + Vector((-s * 0.004, 0.0152, -0.002))), None, f"H_Iris{s}", sub=3, scale=(1.0, 0.45, 1.05))
         _paint_flat(iris, _c(team_iris, 0.2), ao=0)
         p.append(iris)
-        pup = sphere(0.0085, tuple(cv + Vector((-s * 0.004, 0.0165, -0.002))), None, f"H_Pupille{s}", sub=2, scale=(1.0, 0.45, 1.05))
+        pup = sphere(0.0105, tuple(cv + Vector((-s * 0.004, 0.0198, -0.002))), None, f"H_Pupille{s}", sub=2, scale=(1.0, 0.45, 1.05))
         _paint_flat(pup, ink, ao=0)
         p.append(pup)
-        hl = sphere(0.004, tuple(cv + Vector((s * 0.002, 0.019, 0.006))), None, f"H_Reflet{s}", sub=1)
+        hl = sphere(0.0065, tuple(cv + Vector((s * 0.002, 0.0225, 0.008))), None, f"H_Reflet{s}", sub=1)
         _paint_flat(hl, _c("#FFFFFF", 0.1), ao=0)
         p.append(hl)
         # paupière supérieure (regard assuré) et sourcil épais en biais
-        lid = sphere(0.031, tuple(cv + Vector((0, 0.0, 0.019))), None, f"H_Paupiere{s}", sub=2, scale=(1.08, 0.6, 0.45))
+        lid = sphere(0.037, tuple(cv + Vector((0, 0.0, 0.031 if mood == "mi-clos" else 0.026))), None, f"H_Paupiere{s}", sub=2, scale=(1.08, 0.6, 0.45))
         _paint_flat(lid, _c(skin_hex, 0.55), ao=0)
         p.append(lid)
-        brow = box((0.06, 0.016, 0.017), head_point(ex + s * 0.03, 0.33, 0.004), None, f"H_Sourcil{s}", 0.007,
+        bw, bh = ((0.075, 0.022) if mood == "sérieux" else (0.06, 0.017))
+        brow = box((bw, 0.016, bh), head_point(ex + s * 0.03, 0.27, 0.004), None, f"H_Sourcil{s}", 0.007,
                    rot=(math.radians(-12), 0, 0))
-        brow.rotation_euler = (math.radians(-12), math.radians(s * 14), math.radians(-s * 9))
+        brow.rotation_euler = (math.radians(-12), 0 if mood == "sérieux" else math.radians(s * 14), math.radians(-s * 9))
         _paint_flat(brow, _c(brow_hex, 0.7), ao=0)
         p.append(brow)
         ear = sphere(0.028, (s * (HEAD_R[0] * 0.96), J["tete"][1] - 0.01, J["tete"][2] - 0.005), None, f"H_Oreille{s}", sub=2,
@@ -119,12 +122,13 @@ def face(team_iris, skin_hex, brow_hex):
     _paint_flat(nose, _c(skin_hex, 0.55), ao=0)
     p.append(nose)
     # bouche : arc de sourire en coin (bas d'un tore, 120°)
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.03, minor_radius=0.006, major_segments=36, minor_segments=6)
+    arc = {"sourire": (0.034, 0.008, 20, 160), "sérieux": (0.045, 0.008, 70, 110)}.get(mood, (0.03, 0.009, 30, 150))
+    bpy.ops.mesh.primitive_torus_add(major_radius=arc[0], minor_radius=arc[1], major_segments=36, minor_segments=6)
     mouth = bpy.context.active_object
     bm = bmesh.new()
     bm.from_mesh(mouth.data)
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if math.atan2(v.co.y, v.co.x) > -math.radians(30) or
-                               math.atan2(v.co.y, v.co.x) < -math.radians(150)], context="VERTS")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if math.atan2(v.co.y, v.co.x) > -math.radians(arc[2]) or
+                               math.atan2(v.co.y, v.co.x) < -math.radians(arc[3])], context="VERTS")
     bm.to_mesh(mouth.data)
     bm.free()
     for v in mouth.data.vertices:   # plan du tore -> face avant, posé sur le visage
@@ -154,7 +158,7 @@ def mitt(s, glove_hex, accent_hex):
     glove, acc = _c(glove_hex, 0.55), _c(accent_hex, 0.5)
     paint(g, lambda co, n: acc if co.z > -0.03 else glove, ao_rays=12, ao_dist=0.04, ao_strength=0.45)
     g.rotation_euler = (0, math.radians(-s * 40), 0)
-    g.scale = (1.3, 1.3, 1.3)
+    g.scale = (1.55, 1.55, 1.55)
     g.location = (abs(J["poignet"][0]) * s, J["poignet"][1], J["poignet"][2])
     return g
 
@@ -263,8 +267,8 @@ def headwear(orange, jacket, jacket_d, rib, glow):
     hx, hy, hz = J["tete"]
     p = []
     if orange:   # casquette à l'envers : calotte, visière derrière, bouton
-        cap = _shell("H_Casquette", 1.09, 0.025)
-        paint(cap, lambda co, n: _c(jacket, 0.7) if co.y > hy - 0.02 else _c(jacket_d, 0.7), ao_rays=8, ao_dist=0.05)
+        cap = _shell("H_Casquette", 1.09, 0.065)
+        paint(cap, lambda co, n: _c(rib, 0.7) if co.y > hy - 0.02 else _c(jacket, 0.7), ao_rays=8, ao_dist=0.05)
         p.append(cap)
         brim = box((0.15, 0.11, 0.014), (hx, hy - 0.16, hz + 0.035), None, "H_Visiere", 0.006, rot=(math.radians(-14), 0, 0))
         _paint_flat(brim, _c(rib, 0.6), ao=0)
@@ -273,15 +277,15 @@ def headwear(orange, jacket, jacket_d, rib, glow):
         _paint_flat(knob, _c(rib, 0.6), ao=0)
         p.append(knob)
     else:        # bonnet côtelé à revers et pompon
-        hat = _shell("H_Bonnet", 1.1, 0.045)
+        hat = _shell("H_Bonnet", 1.1, 0.075)
         paint(hat, lambda co, n: _c(jacket, 0.9) if int((math.atan2(co.y - hy, co.x - hx) + math.pi) * 14) % 2 else _c(jacket_d, 0.9),
               ao_rays=8, ao_dist=0.05)
         p.append(hat)
-        fold = torus(HEAD_R[0] * 1.02, 0.02, (hx, hy, hz + 0.055), None, "H_Revers", seg=30, rseg=6)
+        fold = torus(HEAD_R[0] * 1.02, 0.02, (hx, hy, hz + 0.085), None, "H_Revers", seg=30, rseg=6)
         fold.scale = (1.0, HEAD_R[1] / HEAD_R[0], 1.0)
         _paint_flat(fold, _c(rib, 0.9), ao=0)
         p.append(fold)
-        pom = sphere(0.045, (hx, hy - 0.01, hz + HEAD_R[2] * 1.1 + 0.03), None, "H_Pompon", sub=2)
+        pom = sphere(0.055, (hx, hy - 0.01, hz + HEAD_R[2] * 1.1 + 0.03), None, "H_Pompon", sub=2)
         _paint_flat(pom, _c("#F2F4F8", 0.95), ao=6, dist=0.03)
         p.append(pom)
     return p
@@ -290,22 +294,22 @@ def headwear(orange, jacket, jacket_d, rib, glow):
 def hero(team, variant=0):
     """variant 0 : Riko / Nova ; variant 1 : Bo (orange, gabarit costaud, casquette à l'envers) / Kai (bleu, gabarit fin, bonnet)."""
     orange = team == "orange"
-    glow = mat("neon_" + team, "#FFB347" if orange else "#8FE3FF", 2.5)
+    glow = mat("neon_" + team, "#FFB347" if orange else "#8FE3FF", 1.2)
     p = []
     if orange:   # « Riko » : bomber orange gonflé, jogging sombre à bande, banane noire, bandeau
         r = {"bassin": (0.165, 0.13), "taille": (0.15, 0.125), "buste": (0.235, 0.165), "col": (0.145, 0.11), "basecou": (0.068, 0.066),
              "cou": (0.052, 0.052), "epaule": (0.098, 0.098), "coude": (0.08, 0.08), "avantbras": (0.078, 0.078), "poignet": (0.056, 0.056),
              "hanche": (0.105, 0.105), "cuisse": (0.115, 0.12), "genou": (0.082, 0.088), "mollet": (0.09, 0.095), "cheville": (0.05, 0.05)}
-        jacket, jacket_d, rib, pants, stripe, skin = "#F2560C", "#C8440A", "#23263A", "#2A2840", "#F2F4F8", "#C98B62"
+        jacket, jacket_d, rib, pants, stripe, skin = "#F2560C", "#A8360A", "#23263A", "#2A2840", "#F2F4F8", "#C4977C"
     else:        # « Nova » : hoodie oversize bleu, cargo gris, boucles argentées et gros casque audio
         r = {"bassin": (0.18, 0.14), "taille": (0.2, 0.16), "buste": (0.255, 0.185), "col": (0.15, 0.115), "basecou": (0.07, 0.068),
              "cou": (0.052, 0.052), "epaule": (0.115, 0.115), "coude": (0.1, 0.1), "avantbras": (0.095, 0.095), "poignet": (0.075, 0.075),
              "hanche": (0.11, 0.11), "cuisse": (0.12, 0.125), "genou": (0.088, 0.092), "mollet": (0.088, 0.092), "cheville": (0.05, 0.05)}
-        jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#1E3A78", "#8FE3FF", "#F2C6A0"
+        jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#1E3A78", "#8FE3FF", "#8E6450"
     if variant:
-        k = 1.14 if orange else 0.9
+        k = 1.18 if orange else 0.88
         r = {n: (a * k, b * k) if n not in ("cou", "basecou", "cheville") else (a, b) for n, (a, b) in r.items()}
-        skin = "#8D5A3B" if orange else "#E8B48F"
+        skin = "#6B3F27" if orange else "#F3D2B3"
     body = body_mesh(r)
     jc, jd, rb, pc, sc, sk = (_c(jacket, 0.62 if orange else 0.85), _c(jacket_d, 0.62 if orange else 0.85), _c(rib, 0.9),
                               _c(pants, 0.85), _c(stripe, 0.7), _c(skin, 0.55))
@@ -315,12 +319,14 @@ def hero(team, variant=0):
         if co.z > 1.47:
             return sk                                        # cou
         if co.z < 0.99 and ax < 0.25:                         # pantalon, bande sur le côté extérieur
-            side = (co.x < 0 and n.x < -0.8) or (co.x > 0 and n.x > 0.8)
+            side = (co.x < 0 and n.x < -0.6) or (co.x > 0 and n.x > 0.6)
             return sc if side and co.z > 0.18 else pc
         # veste : dessous des bras et flancs un peu plus foncés, bande claire en haut de manche
         if ax > 0.22:
             arm_t = (ax - 0.22) / 0.27
             return jd if n.z < -0.3 else jc
+        if orange and co.z > 1.3 and co.y < -0.07:           # empiècement clair en haut du dos : lisible de dos
+            return sc
         return jd if (abs(n.x) > 0.85 and co.z < 1.2) else jc
     paint(body, col, ao_rays=30, ao_dist=0.22, ao_strength=0.6)
     p.append(body)
@@ -340,7 +346,7 @@ def hero(team, variant=0):
         ank = torus(0.056, 0.02, (abs(J["cheville"][0]) * s, J["cheville"][1], 0.22), None, f"Revers.{'G' if s < 0 else 'D'}", seg=18, rseg=6)
         _paint_flat(ank, rb)
         p.append(ank)
-        p.append(mitt(s, "#F2F4F8" if orange else "#8FE3FF", jacket if orange else "#2A2F45"))
+        p.append(mitt(s, "#23263A", jacket))
         p += sneaker(s, "#F2F4F8", jacket, "#E9E4D8" if orange else "#2A2F45", glow)
         # néons d'équipe en haut de manche (lisibles de loin)
         band = torus(r["epaule"][0] * 0.97, 0.022, (0.314 * s, 0.0, 1.268), glow, f"Neon.{'G' if s < 0 else 'D'}", seg=18, rseg=6,
@@ -385,7 +391,7 @@ def hero(team, variant=0):
             _paint_flat(cargo, _c("#3E4459", 0.85), ao=6, dist=0.04)
             p.append(cargo)
     # tête, visage, coiffure
-    hair_hex = "#22160F" if orange or variant else "#C9CFE0"
+    hair_hex = "#22160F" if orange or variant else "#B9C3FF"
     hair = _c(hair_hex, 0.5)
 
     def scalp(d):
@@ -401,7 +407,8 @@ def hero(team, variant=0):
                 return hair
         return None
     p.append(build_head(skin, scalp))
-    p += face("#4A2A16" if orange else "#2E6FA8", skin, hair_hex if orange or variant else "#3A4A6E")
+    mood = ("sérieux" if orange else "sourire") if variant else ("moue" if orange else "mi-clos")
+    p += face("#4A2A16" if orange else "#2E6FA8", skin, hair_hex if orange or variant else "#3A4A6E", mood)
     hx, hy, hz = J["tete"]
     if variant:
         p += headwear(orange, jacket, jacket_d, rib, glow)
@@ -421,7 +428,7 @@ def hero(team, variant=0):
         import random
         rnd = random.Random(7)
         for i in range(40):
-            if len(curls) >= 12:
+            if len(curls) >= 14:
                 break
             th = rnd.uniform(0, 2 * math.pi)
             ph = rnd.uniform(0.0, 1.15)
@@ -429,7 +436,7 @@ def hero(team, variant=0):
             if d.y > 0.55 and d.z < 0.6:
                 continue
             c = Vector(J["tete"]) + head_shape(d) * 1.02
-            curls.append(sphere(0.06 + rnd.uniform(0, 0.015), tuple(c), None, "H_c", sub=2))
+            curls.append(sphere(0.07 + rnd.uniform(0, 0.02), tuple(c), None, "H_c", sub=2))
         for o in curls:
             bpy.context.view_layer.objects.active = o
             o.select_set(True)

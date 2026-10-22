@@ -66,7 +66,7 @@ public static class ArenaBuilder
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
             // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume chaude qui repousse le fond
             AmbientLightEnergy = 0.45f,
-            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.8f, TonemapWhite = 4f,
+            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.9f, TonemapWhite = 6f,
             FogEnabled = true, FogLightColor = new Color("FFE2C4"), FogDensity = 0.006f, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
             GlowEnabled = pcProfile, GlowIntensity = 0.45f, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
@@ -75,7 +75,7 @@ public static class ArenaBuilder
         root.AddChild(new WorldEnvironment { Environment = env });
         root.AddChild(new DirectionalLight3D
         {
-            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.9f, LightColor = new Color("FFE6C2"),
+            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.5f, LightColor = new Color("FFE6C2"),
             ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 0.6f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
