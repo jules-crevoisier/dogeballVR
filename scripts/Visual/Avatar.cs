@@ -24,6 +24,7 @@ public partial class Avatar : Node3D
     float speed;
     double actionLeft;
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
+    readonly System.Collections.Generic.List<Gameplay.Ball> goneBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
@@ -291,6 +292,13 @@ public partial class Avatar : Node3D
                 }
                 seenBalls[ball] = cur;
             }
+        // Balles supprimées (manche finie, bombe explosée) : on les oublie, sinon chaque avatar les garde en mémoire avec leur traînée.
+        if (seenBalls.Count > 0 && Engine.GetProcessFrames() % 30 == 0)
+        {
+            goneBalls.Clear();
+            foreach (var b in seenBalls.Keys) if (!IsInstanceValid(b)) goneBalls.Add(b);
+            foreach (var b in goneBalls) seenBalls.Remove(b);
+        }
         if (actionLeft <= 0 && climb > 2.2f) PlayAction("Saut", 0.7);
         if (actionLeft > 0) { actionLeft -= delta; return; }
         string loop = speed > 1.0f ? "Course" : "Repos";
