@@ -17,7 +17,7 @@ public partial class MenuBackdrop : Node3D
     Avatar? hero, rival;
 
     static readonly Vector3 CamPos = new(-0.6f, 1.5f, -13.0f);
-    static readonly Vector3 LookAt = new(-2.0f, 1.3f, -5.0f);
+    static readonly Vector3 LookTarget = new(-2.0f, 1.3f, -5.0f);
 
     public override void _Ready()
     {
@@ -121,6 +121,6 @@ public partial class MenuBackdrop : Node3D
         // Caméra : lente dérive en huit, jamais immobile.
         var drift = new Vector3(Mathf.Sin((float)t * 0.11f) * 0.9f, Mathf.Sin((float)t * 0.17f) * 0.25f, Mathf.Cos((float)t * 0.09f) * 0.5f);
         camera.GlobalPosition = CamPos + drift;
-        camera.LookAt(LookAt + drift * 0.3f, Vector3.Up);
+        camera.LookAt(LookTarget + drift * 0.3f, Vector3.Up);
     }
 }
