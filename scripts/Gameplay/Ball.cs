@@ -94,6 +94,41 @@ public partial class Ball : RigidBody3D
     public bool IsPuppet { get; private set; }
     /// <summary>Client : tant que ce joueur local tient la marionnette, elle suit sa main sans attendre les snapshots (pas de retard, taille réduite).</summary>
     public Node3D? LocalHoldOverride { get; set; }
+    /// <summary>
+    /// Point de la main où l'avatar du porteur montre la balle, tant que <see cref="ShownFor"/> la tient. Marionnette (client) :
+    /// la balle y est déplacée (avatar en retard d'affichage, balle extrapolée en avance). Balle de jeu (hôte) : seuls les
+    /// visuels s'y décalent, le corps physique reste au point de tenue du jeu (point de lâcher inchangé).
+    /// </summary>
+    public Node3D? ShownAt { get; set; }
+    public int ShownFor { get; set; } = -1;
+    Vector3 shownOffset;   // balle de jeu montrée dans une main : écart monde des visuels, ramené à zéro en 80 ms au lâcher
+    readonly System.Collections.Generic.Dictionary<Node3D, Vector3> shifted = new();   // décalage appliqué à chaque visuel
+
+    /// <summary>Position où la balle se voit (centre des visuels).</summary>
+    public Vector3 ShownPosition => GlobalPosition + shownOffset;
+
+    /// <summary>Position de jeu : celle de l'hôte (marionnette : dernier état reçu, même quand elle s'affiche dans une main).</summary>
+    public Vector3 NetPosition => IsPuppet ? netTarget : GlobalPosition;
+
+    bool Shown => IsHeld && ShownFor == OwnerPlayerId && ShownAt != null && IsInstanceValid(ShownAt);
+
+    void ShiftVisuals(float dt)
+    {
+        if (!IsPuppet && Shown) shownOffset = ShownAt!.GlobalPosition - GlobalPosition;
+        else if (shownOffset != Vector3.Zero)
+            shownOffset = shownOffset.LengthSquared() < 1e-6f ? Vector3.Zero : shownOffset.Lerp(Vector3.Zero, 1f - Mathf.Exp(-40f * dt));
+        if (shownOffset == Vector3.Zero && shifted.Count == 0) return;
+        var local = shownOffset == Vector3.Zero ? Vector3.Zero : ToLocal(GlobalPosition + shownOffset);
+        foreach (var child in GetChildren())
+        {
+            if (child is not Node3D n || n is CollisionShape3D || n.TopLevel) continue;
+            shifted.TryGetValue(n, out var applied);   // visuel ajouté entre-temps (alerte, effets) : rien d'appliqué encore
+            if (applied.IsEqualApprox(local)) continue;
+            n.Position += local - applied;
+            if (local == Vector3.Zero) shifted.Remove(n); else shifted[n] = local;
+        }
+        if (local == Vector3.Zero) shifted.Clear();
+    }
     bool overridden;
     Vector3 netTarget;
 
@@ -379,6 +414,12 @@ public partial class Ball : RigidBody3D
             netTarget = GlobalPosition;
             overridden = true;
         }
+        else if (IsPuppet && Shown)
+        {
+            if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
+            GlobalPosition = ShownAt!.GlobalPosition;   // netTarget garde la position de jeu (NetPosition) : le lâcher en repart
+            Visible = true;
+        }
         else if (IsPuppet)
         {
             if (kind == KindExploded) Visible = false;
@@ -388,6 +429,7 @@ public partial class Ball : RigidBody3D
             netTarget += LinearVelocity * (float)delta;
             GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
         }
+        ShiftVisuals((float)delta);
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
         if (Charge >= 2)
@@ -398,7 +440,7 @@ public partial class Ball : RigidBody3D
         UpdateAlertAndRing();
         UpdateFlightLook((float)delta);
 
-        var p = GlobalPosition;
+        var p = ShownPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
         float h = Mathf.Clamp(1f - p.Y / 4f, 0.2f, 1f);
         shadow.Scale = new Vector3(h, 1f, h);

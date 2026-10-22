@@ -333,6 +333,13 @@ public partial class OnlineLobby : Node
     /// Hôte et clients le déduisent de la même liste de joueurs.</summary>
     public bool OnlineFormat => !members.Values.Any(m => m.Vr);
 
+    /// <summary>Le joueur de cette zone joue-t-il en casque ? null si la salle ne le connaît pas (bot, partie lancée sans salle).</summary>
+    public bool? IsVrInZone(int zone)
+    {
+        foreach (var m in members.Values) if (m.Zone == zone) return m.Vr;
+        return null;
+    }
+
     public bool CanStart => IsHost && State == LobbyState.InRoom && members.Values.All(m => m.Ready);
 
     /// <summary>Hôte : lance la partie. L'hôte recharge la scène d'abord ; les autres reçoivent leur zone quand il est prêt (<see cref="HostMatchReady"/>).</summary>

@@ -118,6 +118,7 @@ public partial class Main : Node3D
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
         if (Tools.DevFlags.Has("--assist-test")) { AddChild(new AssistSelfTest()); return; }
+        if (Tools.DevFlags.Has("--avatar-test")) { AddChild(new Visual.AvatarSelfTest { Name = "AvatarSelfTest" }); return; }
         // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
         {
@@ -534,7 +535,8 @@ public partial class Main : Node3D
     static PoseData BotPose(Bot bot, ZoneDef z)
     {
         var a = bot.Avatar!;
-        return new PoseData(a.Head.GlobalPosition, Mathf.DegToRad(z.FacingDegrees), a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
+        // lacet réel de l'avatar (il pivote vers sa cible) : chez les clients, la main armée et la balle tenue tournent ensemble
+        return new PoseData(a.Head.GlobalPosition, a.GlobalRotation.Y, a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
     }
 
     /// <summary>Un joueur distant prend la place du bot de sa zone.</summary>

@@ -239,6 +239,7 @@ public partial class DesktopPlayer : Node3D
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
             selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
+            selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
             selfAvatar.TopLevel = true;
             AddChild(selfAvatar);
         }
@@ -1451,7 +1452,7 @@ public partial class DesktopPlayer : Node3D
         {
             var pose = Pose;
             selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
-            selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
+            selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right, pose.Elevation);
         }
     }
 
