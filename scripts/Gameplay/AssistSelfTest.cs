@@ -85,7 +85,7 @@ public partial class AssistSelfTest : Node
         for (int i = 0; i < 4; i++) c = Ball.ChargeOnCatch(c, true, false, false);
         Check("Passes plafonnées", c == 1, $"palier {c} après 4 passes");
         Check("Palier haut gardé", Ball.ChargeOnCatch(2, true, false, false) == 2, "une passe ne fait pas baisser une balle déjà chargée");
-        Check("Balle volée", Ball.ChargeOnCatch(2, false, true, false) == 0 && Ball.ChargeOnCatch(2, false, true, true) == 1, "0, ou 1 sur attrape parfaite");
+        Check("Balle volée", Ball.ChargeOnCatch(2, false, true, false) == 0 && Ball.ChargeOnCatch(1, false, true, true) == 2 && Ball.ChargeOnCatch(3, false, true, true) == 3, "0, ou charge gardée +1 (max 3) sur attrape parfaite");
 
         GD.Print(ok ? "[AssistTest] TOUT OK" : "[AssistTest] ÉCHEC");
         GetTree().Quit(ok ? 0 : 1);

@@ -217,16 +217,16 @@ public partial class Ball : RigidBody3D
 
     /// <summary>
     /// Palier après une prise. Balle reçue d'un allié : palier 1 au plus, comme Knockout City (sinon deux passes donnent un KO
-    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou 1 sur attrape parfaite.
+    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite.
     /// </summary>
     public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect)
     {
         if (fromAlly) return Mathf.Max(charge, 1);
-        if (fromOpponent) return perfect ? 1 : 0;
+        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, MaxCharge) : 0;   // attrape parfaite : la balle garde sa charge, +1
         return charge;
     }
 
-    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (1 si parfaite).</summary>
+    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (gardée +1 si parfaite).</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
