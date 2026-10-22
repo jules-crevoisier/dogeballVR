@@ -10,3 +10,16 @@ obj/
 .idea/
 build/
 __pycache__/
+
+# Claude Code Game Studios (état local des sessions, réglages perso)
+.claude/settings.local.json
+CLAUDE.local.md
+project.local.yaml
+production/session-logs/
+production/session-state/*
+!production/session-state/.gitkeep
+production/.ccgs-stage-*
+.scratch/
+.claude/agent-memory/
+.claude/worktrees/
+docs/consistency-failures.md
