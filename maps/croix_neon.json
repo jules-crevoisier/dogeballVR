@@ -124,7 +124,7 @@
     "jumpPads": [],
     "terraces": [],
     "tuning": {
-      "note": "valeurs de départ à régler en playtest ; les timings exacts de Knockout City n'ont pas été trouvés",
+      "note": "valeurs de départ à régler en playtest ; les timings exacts du jeu de référence n'ont pas été trouvés",
       "runSpeed": 7.5,
       "sprint": "aucun : course constante à 7,5 m/s (Maj = dash)",
       "jumpHeight": 1.1,
@@ -265,7 +265,7 @@
     "hitCost": "une balle retire 1 cœur ; une balle de palier 2 met KO (le dépôt double les dégâts à 2 charges)",
     "friendlyFire": false,
     "heldBallMaxSeconds": 10,
-    "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
+    "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement au jeu de référence)",
     "heartRegen": "remis à 2 au respawn ; +1 cœur après 10 s sans être touché",
     "invulnerableAfterHitSeconds": 1.5,
     "heartRegenSeconds": 10,
@@ -286,7 +286,7 @@
       "koToWinRound": 6,
       "rounds": "premier à 3 manches sur 5",
       "roundNote": "manche de 2 min, fin anticipée au seuil de KO",
-      "note": "1 KO = 1 point, comme Knockout City (10 KO par manche en 3v3)"
+      "note": "1 KO = 1 point, comme le jeu de référence (10 KO par manche en 3v3)"
     },
     "diamond_dash": {
       "note": "un joueur KO lâche un diamant ; il faut le ramasser pour valider le point, l'équipe adverse peut le voler (30 points)"
@@ -301,7 +301,7 @@
     ],
     "perMatch": 1,
     "spawn": "lancée en lob par le moyeu vers la plaque (PC : la zone) de l'équipe menée, annoncée 5 s avant, toutes les 45 s",
-    "note": "une seule spéciale tirée au sort par match, comme Knockout City"
+    "note": "une seule spéciale tirée au sort par match, comme le jeu de référence"
   },
   "swapEvents": {
     "firstAtSeconds": 20,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Gameplay;
+using DogeballVR.Online.Steam;
 
 namespace DogeballVR.Net;
 
@@ -13,6 +14,8 @@ namespace DogeballVR.Net;
 public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
+    /// <summary>Version du protocole réseau : l'hôte refuse un client d'une autre version (snapshots et RPC incompatibles).</summary>
+    public const int ProtocolVersion = 2;
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
@@ -20,7 +23,7 @@ public partial class NetSession : Node
     const double CatchCooldown = 0.2; // entre un lancer et la prise suivante
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
-    const double HelloTimeout = 5.0;          // un pair sans Hello est déconnecté
+    const double HelloTimeout = 20.0;         // un pair sans Hello est déconnecté (chargement de la partie compris)
     const int PlayerFloats = 15;
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
     const float MaxSpin = 12f;
@@ -30,7 +33,11 @@ public partial class NetSession : Node
     public NetMode Mode { get; private set; } = NetMode.Offline;
     public bool IsClient => Mode == NetMode.Client;
     public bool IsHost => Mode == NetMode.Host;
-    public bool Connected => Multiplayer.MultiplayerPeer is { } p && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+    /// <summary>Expéditeur du RPC en cours ; 0 si la session quitte l'arbre (paquet arrivé pendant un rechargement de scène).</summary>
+    int Sender => IsInsideTree() ? Multiplayer.GetRemoteSenderId() : 0;
+    // Une session coupée ne parle plus : le lobby peut déjà retenter une connexion (ou poser un pair hors ligne, qui se croit « connecté »).
+    public bool Connected => !lost && Multiplayer.MultiplayerPeer is { } p and not OfflineMultiplayerPeer && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+    bool lost;
     public int ZoneId { get; set; }
     /// <summary>Lobby PC en moulinet : les joueurs circulent sur toute l'arène, dash (4 m en 0,2 s) et grand saut permis.</summary>
     public bool FreeRoam { get; set; }
@@ -48,13 +55,29 @@ public partial class NetSession : Node
     const double TerraceMaxStay = 8.0, TerraceCooldown = 7.5;   // recharge comptée depuis l'acceptation de l'hôte : le client compte 10 s depuis le lancer, ~2 s avant l'arrivée
     /// <summary>Latence simulée (s, par sens) : envois du client et snapshots reçus sont retardés. 0 = désactivée.</summary>
     public double SimulatedLag { get; set; }
+    /// <summary>Perte simulée (0 à 1) sur les envois non fiables du client et les snapshots reçus. 0 = désactivée.</summary>
+    public float SimulatedLoss { get; set; }
     readonly Queue<(double due, Action action)> delayed = new();
+    readonly RandomNumberGenerator lossRng = new();
 
-    void Later(Action action)
+    void Later(Action action, bool unreliable = false)
     {
+        if (unreliable && SimulatedLoss > 0 && lossRng.Randf() < SimulatedLoss) return;
         if (SimulatedLag <= 0) action();
         else delayed.Enqueue((Time.GetTicksMsec() / 1000.0 + SimulatedLag, action));
     }
+
+    /// <summary>Secret de reconnexion reçu de l'hôte lors d'une entrée précédente (vide la première fois), renvoyé dans le Hello.</summary>
+    public string Token { get; set; } = "";
+    /// <summary>Client : aller-retour mesuré avec l'hôte (ms, lissé), -1 tant qu'inconnu.</summary>
+    public double RttMs { get; private set; } = -1;
+    /// <summary>Client : instant (horloge locale, s) du dernier snapshot reçu ; sert à afficher « connexion instable ».</summary>
+    public double LastSnapshotAt { get; private set; }
+    /// <summary>Client : la connexion à l'hôte est perdue (hôte parti ou délai dépassé).</summary>
+    public event Action? Disconnected;
+    /// <summary>Client : l'hôte a refusé l'entrée (version, zone, partie pleine).</summary>
+    public event Action<string>? Refused;
+    double pingTimer;
 
     // Hôte : qui sont les joueurs et où ils sont (fournisseurs de pose), état de vie, texte du tableau.
     public Dictionary<int, Func<PoseData>> PoseProviders { get; } = new();
@@ -81,6 +104,11 @@ public partial class NetSession : Node
 
     public Func<int, bool> TeammateHigh { get; set; } = _ => false;
     public Func<string> HudText { get; set; } = () => "";
+    /// <summary>Hôte : statistiques de la partie à plat (voir MatchView.EncodeStats), envoyées aux clients quand elles changent.</summary>
+    public Func<int[]>? StatsData { get; set; }
+    /// <summary>Client : statistiques reçues de l'hôte.</summary>
+    public event Action<int[]>? StatsReceived;
+    int[] lastStats = Array.Empty<int>();
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
     // Client.
@@ -98,51 +126,164 @@ public partial class NetSession : Node
 
     public Error Host(int port = DefaultPort)
     {
-        var peer = new ENetMultiplayerPeer();
-        var err = peer.CreateServer(port, MaxPlayers - 1);
+        MultiplayerPeer peer;
+        Error err;
+        if (SteamMultiplayerPeer.UdpTransportRequested) err = SteamMultiplayerPeer.CreateUdpServer(port, out peer);   // --transport=udp-p2p : peer Steam sur UDP local (CI)
+        else { var enet = new ENetMultiplayerPeer(); err = enet.CreateServer(port, MaxPlayers - 1); peer = enet; }
         if (err != Error.Ok) return err;
+        NetHandshake.Install(Multiplayer);
         Multiplayer.MultiplayerPeer = peer;
-        Mode = NetMode.Host;
-        Multiplayer.PeerDisconnected += id => PeerLeft?.Invoke((int)id);
+        AdoptHost();
         GD.Print($"[Net] Hôte en écoute sur le port {port}");
         return err;
     }
 
-    public Error Join(string address, int port, int zoneId)
+    /// <summary>Hôte : la connexion est déjà ouverte par le lobby (ENet ou Steam) ; la session la reprend.</summary>
+    /// <summary>Hôte : la connexion est déjà ouverte (par la salle, <paramref name="fromLobby"/>) ou vient d'être ouverte par <see cref="Host"/>.
+    /// Hôte de salle : un joueur n'entre que dans la zone que la salle lui a réservée (ou celle de son secret).</summary>
+    public void AdoptHost(bool fromLobby = false)
     {
-        var peer = new ENetMultiplayerPeer();
-        var err = peer.CreateClient(address, port);
-        if (err != Error.Ok) return err;
-        Multiplayer.MultiplayerPeer = peer;
+        Mode = NetMode.Host;
+        LobbyMode = fromLobby;
+        Multiplayer.PeerDisconnected += OnPeerDisconnected;
+        Multiplayer.PeerConnected += OnPeerConnected;
+    }
+
+    /// <summary>Coupure détectée en 3 à 8 s au lieu de 30 s par défaut (ENet) : la reconnexion et le bot de remplacement arrivent vite.</summary>
+    public static void ShortenTimeout(MultiplayerPeer? peer, int id)
+    {
+        if (peer is ENetMultiplayerPeer enet && enet.GetPeer(id) is { } p) p.SetTimeout(0, 3000, 8000);
+    }
+
+    /// <summary>Salle et chargement d'une partie : une machine peut se figer plusieurs secondes en chargeant la carte,
+    /// on ne la croit pas partie pour autant (le délai court revient à l'entrée en jeu, Welcome / Hello).</summary>
+    public static void RelaxTimeout(MultiplayerPeer? peer, int id)
+    {
+        if (peer is ENetMultiplayerPeer enet && enet.GetPeer(id) is { } p) p.SetTimeout(0, 15000, 40000);
+    }
+
+    void OnPeerConnected(long id) => ShortenTimeout(Multiplayer.MultiplayerPeer, (int)id);
+
+    void OnPeerDisconnected(long id)
+    {
+        // La zone reste réservée à ce joueur le temps qu'il revienne (coupure, crash) : un nouvel arrivant ne la prend pas.
+        if (secretOfPeer.Remove((int)id, out var secret) && zoneOfSecret.TryGetValue(secret, out int zone))
+            reserved[zone] = (0, secret, Time.GetTicksMsec() / 1000.0 + ReconnectHold);
+        PeerLeft?.Invoke((int)id);
+    }
+
+    /// <summary>Client : la connexion à l'hôte est déjà ouverte par le lobby ; on se présente tout de suite.</summary>
+    public void AdoptClient(int zoneId)
+    {
+        NetHandshake.Install(Multiplayer);
         Mode = NetMode.Client;
         ZoneId = zoneId;
-        Multiplayer.ConnectedToServer += () =>
-        {
-            GD.Print($"[Net] Connecté à l'hôte, zone {zoneId}");
-            RpcId(1, MethodName.HelloRpc, zoneId);
-        };
-        Multiplayer.ServerDisconnected += () => { GD.Print("[Net] Hôte déconnecté"); HudReceived?.Invoke("HÔTE DÉCONNECTÉ"); };
-        Multiplayer.ConnectionFailed += () => { GD.Print("[Net] Connexion impossible"); HudReceived?.Invoke("CONNEXION IMPOSSIBLE"); };
+        Multiplayer.ServerDisconnected += OnServerDisconnected;
+        GD.Print($"[Net] Connexion du lobby reprise, zone {zoneId}");
+        // Hôte parti pendant le chargement : la salle a vu la coupure avant que la session n'écoute, on la signale ici.
+        if (!Connected) { GD.Print("[Net] Connexion du lobby déjà perdue"); Callable.From(OnServerDisconnected).CallDeferred(); return; }
+        SendHello();
+    }
+
+    // Pas de réponse au Hello (hôte figé, pair mort sans signal) : coupure déclarée au bout de WelcomeTimeout.
+    const double WelcomeTimeout = 10.0;
+    double helloAt = -1;
+    bool welcomed;
+
+    void SendHello()
+    {
+        helloAt = clientClock;
+        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token);
+    }
+
+    void OnServerDisconnected()
+    {
+        if (lost) return;
+        lost = true;
+        GD.Print("[Net] Hôte déconnecté");
+        HudReceived?.Invoke("HÔTE DÉCONNECTÉ");
+        Disconnected?.Invoke();
+    }
+
+    public Error Join(string address, int port, int zoneId)
+    {
+        MultiplayerPeer peer;
+        Error err;
+        if (SteamMultiplayerPeer.UdpTransportRequested) err = SteamMultiplayerPeer.CreateUdpClient(port + 1 + zoneId, port, out peer);   // 127.0.0.1 seulement
+        else { var enet = new ENetMultiplayerPeer(); err = enet.CreateClient(address, port); peer = enet; }
+        if (err != Error.Ok) return err;
+        NetHandshake.Install(Multiplayer);
+        Multiplayer.MultiplayerPeer = peer;
+        ShortenTimeout(peer, 1);
+        Mode = NetMode.Client;
+        ZoneId = zoneId;
+        joined = true;
+        Multiplayer.ConnectedToServer += OnConnectedToServer;
+        Multiplayer.ServerDisconnected += OnServerDisconnected;
+        Multiplayer.ConnectionFailed += OnConnectionFailed;
         return err;
+    }
+
+    bool joined;   // connexion ouverte par la session elle-même (ligne de commande) : signaux à débrancher en sortant
+
+    void OnConnectedToServer()
+    {
+        GD.Print($"[Net] Connecté à l'hôte, zone {ZoneId}");
+        SendHello();
+    }
+
+    void OnConnectionFailed()
+    {
+        GD.Print("[Net] Connexion impossible");
+        HudReceived?.Invoke("CONNEXION IMPOSSIBLE");
+        Disconnected?.Invoke();
     }
 
     public override void _PhysicsProcess(double delta)
     {
         double clockNow = Time.GetTicksMsec() / 1000.0;
-        while (delayed.Count > 0 && delayed.Peek().due <= clockNow) delayed.Dequeue().action();
+        while (delayed.Count > 0 && delayed.Peek().due <= clockNow) { var action = delayed.Dequeue().action; if (!lost) action(); }
         if (Mode == NetMode.Host) HostTick(delta);
         else if (Mode == NetMode.Client) ClientTick(delta);
     }
 
     // ---------------------------------------------------------------- client -> hôte
 
+    // Test de reconnexion : `--net-cut=S` coupe la connexion du client S secondes après son entrée (comme une coupure réseau).
+    double cutAt = -1, clientClock;
+    static bool cutDone;   // une seule coupure par processus (la scène est rechargée à la reconnexion)
+
     void ClientTick(double delta)
     {
+        clientClock += delta;
+        if (cutAt < 0) foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--net-cut=") && double.TryParse(a["--net-cut=".Length..], out double c)) cutAt = c;
+        if (cutAt > 0 && !cutDone && clientClock >= cutAt && Connected)
+        {
+            cutDone = true;
+            GD.Print("[Net] Test : coupure simulée de la connexion");
+            Multiplayer.MultiplayerPeer.Close();
+            OnServerDisconnected();
+            return;
+        }
+        if (!welcomed && helloAt >= 0 && clientClock - helloAt > WelcomeTimeout && !lost)
+        {
+            GD.Print("[Net] Pas de réponse de l'hôte : connexion perdue");
+            Multiplayer.MultiplayerPeer.Close();
+            OnServerDisconnected();
+            return;
+        }
+        pingTimer += delta;
+        if (pingTimer >= 0.5 && Connected)
+        {
+            pingTimer = 0;
+            double sent = Time.GetTicksMsec() / 1000.0;
+            Later(() => RpcId(1, MethodName.PingRpc, sent), unreliable: true);
+        }
         poseTimer += delta;
         if (poseTimer < PoseInterval || LocalPose == null || !Connected) return;
         poseTimer = 0;
         var p = LocalPose();
-        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.DashCount));
+        Later(() => RpcId(1, MethodName.PoseRpc, p.Head, p.Yaw, p.Left, p.Right, p.Elevation, p.DashCount), unreliable: true);
     }
 
     public void RequestCatch(int ballId, int hand, bool perfect = false)
@@ -160,23 +301,212 @@ public partial class NetSession : Node
         if (Connected) Later(() => RpcId(1, MethodName.ThrowRpc, hand, velocity, spin, mode));
     }
 
+    // Reconnexion : à la première entrée, l'hôte remet au joueur un secret aléatoire (WelcomeRpc) ; le joueur qui revient le
+    // présente et retrouve sa zone, ses vies et son score. Un secret émis par l'hôte ne se devine pas (contrairement à un
+    // SteamID public ou à un jeton déclaré par le client). Une zone libérée reste réservée à son secret pendant le retour possible,
+    // et une zone attribuée par le lobby reste réservée au pair qui charge la partie.
+    const double ReconnectHold = 45.0, LoadingHold = 20.0;
+    readonly Dictionary<string, int> zoneOfSecret = new();
+    readonly Dictionary<int, string> secretOfPeer = new();
+    readonly Dictionary<int, (int peer, string secret, double until)> reserved = new();
+    /// <summary>Hôte ouvert par la salle : les zones viennent de la salle (réservations), pas du Hello.</summary>
+    public bool LobbyMode { get; private set; }
+
+    /// <summary>Secret de reconnexion : 128 bits d'un générateur cryptographique (le PCG de Godot se devine à partir de ses sorties).</summary>
+    static string NewSecret() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+
+    /// <summary>Hôte de salle : la zone que la salle a attribuée à ce pair (lancement ou entrée en cours de partie), gardée le temps qu'il charge.</summary>
+    public void ReserveForLoading(int zone, int peer) => reserved[zone] = (peer, "", Time.GetTicksMsec() / 1000.0 + LoadingHold);
+
+    int ReservedZoneOf(int peer)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (zone, r) in reserved) if (r.peer == peer && now <= r.until) return zone;
+        return -1;
+    }
+    /// <summary>Zone tenue par un bot qui passe le filtre, de l'équipe demandée si possible (-1 : indifférent) ; -1 si aucune.</summary>
+    public Func<int, Func<int, bool>, int>? PickZone { get; set; }
+    /// <summary>Vrai si la zone peut accueillir un joueur distant (tenue par un bot).</summary>
+    public Func<int, bool> ZoneAvailable { get; set; } = _ => true;
+
+    bool IsFree(int zone, int peer, string secret)
+    {
+        if (!ZoneAvailable(zone)) return false;
+        if (!reserved.TryGetValue(zone, out var r) || Time.GetTicksMsec() / 1000.0 > r.until) return true;
+        return (r.peer != 0 && r.peer == peer) || (r.secret != "" && r.secret == secret);
+    }
+
+    int PickFree(int team, int peer, string secret) => PickZone?.Invoke(team, z => IsFree(z, peer, secret)) ?? -1;
+
+    /// <summary>
+    /// Le même joueur revient avant que l'hôte ait vu partir son ancienne connexion (crash, coupure) : on libère l'ancienne.
+    /// Si l'ancienne connexion envoie encore ses poses, ce n'est pas un retour (copie du secret) : renvoie faux.
+    /// </summary>
+    bool EvictStale(string secret, int newPeer)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (oldPeer, oldSecret) in new Dictionary<int, string>(secretOfPeer))
+        {
+            if (oldSecret != secret || oldPeer == newPeer || !Remotes.TryGetValue(oldPeer, out var old)) continue;
+            if (now - old.LastPoseAt < 1.5) return false;
+            GD.Print($"[Net] Secret déjà en jeu (pair {oldPeer}, muet) : ancienne connexion remplacée");
+            OnPeerDisconnected(oldPeer);
+            Multiplayer.MultiplayerPeer.DisconnectPeer(oldPeer);
+        }
+        return true;
+    }
+
+    /// <summary>Pair encore en jeu avec ce secret mais muet depuis 1,5 s (il revient avant que l'hôte ait vu sa coupure), sinon 0.</summary>
+    public int StalePeerOf(string secret)
+    {
+        if (secret.Length != 32) return 0;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (peer, s) in secretOfPeer)
+            if (s == secret && Remotes.TryGetValue(peer, out var old) && now - old.LastPoseAt >= 1.5) return peer;
+        return 0;
+    }
+
+    /// <summary>Pair encore en jeu avec ce secret et qui a parlé il y a moins de 1,5 s (impossible de dire encore s'il est mort), sinon 0.</summary>
+    public int LivePeerOf(string secret)
+    {
+        if (secret.Length != 32) return 0;
+        double now = Time.GetTicksMsec() / 1000.0;
+        foreach (var (peer, s) in secretOfPeer)
+            if (s == secret && Remotes.TryGetValue(peer, out var old) && now - old.LastPoseAt < 1.5) return peer;
+        return 0;
+    }
+
+    /// <summary>Zone de retour d'un secret connu (et libre pour ce joueur), sinon -1.</summary>
+    int ReturningZone(string secret, int peer)
+    {
+        if (secret == "" || !zoneOfSecret.TryGetValue(secret, out int previous) || !EvictStale(secret, peer) || !IsFree(previous, peer, secret)) return -1;
+        return previous;
+    }
+
+    /// <summary>Hôte, entrée par le lobby en cours de partie : la zone du secret si elle est libre, sinon une zone de bot (équipe préférée d'abord), réservée au pair le temps qu'il charge. -1 si plein.</summary>
+    public int ZoneForJoin(string secret, int preferredTeam, int peer)
+    {
+        if (secret.Length != 32) secret = "";
+        int zone = ReturningZone(secret, peer);
+        if (zone >= 0) GD.Print($"[Net] Reconnexion : le secret {Short(secret)} retrouve la zone {zone}");
+        else zone = PickFree(preferredTeam, peer, secret);
+        if (zone >= 0) reserved[zone] = (peer, secret, Time.GetTicksMsec() / 1000.0 + LoadingHold);
+        return zone;
+    }
+
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void HelloRpc(int zoneId)
+    void HelloRpc(int protocol, int zoneId, string secret)
     {
         if (!IsHost) return;
-        int peer = Multiplayer.GetRemoteSenderId();
+        int peer = Sender;
+        if (protocol != ProtocolVersion)
+        {
+            GD.Print($"[Net] Pair {peer} refusé : protocole {protocol}, attendu {ProtocolVersion}");
+            RpcId(peer, MethodName.RefusedRpc, "VERSION DIFFÉRENTE : METTEZ LE JEU À JOUR");
+            return;
+        }
+        if (Remotes.TryGetValue(peer, out var already))
+        {
+            // Hello répété par le même pair (scène rechargée pour corriger sa zone) : on reconfirme, sans nouvelle entrée.
+            if (secretOfPeer.TryGetValue(peer, out var current)) RpcId(peer, MethodName.WelcomeRpc, already.PlayerId, current);
+            return;
+        }
+        secret ??= "";
+        if (secret.Length != 32) secret = "";
+        int back = ReturningZone(secret, peer);
+        if (back >= 0 && back != zoneId) { GD.Print($"[Net] Reconnexion : le secret {Short(secret)} retrouve la zone {back}"); zoneId = back; }
+        else if (back < 0 && !zoneOfSecret.ContainsKey(secret)) secret = "";   // secret inconnu (autre partie) : nouvelle entrée
+        if (LobbyMode && back < 0)
+        {
+            // Partie de salle : seule la zone attribuée par la salle est permise (pas de changement d'équipe par un Hello forgé).
+            int booked = ReservedZoneOf(peer);
+            if (booked < 0) { GD.Print($"[Net] Pair {peer} refusé : aucune zone attribuée par la salle"); RpcId(peer, MethodName.RefusedRpc, "ENTREZ PAR LA SALLE"); return; }
+            zoneId = booked;
+        }
+        // Zone non imposée (-1) ou déjà prise : l'hôte en choisit une tenue par un bot.
+        else if (!IsFree(zoneId, peer, secret)) zoneId = PickFree(-1, peer, secret);
         GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
-        if (Remotes.ContainsKey(peer)) return;   // un seul Hello par pair
         PeerHello?.Invoke(peer, zoneId);
-        if (!Remotes.ContainsKey(peer)) RpcId(peer, MethodName.HudRpc, "ZONE REFUSÉE : DÉJÀ PRISE OU INCONNUE");
-        else RpcId(peer, MethodName.HudRpc, HudText());
+        if (!Remotes.ContainsKey(peer))
+        {
+            RpcId(peer, MethodName.RefusedRpc, "PARTIE PLEINE OU ZONE INCONNUE");
+            return;
+        }
+        // Nouveau secret à chaque entrée : l'ancien (peut-être lu sur le réseau) ne sert plus.
+        if (secret != "") zoneOfSecret.Remove(secret);
+        secret = NewSecret();
+        secretOfPeer[peer] = secret;
+        zoneOfSecret[secret] = zoneId;
+        ShortenTimeout(Multiplayer.MultiplayerPeer, peer);
+        reserved.Remove(zoneId);
+        RpcId(peer, MethodName.WelcomeRpc, zoneId, secret);
+        RpcId(peer, MethodName.HudRpc, HudText());
+        if (StatsData?.Invoke() is { } joinStats) RpcId(peer, MethodName.StatsRpc, joinStats);
+    }
+
+    /// <summary>Session de jeu en cours (null hors partie) : le lobby s'en sert pour placer un joueur qui entre en cours de partie.</summary>
+    public static NetSession? Current { get; private set; }
+    public override void _EnterTree()
+    {
+        Current = this;
+        MatchController.HitScored += OnHitScored;
+    }
+
+    public override void _ExitTree()
+    {
+        if (Current == this) Current = null;
+        MatchController.HitScored -= OnHitScored;
+        if (Mode == NetMode.Host) { Multiplayer.PeerDisconnected -= OnPeerDisconnected; Multiplayer.PeerConnected -= OnPeerConnected; }
+        else if (Mode == NetMode.Client) Multiplayer.ServerDisconnected -= OnServerDisconnected;
+        if (joined) { Multiplayer.ConnectedToServer -= OnConnectedToServer; Multiplayer.ConnectionFailed -= OnConnectionFailed; }
+    }
+
+    static string Short(string token) => token.Length <= 6 ? token : token[..6];
+
+    /// <summary>Client : l'hôte confirme l'entrée, la zone attribuée (elle peut différer de la demande) et le secret de reconnexion.</summary>
+    public event Action<int, string>? Welcomed;
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void WelcomeRpc(int zoneId, string secret)
+    {
+        GD.Print($"[Net] Entrée acceptée par l'hôte, zone {zoneId}");
+        welcomed = true;
+        ShortenTimeout(Multiplayer.MultiplayerPeer, 1);   // en jeu : une coupure se voit en 3 à 8 s
+        Token = secret;
+        Welcomed?.Invoke(zoneId, secret);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void RefusedRpc(string reason)
+    {
+        GD.Print($"[Net] Entrée refusée : {reason}");
+        HudReceived?.Invoke(reason);
+        Refused?.Invoke(reason);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+    void PingRpc(double sentAt)
+    {
+        if (!IsHost || !Remotes.ContainsKey(Sender)) return;
+        RpcId(Sender, MethodName.PongRpc, sentAt);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+    void PongRpc(double sentAt)
+    {
+        Later(() =>
+        {
+            double rtt = (Time.GetTicksMsec() / 1000.0 - sentAt) * 1000.0;
+            if (rtt < 0 || rtt > 10000) return;
+            RttMs = RttMs < 0 ? rtt : RttMs + (rtt - RttMs) * 0.2;
+        }, unreliable: true);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation, int dashCount)
     {
         if (!IsHost) return;
-        if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!Remotes.TryGetValue(Sender, out var remote)) return;
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw) || !float.IsFinite(elevation)) return;
         // Inondation : paquet ignoré avant toute modification d'état.
         double now = Time.GetTicksMsec() / 1000.0;
@@ -333,7 +663,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void TackleRpc(int victimId, Vector2 dir)
     {
-        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote) || !dir.IsFinite()) return;
+        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Sender, out var remote) || !dir.IsFinite()) return;
         // Le RPC (fiable) peut devancer la pose (non fiable) : le tacle attend la prochaine pose (dash validé, position à jour), 0,3 s au plus.
         remote.PendingTackle = (victimId, dir, Time.GetTicksMsec() / 1000.0 + 0.3);
     }
@@ -355,22 +685,36 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void PushRpc(Vector2 dir)
     {
-        if (!IsClient || Multiplayer.GetRemoteSenderId() != 1 || !dir.IsFinite()) return;
+        if (!IsClient || Sender != 1 || !dir.IsFinite()) return;
         PushReceived?.Invoke(dir);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void CatchRpc(int ballId, int hand, bool perfect)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
-        if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) { CatchRefused(remote, "bras pris ou main pleine"); return; }   // une seule balle par joueur
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
-            if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
+            if (n is not Ball ball || ball.NetId != ballId) continue;
+            if (ball.IsHeld || ball.IsQueuedForDeletion()) { CatchRefused(remote, "balle déjà prise ou disparue"); return; }
+            if (remote.Hurtbox.LastHitBall == ball && catchNow - remote.Hurtbox.LastHitAt < 0.5)
+                GD.Print($"[Net] Prise arrivée {(catchNow - remote.Hurtbox.LastHitAt) * 1000:0} ms après la touche pour la zone {remote.Hurtbox.PlayerId}");
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
-            if (!Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
+            // La copie de l'hôte suit le client avec un lissage (et sa latence) : la main est aussi jugée à la dernière pose reçue,
+            // sinon un joueur qui court vers une balle au sol se la voit refuser à 1,3 m (mesuré : un tiers des refus à 0 ms).
+            var t = remote.TargetPose;
+            var handLatest = remote.Avatar.GlobalTransform * (hand == 0 ? t.Left : t.Right);
+            float ballSpeed = ball.LinearVelocity.Length();
+            // Ramassage d'une balle lente au sol (joueur PC) : jugé depuis les pieds, comme chez le client (point de ramassage à 0,9 m).
+            bool scoop = ballSpeed < 3.5f && ball.GlobalPosition.DistanceTo(remote.Avatar.GlobalTransform * (t.Head + Vector3.Down * 0.85f)) <= 1.5f;
+            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ballSpeed) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ballSpeed))
+            {
+                CatchRefused(remote, $"balle à {Mathf.Min(ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition), ball.GlobalPosition.DistanceTo(handLatest)):0.0} m de la main à {ballSpeed:0} m/s");
+                return;
+            }
             if (ball.IsPass && ball.OwnerTeam != remote.Hurtbox.Team) return;   // une passe ne s'intercepte pas (phase 2)
             // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
@@ -386,10 +730,13 @@ public partial class NetSession : Node
         }
     }
 
+    /// <summary>Prise demandée par un client et refusée : journal (réglage de la compensation de latence).</summary>
+    static void CatchRefused(RemotePlayer remote, string why) => GD.Print($"[Net] Prise refusée pour la zone {remote.Hurtbox.PlayerId} : {why}");
+
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ParryRpc(int ballId, int hand, Vector3 normal)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         double now = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
             || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
@@ -407,9 +754,10 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ThrowRpc(int hand, Vector3 velocity, float spin, int mode)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
+        if (BallActions.Locked) { ball.Release(Vector3.Zero, 0f); return; }   // décompte : la balle tombe, rien ne part avant GO
         mode = Mathf.Clamp(mode, 0, 2);
         ball.Release(Assist.PlanFor(ball, velocity, mode), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
@@ -456,13 +804,25 @@ public partial class NetSession : Node
             liftReadyAtByZone[remote.PlayerId] = clock + lift.CooldownSeconds;
             remote.SetPose(new PoseData(p.Head - down, p.Yaw, p.Left - down, p.Right - down, 0f));
         }
-        if (Multiplayer.GetPeers().Length == 0) return;
+        // Envois aux seuls joueurs entrés (Hello accepté) : un pair encore dans le lobby n'a pas la scène de jeu.
+        if (Remotes.Count == 0) return;
         string hud = HudText();
-        if (hud != lastHud) { lastHud = hud; Rpc(MethodName.HudRpc, hud); }
+        if (hud != lastHud)
+        {
+            lastHud = hud;
+            foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.HudRpc, hud);
+            // Statistiques (au plus une fois par changement du tableau, soit environ chaque seconde) : seulement si elles ont bougé.
+            if (StatsData?.Invoke() is { } stats && !stats.AsSpan().SequenceEqual(lastStats))
+            {
+                lastStats = stats;
+                foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.StatsRpc, stats);
+            }
+        }
         snapshotTimer += delta;
         if (snapshotTimer < SnapshotInterval - 0.002f) return;   // marge : 1/30 en float dépasse 2 ticks de 1/60 et tombait à 20 Hz
         snapshotTimer = 0;
-        Rpc(MethodName.SnapshotRpc, BuildSnapshot());
+        var snapshot = BuildSnapshot();
+        foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.SnapshotRpc, snapshot);
         SnapshotsSent++;
     }
 
@@ -493,7 +853,8 @@ public partial class NetSession : Node
                 b.NetId, pos.X, pos.Y, pos.Z, vel.X, vel.Y, vel.Z, b.OwnerTeam, b.OwnerPlayerId, b.Charge, b.IsHeld ? 1f : (b.IsPass ? 2f : 0f), b.Kind,   // 2 = passe en vol ; Kind : 0 normale, 1 bombe, 2 rebond
             });
         }
-        data.Add(Maps.Rotor.Current?.Angle ?? -1f);   // dernier flottant : angle du rotor (-1 = pas de rotor)
+        data.Add(Maps.Rotor.Current?.Angle ?? -1f);   // angle du rotor (-1 = pas de rotor)
+        data.Add((float)(Time.GetTicksMsec() / 1000.0 % HostClockWrap));   // horloge de l'hôte (s, modulo 1000 pour garder la précision du float) : interpolation côté client
         return data.ToArray();
     }
 
@@ -505,15 +866,42 @@ public partial class NetSession : Node
         return d.Length > end ? d[end] : -1f;
     }
 
+    public const double HostClockWrap = 1000.0;
+
+    /// <summary>Horloge de l'hôte (s, modulo <see cref="HostClockWrap"/>) portée par un snapshot, ou -1 (ancien format).</summary>
+    public static float HostTimeOf(float[] d)
+    {
+        if (d.Length < 2) return -1f;
+        int end = 2 + (int)d[0] * PlayerFloats + (int)d[1] * BallFloats + 1;
+        return d.Length > end ? d[end] : -1f;
+    }
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     void SnapshotRpc(float[] data)
     {
-        SnapshotsReceived++;
-        Later(() => SnapshotReceived?.Invoke(data));
+        Later(() =>
+        {
+            SnapshotsReceived++;
+            LastSnapshotAt = Time.GetTicksMsec() / 1000.0;
+            SnapshotReceived?.Invoke(data);
+        }, unreliable: true);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void StatsRpc(int[] stats) => Later(() => StatsReceived?.Invoke(stats), unreliable: false);
+
+    /// <summary>Hôte : chaque touche validée (tireur, cible, KO) part chez les clients, pour leur marqueur de touche, leur fil des KO et leurs succès.</summary>
+    void OnHitScored(int shooterId, int targetId, bool kill)
+    {
+        if (!IsHost || !Connected) return;
+        foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.HitRpc, shooterId, targetId, kill);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void HitRpc(int shooterId, int targetId, bool kill) => Later(() => MatchController.ReportRemoteHit(shooterId, targetId, kill), unreliable: false);
 
     /// <summary>Nouvelle table des plaques (indexée par joueur) : l'hôte l'envoie à tous et accepte le saut des joueurs déplacés.</summary>
     public event Action<int[]>? PlatesReceived;
@@ -531,7 +919,7 @@ public partial class NetSession : Node
             r.SwapTarget = target;
             r.SwapUntil = now + 1.5;
         }
-        Rpc(MethodName.PlatesRpc, plateOf);
+        foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.PlatesRpc, plateOf);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

@@ -11,6 +11,9 @@ public static class BallActions
 {
     public static NetSession? Net { get; set; }
     public static bool IsClient => Net is { IsClient: true };
+    /// <summary>Vrai pendant le décompte : un lancer (main VR relâchée, client réseau) lâche la balle sur place au lieu de la tirer.</summary>
+    public static System.Func<bool>? ThrowsLocked { get; set; }
+    public static bool Locked => ThrowsLocked?.Invoke() == true;
 
     public static void Catch(Ball ball, Node3D hand, int handIndex, int playerId, int team, bool perfect = false)
     {
@@ -21,6 +24,7 @@ public static class BallActions
     public static void Throw(Ball ball, int handIndex, Vector3 velocity, float spin, int mode = 0)
     {
         if (IsClient) Net!.RequestThrow(handIndex, velocity, spin, mode);
+        else if (Locked) ball.Release(Vector3.Zero, 0f);
         else ball.Release(Assist.PlanFor(ball, velocity, mode), spin, mode);
     }
 

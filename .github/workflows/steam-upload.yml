@@ -1,0 +1,249 @@
+name: Envoi Steam
+
+# Exporte le jeu (Windows, et Linux si un depot Linux est configuré) et l'envoie sur Steam avec steamcmd.
+# Lancement à la main uniquement : onglet Actions > « Envoi Steam » > Run workflow.
+# Prérequis (compte Steamworks de jules, compte builder, secrets) : tools/steam/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      branche:
+        description: "Branche Steam à activer après l'envoi (beta conseillée). Vide = n'active rien. « default » est refusée par Steam : à faire à la main dans Steamworks."
+        required: false
+        default: beta
+        type: string
+      description:
+        description: "Description du build (visible seulement dans Steamworks)"
+        required: false
+        default: ""
+        type: string
+      apercu:
+        description: "Aperçu seulement (Preview : steamcmd liste les fichiers sans rien envoyer)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: steam-upload
+  cancel-in-progress: false
+
+jobs:
+  steam-upload:
+    runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: 4.3-stable
+      # Bibliothèques natives Steamworks (steam_api64.dll, libsteam_api.so), redistribuables avec le jeu.
+      STEAMWORKS_NET_URL: https://github.com/rlabrecque/Steamworks.NET/releases/download/2024.8.0/Steamworks.NET-Standalone_2024.8.0.zip
+      STEAMWORKS_NET_SHA256: 08094d1372c6d793d6b5b87c59f1362a10fe8580acb1db6bfaf081a511f6758c
+    steps:
+      - name: Vérifier les secrets Steam
+        env:
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+          STEAM_DEPOT_ID_WINDOWS: ${{ secrets.STEAM_DEPOT_ID_WINDOWS }}
+          STEAM_DEPOT_ID_LINUX: ${{ secrets.STEAM_DEPOT_ID_LINUX }}
+        run: |
+          stop() {
+            echo "::error title=Envoi Steam arrêté::$1"
+            { echo "## Envoi Steam arrêté"; echo; echo "$1"; echo; echo "Rien n'a été exporté ni envoyé. Marche à suivre : tools/steam/README.md."; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          missing=""
+          for name in STEAM_USERNAME STEAM_CONFIG_VDF STEAM_APP_ID STEAM_DEPOT_ID_WINDOWS; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            stop "Secrets GitHub manquants :$missing (Settings > Secrets and variables > Actions)."
+          fi
+          for name in STEAM_APP_ID STEAM_DEPOT_ID_WINDOWS; do
+            [[ "${!name}" =~ ^[0-9]+$ ]] || stop "$name doit être un nombre (l'identifiant affiché dans Steamworks)."
+          done
+          if [ -n "$STEAM_DEPOT_ID_LINUX" ]; then
+            [[ "$STEAM_DEPOT_ID_LINUX" =~ ^[0-9]+$ ]] || stop "STEAM_DEPOT_ID_LINUX doit être un nombre."
+            echo "AVEC_LINUX=true" >> "$GITHUB_ENV"
+            echo "Depot Linux configuré : export Linux ajouté."
+          else
+            echo "AVEC_LINUX=false" >> "$GITHUB_ENV"
+            echo "Pas de secret STEAM_DEPOT_ID_LINUX : envoi Windows seulement."
+          fi
+          printf '%s' "$STEAM_CONFIG_VDF" | base64 -d > /dev/null 2>&1 || stop "STEAM_CONFIG_VDF n'est pas du base64 valide (base64 -w0 config.vdf)."
+          echo "Secrets présents."
+
+      - name: Vérifier les options
+        env:
+          BRANCHE: ${{ inputs.branche }}
+          APERCU: ${{ inputs.apercu }}
+        run: |
+          if [ "$BRANCHE" = "default" ]; then
+            echo "::warning::Steam refuse d'activer automatiquement la branche default. Le build sera envoyé sans être activé : activez-le dans Steamworks (SteamPipe > Builds)."
+            BRANCHE=""
+          fi
+          if [ -n "$BRANCHE" ] && ! [[ "$BRANCHE" =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::Nom de branche invalide : lettres, chiffres, - et _ seulement."; exit 1
+          fi
+          echo "SETLIVE=$BRANCHE" >> "$GITHUB_ENV"
+          if [ "$APERCU" = "true" ]; then echo "PREVIEW=1" >> "$GITHUB_ENV"; else echo "PREVIEW=0" >> "$GITHUB_ENV"; fi
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 8.0.x
+
+      # Mêmes étapes que .github/workflows/export.yml (à garder alignées).
+      - name: Installer Godot et ses modèles d'export
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_export_templates.tpz"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable.mono"
+          unzip -q templates.tpz -d tpl
+          mv tpl/templates/* "$HOME/.local/share/godot/export_templates/4.3.stable.mono/"
+
+      - name: Inscrire l'AppID dans le jeu
+        env:
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+        run: |
+          # ShippedAppId : relance par Steam si l'exe est ouvert hors Steam, et succès rattachés au bon jeu.
+          sed -i -E "s/public const uint ShippedAppId = [0-9]+;/public const uint ShippedAppId = ${STEAM_APP_ID};/" scripts/Online/Steam/SteamPlatform.cs
+          grep -q "ShippedAppId = ${STEAM_APP_ID};" scripts/Online/Steam/SteamPlatform.cs || { echo "::error::ShippedAppId introuvable dans SteamPlatform.cs"; exit 1; }
+
+      - name: Version Steam en mode écran seulement
+        run: |
+          # Sur Steam on vend le mode écran (PC et Steam Deck) ; la VR reste pour les arènes EVA.
+          # OpenXR coupé dans ce build : pas de SteamVR lancé par erreur, pas d'alerte de casque.
+          sed -i 's/^openxr\/enabled=true/openxr\/enabled=false/' project.godot
+          grep -q '^openxr/enabled=false' project.godot || { echo "::error::openxr/enabled introuvable dans project.godot"; exit 1; }
+
+      - name: Exporter pour Windows
+        run: |
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          mkdir -p build/windows
+          # L'export compile lui-même le C# (--build-solutions plante sur le runner, inutile ici).
+          "$GODOT" --headless --path . --export-release "Windows Desktop" build/windows/DogeballVR.exe
+          test -f build/windows/DogeballVR.exe
+          test -d build/windows/data_DogeballVR_windows_x86_64
+
+      - name: Exporter pour Linux
+        if: env.AVEC_LINUX == 'true'
+        run: |
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          mkdir -p build/linux
+          "$GODOT" --headless --path . --export-release "Linux" build/linux/DogeballVR.x86_64
+          test -f build/linux/DogeballVR.x86_64
+          ls -d build/linux/data_DogeballVR_* > /dev/null
+
+      - name: Ajouter les bibliothèques Steamworks
+        run: |
+          mkdir -p steamworks-net
+          curl -sSL -o steamworks-net/sw.zip "$STEAMWORKS_NET_URL"
+          echo "$STEAMWORKS_NET_SHA256  steamworks-net/sw.zip" | sha256sum -c -
+          unzip -q steamworks-net/sw.zip -d steamworks-net/x
+          # À côté de l'exe (chargement natif par Windows) et dans le dossier data (chargement par l'assembly C#).
+          cp steamworks-net/x/Windows-x64/steam_api64.dll build/windows/
+          cp steamworks-net/x/Windows-x64/steam_api64.dll build/windows/data_DogeballVR_windows_x86_64/
+          if [ "$AVEC_LINUX" = "true" ]; then
+            cp steamworks-net/x/OSX-Linux-x64/libsteam_api.so build/linux/
+            for d in build/linux/data_DogeballVR_*; do cp steamworks-net/x/OSX-Linux-x64/libsteam_api.so "$d/"; done
+          fi
+
+      - name: Préparer le contenu des depots et les scripts SteamPipe
+        env:
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+          STEAM_DEPOT_ID_WINDOWS: ${{ secrets.STEAM_DEPOT_ID_WINDOWS }}
+          STEAM_DEPOT_ID_LINUX: ${{ secrets.STEAM_DEPOT_ID_LINUX }}
+          DESC_SAISIE: ${{ inputs.description }}
+        run: |
+          mkdir -p build/steam/content/windows build/steam/scripts build/steam/output
+          # Seulement l'exe du jeu, la bibliothèque Steam et le dossier data (pas de console.exe ni de steam_appid.txt).
+          cp -r build/windows/DogeballVR.exe build/windows/steam_api64.dll build/windows/data_DogeballVR_windows_x86_64 build/steam/content/windows/
+          if [ "$AVEC_LINUX" = "true" ]; then
+            mkdir -p build/steam/content/linux
+            cp -r build/linux/DogeballVR.x86_64 build/linux/libsteam_api.so build/linux/data_DogeballVR_* build/steam/content/linux/
+            chmod +x build/steam/content/linux/DogeballVR.x86_64
+          fi
+          VERSION=$(sed -n 's/^config\/version="\(.*\)"/\1/p' project.godot)
+          DESC="${DESC_SAISIE:-DogeballVR ${VERSION:-?}}"
+          DESC="$DESC ($(git rev-parse --short HEAD))"
+          DESC=$(printf '%s' "$DESC" | tr -d '"\\\n\r&' | cut -c1-200)
+          render() {
+            # Retire les commentaires du modèle puis remplace les jetons.
+            sed -e '/^[[:space:]]*\/\//d' \
+                -e "s/__APPID__/${STEAM_APP_ID}/g" \
+                -e "s/__DEPOTID_WINDOWS__/${STEAM_DEPOT_ID_WINDOWS}/g" \
+                -e "s/__DEPOTID_LINUX__/${STEAM_DEPOT_ID_LINUX}/g" \
+                -e "s/__SETLIVE__/${SETLIVE}/g" \
+                -e "s/__PREVIEW__/${PREVIEW}/g" \
+                -e "s|__DESC__|${DESC//|/-}|g" "$1"
+          }
+          if [ "$AVEC_LINUX" = "true" ]; then
+            render tools/steam/app_build.vdf.template > build/steam/scripts/app_build.vdf
+            render tools/steam/depot_build_linux.vdf.template > build/steam/scripts/depot_build_linux.vdf
+          else
+            sed '/__DEPOTID_LINUX__/d' tools/steam/app_build.vdf.template > build/steam/app_build.tmp
+            render build/steam/app_build.tmp > build/steam/scripts/app_build.vdf
+          fi
+          render tools/steam/depot_build_windows.vdf.template > build/steam/scripts/depot_build_windows.vdf
+          if grep -h "__[A-Z_]*__" build/steam/scripts/*.vdf; then echo "::error::Jeton non remplacé dans les scripts SteamPipe"; exit 1; fi
+          cat build/steam/scripts/app_build.vdf
+          echo "Contenu des depots :"; find build/steam/content -maxdepth 2 | sort
+
+      - name: Installer steamcmd
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lib32gcc-s1
+          mkdir -p "$HOME/Steam"
+          curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$HOME/Steam"
+          # Premier lancement : steamcmd se met à jour puis quitte (peut renvoyer un code non nul après la mise à jour).
+          "$HOME/Steam/steamcmd.sh" +quit || true
+          test -x "$HOME/Steam/steamcmd.sh"
+
+      - name: Envoyer sur Steam
+        env:
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+        run: |
+          # config.vdf contient le jeton de connexion du compte builder : pas de mot de passe ni de code Steam Guard ici.
+          mkdir -p "$HOME/Steam/config"
+          printf '%s' "$STEAM_CONFIG_VDF" | base64 -d > "$HOME/Steam/config/config.vdf"
+          chmod 600 "$HOME/Steam/config/config.vdf"
+          set +e
+          "$HOME/Steam/steamcmd.sh" +login "$STEAM_USERNAME" +run_app_build "$PWD/build/steam/scripts/app_build.vdf" +quit 2>&1 | tee steamcmd.log
+          CODE=${PIPESTATUS[0]}
+          set -e
+          if grep -qiE "Login Failure|Invalid Password|Two-factor|Steam Guard|rate limit" steamcmd.log; then
+            echo "::error title=Connexion Steam refusée::Le jeton de config.vdf est refusé ou expiré. Régénérez STEAM_CONFIG_VDF (tools/steam/README.md, section Steam Guard)."
+            exit 1
+          fi
+          if [ "$CODE" -ne 0 ] || ! grep -q "Successfully finished AppID" steamcmd.log; then
+            echo "::error title=Envoi Steam en échec::steamcmd n'a pas terminé le build (code $CODE). Voir le journal ci-dessus et l'artefact steam-build-logs."
+            exit 1
+          fi
+          BUILD_ID=$(grep -oE "BuildID [0-9]+" steamcmd.log | tail -1 | grep -oE "[0-9]+" || true)
+          {
+            echo "## Envoi Steam terminé"
+            echo
+            echo "- BuildID : ${BUILD_ID:-voir Steamworks > SteamPipe > Builds}"
+            echo "- Branche activée : ${SETLIVE:-aucune (à activer dans Steamworks)}"
+            echo "- Aperçu seulement : $([ "$PREVIEW" = 1 ] && echo oui || echo non)"
+            echo "- Linux : $AVEC_LINUX"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Effacer les identifiants Steam du runner
+        if: always()
+        run: rm -f "$HOME/Steam/config/config.vdf" "$HOME/Steam/ssfn"* || true
+
+      - name: Garder les journaux SteamPipe
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: steam-build-logs
+          path: |
+            steamcmd.log
+            build/steam/scripts/
+            build/steam/output/*.log
+          if-no-files-found: ignore
+          retention-days: 14
