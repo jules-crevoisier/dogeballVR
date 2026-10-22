@@ -47,17 +47,22 @@ public partial class Ball : RigidBody3D
             UpdateLook();
         }
     }
-    /// <summary>Bandes, mèche et anneaux des modèles Blender (assets/models), un jeu par type de balle ; le cœur reste procédural pour garder la teinte par type.</summary>
+    /// <summary>Modèles Blender (tools/blender/ball_kit.py), un par type de balle : coque en caoutchouc peinte et couture « Rainure »
+    /// lumineuse, teintée ici à la couleur de l'équipe qui lance (ou du type quand la balle est neutre).</summary>
     readonly Node3D?[] decor = new Node3D?[3];
+    StandardMaterial3D seamMaterial = null!;
+    bool modeled;
 
     void AddDecor()
     {
+        seamMaterial = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true, EmissionEnergyMultiplier = 1.6f };
         string[] names = { "balle_normale", "balle_bombe", "balle_rebond" };
         for (int i = 0; i < names.Length; i++)
         {
             var model = Visual.ModelLibrary.Instance(names[i]);
             if (model == null) continue;
-            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // le cœur est déjà dans la balle
+            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // ancien modèle : le cœur procédural suffit
+            if (model.FindChild("Rainure", true, false) is MeshInstance3D seam) { seam.MaterialOverride = seamMaterial; modeled = true; }
             model.Visible = i == kind || (kind > KindBounce && i == 0);
             decor[i] = model;
             AddChild(model);
@@ -80,7 +85,7 @@ public partial class Ball : RigidBody3D
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
     /// <summary>Vitesse de lancer retenue par l'hôte (m/s) : l'attrape parfaite exige encore 80 % de cette vitesse. 0 = inconnue.</summary>
     public float SpeedCap { get; set; }
-    const int TrailPoints = 10;
+    const int TrailPoints = 14;
     const float TrailMinSpeed = HitMinSpeed;                   // = seuil de blessure
 
     /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
@@ -140,9 +145,11 @@ public partial class Ball : RigidBody3D
         };
         ball.AddChild(ball.core);
         ball.AddDecor();
+        ball.core.Visible = !ball.modeled;   // la coque du modèle remplace la sphère procédurale
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
-        ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
+        if (!ball.modeled || KcShaders.Look == KcShaders.LookKind.Toon)
+            ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {
@@ -324,7 +331,13 @@ public partial class Ball : RigidBody3D
     {
         if (PhysicsMaterialOverride != null) PhysicsMaterialOverride.Bounce = kind == KindBounce && OwnerTeam >= 0 ? 0.95f : 0.55f;   // rebond seulement une fois lancée : neutre, elle reste sur la plaque
         var c = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
-        c.A = HaloAlpha[Charge];
+        if (seamMaterial != null)
+        {
+            seamMaterial.AlbedoColor = c;
+            seamMaterial.Emission = c;
+            seamMaterial.EmissionEnergyMultiplier = 1.6f + 0.9f * Charge;   // couture plus vive à chaque palier
+        }
+        c.A = HaloAlpha[Charge] * (modeled && Charge < 2 ? 0.45f : 1f);   // modèle : la couture porte la couleur, halo discret aux bas paliers
         haloMaterial.AlbedoColor = c;
         var c2 = c; c2.A = 0.3f;
         halo2Material.AlbedoColor = c2;
@@ -366,6 +379,20 @@ public partial class Ball : RigidBody3D
         shadow.Scale = new Vector3(h, 1f, h);
 
         UpdateTrail(p);
+        SpinDecor((float)delta);
+    }
+
+    /// <summary>Roulis visuel en vol : la couture tourne autour de l'axe perpendiculaire à la trajectoire (la physique, elle, amortit la rotation).</summary>
+    void SpinDecor(float dt)
+    {
+        if (!modeled || IsHeld) return;
+        var v = LinearVelocity;
+        float speed = v.Length();
+        if (speed < 1f) return;
+        var axis = v.Cross(Vector3.Up);
+        if (axis.LengthSquared() < 1e-4f) axis = Vector3.Right;
+        float rate = Mathf.Min(speed / 0.15f, 40f) * 0.6f * dt;
+        foreach (var d in decor) if (d != null && d.Visible) d.GlobalRotate(axis.Normalized(), -rate);
     }
 
     /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local) : éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
@@ -430,23 +457,30 @@ public partial class Ball : RigidBody3D
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
         if (trailPoints.Count < 2 || cam == null) return;
-        var color = Palette.Team(OwnerTeam);
-        trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
-        for (int i = 0; i < trailPoints.Count; i++)
+        var color = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
+        float width = 0.1f + 0.025f * Charge;
+        // Deux rubans : un large à la couleur de l'équipe, un cœur blanc étroit et plus court (lecture de la vitesse).
+        for (int layer = 0; layer < 2; layer++)
         {
-            float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
-            var a = trailPoints[i];
-            var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
-            var prev = trailPoints[Mathf.Max(i - 1, 0)];
-            var dir = (next - prev).Normalized();
-            // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
-            float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
-            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t * nearCam;
-            var vc = new Color(color, 0.6f * t * nearCam);
-            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
-            trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
+            trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
+            for (int i = 0; i < trailPoints.Count; i++)
+            {
+                float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
+                var a = trailPoints[i];
+                var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
+                var prev = trailPoints[Mathf.Max(i - 1, 0)];
+                var dir = (next - prev).Normalized();
+                // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
+                float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
+                float taper = layer == 0 ? t : Mathf.Max(0f, t * 1.6f - 0.6f);
+                float w = (layer == 0 ? width : width * 0.3f) * Mathf.Sqrt(taper) * nearCam;
+                var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * w;
+                var vc = layer == 0 ? new Color(color, 0.5f * t * t * nearCam) : new Color(1f, 1f, 1f, 0.4f * taper * nearCam);
+                trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
+                trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
+            }
+            trailMesh.SurfaceEnd();
         }
-        trailMesh.SurfaceEnd();
     }
 
     public override void _PhysicsProcess(double delta)
