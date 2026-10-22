@@ -1,6 +1,7 @@
 {
   "name": "neon_court",
   "decor": "toit_court",
+  "ambiance": "nuit",
   "schemaVersion": 2,
   "zoneWidth": 15,
   "zoneDepth": 8,

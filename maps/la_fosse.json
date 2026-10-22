@@ -1,6 +1,7 @@
 {
   "name": "la_fosse",
   "decor": "toit_long",
+  "ambiance": "brume",
   "schemaVersion": 2,
   "zoneWidth": 15,
   "zoneDepth": 8,

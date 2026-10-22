@@ -17,20 +17,23 @@ HX, HY = 18.0, 15.0   # demi-dimensions de l'aire de jeu (arenaBounds de croix_n
 PIT = None            # fosse (demi-largeurs en X et en Y Blender), ou None
 HUB = True            # moyeu central (anneau au sol) : cartes en anneau seulement
 
-# Variantes du toit pour les autres cartes : (demi-largeur X, demi-largeur Y, fosse (sx, sz) ou None, moyeu)
+AMBIANCE = "jour"     # props signature du quartier (signatures.py) ; jour = Croix Néon (tuyaux et enseigne FIZZ)
+
+# Variantes du toit pour les autres cartes : (demi-largeur X, demi-largeur Y, fosse (sx, sz) ou None, moyeu, ambiance)
+# L'ambiance doit être la même que le champ « ambiance » de la carte (ciel et soleil côté Godot, ArenaBuilder.Moods).
 VARIANTS = {
-    "toit": (18.0, 15.0, None, True),          # croix_neon
-    "toit_fosse": (18.0, 15.0, (9, 9), True),  # fosse_croisee
-    "toit_tour": (19.0, 15.0, (16, 10), True),  # tour_4v4
-    "toit_court": (16.0, 10.0, None, False),   # neon_court
-    "toit_long": (16.0, 10.5, (32, 3), False),  # la_fosse : fosse en bande sur toute la longueur
+    "toit": (18.0, 15.0, None, True, "jour"),             # croix_neon : plein jour
+    "toit_fosse": (18.0, 15.0, (9, 9), True, "chantier"),   # fosse_croisee : chantier, fin d'après-midi
+    "toit_tour": (19.0, 15.0, (16, 10), True, "coucher"),   # tour_4v4 : gratte-ciel au coucher du soleil
+    "toit_court": (16.0, 10.0, None, False, "nuit"),      # neon_court : marché de nuit
+    "toit_long": (16.0, 10.5, (32, 3), False, "brume"),    # la_fosse : port, matin brumeux ; fosse en bande sur toute la longueur
 }
 
 
 def configure(name):
     """Règle les dimensions globales sur une variante de VARIANTS."""
-    global HX, HY, PIT, HUB
-    HX, HY, pit, HUB = VARIANTS[name]
+    global HX, HY, PIT, HUB, AMBIANCE
+    HX, HY, pit, HUB, AMBIANCE = VARIANTS[name]
     PIT = None if pit is None else (pit[0] / 2, pit[1] / 2)
 
 
@@ -269,8 +272,12 @@ def build_toit(preview=False):
     towers()
     crates()
     clutter()
-    pipes()
-    sign_fizz(4, HY + 14, 10)
+    if AMBIANCE == "jour":
+        pipes()
+        sign_fizz(4, HY + 14, 10)
+    else:
+        import signatures
+        signatures.SIGNATURES[AMBIANCE](HX, HY)
     if preview:
         gameplay_preview()
 

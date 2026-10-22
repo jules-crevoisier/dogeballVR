@@ -30,7 +30,7 @@ public static class ArenaBuilder
 
         var decor = map.Decor == null ? null : ModelLibrary.Instance(map.Decor);
         bool kc = decor != null;
-        if (kc) AddKcEnvironment(root, pcProfile); else AddEnvironment(root);
+        if (kc) AddKcEnvironment(root, pcProfile, map.Ambiance); else AddEnvironment(root);
         AddFloor(root, map);
         if (kc)
         {
@@ -50,13 +50,32 @@ public static class ArenaBuilder
         return new Result(root, platforms);
     }
 
-    /// <summary>Ciel de jour dégradé, brume lointaine, soleil chaud : l'ambiance de la DA Knockout City. Le glow n'est activé qu'au clavier-souris.</summary>
-    internal static void AddKcEnvironment(Node3D root, bool pcProfile)
+    /// <summary>Ciel, soleil et brume d'une ambiance : chaque carte a son heure et sa palette (la jouabilité ne change pas).</summary>
+    record Mood(string Top, string Horizon, string Ground, string Sun, float SunEnergy, Vector3 SunRot, string Fog, float FogDensity,
+                float Ambient, float Glow, float Saturation, float Exposure);
+
+    static readonly Dictionary<string, Mood> Moods = new()
     {
+        // Croix Néon : plein jour, ciel bleu et horizon pêche
+        ["jour"] = new("4C8DE8", "FFDDBA", "EBCDB4", "FFE6C2", 1.5f, new Vector3(-48, -35, 0), "FFE2C4", 0.006f, 0.45f, 0.45f, 1.15f, 0.9f),
+        // Fosse croisée, chantier : fin d'après-midi dorée, soleil rasant
+        ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
+        // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
+        ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.011f, 0.55f, 0.6f, 1.25f, 0.95f),
+        // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
+        ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
+        // La Fosse, port : matin brumeux, lumière blanche et douce
+        ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.02f, 0.6f, 0.35f, 0.95f, 0.95f),
+    };
+
+    /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null)
+    {
+        var m = Moods.TryGetValue(ambiance ?? "jour", out var mood) ? mood : Moods["jour"];
         var sky = new ProceduralSkyMaterial
         {
-            SkyTopColor = new Color("4C8DE8"), SkyHorizonColor = new Color("FFDDBA"), SkyCurve = 0.18f,
-            GroundHorizonColor = new Color("EBCDB4"), GroundBottomColor = new Color("6B6470"),
+            SkyTopColor = new Color(m.Top), SkyHorizonColor = new Color(m.Horizon), SkyCurve = 0.18f,
+            GroundHorizonColor = new Color(m.Ground), GroundBottomColor = new Color("6B6470"),
             SunAngleMax = 20f, SunCurve = 0.1f,
         };
         var env = new Godot.Environment
@@ -64,21 +83,24 @@ public static class ArenaBuilder
             BackgroundMode = Godot.Environment.BGMode.Sky,
             Sky = new Sky { SkyMaterial = sky },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume chaude qui repousse le fond
-            AmbientLightEnergy = 0.45f,
-            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.9f, TonemapWhite = 6f,
-            FogEnabled = true, FogLightColor = new Color("FFE2C4"), FogDensity = 0.006f, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
-            GlowEnabled = pcProfile, GlowIntensity = 0.45f, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
+            // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume qui repousse le fond
+            AmbientLightEnergy = m.Ambient,
+            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = m.Exposure, TonemapWhite = 6f,
+            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            GlowEnabled = pcProfile, GlowIntensity = m.Glow, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
-            AdjustmentEnabled = true, AdjustmentSaturation = 1.15f, AdjustmentContrast = 1.08f,
+            AdjustmentEnabled = true, AdjustmentSaturation = m.Saturation, AdjustmentContrast = 1.08f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
         root.AddChild(new DirectionalLight3D
         {
-            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.5f, LightColor = new Color("FFE6C2"),
+            RotationDegrees = m.SunRot, LightEnergy = m.SunEnergy, LightColor = new Color(m.Sun),
             ShadowEnabled = pcProfile, ShadowBias = 0.1f, ShadowNormalBias = 2.2f, ShadowBlur = 0.6f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
+        if (ambiance == "nuit" && pcProfile)   // marché de nuit : la lumière chaude des guirlandes sur le terrain (sans ombres)
+            foreach (var p in new[] { new Vector3(-9, 7.5f, -5), new Vector3(9, 7.5f, -5), new Vector3(-9, 7.5f, 5), new Vector3(9, 7.5f, 5), new Vector3(0, 7.5f, 0) })
+                root.AddChild(new OmniLight3D { Position = p, LightColor = new Color("FFC46A"), LightEnergy = 1.4f, OmniRange = 13f, OmniAttenuation = 0.8f });
     }
 
     static void HideFloorMeshes(Node3D root)

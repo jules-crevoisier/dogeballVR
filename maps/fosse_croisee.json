@@ -1,6 +1,7 @@
 {
   "name": "fosse_croisee",
   "decor": "toit_fosse",
+  "ambiance": "chantier",
   "schemaVersion": 3,
   "layout": "ring",
   "zoneWidth": 15,
