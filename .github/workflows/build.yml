@@ -336,6 +336,45 @@ jobs:
           [ "$CATCHES" -ge 3 ] || { echo "Le client entré par le lobby ne joue pas"; FAIL=1; }
           exit $FAIL
 
+      - name: Test de bout en bout (salle à 4, hôte + 3 clients + 4 bots, fin de partie, retour à la salle, revanche)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          rm -f e2e-done e2e-*.log e2e-*.log.run
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 20000 -- --lobby-host --autostart=3 --map=tour_4v4 --pc-autoplay --name=Hote --end-screen-test --quit-file=e2e-done > e2e-host.log 2>&1 &
+          HOST_PID=$!
+          for i in $(seq 1 60); do grep -q "\[Lobby\] Salle ouverte" e2e-host.log && break; sleep 0.5; done
+          PIDS=""
+          for n in 1 2 3; do
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 20000 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --name=Joueur$n --token=ci-e2e-$n --quit-file=e2e-done > e2e-c$n.log 2>&1 &
+            PIDS="$PIDS $!"
+          done
+          # Partie 1 (finie d'office à 14 s par --end-screen-test), retour à la salle, revanche, partie 2 : on attend le second retour.
+          for i in $(seq 1 300); do [ "$(grep -c "\[Lobby\] Revanche\$" e2e-host.log)" -ge 2 ] && break; sleep 0.5; done
+          sleep 4
+          touch e2e-done
+          wait $HOST_PID $PIDS || true
+          rm -f e2e-done
+          grep -E "\[Lobby\]" e2e-host.log | head -40
+          FAIL=0
+          # On juge le jeu, pas l'arrêt du moteur : seules les lignes d'avant « Fin du test » comptent (fuites de ressources à la fermeture signalées à part).
+          for f in e2e-*.log; do sed '/\[Lobby\] Fin du test : fermeture/q' "$f" > "$f.run"; done
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" e2e-*.log.run; then echo "Erreur à l'exécution (bout en bout)"; FAIL=1; fi
+          if grep -iE "ERROR:.*(node not found|invalid packet|rpc|cached)" e2e-*.log.run; then echo "RPC perdu ou mal routé (bout en bout)"; FAIL=1; fi
+          grep -l "Fatal error\|Leaked unsafe reference" e2e-*.log | sed 's/^/Fermeture du moteur bruyante (hors test) : /' || true
+          [ "$(grep -c "\[Lobby\] Lancement : tour_4v4, 4 joueur(s)" e2e-host.log)" -ge 2 ] || { echo "Pas de revanche à 4 joueurs après le retour à la salle"; FAIL=1; }
+          ZONES=""
+          for n in 1 2 3; do
+            Z=$(grep -o "Entrée acceptée par l'hôte, zone [0-9]*" e2e-c$n.log | head -1 | grep -o "[0-9]*$")
+            [ -n "$Z" ] || { echo "Joueur$n n'est jamais entré en partie"; FAIL=1; continue; }
+            grep -q "\[Lobby\] État : InMatch -> InRoom" e2e-c$n.log || { echo "Joueur$n n'est pas revenu dans la salle"; FAIL=1; }
+            C=$(grep -c "attrapée par la zone $Z\$" e2e-host.log || true)
+            echo "Joueur$n : zone $Z, prises validées par l'hôte : $C"
+            [ "$C" -ge 1 ] || { echo "Joueur$n ne joue pas"; FAIL=1; }
+            ZONES="$ZONES $Z"
+          done
+          [ "$(echo $ZONES | tr ' ' '\n' | sort -u | wc -l)" -eq 3 ] || { echo "Zones en double :$ZONES"; FAIL=1; }
+          exit $FAIL
       - name: Test réseau dégradé (80 ms de latence par sens, 5 % de perte)
         run: |
           GODOT_VERSION=4.3-stable

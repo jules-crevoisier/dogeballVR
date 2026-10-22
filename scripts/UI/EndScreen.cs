@@ -21,6 +21,9 @@ public partial class EndScreen : CanvasLayer
     public MatchView View { get; set; } = null!;
     public Action? QuitToMenu { get; set; }
     public bool Autoplay { get; set; }
+    /// <summary>Partie lancée depuis une salle en ligne : à la fin, tout le monde y retourne (compte à rebours au lieu de REJOUER).</summary>
+    public bool BackToRoom { get; set; }
+    public const double BackToRoomSeconds = 7.0;
 
     const double OpenDelay = 1.8;
     const double AutoRestartSeconds = 8.0;   // MatchController.MatchEndSeconds
@@ -54,7 +57,9 @@ public partial class EndScreen : CanvasLayer
         if (root == null && overFor >= OpenDelay) Open();
         // Le menu pause refermé reprend la souris : sur l'écran de fin, il faut la rendre pour cliquer.
         if (root != null && !Autoplay && !PauseMenu.IsOpen && Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
-        if (autoLabel != null) autoLabel.Text = $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor)))} s";
+        if (autoLabel != null) autoLabel.Text = BackToRoom
+            ? $"Retour à la salle dans {Mathf.Max(0, Mathf.CeilToInt((float)(BackToRoomSeconds - overFor)))} s"
+            : $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor)))} s";
     }
 
     void Open()
@@ -113,7 +118,7 @@ public partial class EndScreen : CanvasLayer
         buttons.AddThemeConstantOverride("separation", 30);
         col.AddChild(buttons);
         Button? first = null;
-        if (View.AutoRestart)
+        if (View.AutoRestart || BackToRoom)
         {
             autoLabel = UiKit.Text("", 34, UiKit.Sky, 8, HorizontalAlignment.Center);
             autoLabel.CustomMinimumSize = new Vector2(440, 70);

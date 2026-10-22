@@ -17,6 +17,7 @@ public partial class LobbyScreen : CanvasLayer
     VBoxContainer root = null!;
     OnlineLobby lobby = null!;
     bool dirty = true;
+    Label? rematchLabel;
 
     public override void _Ready()
     {
@@ -41,8 +42,11 @@ public partial class LobbyScreen : CanvasLayer
 
     public override void _Process(double delta)
     {
+        if (rematchLabel != null && IsInstanceValid(rematchLabel))
+            rematchLabel.Text = $"Revanche dans {Mathf.CeilToInt((float)lobby.RematchIn)} s : mêmes équipes, même carte";
         if (!dirty) return;
         dirty = false;
+        rematchLabel = null;
         foreach (var c in root.GetChildren()) c.QueueFree();
         switch (lobby.State)
         {
@@ -140,7 +144,16 @@ public partial class LobbyScreen : CanvasLayer
             buttons.AddChild(start);
         }
         root.AddChild(buttons);
-        if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
+        if (lobby.RematchIn > 0)
+        {
+            var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            row.AddThemeConstantOverride("separation", 12);
+            row.AddChild(rematchLabel = Text("", 24));
+            if (lobby.IsHost) row.AddChild(MakeButton("ATTENDRE", Gray, lobby.CancelRematch, 200));
+            root.AddChild(row);
+            if (!lobby.IsHost) root.AddChild(Text("« PAS PRÊT » arrête le compte à rebours", 18));
+        }
+        else if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
         else if (!lobby.IsHost) root.AddChild(Text("L'hôte lance la partie quand tout le monde est prêt", 20));
         if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(lobby.Status, 20));
         root.AddChild(MakeButton("QUITTER LA SALLE", Gray, BackToMenu));

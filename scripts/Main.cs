@@ -377,10 +377,13 @@ public partial class Main : Node3D
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
             var view = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
             match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
+        // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt).
+        if (cfg.Preconnected)
+            match.MatchEnded += _ => GetTree().CreateTimer(UI.EndScreen.BackToRoomSeconds).Timeout += () => { if (IsInstanceValid(match) && match.IsInsideTree()) Online.OnlineLobby.Instance?.ReturnToLobby(); };
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
@@ -575,7 +578,7 @@ public partial class Main : Node3D
             // Le client relit le texte du tableau de score ; touches, statistiques et bots arrivent de l'hôte par le réseau.
             var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
         }
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);

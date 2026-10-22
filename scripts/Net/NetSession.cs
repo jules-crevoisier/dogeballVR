@@ -33,6 +33,8 @@ public partial class NetSession : Node
     public NetMode Mode { get; private set; } = NetMode.Offline;
     public bool IsClient => Mode == NetMode.Client;
     public bool IsHost => Mode == NetMode.Host;
+    /// <summary>Expéditeur du RPC en cours ; 0 si la session quitte l'arbre (paquet arrivé pendant un rechargement de scène).</summary>
+    int Sender => IsInsideTree() ? Multiplayer.GetRemoteSenderId() : 0;
     // Une session coupée ne parle plus : le lobby peut déjà retenter une connexion (ou poser un pair hors ligne, qui se croit « connecté »).
     public bool Connected => !lost && Multiplayer.MultiplayerPeer is { } p and not OfflineMultiplayerPeer && p.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
     bool lost;
@@ -396,7 +398,7 @@ public partial class NetSession : Node
     void HelloRpc(int protocol, int zoneId, string secret)
     {
         if (!IsHost) return;
-        int peer = Multiplayer.GetRemoteSenderId();
+        int peer = Sender;
         if (protocol != ProtocolVersion)
         {
             GD.Print($"[Net] Pair {peer} refusé : protocole {protocol}, attendu {ProtocolVersion}");
@@ -485,8 +487,8 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     void PingRpc(double sentAt)
     {
-        if (!IsHost || !Remotes.ContainsKey(Multiplayer.GetRemoteSenderId())) return;
-        RpcId(Multiplayer.GetRemoteSenderId(), MethodName.PongRpc, sentAt);
+        if (!IsHost || !Remotes.ContainsKey(Sender)) return;
+        RpcId(Sender, MethodName.PongRpc, sentAt);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
@@ -504,7 +506,7 @@ public partial class NetSession : Node
     void PoseRpc(Vector3 head, float yaw, Vector3 left, Vector3 right, float elevation, int dashCount)
     {
         if (!IsHost) return;
-        if (!Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!Remotes.TryGetValue(Sender, out var remote)) return;
         if (!head.IsFinite() || !left.IsFinite() || !right.IsFinite() || !float.IsFinite(yaw) || !float.IsFinite(elevation)) return;
         // Inondation : paquet ignoré avant toute modification d'état.
         double now = Time.GetTicksMsec() / 1000.0;
@@ -661,7 +663,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void TackleRpc(int victimId, Vector2 dir)
     {
-        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote) || !dir.IsFinite()) return;
+        if (!IsHost || !FreeRoam || !Remotes.TryGetValue(Sender, out var remote) || !dir.IsFinite()) return;
         // Le RPC (fiable) peut devancer la pose (non fiable) : le tacle attend la prochaine pose (dash validé, position à jour), 0,3 s au plus.
         remote.PendingTackle = (victimId, dir, Time.GetTicksMsec() / 1000.0 + 0.3);
     }
@@ -683,14 +685,14 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void PushRpc(Vector2 dir)
     {
-        if (!IsClient || Multiplayer.GetRemoteSenderId() != 1 || !dir.IsFinite()) return;
+        if (!IsClient || Sender != 1 || !dir.IsFinite()) return;
         PushReceived?.Invoke(dir);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void CatchRpc(int ballId, int hand, bool perfect)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
@@ -717,7 +719,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ParryRpc(int ballId, int hand, Vector3 normal)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         double now = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
             || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
@@ -735,7 +737,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ThrowRpc(int hand, Vector3 velocity, float spin, int mode)
     {
-        if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote)) return;
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         mode = Mathf.Clamp(mode, 0, 2);

@@ -49,6 +49,9 @@ public partial class OnlineLobby : Node
     public bool CodeIsInternet { get; private set; }
     /// <summary>Dernier message d'état ou d'erreur, pour l'écran du lobby et le menu.</summary>
     public string Status { get; private set; } = "";
+    /// <summary>Après une partie : secondes avant la revanche automatique (0 = aucune). Annulée dès que quelqu'un n'est plus prêt.</summary>
+    public double RematchIn { get; private set; }
+    public const double RematchSeconds = 10.0;
     public IReadOnlyList<LobbyMember> Members => members.Values.OrderBy(m => m.PeerId == 1 ? 0 : 1).ThenBy(m => m.PeerId).ToList();
     public int MaxPlayers => Math.Max(2, MapZoneCount(Map));
     /// <summary>Identifiant aléatoire de la salle (annonce LAN) : deux salles ouvertes en même temps par « partie rapide » fusionnent vers la plus petite.</summary>
@@ -305,6 +308,7 @@ public partial class OnlineLobby : Node
     public void StartMatch()
     {
         if (!IsHost || State != LobbyState.InRoom) return;
+        RematchIn = 0;
         var map = LoadMap(Map);
         if (map == null) { Status = "Carte introuvable"; Changed?.Invoke(); return; }
         matchZones.Clear();
@@ -351,16 +355,39 @@ public partial class OnlineLobby : Node
             }
     }
 
-    /// <summary>Hôte, fin de partie : tout le monde revient dans la salle (mêmes joueurs, mêmes équipes).</summary>
+    /// <summary>
+    /// Hôte, fin de partie : tout le monde revient dans la salle (mêmes joueurs, mêmes équipes, toujours prêts).
+    /// La revanche part seule au bout de <see cref="RematchSeconds"/> si personne ne se déclare « pas prêt » entre-temps.
+    /// </summary>
     public void ReturnToLobby()
     {
         if (!IsHost || State != LobbyState.InMatch) return;
-        foreach (var m in members.Values) if (!m.Host) { m.Ready = false; RpcId(m.PeerId, MethodName.ReturnToLobbyRpc); }
+        foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.ReturnToLobbyRpc);
         SetState(LobbyState.InRoom, "De retour dans la salle");
+        RematchIn = RematchSeconds;
+        GD.Print("[Lobby] Retour à la salle : revanche dans " + RematchSeconds + " s si tout le monde reste prêt");
         BroadcastRoster();
         RelaxTimeouts();
         GameLaunch.ShowLobby = true;
-        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+        ReloadQuietly(0.5);
+    }
+
+    /// <summary>
+    /// Fin de partie : la scène de jeu se fige (plus rien n'est envoyé), puis se recharge un peu plus tard.
+    /// Les paquets de jeu encore en route trouvent ainsi la session réseau en place au lieu d'un nœud disparu.
+    /// </summary>
+    void ReloadQuietly(double delay)
+    {
+        if (GetTree().CurrentScene is { } scene) scene.ProcessMode = ProcessModeEnum.Disabled;
+        GetTree().CreateTimer(delay).Timeout += () => GetTree().ReloadCurrentScene();
+    }
+
+    /// <summary>Hôte : arrête le compte à rebours de la revanche (on attend, on change de carte…).</summary>
+    public void CancelRematch()
+    {
+        if (!IsHost || RematchIn <= 0) return;
+        RematchIn = 0;
+        BroadcastRoster();
     }
 
     /// <summary>Quitte la salle (ou la partie) et ferme la connexion.</summary>
@@ -454,8 +481,14 @@ public partial class OnlineLobby : Node
             double now = Time.GetTicksMsec() / 1000.0;
             foreach (var (peer, since) in new Dictionary<int, double>(pendingPeers))
                 if (now - since > JoinRequestTimeout) { pendingPeers.Remove(peer); Multiplayer.MultiplayerPeer.DisconnectPeer(peer); }
-            if (autoStart > 0 && State == LobbyState.InRoom && members.Count >= autoStart + 1 && CanStart) StartMatch();
+            if (autoStart > 0 && State == LobbyState.InRoom && members.Count >= autoStart + 1 && CanStart) { autoStart = 0; StartMatch(); }   // une fois : ensuite, c'est la revanche
+            if (RematchIn > 0)
+            {
+                if (State != LobbyState.InRoom || !CanStart) { GD.Print("[Lobby] Revanche annulée"); CancelRematch(); }
+                else if ((RematchIn -= delta) <= 0) { GD.Print("[Lobby] Revanche"); StartMatch(); }
+            }
         }
+        else if (RematchIn > 0) RematchIn = Math.Max(0, RematchIn - delta);
     }
 
     // ------------------------------------------------------------------ signaux réseau
@@ -622,6 +655,7 @@ public partial class OnlineLobby : Node
             members[m.PeerId] = m;
         }
         bool hostInMatch = d.ContainsKey("inMatch") && (bool)d["inMatch"];
+        RematchIn = d.ContainsKey("rematch") ? (double)d["rematch"] : 0;
         if (State is LobbyState.Connecting) SetState(LobbyState.InRoom, "Dans la salle");
         else if (State is LobbyState.Reconnecting && !hostInMatch)
         {
@@ -647,7 +681,7 @@ public partial class OnlineLobby : Node
         RelaxTimeouts();
         SetState(LobbyState.InRoom, "De retour dans la salle");
         GameLaunch.ShowLobby = true;
-        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+        ReloadQuietly(0.25);
     }
 
     // ------------------------------------------------------------------ outils
@@ -687,7 +721,7 @@ public partial class OnlineLobby : Node
             m.Zone = State == LobbyState.InMatch && matchZones.TryGetValue(m.PeerId, out int zone) ? zone : -1;
             list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr, ["zone"] = m.Zone });
         }
-        string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch });
+        string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch, ["rematch"] = RematchIn });
         foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.RosterRpc, json);
         SteamBridge.OnRosterChanged(this);
         Changed?.Invoke();
@@ -736,6 +770,7 @@ public partial class OnlineLobby : Node
         members.Clear();
         pendingPeers.Clear();
         matchZones.Clear();
+        RematchIn = 0;
         IsHost = false;
         quickHosted = false;
         rate.Clear();
