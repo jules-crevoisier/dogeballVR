@@ -308,6 +308,8 @@ class Prop:
         (vers wear_col si donné : peinture écaillée jusqu'au métal). group : nom d'un sous-objet séparé (animable)."""
         if isinstance(fn, str):
             fn = flat(fn)
+        elif isinstance(fn, Vector):
+            fn = (lambda v: lambda p, n, f: v)(fn.copy())
         if rough is not None:
             self.rough[ob.name] = rough
         if isinstance(wear_col, str):

@@ -214,7 +214,9 @@ def build_ville(seed=3):
     kinds = ["fenetres", "fenetres", "fenetres", "brique", "brique_jaune", "beton"]
     neons = list(NEON)
     n = 0
-    for ring, (dist, count) in enumerate([(28, 16), (46, 20), (72, 22), (105, 22)]):
+    import city_kit
+    city_kit.place_ring()   # deux premiers anneaux : immeubles détaillés (façades en volume, enseignes, châteaux d'eau)
+    for ring, (dist, count) in enumerate([(72, 22), (105, 22)], start=2):
         for i in range(count):
             a = i / count * math.tau + rnd.uniform(-0.1, 0.1)
             d = dist + rnd.uniform(-3, 5)

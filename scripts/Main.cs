@@ -95,6 +95,7 @@ public partial class Main : Node3D
         var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
         AddChild(arena.Root);
         platforms = arena.Platforms;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista") >= 0) AddChild(new Visual.VistaCamera { Name = "Vista" });   // captures du décor
 
         if (cfg.Mode != NetMode.Offline)
         {
