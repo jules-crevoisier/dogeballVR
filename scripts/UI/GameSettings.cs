@@ -141,7 +141,7 @@ public static class GameSettings
         AudioBuses.SetVolume("Music", MusicVolume * MasterVolume);
         AudioBuses.SetVolume("SFX", SfxVolume * MasterVolume);
         AudioBuses.SetVolume("UI", UiVolume * MasterVolume);
-        AudioBuses.SetVolume(AudioBuses.Safety, EvaSettings.SafetyFloor);
+        AudioBuses.SetVolume(AudioBuses.Safety, Mathf.Max(EvaSettings.SafetyFloor, SfxVolume * MasterVolume));   // jamais sous le plancher, jamais sous les effets
         if (DisplayServer.GetName() != "headless" && !LaunchedFromCommandLine)
         {
             var mode = DisplayServer.WindowGetMode();

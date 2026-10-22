@@ -428,9 +428,9 @@ public partial class NetSession : Node
         }
         if (MapName != "" && (mapName ?? "") != MapName)
         {
-            // Casque replié sur une carte VR alors que l'hôte joue une carte PC (lancement direct) : deux parties différentes.
+            // Lancement direct : client sans la même --map, ou casque replié sur une carte VR quand l'hôte joue une carte PC.
             GD.Print($"[Net] Pair {peer} refusé : carte {Clip(mapName)}, l'hôte joue {MapName}");
-            RpcId(peer, MethodName.RefusedRpc, "CARTE DIFFÉRENTE : L'HÔTE JOUE UNE CARTE RÉSERVÉE AU PC");
+            RpcId(peer, MethodName.RefusedRpc, $"CARTE DIFFÉRENTE : L'HÔTE JOUE {MapName}, VOUS {Clip(mapName)}");
             return;
         }
         if (Remotes.TryGetValue(peer, out var already))
