@@ -198,6 +198,14 @@ jobs:
           echo "Rotor : balles arrêtées $STOPPED, témoin sans rotor $CONTROL"
           if [ "${STOPPED:-0}" -lt 10 ] || [ "${CONTROL:-99}" -gt 8 ]; then echo "Le rotor n'arrête pas les balles (ou le témoin en arrête déjà trop)"; exit 1; fi
 
+      - name: Test caméra d'épaule (couverts, pylône, rotor, 9 poses fixes)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . --fixed-fps 20 --quit-after 500 -- --map=croix_neon --cam-test 2>&1 | tee cam.log
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" cam.log; then echo "Erreur à l'exécution (caméra)"; exit 1; fi
+          grep -q "\[CamTest\] TOUT OK" cam.log || { echo "Caméra d'épaule : joueur caché, objectif dans un décor ou écran bouché"; exit 1; }
+
       - name: Test balles spéciales (annonce, lancer du moyeu, souffle de la bombe)
         run: |
           GODOT_VERSION=4.3-stable

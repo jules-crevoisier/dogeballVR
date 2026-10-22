@@ -149,9 +149,25 @@ public static class Sfx
     static Node3D Holder(SceneTree tree)
     {
         if (holder != null && GodotObject.IsInstanceValid(holder) && !holder.IsQueuedForDeletion()) return holder;
-        holder = new Node3D { Name = "SfxVoices" };
+        holder = new SfxHolder { Name = "SfxVoices" };
         tree.Root.CallDeferred(Node.MethodName.AddChild, holder);
         return holder;
+    }
+
+    /// <summary>
+    /// Fermeture du jeu : coupe les voix en cours et lâche les sons chargés. Sinon les flux Ogg, gardés par ces tables statiques,
+    /// survivent au moteur (« ObjectDB instances leaked at exit », lectures encore actives quand le mixeur s'arrête).
+    /// </summary>
+    internal static void Release()
+    {
+        if (holder != null && GodotObject.IsInstanceValid(holder))
+            foreach (var c in holder.GetChildren())
+            {
+                if (c is AudioStreamPlayer p2) { p2.Stop(); p2.Stream = null; }
+                else if (c is AudioStreamPlayer3D p3) { p3.Stop(); p3.Stream = null; }
+            }
+        holder = null;
+        files.Clear(); synth.Clear(); voices.Clear(); lastVariant.Clear();
     }
 
     static void FadeOut(Node n)
