@@ -43,7 +43,7 @@ Chaque état se distingue du suivant par l'énergie et le cadrage, pas par une a
 |---|---|---|
 | Balle (cœur) | `#D6FF2E` | **réservée** : aucun autre objet ne porte ce vert-jaune, ni le jaune pur `#F2C230`. |
 | Équipe 1 (orange) | `#FF6A1A` | personnages, traînée, étiquette, interface de l'équipe. |
-| Équipe 2 (bleu clair) | `#6CC8FF` | idem. Vestes entre `#4FA8F0` et `#6CC8FF` (contraste ≥ 4 sur le sol) ; jamais de bleu marine pour une équipe. |
+| Équipe 2 (bleu clair) | `#6CC8FF` | idem. Vestes entre `#4FA8F0` et `#6CC8FF` ; sur le sol de toit, le contraste de luminance n'est que de 2,4 à 3,3 (l'orange : 2,1), la lecture vient de la teinte saturée et du contour anthracite, pas de la luminosité ; jamais de bleu marine pour une équipe. |
 | Distributeurs | `#5FE0C8` (turquoise) | faisceau et socle des distributeurs seulement. |
 | Neutre clair | `#F2F4F8` | lignes, texte, gants des héros, bandes de danger. |
 | Anthracite | `#101830` | contours, panneaux d'interface, ombres d'interface. |
@@ -95,9 +95,9 @@ Chaque état se distingue du suivant par l'énergie et le cadrage, pas par une a
 
 - **Formats** : glTF 2.0 binaire (`.glb`), +Y en haut, 1 unité = 1 m, animations en actions séparées, sans root motion.
 - **Nommage** : préfixe de catégorie, `char_` (héros), `env_` (décor de carte), `prop_` (accessoires), `fx_` (effets), en minuscules et sans accents : `char_riko_rig.glb`, `env_toit.glb`, `prop_cone.glb`. À appliquer aux nouveaux fichiers ; les anciens sont renommés à l'occasion.
-- **Variante Quest (même DA, effets en moins)** : pas d'ombre temps réel, ni SSAO, ni glow (`pcProfile = false` dans `ArenaBuilder`). Elles sont remplacées par l'AO cuite dans les couleurs de sommet du toit, de la ville et des props, et par un disque d'ombre sous chaque personnage (0,5 m, alpha 0,35). MSAA 4x en VR. Même ciel, même brume, même palette, mêmes décors que le PC.
+- **Variante Quest (même DA, effets en moins)** : pas d'ombre temps réel, ni SSAO, ni glow (`pcProfile = false` dans `ArenaBuilder`). Elles sont remplacées par l'AO cuite dans les couleurs de sommet du toit, de la ville et des props, et, **cible pas encore en place**, par un disque d'ombre sous chaque personnage (0,5 m, alpha 0,35). MSAA 4x en VR (`XrBootstrap`). Même ciel, même brume, même palette, mêmes décors que le PC.
 - **Moteur** : Godot 4.3, rendu Mobile, 72 i/s sur Quest (13,9 ms par image), 60 i/s sur PC.
-- **Arbitrage enregistré** : l'art voudrait des ombres réelles sur Quest, la cible des 72 i/s ne le permet pas ; on garde l'AO cuite et le disque d'ombre.
+- **Arbitrage enregistré** : l'art voudrait des ombres réelles sur Quest, la cible des 72 i/s ne le permet pas ; on garde l'AO cuite et le disque d'ombre (à faire).
 
 ## 9. Reference Direction
 

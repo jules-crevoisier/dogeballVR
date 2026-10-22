@@ -8,7 +8,7 @@ namespace DogeballVR.UI;
 
 /// <summary>
 /// Fin de partie dans le casque (EVA) : à la fin du match, une petite scène apparaît devant le joueur, à 4 m dans la direction
-/// de son regard. Titre (VICTOIRE, DÉFAITE ou ÉGALITÉ), manches, l'équipe gagnante en pose de victoire sur des socles (le MVP au
+/// de son regard (plus près devant un couvert), réduite pour garder la taille apparente de la mise en page à 7,5 m. Titre (VICTOIRE, DÉFAITE ou ÉGALITÉ), manches, l'équipe gagnante en pose de victoire sur des socles (le MVP au
 /// centre et plus haut), et à côté le tableau des joueurs : KO, touches, attrapes. En bas, le décompte avant la partie suivante.
 /// Tout en 3D, sans texte collé au regard ; le panneau mural de score reste affiché. La scène disparaît quand la partie suivante
 /// commence. Mêmes données que l'écran de fin du PC (<see cref="MatchView"/>), chez l'hôte comme chez le client.
@@ -29,7 +29,13 @@ public partial class VrEndStage : Node3D
     Node3D? stage;
     Label3D? footer;
     float placedAt;
-    double clock, shownAt;   // temps de jeu (suit --fixed-fps), pas l'horloge murale
+    double clock, shownAt, nextRead;   // temps de jeu (suit --fixed-fps), pas l'horloge murale
+
+    /// <summary>Distance de la mise en page de référence (capture au clavier) ; plus près, toute la scène est réduite d'autant
+    /// pour garder la même taille apparente (titre lisible sans tourner la tête).</summary>
+    const float LayoutDistance = 7.5f;
+    /// <summary>Lecture de l'état du match (sur un client, analyse du texte du HUD) : 5 fois par seconde suffit.</summary>
+    const double ReadEvery = 0.2;
 
     // Abscisses dans le repère du tableau, vu depuis -Z : +X est à la gauche du joueur.
     const float ColumnName = 1.25f, ColumnKo = 0.1f, ColumnHits = -0.45f, ColumnCatches = -1.1f;
@@ -37,7 +43,11 @@ public partial class VrEndStage : Node3D
     public override void _Process(double delta)
     {
         clock += delta;
-        View.Update();
+        if (clock >= nextRead)
+        {
+            nextRead = clock + ReadEvery;
+            View.Update();
+        }
         bool over = View.State.Phase == MatchView.Phase.MatchOver;
         if (over && stage == null) ShowStage();
         else if (!over && stage != null) HideStage();
@@ -106,7 +116,7 @@ public partial class VrEndStage : Node3D
         }
 
         BuildBoard(stats, mvp);
-        GD.Print($"[FinVR] Scène devant le joueur à {placedAt:0.0} m : {title}, podium de {ids.Count} joueur(s), MVP {(mvp >= 0 ? View.NameOf(mvp) : "aucun")}, "
+        GD.Print($"[FinVR] Scène devant le joueur à {placedAt:0.0} m (échelle {stage.Scale.X:0.00}) : {title}, podium de {ids.Count} joueur(s), MVP {(mvp >= 0 ? View.NameOf(mvp) : "aucun")}, "
             + $"tableau {(stats != null ? View.Players.Count : 0)} ligne(s), relance {(HoldSeconds > 0 ? $"dans {HoldSeconds:0} s" : "par l'opérateur")}");
     }
 
@@ -122,6 +132,7 @@ public partial class VrEndStage : Node3D
         placedAt = ClearDistance(feet, look);
         stage!.GlobalPosition = feet + look * placedAt;
         stage.GlobalRotation = new Vector3(0, Mathf.Atan2(look.X, look.Z), 0);
+        stage.Scale = Vector3.One * Mathf.Min(1f, placedAt / LayoutDistance);
     }
 
     /// <summary>
@@ -150,7 +161,8 @@ public partial class VrEndStage : Node3D
     /// <summary>Tableau des joueurs à droite du podium, tourné de 20° vers le joueur : une ligne par joueur, équipe gagnante en haut.</summary>
     void BuildBoard(IReadOnlyDictionary<int, MatchController.PlayerStats>? stats, int mvp)
     {
-        var board = new Node3D { Name = "Tableau", Position = new Vector3(1.9f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(-20), 0) };
+        // Face lisible vers -Z local ; le joueur est en (-1,9 ; -Distance) vu du tableau : rotation positive pour lui faire face.
+        var board = new Node3D { Name = "Tableau", Position = new Vector3(1.9f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(20), 0) };
         stage!.AddChild(board);
         int rows = Mathf.Max(1, View.Players.Count);
         float top = 2.45f, step = 0.19f, height = 0.45f + rows * step;   // au-dessus des couverts (1,3 m)
@@ -160,7 +172,7 @@ public partial class VrEndStage : Node3D
             MaterialOverride = new StandardMaterial3D
             {
                 AlbedoColor = new Color(UiKit.Navy, 0.85f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                NoDepthTest = true, RenderPriority = 1,   // jamais caché par un couvert, sous le texte
+                RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
             },
         });
         void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 44)
@@ -203,7 +215,7 @@ public partial class VrEndStage : Node3D
         var l = new Label3D
         {
             Text = text, Position = pos, PixelSize = pixel, FontSize = size, Modulate = color, OutlineModulate = UiKit.Navy, OutlineSize = size / 5,
-            Rotation = new Vector3(0, Mathf.Pi, 0), Shaded = false, DoubleSided = false, NoDepthTest = true, RenderPriority = 2,   // lisible même derrière un couvert
+            Rotation = new Vector3(0, Mathf.Pi, 0), Shaded = false, DoubleSided = false, RenderPriority = 2,   // au-dessus du panneau ; la scène est déjà ramenée devant les couverts
         };
         if (UiKit.Font != null) l.Font = UiKit.Font;
         (parent ?? stage!).AddChild(l);

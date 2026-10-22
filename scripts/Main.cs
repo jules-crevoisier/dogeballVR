@@ -187,15 +187,26 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        int localZoneId = cfg.LocalZone;
         if (xrActive && !map.VrAllowed)
         {
-            // Sécurité en salle : zones adverses trop proches pour des joueurs qui marchent. Chaque casque se replie de lui-même.
-            GD.PrintErr($"Carte {map.Name} réservée au PC (vrAllowed=false). Repli sur neon_court.");
-            map = MapData.Load("res://maps/neon_court.json");
+            // Sécurité en salle : zones adverses trop proches pour des joueurs qui marchent. La salle en ligne choisit déjà une
+            // carte VR (OnlineLobby.EnsureVrMap) ; ici, lancement direct (--map) : chaque casque se replie de la même façon,
+            // en gardant son équipe et son rang dans l'équipe, pour que tous jouent la même partie.
+            var fallback = MapData.Load("res://maps/neon_court.json");
+            int mapped = SameSlot(map, fallback, localZoneId);
+            GD.PrintErr($"Carte {map.Name} réservée au PC (vrAllowed=false). Repli sur {fallback.Name}, zone {localZoneId} -> {mapped}.");
+            map = fallback;
+            localZoneId = mapped;
         }
-        int localZoneId = cfg.LocalZone;
-        var localZone = map.Zones.Find(z => z.Id == localZoneId)
-            ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
+        var localZone = map.Zones.Find(z => z.Id == localZoneId);
+        if (localZone == null)
+        {
+            // Erreur de lancement (zone absente de la carte) : message clair pour l'opérateur et sortie propre, pas une partie à moitié construite.
+            GD.PrintErr($"Zone {localZoneId} absente de la carte {map.Name} ({map.Zones.Count} zones) : vérifiez --zone et --map. Le jeu s'arrête.");
+            GetTree().Quit(3);
+            return;
+        }
 
         zones = new ZoneManager { Name = "ZoneManager" };
         AddChild(zones);
@@ -230,6 +241,16 @@ public partial class Main : Node3D
         else BuildHost(localZone);
     }
 
+    /// <summary>Zone de même équipe et de même rang dans l'équipe sur une autre carte ; -1 si l'autre carte en a moins.</summary>
+    static int SameSlot(MapData from, MapData to, int zoneId)
+    {
+        var zone = from.Zones.Find(z => z.Id == zoneId);
+        if (zone == null) return -1;
+        int rank = from.Zones.FindAll(z => z.Team == zone.Team).FindIndex(z => z.Id == zoneId);
+        var same = to.Zones.FindAll(z => z.Team == zone.Team);
+        return rank < same.Count ? same[rank].Id : -1;
+    }
+
     /// <summary>
     /// Sécurité VR : près du bord de la zone physique, les deux manettes vibrent (impulsions longues et douces, de plus en plus
     /// serrées) et un clic grave part toutes les 1,5 s. Le mur de limite ne se voit que si l'on regarde devant soi ;
@@ -243,12 +264,15 @@ public partial class Main : Node3D
         if ((!shotIncoming || distance < 0.3f) && now - lastPulse >= Mathf.Lerp(0.6f, 0.3f, closeness))
         {
             lastPulse = now;
-            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.25f, 0.6f, closeness), 0.25f);
+            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.25f, 0.6f, closeness), 0.25f, safety: true);
         }
         if (now - lastSound >= 1.5)
         {
             lastSound = now;
-            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f);   // bus SFX : le volume des menus ne le coupe pas
+            // Bus SFX : le volume des menus ne le coupe pas ; volume de salle bas : le clic remonte jusqu'au plancher de sécurité.
+            float heard = UI.GameSettings.MasterVolume * UI.GameSettings.SfxVolume;
+            float boost = heard < UI.EvaSettings.SafetyFloor ? Mathf.LinearToDb(UI.EvaSettings.SafetyFloor / Mathf.Max(heard, 0.01f)) : 0f;
+            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f, volumeDb: Mathf.Min(boost, 24f));
         }
     }
 

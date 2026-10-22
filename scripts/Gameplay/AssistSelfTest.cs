@@ -178,6 +178,18 @@ public partial class AssistSelfTest : Node
             bool read = Mathf.IsEqualApprox(UI.EvaSettings.Haptics, 0.4f) && Mathf.IsEqualApprox(UI.EvaSettings.Volume, 1f)
                 && UI.EvaSettings.ReduceFlashes && Mathf.IsEqualApprox(UI.EvaSettings.EndHoldSeconds, 120f);
             Check("Réglages de salle EVA (eva.cfg)", read, $"vibrations {UI.EvaSettings.Haptics:0.00}, volume {UI.EvaSettings.Volume:0.00}, fin {UI.EvaSettings.EndHoldSeconds:0} s");
+            // Volume écrit en fraction (0.8 = 80 %) ; réglage absent : celui du joueur reste.
+            var partial = new ConfigFile();
+            partial.SetValue("eva", "volume", 0.8f);
+            partial.Save(UI.EvaSettings.FilePath);
+            float master = UI.GameSettings.MasterVolume;
+            bool flashes = UI.GameSettings.ReduceFlashes;
+            UI.GameSettings.ReduceFlashes = true;
+            UI.EvaSettings.Load();
+            UI.EvaSettings.Apply();
+            bool kept = Mathf.IsEqualApprox(UI.GameSettings.MasterVolume, 0.8f) && UI.GameSettings.ReduceFlashes;
+            Check("Réglages EVA partiels : le reste au joueur", kept, $"volume {UI.GameSettings.MasterVolume:0.00}, flashs réduits {UI.GameSettings.ReduceFlashes}");
+            UI.GameSettings.MasterVolume = master; UI.GameSettings.ReduceFlashes = flashes; UI.GameSettings.Apply(null);
             if (previous != null) { using var f = FileAccess.Open(UI.EvaSettings.FilePath, FileAccess.ModeFlags.Write); f.StoreBuffer(previous); }
             else DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(UI.EvaSettings.FilePath));
             UI.EvaSettings.Haptics = 1f; UI.EvaSettings.Volume = 0.85f; UI.EvaSettings.ReduceFlashes = false; UI.EvaSettings.EndHoldSeconds = 20f;

@@ -16,10 +16,14 @@ public partial class HandThrower : XRController3D
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
 
-    /// <summary>Vibration de la manette (OpenXR : action « haptic » de l'action map), à la force choisie par l'opérateur EVA.</summary>
-    public void Pulse(float amplitude, float seconds)
+    /// <summary>
+    /// Vibration de la manette (OpenXR : action « haptic » de l'action map), à la force choisie par l'opérateur EVA.
+    /// Alerte de sécurité (bord de zone) : jamais sous <see cref="UI.EvaSettings.SafetyFloor"/>, même vibrations coupées.
+    /// </summary>
+    public void Pulse(float amplitude, float seconds, bool safety = false)
     {
-        float a = Mathf.Clamp(amplitude, 0f, 1f) * UI.EvaSettings.Haptics;
+        float scale = safety ? Mathf.Max(UI.EvaSettings.Haptics, UI.EvaSettings.SafetyFloor) : UI.EvaSettings.Haptics;
+        float a = Mathf.Clamp(amplitude, 0f, 1f) * scale;
         if (a > 0f) TriggerHapticPulse("haptic", 0f, a, seconds, 0f);
     }
 
