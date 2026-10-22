@@ -242,7 +242,53 @@ def body_mesh(r):
     return skin_body(nodes, edges, subdiv=2, name="Corps")
 
 
-def hero(team):
+def _shell(name, scale, zcut, sub_rings=(32, 18)):
+    """Calotte qui épouse le crâne (casquette, bonnet) : surface de la tête agrandie, coupée sous zcut (relatif au centre)."""
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=sub_rings[0], ring_count=sub_rings[1], radius=1.0)
+    o = bpy.context.active_object
+    for v in o.data.vertices:
+        v.co = head_shape(v.co.normalized()) * scale + Vector(J["tete"])
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < J["tete"][2] + zcut], context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    o.name = o.data.name = name
+    for f in o.data.polygons:
+        f.use_smooth = True
+    return o
+
+
+def headwear(orange, jacket, jacket_d, rib, glow):
+    hx, hy, hz = J["tete"]
+    p = []
+    if orange:   # casquette à l'envers : calotte, visière derrière, bouton
+        cap = _shell("H_Casquette", 1.09, 0.025)
+        paint(cap, lambda co, n: _c(jacket, 0.7) if co.y > hy - 0.02 else _c(jacket_d, 0.7), ao_rays=8, ao_dist=0.05)
+        p.append(cap)
+        brim = box((0.15, 0.11, 0.014), (hx, hy - 0.16, hz + 0.035), None, "H_Visiere", 0.006, rot=(math.radians(-14), 0, 0))
+        _paint_flat(brim, _c(rib, 0.6), ao=0)
+        p.append(brim)
+        knob = sphere(0.012, (hx, hy, hz + HEAD_R[2] * 1.09 + 0.002), None, "H_Bouton", sub=1)
+        _paint_flat(knob, _c(rib, 0.6), ao=0)
+        p.append(knob)
+    else:        # bonnet côtelé à revers et pompon
+        hat = _shell("H_Bonnet", 1.1, 0.045)
+        paint(hat, lambda co, n: _c(jacket, 0.9) if int((math.atan2(co.y - hy, co.x - hx) + math.pi) * 14) % 2 else _c(jacket_d, 0.9),
+              ao_rays=8, ao_dist=0.05)
+        p.append(hat)
+        fold = torus(HEAD_R[0] * 1.02, 0.02, (hx, hy, hz + 0.055), None, "H_Revers", seg=30, rseg=6)
+        fold.scale = (1.0, HEAD_R[1] / HEAD_R[0], 1.0)
+        _paint_flat(fold, _c(rib, 0.9), ao=0)
+        p.append(fold)
+        pom = sphere(0.045, (hx, hy - 0.01, hz + HEAD_R[2] * 1.1 + 0.03), None, "H_Pompon", sub=2)
+        _paint_flat(pom, _c("#F2F4F8", 0.95), ao=6, dist=0.03)
+        p.append(pom)
+    return p
+
+
+def hero(team, variant=0):
+    """variant 0 : Riko / Nova ; variant 1 : Bo (orange, gabarit costaud, casquette à l'envers) / Kai (bleu, gabarit fin, bonnet)."""
     orange = team == "orange"
     glow = mat("neon_" + team, "#FFB347" if orange else "#8FE3FF", 2.5)
     p = []
@@ -250,12 +296,16 @@ def hero(team):
         r = {"bassin": (0.165, 0.13), "taille": (0.15, 0.125), "buste": (0.235, 0.165), "col": (0.145, 0.11), "basecou": (0.068, 0.066),
              "cou": (0.052, 0.052), "epaule": (0.098, 0.098), "coude": (0.08, 0.08), "avantbras": (0.078, 0.078), "poignet": (0.056, 0.056),
              "hanche": (0.105, 0.105), "cuisse": (0.115, 0.12), "genou": (0.082, 0.088), "mollet": (0.09, 0.095), "cheville": (0.05, 0.05)}
-        jacket, jacket_d, rib, pants, stripe, skin = "#FF6A1A", "#D9500E", "#23263A", "#2A2840", "#F2F4F8", "#C98B62"
+        jacket, jacket_d, rib, pants, stripe, skin = "#F2560C", "#C8440A", "#23263A", "#2A2840", "#F2F4F8", "#C98B62"
     else:        # « Nova » : hoodie oversize bleu, cargo gris, boucles argentées et gros casque audio
         r = {"bassin": (0.18, 0.14), "taille": (0.2, 0.16), "buste": (0.255, 0.185), "col": (0.15, 0.115), "basecou": (0.07, 0.068),
              "cou": (0.052, 0.052), "epaule": (0.115, 0.115), "coude": (0.1, 0.1), "avantbras": (0.095, 0.095), "poignet": (0.075, 0.075),
              "hanche": (0.11, 0.11), "cuisse": (0.12, 0.125), "genou": (0.088, 0.092), "mollet": (0.088, 0.092), "cheville": (0.05, 0.05)}
         jacket, jacket_d, rib, pants, stripe, skin = "#2F7DE1", "#2563B8", "#1D2A4A", "#1E3A78", "#8FE3FF", "#F2C6A0"
+    if variant:
+        k = 1.14 if orange else 0.9
+        r = {n: (a * k, b * k) if n not in ("cou", "basecou", "cheville") else (a, b) for n, (a, b) in r.items()}
+        skin = "#8D5A3B" if orange else "#E8B48F"
     body = body_mesh(r)
     jc, jd, rb, pc, sc, sk = (_c(jacket, 0.62 if orange else 0.85), _c(jacket_d, 0.62 if orange else 0.85), _c(rib, 0.9),
                               _c(pants, 0.85), _c(stripe, 0.7), _c(skin, 0.55))
@@ -300,7 +350,11 @@ def hero(team):
     zip_ = box((0.03, 0.015, 0.36), (0, r["buste"][1] + 0.0, 1.21), None, "W_Zip", 0.004)
     _paint_flat(zip_, _c("#D8DCE6", 0.3), ao=0)
     p.append(zip_)
-    if orange:
+    if orange and variant:
+        emb = box((0.12, 0.012, 0.12), (0, r["buste"][1] + 0.005, 1.27), None, "W_Embleme", 0.01, rot=(0, 0, math.radians(45)))
+        _paint_flat(emb, _c("#F2F4F8", 0.5), ao=0)
+        p.append(emb)
+    elif orange:
         emb = cyl(0.045, 0.012, (-0.1, 0.135, 1.28), None, "W_Embleme", verts=24, rot=(math.radians(80), 0, 0))
         _paint_flat(emb, _c("#F2F4F8", 0.5), ao=0)
         p.append(emb)
@@ -331,10 +385,14 @@ def hero(team):
             _paint_flat(cargo, _c("#3E4459", 0.85), ao=6, dist=0.04)
             p.append(cargo)
     # tête, visage, coiffure
-    hair_hex = "#22160F" if orange else "#C9CFE0"
+    hair_hex = "#22160F" if orange or variant else "#C9CFE0"
     hair = _c(hair_hex, 0.5)
 
     def scalp(d):
+        if variant:   # cheveux courts sous la casquette / le bonnet
+            if d.z > 0.02 + max(0.0, d.y - 0.07) * 0.9 or d.y < -0.04 and d.z > -0.07:
+                return hair
+            return None
         if orange:   # côtés rasés : cuir chevelu foncé au-dessus des oreilles et à l'arrière
             if d.z > 0.045 + max(0.0, d.y - 0.06) * 0.9 or d.y < -0.06 and d.z > -0.06:
                 return hair
@@ -343,9 +401,11 @@ def hero(team):
                 return hair
         return None
     p.append(build_head(skin, scalp))
-    p += face("#4A2A16" if orange else "#2E6FA8", skin, hair_hex if orange else "#3A4A6E")
+    p += face("#4A2A16" if orange else "#2E6FA8", skin, hair_hex if orange or variant else "#3A4A6E")
     hx, hy, hz = J["tete"]
-    if orange:   # banane haute vers l'avant + bandeau d'équipe
+    if variant:
+        p += headwear(orange, jacket, jacket_d, rib, glow)
+    elif orange:   # banane haute vers l'avant + bandeau d'équipe
         q = skin_body([(hx, hy - 0.05, hz + 0.06, 0.07, 0.07), (hx, hy + 0.02, hz + 0.115, 0.075, 0.06), (hx, hy + 0.09, hz + 0.135, 0.06, 0.05),
                        (hx, hy + 0.15, hz + 0.13, 0.045, 0.04)], [(0, 1), (1, 2), (2, 3)], subdiv=2, name="H_Cheveux")
         top = hex_rgba("#3A2418")

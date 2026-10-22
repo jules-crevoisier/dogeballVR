@@ -336,11 +336,11 @@ def fx_spark():
     return lambda: p
 
 
-def avatar_rig(team):
+def avatar_rig(team, variant=0):
     """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs)."""
     import hero
     import rig as rigmod
-    out = rigmod.rig_character(hero.hero(team), rigmod.HERO_BONES, arm_rest=-14)
+    out = rigmod.rig_character(hero.hero(team, variant), rigmod.HERO_BONES, arm_rest=-14)
     return lambda: out
 
 
@@ -354,6 +354,7 @@ ASSETS = {
     "avatar_orange": L(avatar, "orange", "tout"), "avatar_bleu": L(avatar, "bleu", "tout"),
     "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
     "avatar_orange_rig": L(avatar_rig, "orange"), "avatar_bleu_rig": L(avatar_rig, "bleu"),
+    "avatar_orange2_rig": L(avatar_rig, "orange", 1), "avatar_bleu2_rig": L(avatar_rig, "bleu", 1),
     "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
     "moyeu": L(hub), "mur": L(wall), "mur_orange": L(wall, "orange"), "mur_bleu": L(wall, "bleu"), "sol_tuile": L(floor_tile), "sol_tuile_orange": L(floor_tile, "orange"), "sol_tuile_bleu": L(floor_tile, "bleu"), "abri": L(cover_block),
     "tremplin": L(ramp), "bord_fosse": L(pit_edge), "tableau_score": L(scoreboard), "lampe": L(lamp),

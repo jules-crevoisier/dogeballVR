@@ -29,7 +29,9 @@ public partial class Avatar : Node3D
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
         string teamName = team == 0 ? "orange" : "bleu";
-        var rigged = ModelLibrary.Instance($"avatar_{teamName}_rig");
+        // deux persos par équipe (Riko/Bo, Nova/Kai) : le second joueur de chaque équipe prend la variante
+        var rigged = (playerId >= 0 && playerId / 2 % 2 == 1 ? ModelLibrary.Instance($"avatar_{teamName}2_rig") : null)
+                     ?? ModelLibrary.Instance($"avatar_{teamName}_rig");
         if (rigged != null)
         {
             avatar.body = rigged;
