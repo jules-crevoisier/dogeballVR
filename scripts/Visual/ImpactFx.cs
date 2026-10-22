@@ -151,7 +151,7 @@ public static class ImpactFx
             Direction = Vector3.Up, Spread = 80f, InitialVelocityMin = 3.5f * k, InitialVelocityMax = 7.5f * k, Gravity = new Vector3(0, -4f * k, 0),
             DampingMin = 2.5f * k, DampingMax = 4f * k, AngleMin = 0f, AngleMax = 360f, AngularVelocityMin = -720f, AngularVelocityMax = 720f,
             ScaleAmountMin = 0.7f * k, ScaleAmountMax = 1.3f * k, ScaleAmountCurve = scale, ColorInitialRamp = colors,
-            Mesh = new QuadMesh { Size = new Vector2(0.09f, 0.05f) }, MaterialOverride = mat,
+            Mesh = new QuadMesh { Size = new Vector2(0.13f, 0.07f) }, MaterialOverride = mat,
         };
         AddOneShot(context, p, pos, 1.9);
     }

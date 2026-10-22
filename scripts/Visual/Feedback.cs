@@ -140,7 +140,8 @@ public partial class Feedback : Node
         if (ImpactTest) RunImpactTest(cam, delta);
     }
 
-    // --impact-test : rejoue touche, KO et prise sur le joueur visible le plus proche toutes les 1,2 s (vérification des effets sur captures).
+    // --impact-test : rejoue chaque seconde, droit devant la caméra (la caméra automatique regarde souvent un mur),
+    // une touche à 7 m, une touche à 20 m, un KO à 9 m et une prise à 6 m : vérification des effets sur captures.
     static readonly bool ImpactTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--impact-test") >= 0;
     double testClock = 3.2;
     int testStep;
@@ -149,21 +150,31 @@ public partial class Feedback : Node
     {
         testClock -= delta;
         if (testClock > 0 || cam == null) return;
-        testClock = 1.2;
-        Hurtbox? target = null;
-        float best = float.MaxValue;
-        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+        testClock = 1.0;
+        var fwd = -cam.GlobalTransform.Basis.Z;
+        fwd = new Vector3(fwd.X, 0, fwd.Z).Normalized();
+        int step = testStep++ % 4;
+        float dist = step switch { 0 => 7f, 1 => 20f, 2 => 9f, _ => 6f };
+        var right = cam.GlobalTransform.Basis.X;
+        var pos = cam.GlobalPosition + fwd * dist + right * (step % 2 == 0 ? 2.2f : -2.2f);   // à côté de l'avatar local, pas derrière
+        pos.Y = (IsInstanceValid(Local) ? Local.GlobalPosition.Y : cam.GlobalPosition.Y - 1f) + 0.25f;
+        var head = pos + new Vector3(0, 0.7f, 0);
+        var color = Palette.Team(step % 2);
+        GD.Print($"[Impact] test {step} à {dist} m, image {Engine.GetFramesDrawn()}");
+        switch (step)
         {
-            if (n is not Hurtbox h || h == Local || h.Eliminated || !ScreenSize.OnScreen(cam, h.GlobalPosition, 0f)) continue;
-            float d = cam.GlobalPosition.DistanceTo(h.GlobalPosition);
-            if (d < best) { best = d; target = h; }
-        }
-        if (target == null) return;
-        switch (testStep++ % 3)
-        {
-            case 0: OnTouched(target, cam, false); break;
-            case 1: OnTouched(target, cam, true); break;
-            default: Sticker("PRISE !", target, Palette.Team(target.Team), SpeechBubble.Size.Normal); break;
+            case 0:
+            case 1:
+                ImpactFx.Hit(this, pos, color);
+                SpeechBubble.Spawn(this, HitWords[wordIndex++ % HitWords.Length], head, color, SpeechBubble.Size.Normal, null);
+                break;
+            case 2:
+                ImpactFx.Ko(this, pos, color);
+                SpeechBubble.Spawn(this, "KO !", head, color, SpeechBubble.Size.Big, null);
+                break;
+            default:
+                SpeechBubble.Spawn(this, "PRISE !", head, color, SpeechBubble.Size.Normal, null);
+                break;
         }
     }
 
@@ -178,7 +189,7 @@ public partial class Feedback : Node
         float dist = cam != null ? cam.GlobalPosition.DistanceTo(hit) : 999f;
         bool near = !localTarget && dist < 16f && ScreenSize.OnScreen(cam, hit, 0f);
         float closeness = Mathf.Clamp(1f - dist / 16f, 0f, 1f);
-        GD.Print($"[Impact] {(ko ? "KO" : "touche")} sur {h.PlayerId} (équipe {h.Team}), tireur {shooter}, à l'écran et proche : {near}");
+        GD.Print($"[Impact] {(ko ? "KO" : "touche")} sur {h.PlayerId} (équipe {h.Team}), tireur {shooter}, à l'écran et proche : {near}, image {Engine.GetFramesDrawn()}");
 
         if (ko)
         {

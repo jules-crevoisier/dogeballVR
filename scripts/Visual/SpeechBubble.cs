@@ -23,7 +23,7 @@ public partial class SpeechBubble : Node3D
     Label3D front = null!, back = null!;
     Node3D? follow;
     Vector3 anchor;
-    float emPx, tilt, side;
+    float emPx, tilt, side, widthEm;
     double age;
 
     /// <summary>Compatibilité : autocollant posé à un point fixe du monde.</summary>
@@ -44,6 +44,7 @@ public partial class SpeechBubble : Node3D
             Name = "Sticker", TopLevel = true, follow = follow,
             emPx = size switch { Size.Small => 30f, Size.Big => 62f, _ => 44f },
         };
+        b.widthEm = font.GetStringSize(text, HorizontalAlignment.Left, -1, 96).X / 96f + 0.3f;   // + contours
         b.anchor = follow != null ? position - follow.GlobalPosition : position;
         b.tilt = Mathf.DegToRad((float)GD.RandRange(5.0, 9.0)) * (GD.Randf() < 0.5f ? -1f : 1f);
         // Liseré à la couleur de l'équipe, éclairci pour rester vif sur fond sombre.
@@ -100,10 +101,27 @@ public partial class SpeechBubble : Node3D
         // Décalage en pixels écran : à côté de la tête (pas dessus), un peu au-dessus.
         var offset = camBasis.X * (side * 40f * mpp) + camBasis.Y * ((14f + rise) * mpp);
         float em = emPx * mpp * scale;
+        offset += KeepOnScreen(cam, basePos + offset, emPx * scale, camBasis, mpp);
         GlobalTransform = new Transform3D(camBasis * new Basis(Vector3.Back, tilt * -side) * Basis.FromScale(Vector3.One * em), basePos + offset);
         SetAlpha(front, alpha);
         SetAlpha(back, alpha);
         Visible = true;
+    }
+
+    /// <summary>Décalage (en mètres) qui ramène l'autocollant entier dans l'écran, marge de 8 px, s'il dépasse d'un bord.</summary>
+    Vector3 KeepOnScreen(Camera3D cam, Vector3 origin, float emPx720, Basis camBasis, float mpp)
+    {
+        if (cam is XRCamera3D) return Vector3.Zero;
+        var size = cam.GetViewport().GetVisibleRect().Size;
+        float f = size.Y / 720f;
+        var p = cam.UnprojectPosition(origin);
+        float width = widthEm * emPx720 * f, height = 1.15f * emPx720 * f, pad = 8f * f;
+        float dx = 0f, dy = 0f;
+        if (side > 0f && p.X + width > size.X - pad) dx = size.X - pad - (p.X + width);
+        else if (side < 0f && p.X - width < pad) dx = pad - (p.X - width);
+        float top = 96f * f;   // sous le bandeau de score du HUD
+        if (p.Y - height < top) dy = -(top - (p.Y - height));   // trop haut : on descend (y écran vers le bas)
+        return (camBasis.X * dx + camBasis.Y * dy) * (mpp / f);
     }
 
     static void SetAlpha(Label3D l, float a)
