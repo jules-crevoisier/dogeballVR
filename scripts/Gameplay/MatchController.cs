@@ -11,6 +11,8 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class MatchController : Node3D
 {
+    static readonly bool SpecialTest = Tools.DevFlags.Has("--special-test");   // CI : balle spéciale bombe et essais de bombe
+
     const int BallsOnField = 4;
     const float BallSpawnInterval = 3f;   // une nouvelle balle toutes les 3 s tant qu'il en manque
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
@@ -153,9 +155,9 @@ public partial class MatchController : Node3D
             if (!above) overPitSince.Remove(id);
             else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
             if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
-            if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
+            if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team
+                && Rules.Eliminate(push.by, id))   // toutes les vies d'un coup ; l'ancienne boucle de RegisterHit pouvait ne jamais finir
             {
-                while (Rules.LivesOf(id) > 0) Rules.RegisterHit(push.by, id);
                 StatsOf(push.by).Kos++;
                 HitScored?.Invoke(push.by, id, true);
                 GD.Print($"[Match] Ring-out : le joueur {id} est poussé dans la fosse par le joueur {push.by}");
@@ -243,7 +245,8 @@ public partial class MatchController : Node3D
     /// <summary>Retire une hurtbox (joueur remplacé par un bot ou l'inverse). Ses vies restent à jour au prochain Register.</summary>
     public void Unregister(int playerId)
     {
-        hurtboxes.Remove(playerId);
+        if (hurtboxes.Remove(playerId, out var hurtbox) && IsInstanceValid(hurtbox)) hurtbox.Hit -= OnHit;   // un tir tardif sur l'ancien corps ne compte plus
+        // respawnAt est gardé : le remplaçant (bot ou retour) reprend le retour prévu ; _Process ne l'indexe plus sans garde.
     }
 
     public void Register(Hurtbox hurtbox)
@@ -290,7 +293,7 @@ public partial class MatchController : Node3D
         matchClock = 0;
         foreach (var st in stats.Values) { st.Kos = st.Hits = st.Catches = st.Throws = st.PerfectCatches = 0; }
         MatchStarted?.Invoke();
-        specialKind = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0 ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        specialKind = SpecialTest ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
@@ -374,6 +377,7 @@ public partial class MatchController : Node3D
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
         if (!inRound || countdownLeft > 0) return;   // pas de touche pendant le compte à rebours
+        if (!Rules.HasPlayer(targetId) || !hurtboxes.ContainsKey(targetId)) return;   // cible inconnue ou désinscrite : rien à compter
         double clock = gameClock;
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
@@ -396,7 +400,8 @@ public partial class MatchController : Node3D
 
     void OnEliminated(int playerId)
     {
-        hurtboxes[playerId].Eliminated = true;
+        if (!hurtboxes.TryGetValue(playerId, out var hurtbox)) return;   // pair parti entre la touche et l'élimination
+        hurtbox.Eliminated = true;
         respawnAt[playerId] = gameClock + Rules.RespawnSeconds;
     }
 
@@ -430,7 +435,7 @@ public partial class MatchController : Node3D
             if (now < respawnAt[id]) continue;
             if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
             else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
-            hurtboxes[id].Eliminated = false;
+            if (hurtboxes.TryGetValue(id, out var back)) back.Eliminated = false;
             ringGraceUntil[id] = now + 1.6;
             respawnAt.Remove(id);
         }
@@ -609,7 +614,7 @@ public partial class MatchController : Node3D
     {
         if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
-        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0) { bombTests++; BombTest(); }
+        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && SpecialTest) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
@@ -685,7 +690,7 @@ public partial class MatchController : Node3D
     {
         if (endTestStep >= 2) return;
         int team = -1;
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in Tools.DevFlags.Args)   // manche gagnée d'office : jamais dans l'export de sortie
             if (a.StartsWith("--end-screen-test")) team = a.EndsWith("defaite") ? 1 : 0;
         if (team < 0) { endTestStep = 2; return; }
         if (endTestStep == 0 && matchClock >= 5 && inRound) { endTestStep = 1; GD.Print("[Match] Test de fin : manche gagnée d'office"); FinishRound(team); }

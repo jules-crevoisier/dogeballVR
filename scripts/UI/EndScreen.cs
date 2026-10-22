@@ -309,7 +309,7 @@ public partial class EndScreen : CanvasLayer
     /// </summary>
     void TestKeys()
     {
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in Tools.DevFlags.Args)
         {
             if (!a.StartsWith("--end-screen-keys=")) continue;
             var key = a.EndsWith("echap") ? Key.Escape : Key.Enter;
@@ -368,7 +368,7 @@ public partial class EndScreen : CanvasLayer
     /// </summary>
     IReadOnlyDictionary<int, MatchController.PlayerStats>? TestStats(IReadOnlyDictionary<int, MatchController.PlayerStats>? real, int champion)
     {
-        if (real == null || Array.FindIndex(OS.GetCmdlineUserArgs(), a => a.StartsWith("--end-screen-test")) < 0) return real;
+        if (real == null || Array.FindIndex(Tools.DevFlags.Args, a => a.StartsWith("--end-screen-test")) < 0) return real;
         foreach (var st in real.Values) if (st.Kos > 0) return real;
         // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, arrêts parfaits, lancers.
         int[][] winners = { new[] { 5, 8, 4, 2, 17 }, new[] { 3, 6, 2, 0, 14 }, new[] { 2, 4, 1, 1, 11 } };

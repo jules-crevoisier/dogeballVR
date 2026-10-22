@@ -65,7 +65,7 @@ Le jeton finit par expirer, ou est invalidé si on se reconnecte avec le mot de 
 
 ## 4. Secrets GitHub
 
-Dépôt GitHub > Settings > Secrets and variables > Actions > New repository secret :
+Dépôt GitHub > Settings > Environments > New environment, nommé `steam-production` : « Required reviewers » = jules, « Deployment branches and tags » = `main` seulement. Puis, dans cet environnement, « Add environment secret » pour chaque ligne ci-dessous. Rangés là plutôt qu'en secrets de dépôt, ils ne sont lisibles par aucune autre branche, même si elle modifie sa copie du workflow. Supprimer ensuite les anciens secrets de dépôt du même nom s'il y en a : une branche pourrait encore les lire. Attention : sur un dépôt privé avec l'offre GitHub gratuite, GitHub ne propose pas les environnements (ni leurs secrets, ni leurs règles ; dépôt public ou offre Pro/Team nécessaire). Dans ce cas, garder les mêmes secrets en secrets de dépôt (Settings > Secrets and variables > Actions) : l'envoi devrait marcher, limité à `main` par le workflow, mais sans la barrière de l'environnement. Non vérifié : faire un premier lancement avec « apercu » coché pour s'en assurer.
 
 | Secret | Obligatoire | Contenu |
 |---|---|---|
@@ -79,7 +79,7 @@ Si un secret obligatoire manque, le workflow s'arrête dès la première étape,
 
 ## 5. Lancer un envoi
 
-Onglet Actions > « Envoi Steam » > Run workflow :
+Onglet Actions > « Envoi Steam » > Run workflow, avec **« Use workflow from » = `main`** : lancé depuis une autre branche, le job est sauté sans message.
 
 - **branche** : `beta` par défaut. Le build est envoyé puis activé sur cette branche (à créer d'abord dans SteamPipe > Builds, éventuellement avec un mot de passe pour les testeurs). Vide = envoyé sans être activé.
 - **description** : texte libre (sinon version + commit).

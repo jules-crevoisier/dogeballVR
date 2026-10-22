@@ -110,10 +110,10 @@ public partial class MainMenu : CanvasLayer
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
         ShowMain();
-        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
-        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--options-test") >= 0) OpenOverlay(new OptionsMenu { FirstTab = 1 });
+        if (Tools.DevFlags.Has("--profile-test")) ShowProfile();   // captures
+        if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1 });
         // Captures d'écran : --menu-page=online | lan | credits | first ouvre la page au bout d'une seconde.
-        foreach (var arg in OS.GetCmdlineUserArgs())
+        foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--menu-page="))
             {
                 string page = arg["--menu-page=".Length..];

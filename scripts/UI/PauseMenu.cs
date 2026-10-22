@@ -30,7 +30,7 @@ public partial class PauseMenu : CanvasLayer
         ProcessMode = ProcessModeEnum.Always;
         IsOpen = false;
         // Captures d'écran automatiques : --ui-test=pause | options | help ouvre l'écran au bout de 2 s.
-        foreach (var arg in OS.GetCmdlineUserArgs())
+        foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--ui-test="))
             {
                 string what = arg["--ui-test=".Length..];

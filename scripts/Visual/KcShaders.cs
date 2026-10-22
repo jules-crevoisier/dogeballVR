@@ -16,7 +16,7 @@ public static class KcShaders
 
     public static void ParseLook()
     {
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in Tools.DevFlags.Args)
             if (a.StartsWith("--look="))
                 Look = a["--look=".Length..] switch { "toon" => LookKind.Toon, "gouache" => LookKind.Gouache, _ => LookKind.Pbr };
     }

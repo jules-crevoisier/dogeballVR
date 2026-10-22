@@ -113,11 +113,11 @@ public partial class Main : Node3D
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
         AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
+        if (!Tools.DevFlags.Has("--gc-default")) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        if (Tools.DevFlags.Has("--assist-test")) { AddChild(new AssistSelfTest()); return; }
         // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
         {
@@ -348,7 +348,7 @@ public partial class Main : Node3D
         tween.TweenMethod(Callable.From<float>(v => swapFade(v)), 1f, 0f, 0.4);
     }
 
-    static bool PcAutoplay => System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+    static bool PcAutoplay => Tools.DevFlags.Has("--pc-autoplay");
 
     bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
 
@@ -370,7 +370,7 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
+        match.PlateSwaps = map.IsRing && (!pcProfile || Tools.DevFlags.Has("--swap-test"));
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
@@ -384,7 +384,7 @@ public partial class Main : Node3D
         // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
         Bot.Level = UI.GameSettings.BotLevel;
         Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
-        foreach (var arg in OS.GetCmdlineUserArgs())
+        foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);

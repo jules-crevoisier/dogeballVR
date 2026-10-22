@@ -5,7 +5,8 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Test headless (--assist-test) des aides VR de Assist, sans casque : attrape par fenêtre de grip à 80 ms de latence,
-/// main fermée en permanence, temps de vol minimal d'un tir, attrape parfaite à 3 m. Quitte avec le code 0 si tout passe.
+/// main fermée en permanence, contrôle de l'hôte (prise à distance refusée, avance de 30 à 150 ms et rebond acceptés),
+/// temps de vol minimal d'un tir, attrape parfaite à 3 m, règles de manche avec un joueur parti. Quitte avec le code 0 si tout passe.
 /// </summary>
 public partial class AssistSelfTest : Node
 {
@@ -34,8 +35,8 @@ public partial class AssistSelfTest : Node
                 if (Assist.Contact(pos, next, hand))
                 {
                     var host = next + dir * speed * latency;
-                    if (Assist.GripValid(t, pressedAt) && Assist.HostAccepts(host, hand, speed)) got = true;
-                    if (Assist.GripValid(t, -10) && Assist.HostAccepts(host, hand, speed)) gotClosed = true;
+                    if (Assist.GripValid(t, pressedAt) && Assist.HostAccepts(host, hand, speed, Assist.PathDistance(PathTo(host, dir * speed), hand))) got = true;
+                    if (Assist.GripValid(t, -10) && Assist.HostAccepts(host, hand, speed, Assist.PathDistance(PathTo(host, dir * speed), hand))) gotClosed = true;
                 }
                 pos = next;
             }
@@ -44,6 +45,55 @@ public partial class AssistSelfTest : Node
         }
         Check("attrape à 80 ms", caught >= 95, $"{caught}/100 (>= 95 requis)");
         Check("main fermée en permanence", closedCaught == 0, $"{closedCaught}/100 (0 requis)");
+
+        // Trajectoire gardée par l'hôte (Ball.PathSeconds, un point par tick) d'une balle en ligne droite qui finit en `host`.
+        List<Vector3> PathTo(Vector3 host, Vector3 velocity)
+        {
+            var path = new List<Vector3>();
+            for (float t = (float)Ball.PathSeconds; t >= 0f; t -= dt) path.Add(host - velocity * t);
+            return path;
+        }
+
+        // 1b) Triche : un client déclare la prise d'un tir qui passe à 1,8..3 m de sa main sans jamais s'en approcher.
+        int stolen = 0;
+        for (int i = 0; i < 100; i++)
+        {
+            float speed = rng.RandfRange(8f, 20f), miss = rng.RandfRange(1.8f, 3f);
+            var velocity = new Vector3(0, 0, -speed);
+            var host = new Vector3(miss, 0, rng.RandfRange(-1f, 1f));   // la balle croise la main de côté
+            if (Assist.HostAccepts(host, Vector3.Zero, speed, Assist.PathDistance(PathTo(host, velocity), Vector3.Zero))) stolen++;
+        }
+        Check("prise à distance refusée", stolen == 0, $"{stolen}/100 acceptées (0 requis)");
+
+        // 1c) Prise légitime, hôte en avance de 30, 100 et 150 ms sur ce que voyait le client, écart latéral <= 0,5 m.
+        int legit = 0, legitTotal = 0;
+        foreach (float lead in new[] { 0.03f, 0.1f, 0.15f })
+            for (int i = 0; i < 50; i++, legitTotal++)
+            {
+                float speed = rng.RandfRange(8f, 20f);
+                var velocity = new Vector3(0, 0, -speed);
+                var host = new Vector3(rng.RandfRange(-0.5f, 0.5f), 0, 0) + velocity * lead;
+                if (Assist.HostAccepts(host, Vector3.Zero, speed, Assist.PathDistance(PathTo(host, velocity), Vector3.Zero))) legit++;
+            }
+        Check("prise avec 30 à 150 ms d'avance de l'hôte acceptée", legit == legitTotal, $"{legit}/{legitTotal}");
+
+        // 1d) Rebond juste derrière la main : la balle frôle la main (0,2 m), tape le mur 1 m derrière et repart de côté ;
+        // l'hôte, 0,22 s plus tard, la voit à plus de 2 m, sa vitesse ne pointe plus vers la main.
+        {
+            const float speed = 18f;
+            var path = new List<Vector3>();
+            for (float z = 6f; z > -1f; z -= speed * dt) path.Add(new Vector3(0.2f, 0, z));   // arrivée
+            var wall = new Vector3(0.2f, 0, -1f);
+            var bounceDir = new Vector3(1f, 0, 0.3f).Normalized();
+            for (int i = 0; i <= 13; i++) path.Add(wall + bounceDir * speed * 0.55f * (i * dt));   // rebond à 0,55, 13 pas (0,22 s)
+            var host = path[^1];
+            Check("prise juste avant un rebond acceptée", host.Length() > Assist.TrajectoryCheckFrom && Assist.HostAccepts(host, Vector3.Zero, speed * 0.55f, Assist.PathDistance(path, Vector3.Zero)),
+                $"balle à {host.Length():0.0} m après le rebond");
+            // Même balle, main 1,9 m plus loin dans le sens du rebond : assez près pour la marge de latence,
+            // mais la balle ne fait que s'en approcher (sa trajectoire n'est jamais passée à portée) : refus.
+            var farHand = host + new Vector3(1.9f, 0, 0);
+            Check("prise d'une balle qui n'est pas encore arrivée refusée", !Assist.HostAccepts(host, farHand, speed * 0.55f, Assist.PathDistance(path, farHand)), "main à 1,9 m devant la balle");
+        }
 
         // 2) Temps de vol : ennemi plein axe à 3,5..20 m, geste à 30 m/s : le tir ne doit pas arriver en moins de 0,45 s.
         float worst = 99f;
@@ -94,6 +144,27 @@ public partial class AssistSelfTest : Node
         for (int i = 0; i < 30; i++) (fxRot, _, _) = Visual.CameraFx.Step(1f / 60f);
         Visual.CameraFx.Reset();
         Check("Ressort de caméra stable", float.IsFinite(fxRot.X) && Mathf.Abs(fxRot.X) < 0.5f && Mathf.Abs(fxRot.Y) < 0.5f, $"après une image de 0,5 s : {fxRot}");
+
+        // Joueur parti (identifiant inconnu des règles) : aucune exception, rien de compté, pas de boucle.
+        {
+            var rules = new Rules.MatchRules();
+            rules.AddPlayer(1, 0);
+            rules.AddPlayer(2, 1);
+            bool threw = false, eliminatedUnknown = true;
+            try
+            {
+                rules.RegisterHit(1, 99);
+                rules.RegisterHit(99, 2);
+                rules.RegisterFall(99);
+                rules.RegisterPerfectCatch(99);
+                rules.Respawn(99);
+                eliminatedUnknown = rules.Eliminate(1, 99) || rules.Eliminate(99, 2);
+            }
+            catch (System.Exception) { threw = true; }
+            bool ringOut = rules.Eliminate(1, 2) && rules.LivesOf(2) == 0 && rules.Kos[0] == 1 && !rules.Eliminate(1, 2);
+            Check("règles avec un joueur parti", !threw && !eliminatedUnknown && rules.LivesOf(99) == 0 && !rules.HasPlayer(99) && ringOut,
+                $"exception {threw}, KO d'un inconnu {eliminatedUnknown}, ring-out compté une fois {ringOut}");
+        }
 
         GD.Print(ok ? "[AssistTest] TOUT OK" : "[AssistTest] ÉCHEC");
         GetTree().Quit(ok ? 0 : 1);
