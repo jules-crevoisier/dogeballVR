@@ -35,7 +35,7 @@ public static class ArenaBuilder
         if (kc)
         {
             root.AddChild(decor!);
-            var city = ModelLibrary.Instance(map.Decor + "_ville");
+            var city = ModelLibrary.Instance(map.Decor + "_ville") ?? ModelLibrary.Instance("toit_ville");   // variantes du toit (autres cartes) : skyline commune
             if (city != null) root.AddChild(city);
             HideFloorMeshes(root);   // le toit du décor remplace la grille ; les collisions restent
         }

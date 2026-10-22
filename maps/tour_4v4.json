@@ -1,5 +1,6 @@
 {
   "name": "tour_4v4",
+  "decor": "toit_tour",
   "schemaVersion": 3,
   "layout": "ring",
   "zoneWidth": 7.5,
