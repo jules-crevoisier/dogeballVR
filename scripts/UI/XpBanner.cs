@@ -12,8 +12,10 @@ namespace DogeballVR.UI;
 public partial class XpBanner : CanvasLayer
 {
     public MatchView View { get; set; } = null!;
+    /// <summary>Faut-il attendre encore (podium de l'écran de fin) ? Sans lui, le bandeau suit le délai seul.</summary>
+    public System.Func<bool>? Ready { get; set; }
 
-    const double ShowDelay = 2.6, FillTime = 1.6;
+    const double ShowDelay = 0.4, FillTime = 1.6;   // après l'arrivée du tableau
 
     MatchAward? seen, award;
     double overFor = -1, fillAge;
@@ -38,6 +40,7 @@ public partial class XpBanner : CanvasLayer
             seen = Progression.LastAward;
             return;
         }
+        if (Ready?.Invoke() == false) return;
         overFor = overFor < 0 ? 0 : overFor + delta;
         if (root == null && overFor >= ShowDelay && Progression.LastAward is { } a && a != seen) Open(a);
         if (root != null && award != null) Animate(delta);

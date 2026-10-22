@@ -394,8 +394,9 @@ public partial class Main : Node3D
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
             var view = pcView = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
-            AddChild(new UI.XpBanner { Name = "XpBanner", View = view });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
             match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
@@ -599,8 +600,9 @@ public partial class Main : Node3D
             var view = pcView = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
             if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
-            AddChild(new UI.XpBanner { Name = "XpBanner", View = view });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
         }
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
