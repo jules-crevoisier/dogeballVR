@@ -229,19 +229,50 @@ public partial class MainMenu : CanvasLayer
     public event Action? QuickMatch, CreatePrivate, HostLan;
     public event Action<string>? JoinCode, JoinAddress;
 
+    /// <summary>Clavier virtuel (Steam : Deck, Big Picture) ; branché par Main. Faux s'il n'a pas pu s'ouvrir.</summary>
+    public static Func<string, string, int, Rect2I, Action<string?>, bool>? TextInput { get; set; }
+
+    /// <summary>
+    /// Champ de texte jouable à la manette : A sur le champ (ou un bouton qui le demande vide) ouvre le clavier virtuel de Steam.
+    /// Sur Deck le clavier flottant tape directement dans le champ ; ailleurs le texte revient à la fermeture, puis le focus passe à <paramref name="next"/>.
+    /// </summary>
+    static void PadKeyboard(LineEdit field, string description, Func<Control?> next)
+    {
+        field.GuiInput += e =>
+        {
+            if (e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A }) { OpenKeyboard(field, description, next); field.AcceptEvent(); }
+        };
+    }
+
+    static bool OpenKeyboard(LineEdit field, string description, Func<Control?> next)
+    {
+        if (TextInput == null) return false;
+        var xf = field.GetViewport().GetFinalTransform() * field.GetGlobalTransformWithCanvas();
+        var r = xf * new Rect2(Vector2.Zero, field.Size);
+        var rect = new Rect2I((Vector2I)r.Position.Round(), (Vector2I)r.Size.Round());
+        return TextInput(description, field.Text, field.MaxLength > 0 ? field.MaxLength : 64, rect, text =>
+        {
+            if (!IsInstanceValid(field)) return;
+            if (text != null) { field.Text = text; field.CaretColumn = text.Length; }
+            next()?.GrabFocus();
+        });
+    }
+
     void ShowOnline()
     {
         back = ShowMain;
         var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
+        Button? join = null;
+        PadKeyboard(code, "Code de la salle", () => join);
         Fill(
             UiKit.Text("EN LIGNE", 44, UiKit.Yellow, 10),
             UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))),
             UiKit.Button("CRÉER UNE SALLE PRIVÉE", UiKit.Blue, () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, ""))),
             code,
-            UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
+            join = UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
             {
                 var c = code.Text.Trim().ToUpperInvariant();
-                if (c == "") { code.GrabFocus(); return; }
+                if (c == "") { code.GrabFocus(); if (InputSetup.UsingPad) OpenKeyboard(code, "Code de la salle", () => join); return; }
                 if (JoinCode != null) Leave(() => JoinCode(c));
             }),
             UiKit.Button("RÉSEAU LOCAL", UiKit.NavySoft, ShowLan),
@@ -252,11 +283,13 @@ public partial class MainMenu : CanvasLayer
     {
         back = ShowOnline;
         var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
+        Button? join = null;
+        PadKeyboard(address, "Adresse IP de l'hôte", () => join);
         Fill(
             UiKit.Text("RÉSEAU LOCAL", 44, UiKit.Yellow, 10),
             UiKit.Button("HÉBERGER", UiKit.Orange, () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, ""))),
             address,
-            UiKit.Button("REJOINDRE", UiKit.Blue, () =>
+            join = UiKit.Button("REJOINDRE", UiKit.Blue, () =>
             {
                 var ip = address.Text.Trim();
                 if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));

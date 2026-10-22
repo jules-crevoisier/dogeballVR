@@ -130,8 +130,42 @@ public static class InputSetup
         }
     }
 
-    /// <summary>Touche principale d'une action, telle qu'affichée dans les aides (« Clic G », « Maj », « Z »…).</summary>
-    public static string KeyName(string action) { Register(); return Describe(PrimaryOf(action)); }
+    /// <summary>Touche principale d'une action, telle qu'affichée dans les aides (« Clic G », « Maj », « Z »…), ou son bouton de manette si on joue à la manette.</summary>
+    public static string KeyName(string action)
+    {
+        Register();
+        if (UsingPad && System.Array.Find(Actions, a => a.Name == action)?.Pad is { } pad) return DescribePad(pad);
+        return Describe(PrimaryOf(action));
+    }
+
+    /// <summary>Dernier appareil utilisé : manette (aides en boutons de manette) ou clavier-souris. Manette d'emblée sur Steam Deck.</summary>
+    public static bool UsingPad { get; private set; } = GameSettings.OnSteamDeck;
+
+    public static void Track(InputEvent e)
+    {
+        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f) UsingPad = true;
+        else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true } || e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 25f) UsingPad = false;
+    }
+
+    /// <summary>Boutons à la façon d'une manette Xbox (disposition reprise par Steam Input et le Steam Deck).</summary>
+    static string DescribePad(InputEvent e) => e switch
+    {
+        InputEventJoypadButton b => b.ButtonIndex switch
+        {
+            JoyButton.A => "A", JoyButton.B => "B", JoyButton.X => "X", JoyButton.Y => "Y",
+            JoyButton.LeftShoulder => "LB", JoyButton.RightShoulder => "RB", JoyButton.LeftStick => "L3", JoyButton.RightStick => "R3",
+            JoyButton.Back => "Vue", JoyButton.Start => "Menu",
+            JoyButton.DpadUp => "Croix ↑", JoyButton.DpadDown => "Croix ↓", JoyButton.DpadLeft => "Croix ←", JoyButton.DpadRight => "Croix →",
+            _ => $"Bouton {(int)b.ButtonIndex}",
+        },
+        InputEventJoypadMotion m => m.Axis switch
+        {
+            JoyAxis.TriggerRight => "RT", JoyAxis.TriggerLeft => "LT",
+            JoyAxis.LeftX or JoyAxis.LeftY => "Stick G", JoyAxis.RightX or JoyAxis.RightY => "Stick D",
+            _ => "?",
+        },
+        _ => "?",
+    };
 
     public static void LoadBindings(ConfigFile cfg)
     {
@@ -161,4 +195,11 @@ public static class InputSetup
             if (v != "") cfg.SetValue("keys", a.Name, v);
         }
     }
+}
+
+/// <summary>Suit le dernier appareil utilisé (manette ou clavier-souris) pour les aides de touches.</summary>
+public partial class InputDeviceWatch : Node
+{
+    public override void _Ready() => ProcessMode = ProcessModeEnum.Always;
+    public override void _Input(InputEvent e) => InputSetup.Track(e);
 }

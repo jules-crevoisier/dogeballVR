@@ -70,7 +70,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | Bande-annonce : 1920x1080 max, 30/60 i/s, ≥ 5 000 kbit/s, H.264 + AAC (.mp4/.mov), 16:9, la première = gameplay ; plan 75 s | art | /doc/store/trailer ; PAGE-STORE.md §8 |
 | [ ] | Langues déclarées : interface FR + EN (l'anglais est obligatoire comme langue de repli) ; ni audio ni sous-titres (pas de voix) | jules + code | /doc/store/localization/languages |
 | [ ] | Configuration minimale / recommandée PC et VR (estimations à mesurer) | code + jules | PAGE-STORE.md §7 |
-| [ ] | Contrôleurs : questionnaire « controller support » ; aujourd'hui rien à la manette en mode écran, donc ni Full ni Partial | jules | Steamworks > page store (questionnaire) ; à revérifier |
+| [ ] | Contrôleurs : questionnaire « controller support » ; manette en mode écran faite (sauf saisie d'un code), donc Partial après essai sur une vraie manette | jules | Steamworks > page store (questionnaire) ; à revérifier |
 | [ ] | Page soumise en revue ≥ 7 jours ouvrés avant le « Coming soon » visé, puis bouton « Post as Coming Soon » | jules | /doc/store/coming_soon |
 | [ ] | Date de sortie (ou « à venir ») affichée sur la page | jules | /doc/store/coming_soon |
 
@@ -146,7 +146,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
 | [x] | Réduction des secousses d'écran (curseur), de l'arrêt sur image (option) et des flashs (option : éclairs d'impact à 35 %, voile de dégâts à 40 %) | code | scripts/UI/OptionsMenu.cs |
 | [ ] | Confort VR : rotation par crans ou continue, vignette, hauteur, main dominante | code | voir section 10 |
-| [ ] | Support manette en mode écran (nécessaire pour Steam Deck « Vérifié » et pour cocher Full Controller Support) | code | /doc/steamdeck/compat |
+| [~] | Support manette en mode écran (nécessaire pour Steam Deck « Vérifié » et pour cocher Full Controller Support) : fait sauf la saisie d'un code de salle, donc Partial pour l'instant | code | /doc/steamdeck/compat |
 
 ## 7. Technique et qualité
 
@@ -213,10 +213,10 @@ Critères vérifiés sur /doc/steamdeck/compat. La VR ne marche pas sur Deck : s
 
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
-| [ ] | Toutes les fonctions accessibles avec la configuration manette par défaut (support manette en mode écran à faire) | code | /doc/steamdeck/compat |
-| [ ] | Glyphes de boutons qui suivent l'entrée active | code | /doc/steamdeck/compat |
-| [ ] | Texte d'au moins 9 px de haut à 1280x800 (12 px conseillés) | code | /doc/steamdeck/compat |
-| [ ] | 30 i/s au moins en 800p avec les réglages par défaut | code | /doc/steamdeck/compat |
+| [~] | Toutes les fonctions accessibles avec la configuration manette par défaut : jeu, menus, pause, options, fin de partie et salle en ligne (focus rendu à chaque mise à jour) ; reste la saisie d'un code de salle | code | /doc/steamdeck/compat |
+| [~] | Glyphes de boutons qui suivent l'entrée active : noms de boutons (RT, LT, B…) dès qu'on touche la manette, d'emblée sur Deck (`InputSetup.UsingPad`) ; glyphes dessinés à faire | code | /doc/steamdeck/compat |
+| [~] | Texte d'au moins 9 px de haut à 1280x800 (12 px conseillés) : interface « Très grande » (×1,3) au premier lancement sur Deck ou écran ≤ 800 lignes ; captures 1280x800 dans /mnt/project-files/steam/page/steam-deck/ ; à confirmer sur console | code | /doc/steamdeck/compat |
+| [ ] | 30 i/s au moins en 800p avec les réglages par défaut (qualité basse par défaut sur Deck ; non mesuré sans console) | code | /doc/steamdeck/compat |
 | [ ] | Pas d'alerte OpenXR ni de lancement de SteamVR sur Deck (option de lancement écran par défaut) | code | section 7 |
 | [ ] | Saisie de texte (nom de salon) à la manette (clavier virtuel Steam) | code | /doc/steamdeck/compat |
 | [ ] | Demande de revue Deck (après la revue du build) | jules | Steamworks > Technical Tools > Steam Hardware Compatibility Review |

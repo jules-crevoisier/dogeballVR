@@ -877,7 +877,7 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
-    static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
+    public static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
     {
         float g = Ball.ArcGravity;
         float top = Mathf.Max(from.Y, to.Y);

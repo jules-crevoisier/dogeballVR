@@ -671,6 +671,7 @@ public partial class MatchController : Node3D
         banner = winnerTeam < 0 ? "MANCHE NULLE" : $"MANCHE POUR L'ÉQUIPE {TeamName(winnerTeam)}";
         if (over) banner = $"VICTOIRE ÉQUIPE {TeamName(Champion)} !";
         GD.Print($"[Portée] touches/lancers par distance : {RangeReport()}");
+        GD.Print($"[Bots] {Bot.Report()}");
         GD.Print($"[Match] {banner} | manches {Rules.RoundsWon[0]}-{Rules.RoundsWon[1]} | KO {Rules.Kos[0]}-{Rules.Kos[1]}");
         breakLeft = over ? MatchEndSeconds : Rules.BreakSeconds;
         if (over) MatchEnded?.Invoke(Champion);

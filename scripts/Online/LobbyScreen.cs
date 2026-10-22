@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using DogeballVR.Net;
@@ -47,7 +48,9 @@ public partial class LobbyScreen : CanvasLayer
         if (!dirty) return;
         dirty = false;
         rematchLabel = null;
+        string? focused = (GetViewport().GuiGetFocusOwner() as Button)?.Text;
         foreach (var c in root.GetChildren()) c.QueueFree();
+        CallDeferred(MethodName.RestoreFocus, focused ?? "");
         switch (lobby.State)
         {
             case LobbyState.InRoom: BuildRoom(); break;
@@ -72,7 +75,7 @@ public partial class LobbyScreen : CanvasLayer
         {
             var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             row.AddThemeConstantOverride("separation", 12);
-            row.AddChild(Text(lobby.CodeIsInternet ? $"Code : {lobby.Code}" : $"Code (réseau local) : {lobby.Code}", 28));
+            row.AddChild(Inline(Text(lobby.CodeIsInternet ? $"Code : {lobby.Code}" : $"Code (réseau local) : {lobby.Code}", 28)));
             row.AddChild(MakeButton("COPIER", Gray, () => DisplayServer.ClipboardSet(lobby.Code), 160));
             if (SteamBridge.Available && lobby.IsHost) row.AddChild(MakeButton("INVITER DES AMIS", Blue, SteamBridge.OpenInvite, 280));
             root.AddChild(row);
@@ -81,7 +84,7 @@ public partial class LobbyScreen : CanvasLayer
         // Carte : l'hôte la choisit, les autres la voient.
         var mapRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         mapRow.AddThemeConstantOverride("separation", 12);
-        mapRow.AddChild(Text("Carte :", 24));
+        mapRow.AddChild(Inline(Text("Carte :", 24)));
         if (lobby.IsHost)
         {
             var pick = new OptionButton { CustomMinimumSize = new Vector2(320, 48) };
@@ -94,7 +97,7 @@ public partial class LobbyScreen : CanvasLayer
             pick.ItemSelected += i => lobby.SetMap(OnlineLobby.Maps[(int)i]);
             mapRow.AddChild(pick);
         }
-        else mapRow.AddChild(Text(MapLabel(lobby.Map), 24));
+        else mapRow.AddChild(Inline(Text(MapLabel(lobby.Map), 24)));
         root.AddChild(mapRow);
 
         // Deux équipes ; les places vides seront tenues par des bots.
@@ -117,12 +120,14 @@ public partial class LobbyScreen : CanvasLayer
                 string tags = (m.Host ? " · hôte" : "") + (m.Vr ? " · VR" : " · PC");
                 var line = Text($"{(m.Ready ? "✔" : "…")}  {m.Name}{tags}", 22, HorizontalAlignment.Left);
                 line.AddThemeColorOverride("font_color", Ink);
+                line.AddThemeConstantOverride("outline_size", 0);
                 col.AddChild(line);
             }
             for (int k = inTeam.Count; k < perTeam; k++)
             {
                 var bot = Text("     Bot", 22, HorizontalAlignment.Left);
                 bot.AddThemeColorOverride("font_color", new Color(Ink, 0.45f));
+                bot.AddThemeConstantOverride("outline_size", 0);
                 col.AddChild(bot);
             }
             teams.AddChild(panel);
@@ -148,17 +153,41 @@ public partial class LobbyScreen : CanvasLayer
         {
             var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             row.AddThemeConstantOverride("separation", 12);
-            row.AddChild(rematchLabel = Text("", 24));
+            row.AddChild(rematchLabel = Inline(Text("", 24)));
             if (lobby.IsHost) row.AddChild(MakeButton("ATTENDRE", Gray, lobby.CancelRematch, 200));
             root.AddChild(row);
-            if (!lobby.IsHost) root.AddChild(Text("« PAS PRÊT » arrête le compte à rebours", 18));
+            if (!lobby.IsHost) root.AddChild(Text("« PAS PRÊT » arrête le compte à rebours", 20));
         }
         else if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
         else if (!lobby.IsHost) root.AddChild(Text("L'hôte lance la partie quand tout le monde est prêt", 20));
         if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(lobby.Status, 20));
         root.AddChild(MakeButton("QUITTER LA SALLE", Gray, BackToMenu));
         if (lobby.IsHost && lobby.Members.Count == 1)
-            root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code." : "Sur le même réseau, tes amis te trouvent avec « Partie rapide ». Par Internet : donne le code (port UDP 7777 ouvert).", 18));
+            root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code." : "Sur le même réseau, tes amis te trouvent avec « Partie rapide ». Par Internet : donne le code (port UDP 7777 ouvert).", 20));
+    }
+
+    // Manette (Steam Deck) : l'écran est reconstruit à chaque changement de la salle ; le focus revient sur le même bouton,
+    // sinon sur l'action principale, pour que la croix et A marchent toujours.
+    static readonly string[] FocusOrder = { "PRÊT !", "PAS PRÊT", "LANCER LA PARTIE", "ATTENDRE", "ANNULER", "RETOUR AU MENU", "CHANGER D'ÉQUIPE", "QUITTER LA SALLE" };
+
+    void RestoreFocus(string previous)
+    {
+        var buttons = new List<Button>();
+        Collect(root, buttons);
+        var target = buttons.FirstOrDefault(b => b.Text == previous && !b.Disabled);
+        foreach (var name in FocusOrder)
+            target ??= buttons.FirstOrDefault(b => b.Text == name && !b.Disabled);
+        target?.GrabFocus();
+    }
+
+    static void Collect(Node n, List<Button> into)
+    {
+        foreach (var c in n.GetChildren())
+        {
+            if (c.IsQueuedForDeletion()) continue;
+            if (c is Button b) into.Add(b);
+            Collect(c, into);
+        }
     }
 
     void BackToMenu()
@@ -183,6 +212,13 @@ public partial class LobbyScreen : CanvasLayer
         l.AddThemeColorOverride("font_color", Orange);
         l.AddThemeColorOverride("font_outline_color", Ink);
         l.AddThemeConstantOverride("outline_size", 16);
+        return l;
+    }
+
+    /// <summary>Texte dans une rangée (HBox) : sans retour à la ligne, sinon la rangée lui donne une largeur nulle et il s'écrit lettre par lettre.</summary>
+    static Label Inline(Label l)
+    {
+        l.AutowrapMode = TextServer.AutowrapMode.Off;
         return l;
     }
 
@@ -212,7 +248,10 @@ public partial class LobbyScreen : CanvasLayer
         b.AddThemeStyleboxOverride("normal", Box(color));
         b.AddThemeStyleboxOverride("hover", Box(color.Lightened(0.18f)));
         b.AddThemeStyleboxOverride("pressed", Box(color.Darkened(0.2f)));
-        b.AddThemeStyleboxOverride("focus", Box(color.Lightened(0.1f)));
+        // Focus (manette) : contour blanc bien visible.
+        var focus = Box(color.Lightened(0.1f), 18, Colors.White);
+        focus.BorderWidthTop = focus.BorderWidthLeft = focus.BorderWidthRight = 4;
+        b.AddThemeStyleboxOverride("focus", focus);
         b.AddThemeStyleboxOverride("disabled", Box(color.Darkened(0.35f)));
         b.Pressed += onPress;
         return b;

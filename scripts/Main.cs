@@ -120,6 +120,7 @@ public partial class Main : Node3D
         GetTree().Paused = false;
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
+        AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
@@ -168,6 +169,7 @@ public partial class Main : Node3D
             menu.HostLan += () => Room(l => l.HostLan());
             menu.JoinCode += code => Room(l => l.JoinByCode(code));
             menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
+            UI.MainMenu.TextInput = (desc, cur, max, rect, done) => Online.SteamBridge.Init() && Online.Steam.SteamPlatform.ShowTextInput(desc, cur, max, rect, done);
             AddChild(menu);
             return;
         }
@@ -388,6 +390,11 @@ public partial class Main : Node3D
         targets.Add(localMarker);
         targetTeams.Add(localZone.Team);
         targetIndexOfZone[localZone.Id] = 0;
+        // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
+        Bot.Level = UI.GameSettings.BotLevel;
+        Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
