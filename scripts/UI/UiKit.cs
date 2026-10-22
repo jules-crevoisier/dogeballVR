@@ -164,6 +164,75 @@ public static class UiKit
         return b;
     }
 
+    /// <summary>
+    /// Bouton de liste (pause) : neutre au repos, un seul accent orange sur l'élément sélectionné. Le survol de la souris
+    /// prend le focus, si bien que souris et clavier ne montrent jamais deux sélections à la fois.
+    /// </summary>
+    public static Button ListButton(string text, Action onPress, int fontSize = 28, Vector2? minSize = null)
+    {
+        var b = Button(text, NavySoft, onPress, fontSize, minSize);
+        b.AddThemeStyleboxOverride("hover", Box(NavySoft.Lightened(0.12f), 14, -0.12f));
+        b.AddThemeStyleboxOverride("focus", Box(Orange, 14, -0.12f, 3, Yellow));   // dessiné par-dessus le fond, sous le texte
+        b.AddThemeColorOverride("font_color", new Color(Cream, 0.9f));
+        b.MouseEntered += () => { if (!b.Disabled) b.GrabFocus(); };
+        return b;
+    }
+
+    /// <summary>
+    /// Touche de clavier dessinée (même dessin que le HUD) : cadre clair arrondi, liseré gris, tranche plus foncée en bas
+    /// (relief), texte marine. minWidth aligne les touches d'une colonne.
+    /// </summary>
+    public static Label KeyCap(string text, int size = 20, float minWidth = 0)
+    {
+        var l = Text(text, size, Navy, 0, HorizontalAlignment.Center);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        l.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        if (minWidth > 0) l.CustomMinimumSize = new Vector2(minWidth, 0);
+        l.AddThemeStyleboxOverride("normal", new StyleBoxFlat
+        {
+            BgColor = new Color("f6f1e7"), AntiAliasing = true,
+            CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
+            BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 5, BorderColor = new Color("8d97ad"),
+            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 1, ContentMarginBottom = 3,
+            ShadowColor = new Color(Navy, 0.6f), ShadowSize = 3,
+        });
+        return l;
+    }
+
+    /// <summary>Aide de bas d'écran : [touche] action, à la Knockout City (« [Esc] FERMER »).</summary>
+    public static HBoxContainer KeyHint(string key, string label, int size = 22)
+    {
+        var h = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        h.AddThemeConstantOverride("separation", 10);
+        h.AddChild(KeyCap(key, size - 2));
+        var l = Text(label, size, Colors.White, 6);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        h.AddChild(l);
+        return h;
+    }
+
+    /// <summary>Gros bouton avec son raccourci dessiné à gauche du texte (« [Entrée] REJOUER »).</summary>
+    public static Button KeyButton(string text, string key, Color color, Action onPress, int fontSize = 30, Vector2? minSize = null)
+    {
+        var b = Button("", color, onPress, fontSize, minSize);
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        center.OffsetBottom = -4;   // la tranche du bouton (relief) mange le bas
+        b.AddChild(center);
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 16);
+        center.AddChild(row);
+        row.AddChild(KeyCap(key, 20));
+        var l = Text(text, fontSize, Colors.White, 6);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        row.AddChild(l);
+        return b;
+    }
+
+    /// <summary>Lilita One penchée et un peu grasse (pas d'italique dans la police) : titres et items à la Knockout City.</summary>
+    public static Font? Italic => italic ??= Font == null ? null : new FontVariation { BaseFont = Font, VariationTransform = new Transform2D(new Vector2(1, 0), new Vector2(-0.22f, 1), Vector2.Zero), VariationEmbolden = 0.35f };
+    static Font? italic;
+
     /// <summary>Survol et focus : petit grossissement élastique et son ; s'applique à tout contrôle cliquable.</summary>
     public static void Juicy(Control c)
     {
