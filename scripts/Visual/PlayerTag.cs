@@ -83,7 +83,7 @@ public partial class PlayerTag : Node3D
         };
         symbol = new Sprite3D
         {
-            Texture = SymbolTexture(Target.Team), PixelSize = 0.9f / 64f, Modulate = color, Shaded = false, RenderPriority = 1,
+            Texture = SymbolTexture(Target.Team), PixelSize = 1.1f / 64f, Modulate = color, Shaded = false, RenderPriority = 1,
             Billboard = BaseMaterial3D.BillboardModeEnum.Disabled, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps, Visible = false,
         };
         AddChild(symbol);

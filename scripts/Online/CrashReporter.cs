@@ -35,6 +35,7 @@ public partial class CrashReporter : Node
             SavePreviousLog(FileAccess.GetFileAsString($"{SessionDir}/{lockFile}"));
             DirAccess.RemoveAbsolute($"{SessionDir}/{lockFile}");
         }
+        PruneLogBackups();
         using (var f = FileAccess.Open(Marker, FileAccess.ModeFlags.Write)) f?.StoreString($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {Header()}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Write("exception", Summary("exception C# non rattrapée, le jeu va se fermer.", CurrentLog())
             + "\n--- exception ---\n" + (e.ExceptionObject?.ToString() ?? "?"));
@@ -54,15 +55,33 @@ public partial class CrashReporter : Node
 
     static void SavePreviousLog(string session)
     {
+        // Godot copie le journal de la session précédente en godotDATE.log au démarrage : la copie faite il y a moins de 5 min.
         string log = "";
-        var logs = DirAccess.GetFilesAt("user://logs").Where(n => n.EndsWith(".log") && n != "godot.log").OrderBy(n => n).ToList();
-        if (logs.Count > 0) log = FileAccess.GetFileAsString($"user://logs/{logs[^1]}");
+        var logs = LogBackups();
+        if (logs.Count > 0 && Time.GetUnixTimeFromSystem() - FileAccess.GetModifiedTime($"{LogDir}/{logs[^1]}") < 300)
+            log = FileAccess.GetFileAsString($"{LogDir}/{logs[^1]}");
+        else log = "(journal de la session introuvable : sans doute effacé par la rotation des journaux de Godot)";
         var lines = log.Split('\n');
         string openedAt = session.Length >= 19 ? session[..19] : session;
         LastReport = Write("crash", Summary(
             $"le jeu s'est fermé sans passer par « Quitter » (plantage, arrêt forcé ou coupure). Session ouverte le {openedAt}.", lines)
             + "\n--- fin du journal (300 dernières lignes) ---\n" + string.Join('\n', lines.Skip(Math.Max(0, lines.Length - 300))));
         GD.Print("[Crash] La session précédente a planté : rapport écrit dans user://crash/");
+    }
+
+    const string LogDir = "user://logs";
+
+    static List<string> LogBackups() =>
+        DirAccess.GetFilesAt(LogDir).Where(n => n.StartsWith("godot") && n.EndsWith(".log") && n != "godot.log").OrderBy(n => n).ToList();
+
+    /// <summary>
+    /// Godot 4.3 garde 4 copies de journaux, mais au-delà il en efface au hasard (ensemble non trié), parfois la plus récente :
+    /// celle de la session qui vient de planter. On n'en laisse que 3, pour que la prochaine copie n'en fasse jamais effacer.
+    /// </summary>
+    static void PruneLogBackups()
+    {
+        var logs = LogBackups();
+        for (int i = 0; i < logs.Count - 3; i++) DirAccess.RemoveAbsolute($"{LogDir}/{logs[i]}");
     }
 
     static readonly Regex Activity = new(@"^\[(Lobby|Match|Net|Steam|HUD)\]");
@@ -89,7 +108,7 @@ public partial class CrashReporter : Node
         if (activity.Count == 0) sb.AppendLine("  (aucune ligne de partie dans le journal)");
         foreach (var l in activity) sb.AppendLine("  " + l);
         var errors = new List<(string msg, int count)>();
-        foreach (var l in log.Select(l => l.Trim()).Where(l => Error.IsMatch(l) && !l.Contains("OpenXR")))
+        foreach (var l in log.Select(l => l.Trim()).Where(l => Error.IsMatch(l) && !l.Contains("OpenXR") && !l.StartsWith("[Steam] indisponible")))
         {
             int i = errors.FindIndex(e => e.msg == l);
             if (i >= 0) errors[i] = (l, errors[i].count + 1); else errors.Add((l, 1));
