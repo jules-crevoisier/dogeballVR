@@ -43,6 +43,30 @@ public partial class Avatar : Node3D
     double ghostWindow;          // KO à l'instant : si l'avatar est masqué dans ce délai, une copie joue la chute
     Transform3D koTransform;
 
+    MeshInstance3D? blob;
+    float blobGround;
+    static StandardMaterial3D? blobMat;
+
+    /// <summary>Ombre portée simple : disque au dégradé radial sombre, posé à plat sous les pieds.</summary>
+    static MeshInstance3D BlobShadow()
+    {
+        blobMat ??= new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            AlbedoColor = new Color(0.05f, 0.05f, 0.12f, 0.55f), CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            AlbedoTexture = new GradientTexture2D
+            {
+                Gradient = new Gradient { Offsets = new[] { 0f, 0.55f, 1f }, Colors = new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.6f), new Color(1, 1, 1, 0) } },
+                Fill = GradientTexture2D.FillEnum.Radial, FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(0.5f, 0f), Width = 64, Height = 64,
+            },
+        };
+        return new MeshInstance3D
+        {
+            Name = "OmbreSimple", Mesh = new PlaneMesh { Size = new Vector2(0.9f, 0.9f) }, MaterialOverride = blobMat,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, TopLevel = true,
+        };
+    }
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
@@ -66,6 +90,7 @@ public partial class Avatar : Node3D
             avatar.RightHand = new Node3D { Name = "RightHand" };
             avatar.torso = new Node3D { Name = "Torso" };
             foreach (var n in new[] { avatar.Head, avatar.LeftHand, avatar.RightHand, avatar.torso }) avatar.AddChild(n);
+            if (ModelLibrary.Quest) avatar.AddChild(avatar.blob = BlobShadow());   // Quest : ni ombres ni SSAO, sans tache sombre le perso flotte
             avatar.Pose(new Vector3(0, 1.6f, 0), 0f, new Vector3(-0.35f, 1.0f, -0.2f), new Vector3(0.35f, 1.0f, -0.2f));
             return avatar;
         }
@@ -325,6 +350,14 @@ public partial class Avatar : Node3D
             bodyBase = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
             body.Position = bodyBase + (IsInsideTree() ? KickLocal() : Vector3.Zero);
             body.Rotation = new Vector3(0, yaw, 0);
+            if (blob != null)
+            {
+                // reste au sol pendant un saut : plus petite et plus pâle quand le corps monte
+                if (y < 0.25f || Mathf.Abs(climb) < 0.5f) blobGround = bodyBase.Y;
+                float lift = Mathf.Clamp((bodyBase.Y - blobGround) / 1.5f, 0f, 0.7f);
+                blob.Position = new Vector3(head.X, blobGround + 0.015f, head.Z);
+                blob.Scale = Vector3.One * (1f - lift);
+            }
         }
         Head.Position = head;
         Head.Rotation = new Vector3(0, yaw, 0);
