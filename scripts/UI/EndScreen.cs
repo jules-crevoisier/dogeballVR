@@ -79,26 +79,44 @@ public partial class EndScreen : CanvasLayer
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
-        burst = new Sunburst { Color = win ? UiKit.Yellow : UiKit.Sky, MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Victoire : rayons dorés festifs. Défaite : pas de rayons, juste un halo gris-bleu éteint derrière le titre.
+        burst = new Sunburst { Color = win ? UiKit.Yellow : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
         burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(burst);
 
         var col = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        col.OffsetTop = 40; col.OffsetBottom = -40;
-        col.AddThemeConstantOverride("separation", 14);
+        // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
+        bool compact = root.GetViewportRect().Size.Y < 960f;
+        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -12 : -40;
+        col.AddThemeConstantOverride("separation", compact ? 8 : 14);
         root.AddChild(col);
 
-        var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", 170, win ? UiKit.Yellow : new Color("9fb4d8"), 30, HorizontalAlignment.Center);
-        title.CustomMinimumSize = new Vector2(0, 190);
+        var title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, win ? UiKit.Yellow : new Color("9fb4d8"), compact ? 24 : 30, HorizontalAlignment.Center);
+        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
         col.AddChild(title);
 
-        // Score des manches, aux couleurs des équipes.
+        // Score des manches, aux couleurs des équipes, avec son unité sous les chiffres.
         var score = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         score.AddThemeConstantOverride("separation", 26);
-        score.AddChild(UiKit.Text("ÉQUIPE ORANGE", 40, UiKit.Orange, 10));
-        score.AddChild(UiKit.Text($"{s.Rounds0}  -  {s.Rounds1}", 64, Colors.White, 14));
-        score.AddChild(UiKit.Text("ÉQUIPE BLEUE", 40, UiKit.Sky, 10));
+        Label Team(string name, Color c)
+        {
+            var l = UiKit.Text(name, 40, c, 10);
+            l.CustomMinimumSize = new Vector2(0, 80);   // hauteur des chiffres : le nom reste aligné sur eux, pas sur l'unité
+            l.VerticalAlignment = VerticalAlignment.Center;
+            l.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+            return l;
+        }
+        score.AddChild(Team("ÉQUIPE ORANGE", UiKit.Orange));
+        var mid = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        mid.AddThemeConstantOverride("separation", -10);
+        var digits = UiKit.Text($"{s.Rounds0}  -  {s.Rounds1}", 64, Colors.White, 14, HorizontalAlignment.Center);
+        digits.CustomMinimumSize = new Vector2(0, 80);
+        digits.VerticalAlignment = VerticalAlignment.Center;
+        mid.AddChild(digits);
+        mid.AddChild(UiKit.Text("MANCHES", 22, UiKit.Cream, 6, HorizontalAlignment.Center));
+        score.AddChild(mid);
+        score.AddChild(Team("ÉQUIPE BLEUE", UiKit.Sky));
         col.AddChild(score);
         col.AddChild(UiKit.Spacer(6));
 
@@ -126,7 +144,7 @@ public partial class EndScreen : CanvasLayer
             autoLabel.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(autoLabel);
         }
-        else if (View.CanRestart) buttons.AddChild(first = UiKit.Button("REJOUER", UiKit.Orange, Replay, 34, new Vector2(400, 76)));
+        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76)));
         else
         {
             var wait = UiKit.Text("En attente de l'hôte…", 32, UiKit.Sky, 8, HorizontalAlignment.Center);
@@ -134,8 +152,10 @@ public partial class EndScreen : CanvasLayer
             wait.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(wait);
         }
-        var menu = UiKit.Button("MENU PRINCIPAL", UiKit.Grey, () => { Close(false); QuitToMenu?.Invoke(); }, 30, new Vector2(400, 76));
+        var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76));
         buttons.AddChild(menu);
+        replayKey = first != null;
+        TestKeys();
         (first ?? menu).CallDeferred(Control.MethodName.GrabFocus);
 
         // Entrée : le titre tape, le reste glisse en cascade.
@@ -175,8 +195,58 @@ public partial class EndScreen : CanvasLayer
 
     void Replay()
     {
+        GD.Print("[Fin] Rejouer");
         Close(true);
         View.Restart();
+    }
+
+    void ToMenu()
+    {
+        GD.Print("[Fin] Retour au menu principal");
+        Close(false);
+        QuitToMenu?.Invoke();
+    }
+
+    bool replayKey;   // Entrée relance (seulement si l'on peut relancer : hors ligne ou hôte)
+
+    /// <summary>
+    /// Raccourcis affichés sur les boutons : Entrée = rejouer, Échap (touche de pause) = menu principal.
+    /// Passe avant le menu pause, qui sinon s'ouvrirait sur Échap ; rien tant que la pause est ouverte par-dessus.
+    /// </summary>
+    public override void _Input(InputEvent e)
+    {
+        if (root == null || PauseMenu.IsOpen || Autoplay) return;
+        if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
+        {
+            if (!replayKey) return;
+            GetViewport().SetInputAsHandled();
+            Replay();
+        }
+        else if (e.IsActionPressed("pause"))
+        {
+            GetViewport().SetInputAsHandled();
+            Sfx.Play(this, SfxKind.UiBack);
+            ToMenu();
+        }
+    }
+
+    /// <summary>
+    /// Test des raccourcis (--end-screen-keys=entree | echap, avec --end-screen-test) : 2 s après l'ouverture, la touche est
+    /// injectée comme un vrai appui ; le journal doit montrer « [Fin] Rejouer » ou « [Fin] Retour au menu principal ».
+    /// </summary>
+    void TestKeys()
+    {
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (!a.StartsWith("--end-screen-keys=")) continue;
+            var key = a.EndsWith("echap") ? Key.Escape : Key.Enter;
+            GetTree().CreateTimer(2.0).Timeout += () =>
+            {
+                GD.Print($"[Fin] Test : appui sur {(key == Key.Escape ? "Échap" : "Entrée")}");
+                Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
+            };
+        }
     }
 
     void Close(bool capture)
@@ -336,13 +406,14 @@ public partial class EndScreen : CanvasLayer
     sealed partial class Sunburst : Control
     {
         public Color Color = UiKit.Yellow;
+        public bool Rays = true;
         public float Angle;
         public override void _Draw()
         {
             var c = new Vector2(Size.X / 2, 260);
             float r = Size.Length();
             const int n = 18;
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < (Rays ? n : 0); i++)
             {
                 float a = Angle + Mathf.Tau * i / n;
                 var tip0 = c + Vector2.FromAngle(a) * r;

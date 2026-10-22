@@ -35,8 +35,13 @@ public partial class MainMenu : CanvasLayer
         shade.OffsetRight = 900;
         root.AddChild(shade);
 
-        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(96, 48), Size = new Vector2(760, 200), RotationDegrees = -4f };
-        root.AddChild(logoBox);
+        // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : logo réduit, colonne remontée, le pied de page reste dégagé.
+        bool compact = root.GetViewportRect().Size.Y < 960f;
+        float top = compact ? -44f : 0f;
+        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.82f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
+        root.AddChild(logoScale);
+        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(96, compact ? 34 : 48), Size = new Vector2(760, 200), RotationDegrees = -4f };
+        logoScale.AddChild(logoBox);
         var logoShadow = UiKit.Text("DOGEBALL", 132, UiKit.Yellow, 0);
         logoShadow.Position = new Vector2(8, 10);
         logoBox.AddChild(logoShadow);
@@ -52,23 +57,23 @@ public partial class MainMenu : CanvasLayer
         bob.TweenProperty(logoBox, "rotation_degrees", -4f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
 
         // Panneau incliné derrière la colonne de boutons, comme les menus de Knockout City.
-        plate = new Panel { Position = new Vector2(64, 284), Size = new Vector2(560, 640), MouseFilter = Control.MouseFilterEnum.Ignore };
+        plate = new Panel { Position = new Vector2(64, 284 + top), Size = new Vector2(560, 640), MouseFilter = Control.MouseFilterEnum.Ignore };
         plate.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.Navy, 0.72f), 22, -0.08f, 3, new Color(UiKit.Yellow, 0.5f), 10));
         root.AddChild(plate);
         UiKit.SlideIn(plate, 0f, -120f);
 
-        // Aides clavier en bas à gauche.
-        var hints = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, AutowrapMode = TextServer.AutowrapMode.Off, MouseFilter = Control.MouseFilterEnum.Ignore };
-        hints.Text = "[color=#ffd23f]Entrée[/color]  Choisir      [color=#ffd23f]Échap[/color]  Retour      [color=#ffd23f]Souris[/color]  Naviguer";
-        hints.AddThemeFontSizeOverride("normal_font_size", 22);
-        hints.AddThemeConstantOverride("outline_size", 6);
-        hints.AddThemeColorOverride("font_outline_color", UiKit.Navy);
+        // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
+        var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        hints.AddThemeConstantOverride("separation", 36);
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
+        hints.AddChild(UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24));
         hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        hints.OffsetLeft = 72; hints.OffsetTop = -56; hints.OffsetRight = 900; hints.OffsetBottom = -20;
+        hints.GrowVertical = Control.GrowDirection.Begin;
+        hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
         root.AddChild(hints);
 
-        column = new VBoxContainer { Position = new Vector2(100, 310) };
-        column.AddThemeConstantOverride("separation", 14);
+        column = new VBoxContainer { Position = new Vector2(100, 310 + top) };
+        column.AddThemeConstantOverride("separation", compact ? 10 : 14);
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
@@ -100,6 +105,8 @@ public partial class MainMenu : CanvasLayer
         int i = 0;
         foreach (var c in items)
         {
+            // Items en lettres penchées et grasses, comme les menus de Knockout City.
+            if (UiKit.Italic is Font it && c is Button or Label) c.AddThemeFontOverride("font", it);
             column.AddChild(c);
             UiKit.SlideIn(c, 0.05f * i++);
         }
@@ -168,7 +175,7 @@ public partial class MainMenu : CanvasLayer
         col.AddThemeConstantOverride("separation", 14);
         card.AddChild(col);
         col.AddChild(UiKit.Text("PREMIÈRE PARTIE ?", 46, UiKit.Yellow, 10, HorizontalAlignment.Center));
-        col.AddChild(UiKit.Text("L'entraînement t'apprend lancer, attrape et dash en deux minutes.", 24, Colors.White, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text("L'entraînement t'apprend à lancer, attraper et esquiver en deux minutes.", 24, Colors.White, 6, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         row.AddThemeConstantOverride("separation", 16);
         col.AddChild(row);

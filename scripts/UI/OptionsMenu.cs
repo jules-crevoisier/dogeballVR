@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using DogeballVR.Audio;
 
@@ -6,19 +7,73 @@ namespace DogeballVR.UI;
 
 /// <summary>
 /// Écran d'options (menu principal et pause) : quatre onglets, Contrôles, Touches, Audio, Vidéo.
-/// Tout s'applique en direct ; l'enregistrement se fait en quittant l'écran.
+/// Tout s'applique en direct ; l'enregistrement se fait en quittant l'écran. La ligne survolée (ou sélectionnée au clavier)
+/// s'allume en entier et sa description s'affiche en bas du panneau, comme dans Knockout City.
 /// </summary>
 public partial class OptionsMenu : Control
 {
     public event Action? Closed;
 
     VBoxContainer list = null!;
+    ScrollContainer scroll = null!;
+    Label desc = null!;
+    readonly System.Collections.Generic.List<(PanelContainer row, string text)> rows = new();
+    PanelContainer? lit;
+    TextureRect moreBelow = null!;
     readonly Button[] tabs = new Button[4];
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
 
     static readonly string[] TabNames = { "CONTRÔLES", "TOUCHES", "AUDIO", "VIDÉO" };
+    /// <summary>Texte du bas quand aucune ligne n'est survolée.</summary>
+    static readonly string[] TabHints =
+    {
+        "Survole une option pour voir ce qu'elle fait.",
+        "Clique sur une touche puis appuie sur la nouvelle (Échap annule).",
+        "Les volumes s'appliquent tout de suite.",
+        "Les réglages vidéo s'appliquent tout de suite.",
+    };
+
+    /// <summary>Description de chaque option (en bas du panneau), par libellé : une ligne ajoutée ailleurs y met la sienne.</summary>
+    static readonly System.Collections.Generic.Dictionary<string, string> Help = new()
+    {
+        ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
+        ["Inverser l'axe vertical"] = "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.",
+        ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
+        ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
+        ["Secousses de l'écran"] = "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
+        ["Arrêt sur image aux impacts"] = "Le jeu se fige une fraction de seconde quand une balle touche ou est attrapée, pour bien sentir le choc.",
+        ["Marqueur de touche"] = "Une marque s'affiche sur le viseur quand ta balle touche un adversaire.",
+        ["S'accroupir : appui = bascule"] = "OUI : un appui pour s'accroupir, un autre pour se relever. NON : tu restes accroupi tant que la touche est tenue.",
+        ["Volume général"] = "Volume de tout le jeu.",
+        ["Musique"] = "Musique des menus et des parties.",
+        ["Effets sonores"] = "Lancers, impacts, foule et annonces.",
+        ["Interface"] = "Sons des menus : survol et clic.",
+        ["Plein écran"] = "Le jeu occupe tout l'écran. NON : fenêtre redimensionnable.",
+        ["Synchronisation verticale"] = "Supprime les déchirures de l'image en calant les images sur l'écran, au prix d'un peu de latence.",
+        ["Images par seconde max"] = "Plafond d'images par seconde : utile pour limiter la chauffe d'un portable.",
+        ["Qualité graphique"] = "Ombres, lumière et effets. Basse : pour les machines modestes.",
+        ["Résolution de rendu"] = "Calcule l'image en plus petit puis l'agrandit : plus fluide, un peu plus flou.",
+        ["Afficher les images par seconde"] = "Compteur d'images par seconde dans un coin de l'écran.",
+        ["Taille du texte et de l'interface"] = "Agrandit tout le texte et l'interface, menus et HUD compris.",
+        ["Réduire les flashs"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
+        ["Symboles d'équipe (daltonisme)"] = "Ajoute un symbole à la couleur de chaque équipe, pour ne pas dépendre de l'orange et du bleu.",
+    };
+
+    static readonly StyleBoxFlat RowIdle = RowBox(false), RowLit = RowBox(true);
+
+    static StyleBoxFlat RowBox(bool on)
+    {
+        var b = new StyleBoxFlat
+        {
+            BgColor = on ? new Color(UiKit.Sky, 0.14f) : new Color(0, 0, 0, 0),
+            CornerRadiusTopLeft = 10, CornerRadiusTopRight = 10, CornerRadiusBottomLeft = 10, CornerRadiusBottomRight = 10,
+            BorderWidthLeft = on ? 6 : 0, BorderColor = UiKit.Yellow, AntiAliasing = true,
+            ContentMarginLeft = 16, ContentMarginRight = 10, ContentMarginTop = 2, ContentMarginBottom = 2,
+        };
+        return b;
+    }
 
     public override void _Ready()
     {
@@ -30,13 +85,14 @@ public partial class OptionsMenu : Control
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
         center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(center);
-        var panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 760) };
+        var panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 0) };
+        panel.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8));   // opaque
         center.AddChild(panel);
         var col = new VBoxContainer();
-        col.AddThemeConstantOverride("separation", 14);
+        col.AddThemeConstantOverride("separation", 12);
         panel.AddChild(col);
 
-        col.AddChild(UiKit.Text("OPTIONS", 54, UiKit.Yellow, 12, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text("OPTIONS", 50, UiKit.Yellow, 12, HorizontalAlignment.Center));
         var tabRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         tabRow.AddThemeConstantOverride("separation", 10);
         col.AddChild(tabRow);
@@ -47,22 +103,49 @@ public partial class OptionsMenu : Control
             tabRow.AddChild(tabs[i]);
         }
 
-        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(1060, 520), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
-        col.AddChild(scroll);
+        // Zone de défilement aussi haute que l'écran le permet (l'onglet Contrôles tient en entier en 1080p) ; si la liste
+        // dépasse (onglet Touches, interface agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
+        var holder = new Control { CustomMinimumSize = new Vector2(1060, 160), SizeFlagsVertical = SizeFlags.ExpandFill };
+        col.AddChild(holder);
+        scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
+        scroll.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        holder.AddChild(scroll);
+        var fadeGrad = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { new Color(UiKit.Navy, 0f), UiKit.Navy } };
+        moreBelow = new TextureRect { Texture = new GradientTexture2D { Gradient = fadeGrad, Width = 4, Height = 64, FillFrom = new Vector2(0, 0), FillTo = new Vector2(0, 1) }, StretchMode = TextureRect.StretchModeEnum.Scale, MouseFilter = MouseFilterEnum.Ignore };
+        moreBelow.SetAnchorsPreset(LayoutPreset.BottomWide);
+        moreBelow.OffsetTop = -56; moreBelow.OffsetRight = -24;
+        holder.AddChild(moreBelow);
+        // Hauteur du panneau : tout l'écran utile (marge de 20 px en haut et en bas), quel que soit le facteur d'échelle.
+        void Fit() => panel.CustomMinimumSize = new Vector2(1120, Mathf.Min(1040f, GetViewportRect().Size.Y - 40f));
+        Fit();
+        GetViewport().SizeChanged += Fit;
+        TreeExiting += () => GetViewport().SizeChanged -= Fit;
         // Marge à droite : les valeurs et les boutons ne touchent pas la barre de défilement.
         var margin = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        margin.AddThemeConstantOverride("margin_right", 32);
-        margin.AddThemeConstantOverride("margin_left", 8);
+        margin.AddThemeConstantOverride("margin_right", 28);
+        margin.AddThemeConstantOverride("margin_left", 4);
+        margin.AddThemeConstantOverride("margin_bottom", 6);
         scroll.AddChild(margin);
         list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        list.AddThemeConstantOverride("separation", 10);
+        list.AddThemeConstantOverride("separation", 4);
         margin.AddChild(list);
 
-        col.AddChild(UiKit.Spacer(6));
+        // Description de l'option survolée (ou sélectionnée au clavier), en bas du panneau.
+        var descBox = new PanelContainer { CustomMinimumSize = new Vector2(0, 66) };
+        var db = UiKit.Box(new Color(UiKit.NavySoft, 0.7f), 12, 0f, 0, null, 0);
+        db.ContentMarginLeft = 22; db.ContentMarginRight = 22; db.ContentMarginTop = 8; db.ContentMarginBottom = 8;
+        descBox.AddThemeStyleboxOverride("panel", db);
+        col.AddChild(descBox);
+        desc = UiKit.Text("", 22, UiKit.Cream, 5);
+        desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        desc.VerticalAlignment = VerticalAlignment.Center;
+        desc.SizeFlagsVertical = SizeFlags.Fill;
+        descBox.AddChild(desc);
+
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
         col.AddChild(bottom);
-        col.AddChild(UiKit.Spacer(8));
+        col.AddChild(UiKit.Spacer(4));
         bottom.AddChild(UiKit.Button("PAR DÉFAUT", UiKit.Grey, ResetTab, 24, new Vector2(260, 56)));
         var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
         bottom.AddChild(back);
@@ -76,6 +159,26 @@ public partial class OptionsMenu : Control
         GameSettings.Save();
         Closed?.Invoke();
         QueueFree();
+    }
+
+    /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
+    public override void _Process(double delta)
+    {
+        var bar = scroll.GetVScrollBar();
+        moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
+        PanelContainer? want = null;
+        var mouse = GetGlobalMousePosition();
+        if (scroll.GetGlobalRect().HasPoint(mouse))
+            foreach (var (row, _) in rows)
+                if (IsInstanceValid(row) && row.GetGlobalRect().HasPoint(mouse)) { want = row; break; }
+        if (want == null && GetViewport().GuiGetFocusOwner() is Control f)
+            foreach (var (row, _) in rows)
+                if (IsInstanceValid(row) && row.IsAncestorOf(f)) { want = row; break; }
+        if (want == lit) return;
+        if (lit != null && IsInstanceValid(lit)) lit.AddThemeStyleboxOverride("panel", RowIdle);
+        lit = want;
+        lit?.AddThemeStyleboxOverride("panel", RowLit);
+        desc.Text = lit == null ? TabHints[tab] : rows.Find(r => r.row == lit).text;
     }
 
     public override void _Input(InputEvent e)
@@ -113,10 +216,13 @@ public partial class OptionsMenu : Control
         for (int k = 0; k < 4; k++)
             tabs[k].AddThemeStyleboxOverride("normal", UiKit.Box(k == i ? UiKit.Orange : UiKit.NavySoft, 14, -0.12f));
         foreach (var c in list.GetChildren()) c.QueueFree();
+        rows.Clear();
+        lit = null;
+        desc.Text = TabHints[i];
         switch (i)
         {
             case 0:
-                Section("Souris");
+                Section("Souris", true);
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Caméra et visée");
@@ -128,7 +234,6 @@ public partial class OptionsMenu : Control
                 Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
                 break;
             case 1:
-                Section("Clique sur une touche puis appuie sur la nouvelle (Échap annule)");
                 foreach (var a in InputSetup.Actions) KeyRow(a);
                 break;
             case 2:
@@ -166,23 +271,38 @@ public partial class OptionsMenu : Control
         ShowTab(tab);
     }
 
-    void Section(string text)
+    /// <summary>Intertitre : gros, crème, suivi d'un filet jaune jusqu'au bord.</summary>
+    void Section(string text, bool first = false)
     {
-        var l = UiKit.Text(text, 22, UiKit.Sky, 6);
-        list.AddChild(l);
+        if (!first) list.AddChild(UiKit.Spacer(8));
+        var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        h.AddThemeConstantOverride("separation", 16);
+        var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
+        h.AddChild(l);
+        var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
+        h.AddChild(rule);
+        list.AddChild(h);
     }
 
-    HBoxContainer Row(string label)
+    /// <summary>Ligne d'option : fond allumé en entier au survol ; le texte d'aide va dans la description du bas.</summary>
+    HBoxContainer Row(string label, string help, out PanelContainer panel)
     {
-        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 48) };
+        panel = new PanelContainer { MouseFilter = MouseFilterEnum.Pass };
+        panel.AddThemeStyleboxOverride("panel", RowIdle);
+        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 46) };
         row.AddThemeConstantOverride("separation", 18);
         var l = UiKit.Text(label, 24, Colors.White, 6);
         l.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
-        list.AddChild(row);
+        panel.AddChild(row);
+        list.AddChild(panel);
+        rows.Add((panel, help));
         return row;
     }
+
+    HBoxContainer Row(string label) => Row(label, Help.GetValueOrDefault(label, ""), out _);
+    HBoxContainer Row(string label, string help) => Row(label, help, out _);
 
     void Slider(string label, float value, float min, float max, float step, Action<float> set, Func<float, string> show, bool apply = false)
     {
@@ -204,10 +324,11 @@ public partial class OptionsMenu : Control
         row.AddChild(v);
     }
 
+    /// <summary>Interrupteur OUI / NON : un clic n'importe où sur la ligne le bascule aussi.</summary>
     void Toggle(string label, bool value, Action<bool> set, bool apply = false)
     {
-        var row = Row(label);
-        var b = UiKit.Button(value ? "OUI" : "NON", value ? UiKit.Green.Darkened(0.2f) : UiKit.Grey, () => { }, 22, new Vector2(150, 46));
+        var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
+        var b = UiKit.Button(value ? "OUI" : "NON", value ? UiKit.Green.Darkened(0.2f) : UiKit.Grey, () => { }, 22, new Vector2(150, 44));
         b.Pressed += () =>
         {
             bool now = b.Text != "OUI";
@@ -217,13 +338,19 @@ public partial class OptionsMenu : Control
             b.AddThemeStyleboxOverride("hover", UiKit.Box((now ? UiKit.Green.Darkened(0.2f) : UiKit.Grey).Lightened(0.15f), 14, -0.12f, 3, UiKit.Yellow));
             if (apply) GameSettings.Apply(GetViewport()); else GameSettings.Notify();
         };
+        panel.GuiInput += e =>
+        {
+            if (e is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
+            b.GrabFocus();
+            b.EmitSignal(BaseButton.SignalName.Pressed);
+        };
         row.AddChild(b);
     }
 
     void Choice(string label, string[] options, int selected, Action<int> set)
     {
         var row = Row(label);
-        var o = new OptionButton { CustomMinimumSize = new Vector2(240, 46) };
+        var o = new OptionButton { CustomMinimumSize = new Vector2(240, 44) };
         o.AddThemeFontSizeOverride("font_size", 22);
         foreach (var x in options) o.AddItem(x);
         o.Selected = Mathf.Clamp(selected, 0, options.Length - 1);
@@ -234,8 +361,11 @@ public partial class OptionsMenu : Control
 
     void KeyRow(InputSetup.ActionDef a)
     {
-        var row = Row(a.Label);
-        var b = UiKit.Button(InputSetup.KeyName(a.Name), UiKit.NavySoft, () => { }, 22, new Vector2(220, 46));
+        string help = a.Secondary != null
+            ? $"Clique puis appuie sur la nouvelle touche. {InputSetup.Describe(a.Secondary)} marche aussi (touche fixe)."
+            : "Clique puis appuie sur la nouvelle touche. Échap annule.";
+        var row = Row(a.Label, help);
+        var b = UiKit.Button(InputSetup.KeyName(a.Name), UiKit.NavySoft, () => { }, 22, new Vector2(220, 44));
         b.Pressed += () =>
         {
             listening = a.Name;
