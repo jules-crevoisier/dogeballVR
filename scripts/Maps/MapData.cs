@@ -59,6 +59,10 @@ public class PropDef
     public string Color { get; set; } = "#8a8f98";
     /// <summary>Si faux : purement visuel, les balles passent au travers.</summary>
     public bool Solid { get; set; } = true;
+    /// <summary>Modèle du kit de décor (assets/models/props/&lt;nom&gt;.glb) ; la collision suit alors sa boîte englobante.</summary>
+    public string? Model { get; set; }
+    public float RotY { get; set; }
+    public float Scale { get; set; } = 1f;
 }
 
 /// <summary>Obstacle du level design (schéma v2) : couvert (cover), plot de rebond (bumper) ou sol de fosse (pit).</summary>

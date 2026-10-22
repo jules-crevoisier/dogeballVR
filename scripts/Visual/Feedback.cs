@@ -8,8 +8,11 @@ namespace DogeballVR.Visual;
 
 /// <summary>
 /// Retour sensoriel commun à l'hôte et aux clients, déduit des états visibles (balles et hurtboxes) : sons de lancer par palier,
-/// d'attrape, de palier, de KO ; bulles « PASSE ! », « PRISE ! », « KO ! » ; cœurs au-dessus des autres avatars ; écran grisé du joueur KO (clavier-souris :
-/// en VR, un voile gris plein champ gênerait ; le spectateur y reste libre de ses mouvements).
+/// d'attrape, de palier, de KO ; impacts de touche et de KO visibles par tous (<see cref="ImpactFx"/>) ; autocollants « PASSE ! »,
+/// « PRISE ! », « BAM ! », « KO ! » (<see cref="SpeechBubble"/>) réservés à ce qui concerne le joueur local (il touche, il est touché,
+/// il attrape, on attrape sa balle, KO par ou contre lui : le reste du terrain ne pose pas de mots) ; nom et cœurs au-dessus des autres
+/// joueurs (<see cref="PlayerTag"/>) ;
+/// écran grisé du joueur KO (clavier-souris : en VR, un voile gris plein champ gênerait ; le spectateur y reste libre de ses mouvements).
 /// </summary>
 public partial class Feedback : Node
 {
@@ -17,14 +20,18 @@ public partial class Feedback : Node
     public Func<int, int> Lives { get; set; } = _ => 0;
     public int MaxLives { get; set; } = 2;
     public bool GrayWhenKo { get; set; }
+    /// <summary>Noms des joueurs (facultatif, à brancher par Main, par exemple sur MatchView.NameOf). Sinon déduits ici.</summary>
+    public Func<int, string>? NameOf { get; set; }
 
-    record struct BallState(bool Held, int Charge, int Owner, bool Pass, float Speed, Vector3 Pos);
+    record struct BallState(bool Held, int Charge, int Owner, int OwnerId, bool Pass, float Speed, Vector3 Pos);
     readonly Dictionary<Ball, BallState> balls = new();
     readonly Dictionary<Hurtbox, bool> eliminated = new();
     readonly Dictionary<Hurtbox, int> lastLives = new();
+    readonly Dictionary<int, (int id, ulong at)> lastShooter = new();
     static readonly string[] HitWords = { "POW !", "BAM !", "WHAM !", "BOUM !" };
     int wordIndex;
-    readonly HashSet<Hurtbox> withHearts = new();
+    readonly HashSet<Hurtbox> withTags = new();
+    MatchController? match;
     ColorRect? gray;
 
     public override void _Ready()
@@ -37,6 +44,49 @@ public partial class Feedback : Node
         AddChild(layer);
     }
 
+    public override void _EnterTree() => MatchController.HitScored += OnHitScored;
+    public override void _ExitTree() => MatchController.HitScored -= OnHitScored;
+
+    /// <summary>Touche validée (hôte, ou relayée au client) : on retient le tireur pour doser l'arrêt sur image.</summary>
+    void OnHitScored(int shooter, int target, bool kill) => lastShooter[target] = (shooter, Time.GetTicksMsec());
+
+    /// <summary>Nom affiché au-dessus d'un joueur : celui fourni par Main s'il y en a un, sinon nom de salle en ligne, « Bot N » ou « Joueur N ».</summary>
+    string NameFor(int id)
+    {
+        if (NameOf?.Invoke(id) is { Length: > 0 } given) return given;
+        if (MatchView.HumanName?.Invoke(id) is { Length: > 0 } human) return human;
+        if (match == null || !IsInstanceValid(match)) match = GetTree().CurrentScene?.FindChild("MatchController", true, false) as MatchController;
+        return match?.IsBot?.Invoke(id) == true ? $"Bot {id + 1}" : $"Joueur {id + 1}";
+    }
+
+    Hurtbox? HurtboxOf(int playerId)
+    {
+        if (playerId < 0) return null;
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+            if (n is Hurtbox h && h.PlayerId == playerId && !h.Eliminated) return h;
+        return null;
+    }
+
+    bool IsLocal(int playerId) => playerId >= 0 && IsInstanceValid(Local) && Local.PlayerId == playerId;
+
+    /// <summary>Point d'impact : la balle libre la plus proche de la cible (position de l'image), ramenée contre le corps ; sinon la poitrine.
+    /// Donne aussi le lanceur de cette balle (−1 si aucune) : repli quand la touche validée n'est pas relayée au client.</summary>
+    (Vector3 pos, int thrower) ImpactPoint(Hurtbox h)
+    {
+        var chest = h.GlobalPosition + new Vector3(0, 0.25f, 0);
+        var best = chest;
+        int thrower = -1;
+        float bestD = 1.8f;
+        foreach (var st in balls.Values)
+        {
+            float d = st.Pos.DistanceTo(chest);
+            if (d < bestD && !st.Held) { bestD = d; best = st.Pos; thrower = st.Owner >= 0 && st.Owner != h.Team ? st.OwnerId : -1; }
+        }
+        return (chest + (best - chest).LimitLength(0.45f), thrower);
+    }
+
+    static Vector3 HeadOf(Hurtbox h) => h.GlobalPosition + new Vector3(0, 0.95f, 0);
+
     public override void _PhysicsProcess(double delta)
     {
         var seen = new HashSet<Ball>();
@@ -45,70 +95,169 @@ public partial class Feedback : Node
             if (n is not Ball ball || ball.IsQueuedForDeletion()) continue;
             seen.Add(ball);
             var pos = ball.GlobalPosition;
-            var cur = new BallState(ball.IsHeld, ball.Charge, ball.OwnerTeam, ball.IsPass, ball.LinearVelocity.Length(), pos);
+            var cur = new BallState(ball.IsHeld, ball.Charge, ball.OwnerTeam, ball.OwnerPlayerId, ball.IsPass, ball.LinearVelocity.Length(), pos);
             if (balls.TryGetValue(ball, out var prev))
             {
                 if (!prev.Held && cur.Held)
                 {
                     bool steal = prev.Owner >= 0 && cur.Owner != prev.Owner && prev.Speed >= Ball.HitMinSpeed && !prev.Pass;
                     Sfx.Play(this, steal ? SfxKind.Perfect : SfxKind.Catch, pos, steal ? 1f : 1f + 0.1f * cur.Charge);
-                    if (steal) SpeechBubble.Spawn(this, "PRISE !", pos + new Vector3(0, 0.5f, 0), Palette.Team(cur.Owner));
+                    // « PRISE ! » seulement si le joueur local attrape, ou si c'est sa balle qu'on attrape (pas pour un ramassage de bot).
+                    if (steal && (IsLocal(cur.OwnerId) || IsLocal(prev.OwnerId)) && HurtboxOf(cur.OwnerId) is { } catcher)
+                        Sticker("PRISE !", catcher, Palette.Team(catcher.Team), SpeechBubble.Size.Normal);
                 }
                 else if (prev.Held && !cur.Held)
                 {
                     if (ball.Kind != Ball.KindBomb) Sfx.Play(this, SfxKind.Throw, pos, 0.8f + 0.35f * prev.Charge);
                 }
                 else if (cur.Held && cur.Charge > prev.Charge) Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
-                if (!prev.Pass && cur.Pass && cur.Owner >= 0) SpeechBubble.Spawn(this, "PASSE !", pos + new Vector3(0, 0.5f, 0), Palette.Team(cur.Owner));
+                if (!prev.Pass && cur.Pass && IsLocal(cur.OwnerId)) Sticker("PASSE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Small);
             }
             if (cur.Speed > 7f && !cur.Held) Juice.TrailGhost(this, pos, cur.Charge >= 2 ? new Color(1f, 0.35f, 0.75f) : new Color(1f, 0.85f, 0.3f), 0.1f + 0.03f * cur.Charge);
             balls[ball] = cur;
         }
         foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) balls.Remove(dead);
 
+        var cam = GetViewport().GetCamera3D();
         foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
         {
             if (n is not Hurtbox h) continue;
-            if (h != Local && withHearts.Add(h))
+            if (h != Local && withTags.Add(h))
             {
-                var color = Palette.Team(h.Team);
-                var hearts = HeartsDisplay.Create(() => Lives(h.PlayerId), MaxLives, color, 0.0035f, true);
-                hearts.Follow = h;
-                AddChild(hearts);
+                int id = h.PlayerId;
+                AddChild(new PlayerTag
+                {
+                    Name = $"Tag{id}", Target = h, Max = MaxLives, Lives = () => Lives(id), PlayerName = () => NameFor(id),
+                    ViewerTeam = () => IsInstanceValid(Local) ? Local.Team : -1,
+                });
             }
             int lives = Lives(h.PlayerId);
-            if (lastLives.TryGetValue(h, out var before) && lives < before && !h.Eliminated)
-            {
-                var hit = h.GlobalPosition + new Vector3(0, 1.2f, 0);
-                var teamColor = Palette.Team(h.Team);
-                Juice.Burst(this, hit, teamColor);
-                Juice.Shock(this, hit, Colors.White);
-                SpeechBubble.Spawn(this, HitWords[wordIndex++ % HitWords.Length], hit + new Vector3(0, 0.4f, 0), Colors.White);
-                Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
-                Juice.HitStop(this, h == Local ? 0.09f : 0.06f);
-                if (h == Local && GrayWhenKo)
-                {
-                    // Joueur clavier-souris touché : la vue encaisse (secousse, coup de côté), son plus sourd que pour les autres.
-                    CameraFx.Shake(0.5f);
-                    CameraFx.Kick(new Vector2((wordIndex % 2 == 0 ? 1f : -1f) * 2.5f, 1.2f));
-                    Sfx.Play(this, SfxKind.HurtSelf);
-                }
-                else if (GrayWhenKo) CameraFx.Shake(0.18f * Mathf.Clamp(1f - hit.DistanceTo(Local.GlobalPosition) / 15f, 0f, 1f));   // touche proche : petite secousse
-            }
+            bool newKo = h.Eliminated && !(eliminated.TryGetValue(h, out var was) && was);
+            bool lostLife = lastLives.TryGetValue(h, out var before) && lives < before;
+            if (newKo) OnTouched(h, cam, true);
+            else if (lostLife && !h.Eliminated) OnTouched(h, cam, false);
             lastLives[h] = lives;
-            bool was = eliminated.TryGetValue(h, out var w) && w;
-            if (h.Eliminated && !was)
-            {
-                var pos = h.GlobalPosition + new Vector3(0, 0.9f, 0);
-                SpeechBubble.Spawn(this, "KO !", pos, Palette.Team(h.Team));
-                Juice.Burst(this, pos, Palette.Team(h.Team), 60, 8f);
-                Juice.Shock(this, pos, Palette.Team(h.Team), 2.2f);
-                Juice.HitStop(this, 0.12f, 0.08f);
-                if (GrayWhenKo) CameraFx.Shake(h == Local ? 0.75f : 0.22f);
-                Sfx.Play(this, SfxKind.Ko, pos);
-            }
             eliminated[h] = h.Eliminated;
         }
         if (gray != null) gray.Visible = Local.Eliminated;
+        if (ImpactTest) RunImpactTest(cam, delta);
+    }
+
+    // --impact-test : rejoue toutes les 0,8 s, après le « GO ! », sur l'adversaire le plus central à l'écran (s'il y en a un) : le joueur
+    // local le touche, le local met un adversaire KO, le local est touché, le local attrape (« PRISE ! »). Mots, étiquettes et réaction du modèle
+    // (Avatar.React) passent par les mêmes chemins qu'en match. Sans adversaire visible : effets seuls, droit devant la caméra.
+    static readonly bool ImpactTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--impact-test") >= 0;
+    double testClock = 4.0;
+    int testStep;
+
+    Hurtbox? CentralEnemy(Camera3D cam, Hurtbox? not = null)
+    {
+        Hurtbox? best = null;
+        float bestD = float.MaxValue;
+        var center = cam.GetViewport().GetVisibleRect().Size * 0.5f;
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (n is not Hurtbox h || h == Local || h == not || h.Eliminated || (IsInstanceValid(Local) && h.Team == Local.Team)) continue;
+            if (!ScreenSize.OnScreen(cam, h.GlobalPosition, -0.1f)) continue;
+            float d = cam.UnprojectPosition(h.GlobalPosition).DistanceTo(center);
+            if (d < bestD) { best = h; bestD = d; }
+        }
+        return best;
+    }
+
+    void RunImpactTest(Camera3D? cam, double delta)
+    {
+        testClock -= delta;
+        if (testClock > 0 || cam == null) return;
+        testClock = 0.8;
+        int step = testStep++ % 4;
+        var enemy = CentralEnemy(cam);
+        GD.Print($"[Impact] test {step} sur {(enemy != null ? enemy.PlayerId : -1)}, image {Engine.GetFramesDrawn()}");
+        if (enemy != null && IsInstanceValid(Local))
+        {
+            ulong now = Time.GetTicksMsec();
+            switch (step)
+            {
+                case 0:   // le local touche l'adversaire
+                    lastShooter[enemy.PlayerId] = (Local.PlayerId, now);
+                    OnTouched(enemy, cam, false);
+                    Avatar.React(Local.PlayerId, enemy.PlayerId, false);
+                    break;
+                case 2:   // le local est touché
+                    lastShooter[Local.PlayerId] = (enemy.PlayerId, now);
+                    OnTouched(Local, cam, false);
+                    Avatar.React(enemy.PlayerId, Local.PlayerId, false);
+                    break;
+                case 1:   // le local met un adversaire KO (un autre que le précédent s'il y en a un)
+                    var ko = CentralEnemy(cam, enemy) ?? enemy;
+                    lastShooter[ko.PlayerId] = (Local.PlayerId, now);
+                    OnTouched(ko, cam, true);
+                    Avatar.React(Local.PlayerId, ko.PlayerId, true);
+                    break;
+                default:  // le local attrape
+                    Sticker("PRISE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Normal);
+                    break;
+            }
+            return;
+        }
+        var fwd = -cam.GlobalTransform.Basis.Z;
+        fwd = new Vector3(fwd.X, 0, fwd.Z).Normalized();
+        var pos = cam.GlobalPosition + fwd * 8f;
+        pos.Y = (IsInstanceValid(Local) ? Local.GlobalPosition.Y : cam.GlobalPosition.Y - 1f) + 0.25f;
+        if (step == 1) ImpactFx.Ko(this, pos, Palette.Team(1));
+        else ImpactFx.Hit(this, pos, Palette.Team(step % 2));
+    }
+
+    /// <summary>Touche ou KO sur un joueur, vu par tout le monde : impact, autocollant, son ; au PC, secousse et arrêt sur image dosés.</summary>
+    void OnTouched(Hurtbox h, Camera3D? cam, bool ko)
+    {
+        var (hit, thrower) = ImpactPoint(h);
+        int shooter = lastShooter.TryGetValue(h.PlayerId, out var s) && Time.GetTicksMsec() - s.at < 1500 ? s.id : thrower;
+        var shooterColor = Palette.Team(h.Team == 0 ? 1 : 0);   // pas de dégâts entre alliés : le tireur est dans l'autre équipe
+        bool localTarget = h == Local;
+        bool localShooter = !localTarget && IsLocal(shooter);
+        bool word = localTarget || localShooter;   // mots d'impact : seulement ce qui concerne le joueur local
+        float dist = cam != null ? cam.GlobalPosition.DistanceTo(hit) : 999f;
+        bool near = !localTarget && dist < 16f && ScreenSize.OnScreen(cam, hit, 0f);
+        float closeness = Mathf.Clamp(1f - dist / 16f, 0f, 1f);
+        GD.Print($"[Impact] {(ko ? "KO" : "touche")} sur {h.PlayerId} (équipe {h.Team}), tireur {shooter}, à l'écran et proche : {near}, image {Engine.GetFramesDrawn()}");
+
+        if (ko)
+        {
+            ImpactFx.Ko(this, hit, shooterColor);
+            if (word) Sticker("KO !", h, shooterColor, SpeechBubble.Size.Big);
+            if (localTarget || localShooter || near) Juice.HitStop(this, 0.12f, 0.08f);
+            if (GrayWhenKo) CameraFx.Shake(localTarget ? 0.75f : near ? 0.1f + 0.15f * closeness : 0f);
+            Sfx.Play(this, SfxKind.Ko, hit);
+            return;
+        }
+        ImpactFx.Hit(this, hit, shooterColor);
+        if (word) Sticker(HitWords[wordIndex % HitWords.Length], h, shooterColor, SpeechBubble.Size.Normal);
+        wordIndex++;
+        Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
+        if (localTarget || localShooter) Juice.HitStop(this, localTarget ? 0.09f : 0.06f);
+        else if (near) Juice.HitStop(this, 0.04f, 0.3f);   // touche entre d'autres joueurs sous nos yeux : à peine marquée
+        if (localTarget && GrayWhenKo)
+        {
+            // Joueur clavier-souris touché : la vue encaisse (secousse, coup de côté), son plus sourd que pour les autres.
+            CameraFx.Shake(0.5f);
+            CameraFx.Kick(new Vector2((wordIndex % 2 == 0 ? 1f : -1f) * 2.5f, 1.2f));
+            Sfx.Play(this, SfxKind.HurtSelf);
+        }
+        else if (GrayWhenKo && near) CameraFx.Shake(0.05f + 0.12f * closeness);   // touche proche, à l'écran : petite secousse
+    }
+
+    void Sticker(string text, Hurtbox h, Color rim, SpeechBubble.Size size)
+    {
+        // Joueur local dont la tête n'est pas à l'écran (vue subjective, caméra collée) : mot posé devant la caméra, sous le réticule,
+        // plutôt qu'accroché à un point hors champ que le recadrage pousserait dans un coin.
+        var cam = GetViewport().GetCamera3D();
+        if (h == Local && cam != null && cam is not XRCamera3D && (!ScreenSize.OnScreen(cam, HeadOf(h), -0.05f) || cam.GlobalPosition.DistanceTo(HeadOf(h)) < 1.5f))
+        {
+            var b = cam.GlobalTransform.Basis;
+            SpeechBubble.Spawn(this, text, cam.GlobalPosition - b.Z * 5f - b.Y * 1.3f, rim, size, null);
+            return;
+        }
+        SpeechBubble.Spawn(this, text, HeadOf(h), rim, size, h);
     }
 }

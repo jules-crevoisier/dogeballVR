@@ -88,6 +88,13 @@ public partial class AssistSelfTest : Node
         Check("Balle volée", Ball.ChargeOnCatch(2, false, true, false) == 0 && Ball.ChargeOnCatch(1, false, true, true) == 2 && Ball.ChargeOnCatch(3, false, true, true) == 3, "0, ou charge gardée +1 (max 3) sur attrape parfaite");
 
         KnockoutCityRules(Check);
+        // Caméra du PC : un coup suivi d'une image très longue (chargement, Alt+Tab) ne doit pas faire diverger le ressort.
+        Visual.CameraFx.Reset();
+        Visual.CameraFx.Kick(new Vector2(3f, 2f));
+        var (fxRot, _, _) = Visual.CameraFx.Step(0.5f);
+        for (int i = 0; i < 30; i++) (fxRot, _, _) = Visual.CameraFx.Step(1f / 60f);
+        Visual.CameraFx.Reset();
+        Check("Ressort de caméra stable", float.IsFinite(fxRot.X) && Mathf.Abs(fxRot.X) < 0.5f && Mathf.Abs(fxRot.Y) < 0.5f, $"après une image de 0,5 s : {fxRot}");
 
         GD.Print(ok ? "[AssistTest] TOUT OK" : "[AssistTest] ÉCHEC");
         GetTree().Quit(ok ? 0 : 1);

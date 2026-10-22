@@ -51,12 +51,12 @@ public static class ArenaBuilder
     }
 
     /// <summary>Ciel de jour dégradé, brume lointaine, soleil chaud : l'ambiance de la DA Knockout City. Le glow n'est activé qu'au clavier-souris.</summary>
-    static void AddKcEnvironment(Node3D root, bool pcProfile)
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile)
     {
         var sky = new ProceduralSkyMaterial
         {
             SkyTopColor = new Color("4C8DE8"), SkyHorizonColor = new Color("FFDDBA"), SkyCurve = 0.18f,
-            GroundHorizonColor = new Color("EBCDB4"), GroundBottomColor = new Color("8A7BB5"),
+            GroundHorizonColor = new Color("EBCDB4"), GroundBottomColor = new Color("6B6470"),
             SunAngleMax = 20f, SunCurve = 0.1f,
         };
         var env = new Godot.Environment
@@ -64,16 +64,19 @@ public static class ArenaBuilder
             BackgroundMode = Godot.Environment.BGMode.Sky,
             Sky = new Sky { SkyMaterial = sky },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            AmbientLightEnergy = 1.0f,
-            TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            FogEnabled = true, FogLightColor = new Color("E6D4EA"), FogDensity = 0.0022f,
-            GlowEnabled = pcProfile, GlowIntensity = 0.7f, GlowBloom = 0.08f, GlowHdrThreshold = 1.0f,
+            // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume chaude qui repousse le fond
+            AmbientLightEnergy = 0.45f,
+            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.8f, TonemapWhite = 4f,
+            FogEnabled = true, FogLightColor = new Color("FFE2C4"), FogDensity = 0.006f, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            GlowEnabled = pcProfile, GlowIntensity = 0.45f, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
+            SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
+            AdjustmentEnabled = true, AdjustmentSaturation = 1.15f, AdjustmentContrast = 1.08f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
         root.AddChild(new DirectionalLight3D
         {
-            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.4f, LightColor = new Color("FFE6C2"),
-            ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 1.6f,
+            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.9f, LightColor = new Color("FFE6C2"),
+            ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 0.6f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
     }
@@ -410,6 +413,17 @@ public static class ArenaBuilder
     /// <summary>Prop de level design. Couleur avec alpha (« #rrggbbaa ») : voile de lumière additif, traversable si Solid est faux.</summary>
     static void AddProp(Node3D root, PropDef prop)
     {
+        if (prop.Model != null)
+        {
+            var model = ModelLibrary.Instance("props/" + prop.Model);
+            if (model == null) return;
+            var holder = new StaticBody3D { Name = prop.Model, Position = new Vector3(prop.X, prop.Y, prop.Z), RotationDegrees = new Vector3(0, prop.RotY, 0), Scale = Vector3.One * prop.Scale };
+            holder.AddChild(model);
+            if (prop.Solid && Bounds(model, Transform3D.Identity) is Aabb box)
+                holder.AddChild(new CollisionShape3D { Position = box.GetCenter(), Shape = new BoxShape3D { Size = box.Size } });
+            root.AddChild(holder);
+            return;
+        }
         var size = new Vector3(prop.SizeX, prop.SizeY, prop.SizeZ);
         var color = Color.FromString(prop.Color, new Color(0.54f, 0.56f, 0.6f));
         var body = new StaticBody3D { Name = "Prop", Position = new Vector3(prop.X, prop.Y, prop.Z) };
@@ -420,5 +434,16 @@ public static class ArenaBuilder
         });
         if (prop.Solid) body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
+    }
+
+    /// <summary>Boîte englobante des maillages d'un modèle, dans le repère du modèle.</summary>
+    static Aabb? Bounds(Node node, Transform3D xf)
+    {
+        Aabb? box = null;
+        if (node is Node3D n3 && node.GetParent() != null) xf *= n3.Transform;
+        if (node is MeshInstance3D mi && mi.Mesh != null) box = xf * mi.Mesh.GetAabb();
+        foreach (var child in node.GetChildren())
+            if (Bounds(child, xf) is Aabb b) box = box is Aabb a ? a.Merge(b) : b;
+        return box;
     }
 }

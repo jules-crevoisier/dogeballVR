@@ -39,10 +39,16 @@ public static class CameraFx
     {
         time += dt;
         trauma = Mathf.Max(0f, trauma - Decay * dt);
-        // Ressort amorti pour le coup directionnel (retour en ~0,2 s, sans rebond marqué).
-        const float k = 260f, c = 26f;
-        kickVel += (-k * kick - c * kickVel) * dt;
-        kick += kickVel * dt;
+        // Ressort amorti pour le coup directionnel (retour en ~0,2 s, sans rebond marqué). Intégré en petits pas fixes :
+        // en un seul pas, une image longue (PC lent, chargement, Alt+Tab) le fait diverger et la caméra passe en NaN.
+        const float k = 260f, c = 26f, h = 1f / 240f;
+        for (float left = Mathf.Min(dt, 0.25f); left > 0f; left -= h)
+        {
+            float step = Mathf.Min(h, left);
+            kickVel += (-k * kick - c * kickVel) * step;
+            kick += kickVel * step;
+        }
+        if (!float.IsFinite(kick.X) || !float.IsFinite(kick.Y) || !float.IsFinite(kickVel.X) || !float.IsFinite(kickVel.Y)) { kick = Vector2.Zero; kickVel = Vector2.Zero; }
         fovPunch = Mathf.MoveToward(fovPunch, 0f, dt * Mathf.Max(8f, fovPunch * 4f));
 
         float s = trauma * trauma;

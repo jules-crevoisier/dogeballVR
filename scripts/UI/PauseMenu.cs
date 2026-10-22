@@ -103,12 +103,63 @@ public partial class PauseMenu : CanvasLayer
         col.AddChild(resume);
         col.AddChild(UiKit.Button("OPTIONS", UiKit.Blue, () => OpenSub(new OptionsMenu())));
         col.AddChild(UiKit.Button("COMMANDES", UiKit.Blue, ShowHelp));
-        if (Restart != null) col.AddChild(UiKit.Button("RECOMMENCER LA PARTIE", UiKit.Blue, () => { Close(); Restart(); }));
-        if (QuitToMenu != null) col.AddChild(UiKit.Button("MENU PRINCIPAL", UiKit.Grey, () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
-        col.AddChild(UiKit.Button("QUITTER LE JEU", UiKit.Grey, () => GetTree().Quit()));
+        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", UiKit.Blue, () => { Close(); Restart(); }));
+        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", UiKit.NavySoft, () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
+        col.AddChild(Confirmed("QUITTER LE JEU", UiKit.NavySoft, () => GetTree().Quit()));
+
+        // À droite : rappel des commandes essentielles, en touches dessinées.
+        var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        card.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+        card.OffsetLeft = -620; card.OffsetRight = -120; card.OffsetTop = -230; card.OffsetBottom = 230;
+        root.AddChild(card);
+        var grid = new GridContainer { Columns = 2 };
+        grid.AddThemeConstantOverride("h_separation", 22);
+        grid.AddThemeConstantOverride("v_separation", 12);
+        var list = new VBoxContainer();
+        list.AddThemeConstantOverride("separation", 14);
+        card.AddChild(list);
+        list.AddChild(UiKit.Text("RAPPEL", 34, UiKit.Yellow, 8));
+        list.AddChild(grid);
+        foreach (var (action, what) in new[] { ("fire", "Lancer (maintenir = charger)"), ("catch", "Attraper"), ("dash", "Esquive"), ("jump", "Sauter"), ("pass", "Passe"), ("feint", "Feinte"), ("lob", "Tir en cloche"), ("scoreboard", "Scores") })
+        {
+            grid.AddChild(KeyCap(InputSetup.KeyName(action)));
+            grid.AddChild(UiKit.Text(what, 24, Colors.White, 6));
+        }
+        UiKit.SlideIn(card, 0.1f, 80f);
         int i = 0;
         foreach (var c in col.GetChildren()) if (c is Control ctl) UiKit.SlideIn(ctl, 0.03f * i++);
         resume.CallDeferred(Control.MethodName.GrabFocus);
+    }
+
+    /// <summary>Bouton à confirmer : un premier appui demande « SÛR ? », le second agit (3 s pour confirmer).</summary>
+    static Button Confirmed(string text, Color color, Action act)
+    {
+        Button? b = null;
+        double armedUntil = 0;
+        b = UiKit.Button(text, color, () =>
+        {
+            double now = Time.GetTicksMsec() / 1000.0;
+            if (now < armedUntil) { act(); return; }
+            armedUntil = now + 3.0;
+            b!.Text = text + " ?  (CONFIRMER)";
+            b.AddThemeColorOverride("font_color", UiKit.Yellow);
+            b.GetTree().CreateTimer(3.0, true, false, true).Timeout += () =>
+            {
+                if (!IsInstanceValid(b)) return;
+                b.Text = text;
+                b.RemoveThemeColorOverride("font_color");
+            };
+        });
+        return b;
+    }
+
+    static Control KeyCap(string key)
+    {
+        var p = new PanelContainer { CustomMinimumSize = new Vector2(96, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+        p.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Cream, 8, 0f, 0, null, 4));
+        var l = UiKit.Text(key, 22, UiKit.Navy, 0, HorizontalAlignment.Center);
+        p.AddChild(l);
+        return p;
     }
 
     void OpenSub(Control screen)
