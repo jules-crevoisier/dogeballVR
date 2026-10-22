@@ -8,6 +8,8 @@ paths:
   - "Source/**/{UI,Ui,ui}/**/*.{h,cpp}"
 ---
 
+<!-- dogeballVR: paths extended to our folders (scripts/…, maps/*.json). -->
+
 # UI Code Rules
 
 - UI must NEVER own or directly modify game state — display only, use commands/events to request changes

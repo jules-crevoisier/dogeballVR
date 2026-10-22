@@ -6,6 +6,8 @@ paths:
   - "Source/**/{AI,Ai,ai}/**/*.{h,cpp}"
 ---
 
+<!-- dogeballVR: paths extended to our folders (scripts/…, maps/*.json). -->
+
 # AI Code Rules
 
 - AI update budget: 2ms per frame maximum — profile to verify

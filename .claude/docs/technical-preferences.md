@@ -8,6 +8,8 @@
      Forbidden patterns and allowed libraries are NOT migrated — they live only
      in this file. Populated by /setup-engine; updated as decisions are made. -->
 
+<!-- dogeballVR: filled for Godot 4.3 C# on 2026-10-22 (kit /setup-engine done by hand). -->
+
 ## Engine & Language
 
 - **Engine**: Godot 4.3 (.NET) — do not use 4.4+ APIs (see docs/engine-reference/godot/VERSION.md)

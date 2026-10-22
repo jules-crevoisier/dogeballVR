@@ -34,6 +34,7 @@ modes:
 testing:
   # Pas encore de gdUnit4 : nos tests sont les parties simulées de la CI
   # (.github/workflows/build.yml) et le self-test réseau.
+  # Valeur propre à dogeballVR (le kit attend gdunit4) ; seule /test-helpers la lit.
   framework: ci-headless
   # Pas de Godot local : la CI verte, citée dans la PR, tient lieu de preuve.
   strict:

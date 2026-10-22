@@ -6,6 +6,8 @@ paths:
   - "Content/**/{Data,data}/**/*.json"
 ---
 
+<!-- dogeballVR: paths extended to our folders (scripts/…, maps/*.json). -->
+
 # Data File Rules
 
 - All JSON files must be valid JSON — broken JSON blocks the entire build pipeline

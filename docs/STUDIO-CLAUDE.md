@@ -11,12 +11,12 @@ faire avancer le jeu.
 
 Claude Code charge `CLAUDE.md`, `.claude/agents/`, `.claude/skills/` et les hooks
 **au démarrage d'une session ouverte à la racine du dépôt**. Une session qui part
-de `main` n'a donc le kit que lorsque la PR d'installation est fusionnée. Avant
-cela, une session peut lire les fichiers du kit sans les ajouter à sa branche
-(`git show origin/claude/project-thread-kqje36:<chemin>`), mais les agents,
-skills et hooks ne s'activent qu'au démarrage d'une session sur une branche qui
-les contient : ne jamais committer ces fichiers dans une PR de travail. Elle peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs
-consignes à la main.
+de `main` n'a donc le kit que lorsque la PR d'installation (#23) est fusionnée.
+Tant qu'elle ne l'est pas, une session peut lire les fichiers du kit sur la
+branche de cette PR (`git show origin/<branche de la PR #23>:<chemin>`) et
+suivre leurs consignes à la main. Il ne faut pas les committer dans une PR de
+travail : agents, skills et hooks ne s'activent qu'au démarrage d'une session
+sur une branche qui les contient.
 
 Au démarrage, le hook `session-start.sh` affiche la branche, les derniers
 commits, le mode de revue et l'état de session
@@ -128,6 +128,8 @@ Toutes les modifications portent la mention `dogeballVR`
   `write-guard.sh`, `asset-scan.sh`, `project-coherence.sh` : lecture de
   `engine.code_root`. Le kit codait `src/` en dur pour Godot.
 - `.claude/hooks/detect-gaps.sh` : `scripts/` compte comme dossier de code.
+- `.claude/hooks/validate-push.sh` : refuse un push sur `main` ou `master`,
+  `gh pr merge` et `git push --mirror` ou `--all`.
 - `.claude/hooks/validate-commit.sh` et `validate-assets.sh` : les cartes
   `maps/*.json` sont vérifiées comme données (un JSON invalide bloque).
 - `.claude/docs/coding-standards.md` : commits en français, en texte libre
@@ -153,9 +155,17 @@ et `.github/` du kit. `src/` est inutile chez nous.
 `.claude/settings.json` est celui du kit, sans modification. Il ajoute des
 interdictions (`rm -rf`, `git push --force`, `git reset --hard`,
 `git clean -f`, `sudo`, lecture des `.env`), une barre d'état et les hooks.
-Les hooks ne bloquent que deux cas : un commit avec un JSON de données invalide
-sous `assets/**/data/` ou dans `maps/`, et la lecture d'un seul tenant d'un document de design
-de plus de 40 Ko (il faut alors lire par plages).
+Les hooks bloquent quatre cas :
+- un commit avec un JSON de données invalide sous `assets/**/data/` ou dans
+  `maps/` ;
+- la lecture d'un seul tenant d'un document de design de plus de 40 Ko (il
+  faut alors lire par plages) ;
+- un push sur `main` ou `master` ;
+- `gh pr merge` et `git push --mirror` ou `--all`.
+
+Les outils GitHub MCP (`merge_pull_request`, `enable_pr_auto_merge`, et
+`push_files` ou `create_or_update_file` vers `main`) échappent aux hooks : seule
+la règle les interdit.
 
 ## 8. Mettre le kit à jour
 

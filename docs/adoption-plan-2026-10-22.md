@@ -10,7 +10,7 @@ Travailler dans l'ordre, cocher au fur et à mesure, relancer `/adopt` après l'
 Sources hors dépôt (lecture seule, à convertir, jamais à copier) : `/mnt/project-files/masterclasse/` (noté `MC/` ci-dessous).
 Si ce dossier n'est pas accessible dans la session, partir de `README.md`, `docs/ARCHITECTURE.md`, `docs/CHOIX-REGLES.md` et du code, puis le signaler dans la PR.
 Règle de priorité : le travail demandé au fil passe avant ce plan (voir `CLAUDE.md`). `/gate-check` est toujours soumis à jules.
-Travail en parallèle : avant de prendre une étape, lister les PR ouvertes du dépôt ; prendre la première case qu'aucune PR ne couvre, une étape par PR, et dire dans le titre de la PR quelle étape elle traite. Si l'étape dont elle dépend est encore dans une PR ouverte, partir de cette branche (y fusionner la branche de la PR) ou prendre une étape indépendante (1.3, 1.4, 4.3).
+Travail en parallèle : avant de prendre une étape, lister les PR ouvertes du dépôt (outil GitHub `list_pull_requests`) ; prendre la première case qu'aucune PR ne couvre, une étape par PR, et dire dans le titre de la PR quelle étape elle traite. Si l'étape dont elle dépend est encore dans une PR ouverte, partir de cette branche (y fusionner la branche de la PR) ou prendre une étape indépendante (1.3, 1.4, 4.3).
 
 ## Résumé de l'audit
 

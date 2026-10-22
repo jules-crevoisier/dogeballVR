@@ -71,6 +71,13 @@ else
       | tr '\002' '\\')
 fi
 
+# dogeballVR: jules merges PRs himself. Refuse a PR merge from the shell and
+# pushes that rewrite every branch at once.
+if printf '%s\n' "$COMMAND" | grep -qE '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)|gh[[:space:]]+api[^;&|]*/pulls/[0-9]+/merge|git[[:space:]]+push[^;&|]*[[:space:]]--(mirror|all)([[:space:]]|$)'; then
+    echo "BLOCKED (dogeballVR): no PR merge and no push --mirror/--all. jules merges the PRs." >&2
+    exit 2
+fi
+
 # Print $1 split into its command segments, one per line: here-doc bodies
 # dropped, quoted git option values kept whole. Kept identical to
 # command_segments in validate-commit.sh, which explains the splitting.

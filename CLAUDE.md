@@ -60,8 +60,9 @@ usually have nobody to answer questions, and jules wants full autonomy.
   the container: it is a scratch copy, never the record.
 - Work on a branch, commit, push, open a PR and drive the CI to green. **Never
   push to `main`, never merge a PR**: jules reviews and merges. The hook `validate-push.sh`
-  refuses a push to `main`/`master`; nothing blocks merging a PR, so that
-  rule is on you.
+  refuses a push to `main`/`master` and `gh pr merge`; the GitHub MCP tools
+  (`merge_pull_request`, `enable_pr_auto_merge`, `push_files` or
+  `create_or_update_file` on `main`) are not blocked, so that rule is on you.
 - Stop and ask only for irreversible actions or anything outside the project
   (deleting files or data, production, messages to other people) —
   `modes.automation_always_ask: [file_deletions]`.
@@ -91,8 +92,9 @@ usually have nobody to answer questions, and jules wants full autonomy.
   the scripts check them), content in French.
 - `git rm` inside your own branch is fine (reversible in the PR). Deleting
   anything outside the repo, data, or remote branches needs jules.
-- The hooks print reminders on `git merge` and on pushes: merging `origin/main`
-  into your own branch is normal, ignore that reminder. Force pushes are denied
+- The hooks print reminders on `git merge`, `git tag` and on pushes: merging
+  `origin/main` into your own branch is normal, ignore that reminder; do not
+  tag or release (say so in the PR instead). Force pushes are denied
   (`--force-with-lease` too): resolve with merge commits, never rebase a pushed
   branch.
 - Quality loop before delivering anything visible: get it critiqued by at least
