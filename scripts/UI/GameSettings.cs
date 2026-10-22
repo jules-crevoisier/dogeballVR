@@ -33,6 +33,7 @@ public static class GameSettings
     public static float UiScale = 1f;                        // taille du texte et de l'interface (0,85 à 1,4)
     public static bool ReduceFlashes;                        // éclairs d'impact et voile de dégâts atténués (photosensibilité)
     public static bool TeamSymbols;                          // équipes distinguées aussi par une forme (daltonisme)
+    public static bool SoundCues;                            // sons importants montrés à l'écran, avec leur direction (malentendants)
     // Audio (0 à 1)
     public static float MasterVolume = 0.85f, MusicVolume = 0.6f, SfxVolume = 0.9f, UiVolume = 0.8f;
     // Vidéo
@@ -78,6 +79,7 @@ public static class GameSettings
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
         ReduceFlashes = B(cfg, "accessibility", "reduce_flashes", ReduceFlashes);
         TeamSymbols = B(cfg, "accessibility", "team_symbols", TeamSymbols);
+        SoundCues = B(cfg, "accessibility", "sound_cues", SoundCues);
         MasterVolume = Mathf.Clamp(F(cfg, "audio", "master", MasterVolume), 0f, 1f);
         MusicVolume = Mathf.Clamp(F(cfg, "audio", "music", MusicVolume), 0f, 1f);
         SfxVolume = Mathf.Clamp(F(cfg, "audio", "sfx", SfxVolume), 0f, 1f);
@@ -107,6 +109,7 @@ public static class GameSettings
         cfg.SetValue("game", "context_hints", ContextHints);
         cfg.SetValue("accessibility", "reduce_flashes", ReduceFlashes);
         cfg.SetValue("accessibility", "team_symbols", TeamSymbols);
+        cfg.SetValue("accessibility", "sound_cues", SoundCues);
         InputSetup.SaveBindings(cfg);
         // Vidéo et taille de l'interface : dans machine.cfg (retirées de settings.cfg, que Steam Cloud recopie d'un PC à l'autre).
         if (cfg.HasSection("video")) cfg.EraseSection("video");

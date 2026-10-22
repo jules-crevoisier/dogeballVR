@@ -741,6 +741,17 @@ public partial class DesktopHud : CanvasLayer
             DrawCircle(c, 6.5f, halo);
             DrawCircle(c, 4.6f, outline);
             DrawCircle(c, 2.2f, col);
+            // Option daltonisme : la forme de l'équipe visée à côté du viseur (rond orange, triangle bleu), comme sur les noms.
+            if (p.AimingAtEnemy && UI.GameSettings.TeamSymbols)
+            {
+                var at = c + new Vector2(30f, -30f);
+                if (1 - Hud.View.LocalTeam == 0) { DrawCircle(at, 10f, outline); DrawCircle(at, 7f, col); }
+                else
+                {
+                    DrawColoredPolygon(new[] { at + new Vector2(0, -13f), at + new Vector2(12f, 9f), at + new Vector2(-12f, 9f) }, outline);
+                    DrawColoredPolygon(new[] { at + new Vector2(0, -8f), at + new Vector2(7.5f, 6f), at + new Vector2(-7.5f, 6f) }, col);
+                }
+            }
 
             // Charge du lancer : trois arcs autour du viseur (un par palier de son), qui se remplissent.
             if (charge > 0.01f || p.HeldBall != null)

@@ -395,6 +395,7 @@ public partial class Main : Node3D
             var view = pcView = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
             AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
             var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
             AddChild(end);
             AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
@@ -602,6 +603,7 @@ public partial class Main : Node3D
             if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
             AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
             var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
             AddChild(end);
             AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });

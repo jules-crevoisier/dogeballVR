@@ -79,6 +79,10 @@ public partial class PerfProbe : Node
                  $"scripts {processMs / samples:0.00} ms, physique {physicsMs / samples:0.00} ms, dessin {draws / samples:0} appels (max {maxDraws}), " +
                  $"{prims / samples / 1000:0} k triangles, {maxNodes} nœuds au plus, {slow} images au-delà de 16,7 ms (pire {sorted[^1]:0} ms), " +
                  $"GC : {g0} collectes rapides, {g2} complètes, {mbps:0.0} Mo alloués par seconde, tas {System.GC.GetTotalMemory(false) / 1048576} Mo");
+        // Fuites : ces compteurs doivent rester à plat d'une tranche à l'autre sur une longue session.
+        GD.Print($"[Mémoire] tranche {part} : moteur {OS.GetStaticMemoryUsage() / 1048576.0:0.0} Mo, tas .NET {System.GC.GetTotalMemory(false) / 1048576.0:0.0} Mo, " +
+                 $"{(int)Performance.GetMonitor(Performance.Monitor.ObjectNodeCount)} nœuds, {(int)Performance.GetMonitor(Performance.Monitor.ObjectCount)} objets, " +
+                 $"{(int)Performance.GetMonitor(Performance.Monitor.ObjectResourceCount)} ressources, {(int)Performance.GetMonitor(Performance.Monitor.ObjectOrphanNodeCount)} nœuds orphelins");
         frameMs.Clear();
         processMs = physicsMs = draws = prims = 0;
         samples = 0;

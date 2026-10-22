@@ -141,12 +141,13 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
-| [x] | Sensibilité souris enregistrée (`user://settings.cfg`) | code | scripts/Gameplay/DesktopPlayer.cs |
-| [~] | Options vidéo (plein écran / fenêtré, résolution, V-Sync, limite d'i/s, qualité, champ de vision) | code (fil interfaces) | |
-| [~] | Options audio (général, musique, effets) | code (fil interfaces) | |
+| [x] | Sensibilité souris (0,25× à 4×) et champ de vision (80 à 120°), aide à la visée réglable, enregistrés dans `settings.cfg` | code | scripts/UI/OptionsMenu.cs |
+| [x] | Options vidéo : plein écran ou fenêtré, synchronisation verticale, limite d'i/s, qualité (3 niveaux), résolution de rendu (50 à 100 %), compteur d'i/s. Propres à chaque machine (`machine.cfg`) | code | scripts/UI/OptionsMenu.cs |
+| [x] | Options audio : général, musique, effets, interface | code | scripts/UI/OptionsMenu.cs |
 | [x] | Touches réassignables (Options > Touches) : clavier-souris (touches physiques, ZQSD ou WASD selon le clavier), et à la manette boutons et gâchettes (échange avec l'action qui avait le bouton ; sticks et Menu fixes). Enregistré dans settings.cfg, donc suivi par Steam Cloud | code | scripts/UI/InputSetup.cs |
-| [ ] | Inversion de l'axe Y | code | docs/CHOIX-REGLES.md (noté manquant) |
-| [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
+| [x] | Inversion de l'axe vertical | code | scripts/UI/OptionsMenu.cs |
+| [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs et à côté du viseur sur l'adversaire visé) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
+| [x] | Sons importants à l'écran (option, pour jouer sans le son) : lancers, explosions, attrapes parfaites, touches et KO entendus à moins de 30 m, montrés autour du viseur avec une flèche vers leur source | code | scripts/UI/SoundCues.cs |
 | [x] | Réduction des secousses d'écran (curseur), de l'arrêt sur image (option) et des flashs (option : éclairs d'impact à 35 %, voile de dégâts à 40 %) | code | scripts/UI/OptionsMenu.cs |
 | [ ] | Confort VR : rotation par crans ou continue, vignette, hauteur, main dominante | code | voir section 10 |
 | [~] | Support manette en mode écran (nécessaire pour Steam Deck « Vérifié » et pour cocher Full Controller Support) : fait sauf la saisie d'un code de salle, donc Partial pour l'instant | code | /doc/steamdeck/compat |

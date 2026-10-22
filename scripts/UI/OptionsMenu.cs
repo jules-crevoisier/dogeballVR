@@ -64,7 +64,8 @@ public partial class OptionsMenu : Control
         ["Afficher les images par seconde"] = "Compteur d'images par seconde dans un coin de l'écran.",
         ["Taille du texte et de l'interface"] = "Agrandit tout le texte et l'interface, menus et HUD compris.",
         ["Réduire les flashs"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
-        ["Symboles d'équipe (daltonisme)"] = "Ajoute un symbole à la couleur de chaque équipe, pour ne pas dépendre de l'orange et du bleu.",
+        ["Symboles d'équipe (daltonisme)"] = "Ajoute une forme à chaque équipe (rond orange, triangle bleu) sur les noms et au viseur, pour ne pas dépendre des couleurs.",
+        ["Sons importants à l'écran"] = "Montre autour du viseur les lancers, explosions, attrapes et touches entendus, avec leur direction (jeu sans le son).",
     };
 
     static readonly StyleBoxFlat RowIdle = RowBox(false), RowLit = RowBox(true);
@@ -270,6 +271,7 @@ public partial class OptionsMenu : Control
                 Choice("Taille du texte et de l'interface", new[] { "Petite", "Normale", "Grande", "Très grande" }, Array.IndexOf(UiScales, GameSettings.UiScale) is int u and >= 0 ? u : 1, k => { GameSettings.UiScale = UiScales[k]; GameSettings.Apply(GetViewport()); });
                 Toggle("Réduire les flashs (photosensibilité)", GameSettings.ReduceFlashes, v => GameSettings.ReduceFlashes = v);
                 Toggle("Symboles d'équipe (daltonisme)", GameSettings.TeamSymbols, v => GameSettings.TeamSymbols = v);
+                Toggle("Sons importants à l'écran", GameSettings.SoundCues, v => GameSettings.SoundCues = v);
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
@@ -302,7 +304,7 @@ public partial class OptionsMenu : Control
                 GameSettings.ContextHints = true;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = 100f;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
-                GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false;
+                GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
             case 2: GameSettings.MasterVolume = 0.85f; GameSettings.MusicVolume = 0.6f; GameSettings.SfxVolume = 0.9f; GameSettings.UiVolume = 0.8f; break;

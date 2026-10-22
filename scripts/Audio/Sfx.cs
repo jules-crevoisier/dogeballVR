@@ -109,6 +109,9 @@ public static class Sfx
 
     static string BusOf(SfxKind kind) => kind is SfxKind.UiHover or SfxKind.UiClick or SfxKind.UiBack ? "UI" : "SFX";
 
+    /// <summary>Chaque son joué (type, position s'il est spatialisé) : indicateurs visuels des sons (accessibilité).</summary>
+    public static event System.Action<SfxKind, Vector3?>? Played;
+
     /// <summary>Joue un son ; pitch 1 = normal (les paliers de charge montent la hauteur), volumeDb s'ajoute au gain de base du type.</summary>
     public static void Play(Node context, SfxKind kind, Vector3? position = null, float pitch = 1f, float volumeDb = 0f)
     {
@@ -120,6 +123,7 @@ public static class Sfx
         ulong now = Time.GetTicksMsec();
         if (lastPlayMs.TryGetValue(kind, out var prev) && now - prev < 25) return;
         lastPlayMs[kind] = now;
+        Played?.Invoke(kind, position);
 
         if (!voices.TryGetValue(kind, out var active)) voices[kind] = active = new List<Node>();
         active.RemoveAll(n => !GodotObject.IsInstanceValid(n) || n.IsQueuedForDeletion());
