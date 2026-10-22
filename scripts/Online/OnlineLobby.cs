@@ -52,6 +52,11 @@ public partial class OnlineLobby : Node
     /// <summary>Après une partie : secondes avant la revanche automatique (0 = aucune). Annulée dès que quelqu'un n'est plus prêt.</summary>
     public double RematchIn { get; private set; }
     public const double RematchSeconds = 10.0;
+    /// <summary>Partie rapide : secondes avant le lancement automatique, les places libres étant tenues par des bots (0 = aucun).
+    /// Le compte à rebours s'arrête tant qu'un joueur n'est pas prêt.</summary>
+    public double QuickStartIn { get; private set; }
+    /// <summary>Attente d'une salle de partie rapide seule ; un nouveau venu remet au moins <see cref="QuickJoinGrace"/> ; salle pleine : <see cref="QuickFullSeconds"/>.</summary>
+    public const double QuickFillSeconds = 20.0, QuickJoinGrace = 8.0, QuickFullSeconds = 4.0;
     public IReadOnlyList<LobbyMember> Members => members.Values.OrderBy(m => m.PeerId == 1 ? 0 : 1).ThenBy(m => m.PeerId).ToList();
     public int MaxPlayers => Math.Max(2, MapZoneCount(Map));
     /// <summary>Identifiant aléatoire de la salle (annonce LAN) : deux salles ouvertes en même temps par « partie rapide » fusionnent vers la plus petite.</summary>
@@ -181,7 +186,7 @@ public partial class OnlineLobby : Node
     {
         Reset();
         if (SteamBridge.Available) { SteamBridge.QuickMatch(this); return; }
-        if (Lan.Listen() != Error.Ok) { HostLan(NetSession.DefaultPort, Map); quickHosted = true; return; }
+        if (Lan.Listen() != Error.Ok) { HostLan(NetSession.DefaultPort, Map); if (State == LobbyState.InRoom) BeginQuickRoom(); return; }
         searchFor = 1.2 + new RandomNumberGenerator().Randf() * 1.6;   // durée aléatoire : deux joueurs lancés ensemble n'ouvrent pas deux salles
         SetState(LobbyState.Searching, "Recherche d'une partie sur le réseau local…");
     }
@@ -258,6 +263,15 @@ public partial class OnlineLobby : Node
         if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, description);
     }
 
+    /// <summary>Salle ouverte par « Partie rapide » : elle se lance seule au bout de <see cref="QuickFillSeconds"/>, avec des bots aux places libres.</summary>
+    internal void BeginQuickRoom()
+    {
+        quickHosted = true;
+        QuickStartIn = QuickFillSeconds;
+        GD.Print($"[Lobby] Partie rapide : lancement dans {QuickFillSeconds} s, avec des bots si personne ne vient");
+        BroadcastRoster();
+    }
+
     internal void SetCode(string code, bool internet = true) { Code = code; CodeIsInternet = internet; Changed?.Invoke(); }
 
     /// <summary>Utilisé par la couche Steam : attente d'une réponse de Steam (recherche, création, entrée dans un salon).</summary>
@@ -317,6 +331,7 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost || State != LobbyState.InRoom) return;
         RematchIn = 0;
+        QuickStartIn = 0;
         var map = LoadMap(Map);
         if (map == null) { Status = "Carte introuvable"; Changed?.Invoke(); return; }
         matchZones.Clear();
@@ -461,7 +476,7 @@ public partial class OnlineLobby : Node
                 {
                     GD.Print("[Lobby] Aucune partie trouvée : ouverture d'une salle");
                     HostLan(NetSession.DefaultPort, Map);
-                    if (State == LobbyState.InRoom) { quickHosted = true; Lan.Listen(); }   // on continue d'écouter : fusion si une autre salle s'ouvre en même temps
+                    if (State == LobbyState.InRoom) { BeginQuickRoom(); Lan.Listen(); }   // on continue d'écouter : fusion si une autre salle s'ouvre en même temps
                 }
                 break;
             case LobbyState.InRoom when IsHost && quickHosted && members.Count == 1:
@@ -496,8 +511,17 @@ public partial class OnlineLobby : Node
                 if (State != LobbyState.InRoom || !CanStart) { GD.Print("[Lobby] Revanche annulée"); CancelRematch(); }
                 else if ((RematchIn -= delta) <= 0) { GD.Print("[Lobby] Revanche"); StartMatch(); }
             }
+            else if (QuickStartIn > 0 && autoStart == 0 && State == LobbyState.InRoom && CanStart && (QuickStartIn -= delta) <= 0)
+            {
+                GD.Print($"[Lobby] Partie rapide : lancement à {members.Count}, les places libres vont aux bots");
+                StartMatch();
+            }
         }
-        else if (RematchIn > 0) RematchIn = Math.Max(0, RematchIn - delta);
+        else
+        {
+            if (RematchIn > 0) RematchIn = Math.Max(0, RematchIn - delta);
+            if (QuickStartIn > 0 && State == LobbyState.InRoom && members.Values.All(m => m.Ready)) QuickStartIn = Math.Max(0, QuickStartIn - delta);
+        }
     }
 
     // ------------------------------------------------------------------ signaux réseau
@@ -608,6 +632,12 @@ public partial class OnlineLobby : Node
         if (count[member.Team] > count[1 - member.Team]) member.Team = 1 - member.Team;
         members[peer] = member;
         GD.Print($"[Lobby] {member.Name} entre dans la salle (pair {peer}, équipe {member.Team + 1})");
+        if (QuickStartIn > 0)
+        {
+            // Partie rapide : on est venu jouer, donc prêt d'office ; un peu de temps pour changer d'équipe, moins si la salle est pleine.
+            member.Ready = true;
+            QuickStartIn = members.Count >= MaxPlayers ? Math.Min(QuickStartIn, QuickFullSeconds) : Math.Max(QuickStartIn, QuickJoinGrace);
+        }
         if (State == LobbyState.InMatch)
         {
             // Entrée en cours de partie ou retour après une coupure : l'hôte choisit la zone (celle du jeton si elle est libre).
@@ -665,6 +695,7 @@ public partial class OnlineLobby : Node
         }
         bool hostInMatch = d.ContainsKey("inMatch") && (bool)d["inMatch"];
         RematchIn = d.ContainsKey("rematch") ? (double)d["rematch"] : 0;
+        QuickStartIn = d.ContainsKey("quick") ? (double)d["quick"] : 0;
         if (State is LobbyState.Connecting) SetState(LobbyState.InRoom, "Dans la salle");
         else if (State is LobbyState.Reconnecting && !hostInMatch)
         {
@@ -731,7 +762,7 @@ public partial class OnlineLobby : Node
             m.Zone = State == LobbyState.InMatch && matchZones.TryGetValue(m.PeerId, out int zone) ? zone : -1;
             list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr, ["zone"] = m.Zone });
         }
-        string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch, ["rematch"] = RematchIn });
+        string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch, ["rematch"] = RematchIn, ["quick"] = QuickStartIn });
         foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.RosterRpc, json);
         SteamBridge.OnRosterChanged(this);
         Changed?.Invoke();
@@ -781,6 +812,7 @@ public partial class OnlineLobby : Node
         pendingPeers.Clear();
         matchZones.Clear();
         RematchIn = 0;
+        QuickStartIn = 0;
         IsHost = false;
         quickHosted = false;
         rate.Clear();

@@ -824,6 +824,15 @@ public partial class MatchController : Node3D
         ball.LinearVelocity = new Vector3(0, 2f, dirZ * 3f);
     }
 
+    /// <summary>Entraînement : une balle spéciale lâchée à 1,5 m de haut, elle retombe à cet endroit.</summary>
+    public Ball DropSpecial(Vector3 at, int kind)
+    {
+        var ball = SpawnBallAt(at + new Vector3(0, 1.5f, 0));
+        ball.Kind = kind;
+        if (ballsCached >= 0) ballsCached++;
+        return ball;
+    }
+
     Ball SpawnBallAt(Vector3 position)
     {
         var ball = Ball.Create();

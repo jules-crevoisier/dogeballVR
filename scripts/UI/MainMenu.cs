@@ -270,7 +270,7 @@ public partial class MainMenu : CanvasLayer
         PadKeyboard(code, "Code de la salle", () => join);
         Fill(
             UiKit.Text("EN LIGNE", 44, UiKit.Yellow, 10),
-            UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))),
+            UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, "")))),
             UiKit.Button("CRÉER UNE SALLE PRIVÉE", UiKit.Blue, () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, ""))),
             code,
             join = UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
@@ -303,9 +303,12 @@ public partial class MainMenu : CanvasLayer
 
     void Online(Action? handler, Action fallback) => Leave(handler ?? fallback);
 
-    void PlayBots()
+    void PlayBots() => FirstMatch(() => Leave(() => Chosen?.Invoke(NetMode.Offline, "")));
+
+    /// <summary>Contre les bots ou en partie rapide : la toute première fois, on propose l'entraînement avant <paramref name="play"/>.</summary>
+    void FirstMatch(Action play)
     {
-        if (GameSettings.TutorialDone) { Leave(() => Chosen?.Invoke(NetMode.Offline, "")); return; }
+        if (GameSettings.TutorialDone) { play(); return; }
         // Première partie : on propose le tutoriel (2 minutes), sans l'imposer.
         var card = new PanelContainer();
         var col = new VBoxContainer();
@@ -322,7 +325,7 @@ public partial class MainMenu : CanvasLayer
         {
             GameSettings.TutorialDone = true;
             GameSettings.Save();
-            Leave(() => Chosen?.Invoke(NetMode.Offline, ""));
+            play();
         }, 28, new Vector2(320, 64)));
         OpenOverlay(Centered(card));
         yes.CallDeferred(Control.MethodName.GrabFocus);

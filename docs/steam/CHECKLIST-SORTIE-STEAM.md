@@ -99,6 +99,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
 | [x] | Initialisation Steamworks.NET, `RestartAppIfNecessary(AppID)` dès que `ShippedAppId` est renseigné, repli propre sans Steam (une ligne « [Steam] indisponible », salle en LAN / code IP) | code | scripts/Online/Steam/SteamPlatform.cs ; /doc/sdk/api#initialization_and_shutdown |
+| [x] | Partie rapide qui n'attend pas : une salle ouverte par « Partie rapide » (Steam ou réseau local) se lance seule au bout de 20 s, les places libres tenues par des bots ; un joueur qui arrive est prêt d'office et relance le compte à au moins 8 s ; salle pleine : 4 s. Les joueurs peuvent encore entrer pendant la partie, à la place d'un bot | code | scripts/Online/OnlineLobby.cs (QuickStartIn) |
 | [x] | Lobbies Steam : partie rapide (recherche filtrée par version puis création), salon privé (amis), invitations (overlay, « Rejoindre la partie », `+connect_lobby` au lancement) ; **jamais testé avec un vrai client Steam** : à valider avec l'AppID 480 sur deux PC | code + jules | scripts/Online/SteamBridge.cs ; /doc/features/multiplayer/matchmaking |
 | [x] | Transport P2P par relais Steam (ISteamNetworkingMessages, relais SDR de Valve, pas de port à ouvrir) ; même code testé en CI sur UDP local avec 10 % de perte | code | scripts/Online/Steam/SteamMultiplayerPeer.cs ; /doc/features/multiplayer/steamdatagramrelay |
 | [x] | 23 succès et 8 stats (`docs/steam/achievements.csv`, icônes provisoires dans `docs/steam/succes-icones/`), totaux comptés en fin de match d'après le tableau de l'hôte (identique sur les clients), repli local sans Steam | code | scripts/Online/Steam/AchievementTracker.cs ; /doc/features/achievements |
@@ -127,7 +128,8 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [~] | Carte continue (décor 3D fini) | art (fil 3D) | |
 | [~] | Menu principal, salon, sélection de carte | code (fil interfaces) | |
 | [~] | Pause, écran de fin de partie (stats, rejouer, quitter) | code (fil interfaces) | |
-| [~] | Tutoriel (attrape, lancer, passe, dash) | code (fil interfaces) | |
+| [x] | Entraînement jouable de première partie, 11 étapes : regarder, courir, sauter, esquiver, ramasser, lancer chargé, toucher, attraper, passe, feinte, balle spéciale (une bombe tombe aux pieds du joueur). Consignes avec les touches ou les boutons de manette selon le dernier appareil touché ; Entrée ou Vue passe une étape. Proposé avant la première partie contre les bots ou en ligne | code | scripts/UI/Tutorial.cs ; test CI « entraînement et partie rapide » |
+| [x] | Aides contextuelles des premières parties : attraper quand un tir arrive, esquiver mains prises, charger ou passer, ce que fait la balle spéciale, où trouver une balle. Chaque aide disparaît quand le geste est acquis (stats de carrière), toutes après 8 parties ; option « Aides contextuelles » | code | scripts/UI/ContextHints.cs |
 | [~] | Game feel : impacts, ralentis, secousses, particules, sons | code (fil interfaces) | |
 | [ ] | Musique et sons définitifs (aujourd'hui sons synthétisés, `scripts/Audio/Sfx.cs`) | art | |
 | [ ] | Progression (niveau de compte, cosmétiques débloqués) stockée dans `progress.cfg` | code | |
