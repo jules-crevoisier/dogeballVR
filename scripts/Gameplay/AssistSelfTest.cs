@@ -80,6 +80,13 @@ public partial class AssistSelfTest : Node
         var (_, none) = Assist.Plan(from, new Vector3(0, 0, -1f), new List<Vector3>());
         Check("plancher de vitesse", Mathf.IsEqualApprox(soft, Assist.MinLaunchSpeed) && none == 0f, $"mou {soft:0.0}, nul {none:0.0}");
 
+        // Paliers de passe : une suite de passes entre alliés ne dépasse jamais le palier 1 (pas de KO en un coup sans risque).
+        int c = 0;
+        for (int i = 0; i < 4; i++) c = Ball.ChargeOnCatch(c, true, false, false);
+        Check("Passes plafonnées", c == 1, $"palier {c} après 4 passes");
+        Check("Palier haut gardé", Ball.ChargeOnCatch(2, true, false, false) == 2, "une passe ne fait pas baisser une balle déjà chargée");
+        Check("Balle volée", Ball.ChargeOnCatch(2, false, true, false) == 0 && Ball.ChargeOnCatch(2, false, true, true) == 1, "0, ou 1 sur attrape parfaite");
+
         GD.Print(ok ? "[AssistTest] TOUT OK" : "[AssistTest] ÉCHEC");
         GetTree().Quit(ok ? 0 : 1);
     }

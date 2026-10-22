@@ -6,7 +6,7 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Balle de dodgeball. Côté hôte (autorité) : physique et touches. Côté clients : affichage.
-/// Charge de passe (0 à 3) : chaque passe d'un allié ajoute une charge, la balle devient plus lumineuse.
+/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), la balle devient plus lumineuse.
 /// </summary>
 public partial class Ball : RigidBody3D
 {
@@ -215,12 +215,24 @@ public partial class Ball : RigidBody3D
         }
     }
 
-    /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
+    /// <summary>
+    /// Palier après une prise. Balle reçue d'un allié : palier 1 au plus, comme Knockout City (sinon deux passes donnent un KO
+    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou 1 sur attrape parfaite.
+    /// </summary>
+    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect)
+    {
+        if (fromAlly) return Mathf.Max(charge, 1);
+        if (fromOpponent) return perfect ? 1 : 0;
+        return charge;
+    }
+
+    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (1 si parfaite).</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
-        if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
-        else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
+        bool fromAlly = OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId;
+        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect);
+        if (next != Charge) { ResetCharge(); for (int i = 0; i < next; i++) AddCharge(); }
         EndArc();
         SpeedCap = 0;
         OwnerPlayerId = playerId;

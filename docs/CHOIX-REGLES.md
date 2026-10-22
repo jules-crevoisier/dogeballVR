@@ -70,7 +70,7 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 
 ## Croix Néon : coups spéciaux (phase 2 de la refonte Knockout City)
 
-- **Passe** (molette ou X) : cloche vers l'allié le mieux aligné (35°, sinon le plus proche), gravité pleine, sommet à 4,2 m, sans frottement pour tomber là où on a visé. La passe ne blesse personne et ne s'intercepte pas (bots compris). L'allié la prend tout seul (1,3 m) et elle gagne +1 palier ; 2 paliers = KO direct (déjà le cas : 2 cœurs, dégâts doubles).
+- **Passe** (molette ou X) : cloche vers l'allié le mieux aligné (35°, sinon le plus proche), gravité pleine, sommet à 4,2 m, sans frottement pour tomber là où on a visé. La passe ne blesse personne et ne s'intercepte pas (bots compris). L'allié la prend tout seul (1,3 m) et elle passe au palier 1, pas plus (comme Knockout City : sinon deux passes donnent un KO en un coup sans risque). Le palier 2 (KO direct, dégâts doubles) vient des bonus de terrain (lift VR).
 - **Cloche** (R) : lob blessant vers l'adversaire visé ou le point visé, sommet 2,2 m au-dessus des deux extrémités.
 - **Effet** (E maintenu + gauche/droite au lâcher) : balle qui dévie de 3 à 4 m sur 20 m (spin 6 rad/s, force de Magnus existante).
 - **Feinte** (F) : le bras part sans lâcher (visible des autres via la pose), charge annulée, il faut relâcher le clic pour réarmer.
