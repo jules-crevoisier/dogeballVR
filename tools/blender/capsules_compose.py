@@ -54,11 +54,10 @@ def put_logo(img, logo, width_frac, cx, cy):
 def main(src, logo_path, out):
     os.makedirs(out, exist_ok=True)
     large = Image.open(os.path.join(src, "maitre_large.png")).convert("RGB")
-    vert = Image.open(os.path.join(src, "maitre_vertical.png")).convert("RGB")
     hero = Image.open(os.path.join(src, "maitre_hero.png")).convert("RGB")
     logo = Image.open(logo_path).convert("RGBA")
     pop = lambda im: ImageEnhance.Contrast(ImageEnhance.Color(im).enhance(1.08)).enhance(1.04)   # noqa: E731
-    large, vert, hero = pop(large), pop(vert), pop(hero)
+    large, hero = pop(large), pop(hero)   # verticales : recadrées sur Riko et la balle dans le rendu large
 
     main_c = put_logo(shade(cover(large, 1232, 706, 0.5, 0.55), "top", 0.5, 0.42), logo, 0.56, 0.5, 0.17)
     main_c.save(os.path.join(out, "main_capsule_1232x706.png"))
@@ -67,9 +66,9 @@ def main(src, logo_path, out):
     header.save(os.path.join(out, "library_header_920x430.png"))
     small = put_logo(shade(cover(large, 462, 174, 0.5, 0.45), "top", 0.6, 1.0), logo, 0.86, 0.5, 0.5)
     small.save(os.path.join(out, "small_capsule_462x174.png"))
-    vc = put_logo(shade(cover(vert, 748, 896, 0.5, 0.5), "top", 0.55, 0.42), logo, 0.88, 0.5, 0.15)
+    vc = put_logo(shade(cover(large, 748, 896, 0.37, 0.5), "top", 0.55, 0.42), logo, 0.88, 0.5, 0.15)
     vc.save(os.path.join(out, "vertical_capsule_748x896.png"))
-    lib_c = put_logo(shade(cover(vert, 600, 900, 0.5, 0.5), "top", 0.55, 0.42), logo, 0.9, 0.5, 0.15)
+    lib_c = put_logo(shade(cover(large, 600, 900, 0.37, 0.5), "top", 0.55, 0.42), logo, 0.9, 0.5, 0.15)
     lib_c.save(os.path.join(out, "library_capsule_600x900.png"))
     cover(hero, 3840, 1240, 0.5, 0.5).save(os.path.join(out, "library_hero_3840x1240.png"))
     bg = cover(large, 1438, 810).filter(ImageFilter.GaussianBlur(6))

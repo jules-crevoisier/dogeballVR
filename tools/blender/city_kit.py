@@ -105,6 +105,25 @@ def storefront(P, rnd, w, y, wall, awning, rot=0.0, sign=None, cx=0.0):
         P.light(t, kind=rnd.choice(["neon_rose", "neon_cyan", "neon_jaune", "neon_orange"]))
 
 
+SIGNS = ["HOTEL", "JAZZ", "TAXI", "ROLLO", "BAM!", "OPEN", "MOTEL", "ZIP"]
+NEONS = ["neon_rose", "neon_cyan", "neon_jaune", "neon_orange", "neon_vert"]
+
+
+def wall_sign(P, rnd, x, y, zc, text):
+    """Enseigne verticale fixée en façade (lettres empilées en néon sur caisson sombre, liseré lumineux) : visible du toit."""
+    n = len(text)
+    h = n * 1.25 + 0.7
+    P.add(box((1.7, 0.3, h), (x, y - 0.4, zc), bev=0.08, seg=2), "#1E2130", wear=0.4, grime=0)
+    for sx in (-1, 1):   # pattes de fixation
+        P.add(box((0.12, 0.5, 0.12), (x + sx * 0.6, y - 0.15, zc + h / 2 - 0.4), bev=0.0, seg=1), "#3A3E52", wear=0.5, grime=0)
+    kind = rnd.choice(NEONS)
+    for i, ch in enumerate(text):
+        t = text_mesh(ch, size=1.0, extrude=0.06, loc=(x, y - 0.6, zc + h / 2 - 0.85 - i * 1.25), rot=(math.pi / 2, 0, 0), name="lettre")
+        P.light(t, kind=kind)
+    for sx in (-1, 1):
+        P.light(box((0.06, 0.06, h - 0.2), (x + sx * 0.78, y - 0.57, zc), bev=0.0, seg=1), kind=kind)
+
+
 def cornice(P, w, d, H, col, crown=False):
     P.add(box((w + 0.5, d + 0.5, 0.35), (0, 0, H + 0.17), bev=0.06, seg=2), col, wear=0.6)
     P.add(box((w + 0.8, d + 0.8, 0.25), (0, 0, H + 0.47), bev=0.06, seg=2), col, wear=0.6)
@@ -187,6 +206,8 @@ def building(i, seed=5):
     facade(P, rnd, d, floors, -w / 2, wall_fn, trim_h, lit=lit, rot=math.pi / 2)
     storefront(P, rnd, w, -d / 2 - 0.05, wall_fn, awning, sign=sign)
     cornice(P, w, d, H, trim_h, crown)
+    zc = min(H - 7.0, 22.0)   # hauteur du toit de l'arène environ : le pied de l'immeuble est 12 à 20 m plus bas
+    wall_sign(P, rnd, rnd.choice((-1, 1)) * (w / 2 - 1.6), -d / 2 - 0.35, zc, SIGNS[i % len(SIGNS)])
     if tower:
         water_tower(P, rnd.uniform(-w / 5, w / 5), rnd.uniform(0, d / 5), H + 1.45)
     if escape and not QUEST:

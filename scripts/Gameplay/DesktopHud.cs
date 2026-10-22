@@ -154,6 +154,7 @@ public partial class DesktopHud : CanvasLayer
         help.HorizontalAlignment = HorizontalAlignment.Right;
         help.CustomMinimumSize = new Vector2(450, 0);
         help.AddThemeStyleboxOverride("normal", Panel(new Color(0.06f, 0.09f, 0.2f, 0.6f)));
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--capture") >= 0) helpHideAt = 0;   // captures pour la page Steam : sans l'aide des touches
 
         toast = MakeLabel(new Vector2(0, 0), 26);
         toast.SetAnchorsPreset(Control.LayoutPreset.CenterTop);

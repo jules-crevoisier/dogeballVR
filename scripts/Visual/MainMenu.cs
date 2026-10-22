@@ -108,8 +108,8 @@ public partial class MainMenu : CanvasLayer
         Hero("avatar_bleu_rig", new Vector3(-0.4f, 0, 3.0f), 180 + 20, "Repos");
         Hero("avatar_orange_rig", new Vector3(0.7f, 0, 3.3f), 180 - 25, "Celebration");
         // contre-jours aux couleurs d'équipe derrière chaque perso
-        stage.AddChild(new OmniLight3D { Position = new Vector3(1.3f, 2.0f, 2.2f), LightColor = new Color("FF7A2A"), LightEnergy = 0.9f, OmniRange = 3f });
-        stage.AddChild(new OmniLight3D { Position = new Vector3(-1.0f, 2.0f, 2.2f), LightColor = new Color("6FD8FF"), LightEnergy = 0.9f, OmniRange = 3f });
+        stage.AddChild(new OmniLight3D { Position = new Vector3(1.6f, 2.4f, 1.6f), LightColor = new Color("FFB27A"), LightEnergy = 0.35f, OmniRange = 3f });
+        stage.AddChild(new OmniLight3D { Position = new Vector3(-1.2f, 2.4f, 1.6f), LightColor = new Color("6FD8FF"), LightEnergy = 0.4f, OmniRange = 3f });
         var cam = new Camera3D { Fov = 30, Current = true };
         stage.AddChild(cam);
         cam.Position = new Vector3(-1.0f, 0.95f, 7.6f);
