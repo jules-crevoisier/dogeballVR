@@ -54,7 +54,8 @@ jobs:
           CATCHES=$(grep -c "attrapée par la zone 2" host.log || true)
           THROWS=$(grep -c "lancée par la zone 2" host.log || true)
           echo "Prises validées par l'hôte : $CATCHES, lancers : $THROWS"
-          if [ "$CATCHES" -lt 5 ] || [ "$THROWS" -lt 5 ]; then
+          # Le client se fait des chandelles un lancer sur deux : 22 à 35 prises mesurées, le seuil a de la marge.
+          if [ "$CATCHES" -lt 10 ] || [ "$THROWS" -lt 10 ]; then
             echo "Le réseau ne fonctionne pas (trop peu de prises / lancers)"; exit 1
           fi
           grep -E "balles=[1-9]" client.log > /dev/null || { echo "Le client ne voit pas les balles"; exit 1; }

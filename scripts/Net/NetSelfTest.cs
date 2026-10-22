@@ -6,6 +6,8 @@ namespace DogeballVR.Net;
 /// <summary>
 /// Joueur automatique pour tester le réseau sans casque ni clavier : le client déplace sa « main » sur la balle libre
 /// la plus proche, l'attrape, puis la renvoie vers l'équipe adverse. Les traces <c>[NetTest]</c> sont lues par la CI.
+/// Un lancer sur deux est une chandelle dans sa propre zone : la balle retombe à portée et se rattrape, le test ne dépend
+/// donc plus des balles que les bots veulent bien envoyer dans la zone (de 4 à 32 prises selon la partie avant).
 /// </summary>
 public partial class NetSelfTest : Node
 {
@@ -31,6 +33,7 @@ public partial class NetSelfTest : Node
     bool crouching;
     double timer;
     int catches, throws, hits;
+    bool tossNext;
     double logTimer;
 
     public override void _EnterTree() => MatchController.HitScored += CountHit;
@@ -120,8 +123,18 @@ public partial class NetSelfTest : Node
         {
             if (timer < 0.5) return;
             timer = 0;
-            var dir = (AimAt - held.GlobalPosition).Normalized();
-            Net.RequestThrow(1, dir * 18f + Vector3.Up * 1f, 0f);
+            if (tossNext)
+            {
+                // Chandelle : presque verticale, légèrement vers le centre de la zone pour ne pas retomber au bord.
+                var toCenter = new Vector3(ZoneCenter.X - held.GlobalPosition.X, 0, ZoneCenter.Z - held.GlobalPosition.Z).LimitLength(1f);
+                Net.RequestThrow(1, Vector3.Up * 6f + toCenter * 0.6f, 0f);
+            }
+            else
+            {
+                var dir = (AimAt - held.GlobalPosition).Normalized();
+                Net.RequestThrow(1, dir * 18f + Vector3.Up * 1f, 0f);
+            }
+            tossNext = !tossNext;
             throws++;
             return;
         }
