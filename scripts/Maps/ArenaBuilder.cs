@@ -66,7 +66,7 @@ public static class ArenaBuilder
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
             // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume chaude qui repousse le fond
             AmbientLightEnergy = 0.45f,
-            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.8f, TonemapWhite = 4f,
+            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.9f, TonemapWhite = 6f,
             FogEnabled = true, FogLightColor = new Color("FFE2C4"), FogDensity = 0.006f, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
             GlowEnabled = pcProfile, GlowIntensity = 0.45f, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
@@ -75,8 +75,8 @@ public static class ArenaBuilder
         root.AddChild(new WorldEnvironment { Environment = env });
         root.AddChild(new DirectionalLight3D
         {
-            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.9f, LightColor = new Color("FFE6C2"),
-            ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 0.6f,
+            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.5f, LightColor = new Color("FFE6C2"),
+            ShadowEnabled = pcProfile, ShadowBias = 0.1f, ShadowNormalBias = 2.2f, ShadowBlur = 0.6f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
     }
@@ -376,12 +376,14 @@ public static class ArenaBuilder
         if (kc && look is ShaderMaterial sm && o.Kind != "pit") sm.NextPass = KcShaders.Outline(0.03f);
         body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look, Visible = !(kc && o.Kind == "hubfloor") });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-        if (kc && (o.Kind == "bumper" || o.Kind == "cover" || o.Kind == null)) AddObstacleTrim(body, size, o.Kind == "bumper");
+        int seed = 0;
+        foreach (char ch in o.Id ?? "") seed += ch;   // stable d'une partie à l'autre (string.GetHashCode ne l'est pas)
+        if (kc && (o.Kind == "bumper" || o.Kind == "cover" || o.Kind == null)) AddObstacleTrim(body, size, o.Kind == "bumper", o.Kind == "bumper" || seed % 3 == 0);
         root.AddChild(body);
     }
 
     /// <summary>Détails d'abri façon barrière de chantier : socle sombre, bande de danger, chapeau clair et liseré néon. Visuel seulement.</summary>
-    static void AddObstacleTrim(Node3D body, Vector3 size, bool pylon)
+    static void AddObstacleTrim(Node3D body, Vector3 size, bool pylon, bool stripes = true)
     {
         void Piece(Vector3 sz, float y, ShaderMaterial m, bool outline = true)
         {
@@ -393,7 +395,9 @@ public static class ArenaBuilder
         Piece(new Vector3(wide.X, 0.16f, wide.Z), 0.08f, KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2));
         Piece(new Vector3(wide.X, 0.1f, wide.Z), size.Y - 0.05f, KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2));
         float band = pylon ? 1.0f : Mathf.Min(0.7f, size.Y * 0.55f);
-        Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f), false);
+        // bande de danger sur un abri sur trois ; les autres ont un bandeau peint uni (sinon l'écran n'est que rayures)
+        var bandMat = stripes ? KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f) : KcShaders.Toon(new Color("E36A2E"), null, 0);
+        Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, bandMat, false);
         var glow = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f);
         Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), size.Y - 0.13f, glow, false);
         if (pylon) Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), 2.3f, KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f), false);

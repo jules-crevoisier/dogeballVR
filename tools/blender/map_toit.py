@@ -186,7 +186,7 @@ def sign_fizz(x, y, z, face=-1):
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z + 1.2), "neon_orange", "EnseigneLiserePlus", 0.0)
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z - 1.2), "neon_orange", "EnseigneLiseréMoins", 0.0)
     dome(1.0, (x - 2.2, y + face * 0.45, z), "neon_rose", "EnseigneBille")
-    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face < 0 else 0))
+    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face > 0 else 0))
     t = bpy.context.active_object
     t.data.body, t.data.size, t.data.extrude, t.data.align_x = "FIZZ", 1.6, 0.05, "CENTER"
     bpy.ops.object.convert(target="MESH")
@@ -214,7 +214,12 @@ def build_ville(seed=3):
     kinds = ["fenetres", "fenetres", "fenetres", "brique", "brique_jaune", "beton"]
     neons = list(NEON)
     n = 0
-    for ring, (dist, count) in enumerate([(28, 16), (46, 20), (72, 22), (105, 22)]):
+    import city_kit
+    # premiers anneaux : immeubles détaillés (façades en volume, enseignes, châteaux d'eau) ; Quest : le premier seulement
+    near = ((30, 14),) if city_kit.QUEST else ((30, 14), (48, 18))
+    city_kit.place_ring(rings=near)
+    far = [(72, 22), (105, 22)] if not city_kit.QUEST else [(48, 18), (72, 22), (105, 14)]
+    for ring, (dist, count) in enumerate(far, start=len(near)):
         for i in range(count):
             a = i / count * math.tau + rnd.uniform(-0.1, 0.1)
             d = dist + rnd.uniform(-3, 5)

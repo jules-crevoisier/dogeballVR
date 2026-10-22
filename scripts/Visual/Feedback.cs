@@ -113,7 +113,7 @@ public partial class Feedback : Node
                 else if (cur.Held && cur.Charge > prev.Charge) Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
                 if (!prev.Pass && cur.Pass && IsLocal(cur.OwnerId)) Sticker("PASSE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Small);
             }
-            if (cur.Speed > 7f && !cur.Held) Juice.TrailGhost(this, pos, cur.Charge >= 2 ? new Color(1f, 0.35f, 0.75f) : new Color(1f, 0.85f, 0.3f), 0.1f + 0.03f * cur.Charge);
+            if (cur.Speed > 7f && !cur.Held) Juice.TrailGhost(this, pos, cur.Charge >= 2 ? new Color(1f, 0.35f, 0.75f) : Palette.Team(cur.Owner) * 0.6f, 0.07f + 0.03f * cur.Charge);   // à la couleur de l'équipe, discret : la traînée en ruban porte la vitesse
             balls[ball] = cur;
         }
         foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) balls.Remove(dead);

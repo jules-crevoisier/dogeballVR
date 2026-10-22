@@ -1,4 +1,5 @@
-"""Exporte la carte Toit : assets/models/toit.glb (décor proche) et toit_ville.glb (skyline).
+"""Exporte la carte Toit : assets/models/toit.glb (décor proche) et toit_ville.glb (skyline), plus leurs versions _quest
+(détails retirés, fusion par matériau).
 Usage : python3 -I tools/blender/gen_toit.py assets/models"""
 import os
 import sys
@@ -11,7 +12,14 @@ import map_toit  # noqa: E402
 
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
-for name, fn in (("toit", map_toit.build_toit), ("toit_ville", map_toit.build_ville)):
+import city_kit  # noqa: E402
+import quest  # noqa: E402
+
+for name, fn, light in (("toit", map_toit.build_toit, False), ("toit_ville", map_toit.build_ville, False),
+                        ("toit_quest", map_toit.build_toit, True), ("toit_ville_quest", map_toit.build_ville, True)):
     lib.reset()
+    city_kit.QUEST = light
     fn()
+    if light:   # Quest : un maillage par matériau (et par secteur pour la ville, qui entoure le joueur)
+        quest.merge_by_material(sectors=1 if name == "toit_quest" else 8)
     print(name, lib.export(os.path.join(out, name + ".glb")), "triangles")

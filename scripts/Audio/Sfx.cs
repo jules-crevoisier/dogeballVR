@@ -134,6 +134,12 @@ public static class Sfx
 
     static Node3D? holder;
 
+    /// <summary>Lâche les sons en cache à la sortie (une ressource gardée en static fait planter la fermeture).</summary>
+    public static void ClearCache()
+    {
+        files.Clear(); synth.Clear(); voices.Clear(); holder = null;
+    }
+
     /// <summary>Parent commun des voix, à l'origine, sous la racine : jamais « occupé » (un Play depuis un _Ready ne casse rien).
     /// Ajouté en différé ; les voix créées avant son entrée dans l'arbre démarrent à cette entrée (Autoplay).</summary>
     static Node3D Holder(SceneTree tree)

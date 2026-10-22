@@ -10,6 +10,7 @@ Axes Blender : Z haut, origine au sol au centre du prop, échelle en mètres. Ex
 
     python3 -I tools/blender/props_kit.py assets/models/props            # tous les props
     python3 -I tools/blender/props_kit.py assets/models/props cone pneus # quelques-uns
+    python3 -I tools/blender/props_kit.py assets/models/props_quest --quest   # versions allégées Quest
 """
 import math
 import os
@@ -301,12 +302,17 @@ class Prop:
         self.lights = []
         self.origins = {}   # groupe -> pivot (pièces animables : hélice…)
         self.ao_dist, self.ao_strength, self.rays, self.grime_h = ao_dist, ao_strength, rays, grime_h
+        self.rough = {}   # objet -> rugosité PBR rangée dans l'alpha (1 = mat, défaut des props)
 
-    def add(self, ob, fn, wear=0.5, wear_col=None, grime=1.0, noise_amt=0.06, group=None):
+    def add(self, ob, fn, wear=0.5, wear_col=None, grime=1.0, noise_amt=0.06, group=None, rough=None):
         """fn(p, n, centre_de_face) -> couleur linéaire (ou hex). wear : éclaircissement des arêtes vives
         (vers wear_col si donné : peinture écaillée jusqu'au métal). group : nom d'un sous-objet séparé (animable)."""
         if isinstance(fn, str):
             fn = flat(fn)
+        elif isinstance(fn, Vector):
+            fn = (lambda v: lambda p, n, f: v)(fn.copy())
+        if rough is not None:
+            self.rough[ob.name] = rough
         if isinstance(wear_col, str):
             wear_col = C(wear_col)
         self.parts.append((ob, fn, wear, wear_col, grime, noise_amt, group))
@@ -324,7 +330,8 @@ class Prop:
         bm = bmesh.new()
         for ob in [p[0] for p in self.parts] + self.lights:
             bm.from_mesh(ob.data)
-        g = [bm.verts.new(v) for v in ((-40, -40, -0.001), (40, -40, -0.001), (40, 40, -0.001), (-40, 40, -0.001))]
+        gz = getattr(self, "ground", -0.001)   # sol (occlusion au pied) ; les balles le mettent loin dessous
+        g = [bm.verts.new(v) for v in ((-40, -40, gz), (40, -40, gz), (40, 40, gz), (-40, 40, gz))]
         bm.faces.new(g)
         tree = BVHTree.FromBMesh(bm)
         bm.free()
@@ -356,6 +363,7 @@ class Prop:
                     s += n.dot(dv.normalized())
             convex.append(max(0.0, min(1.0, -s / max(1, len(v.link_edges)) * 2.2)))
         col = bm.loops.layers.float_color.new("Col")
+        rough = self.rough.get(ob.name, 1.0)
         tint = Vector((0.55, 0.5, 0.78))   # ombres qui virent au violet (comme le shader)
         grime_c = Vector((0.55, 0.47, 0.42))
         for f in bm.faces:
@@ -378,7 +386,7 @@ class Prop:
                 c *= (0.93 + 0.1 * max(-1.0, min(1.0, n.z))) * self.GAIN
                 if nz > 0:
                     c *= 1.0 + nz * (noise.noise(p * 2.7) + 0.5 * noise.noise(p * 7.1))
-                lp[col] = (max(0, c.x), max(0, c.y), max(0, c.z), 1.0)
+                lp[col] = (max(0, c.x), max(0, c.y), max(0, c.z), rough)
         bm.to_mesh(me)
         bm.free()
         me.color_attributes.active_color = me.color_attributes["Col"]
@@ -413,7 +421,10 @@ class Prop:
                 o = Vector(self.origins[group])
                 body.data.transform(Matrix.Translation(-o))
                 body.location = o
-            _shade(body)
+            if getattr(self, "soft", False):
+                body.data.shade_smooth()   # surface lisse (balles) : pas de normales pondérées, qui marquent les arêtes de l'icosphère
+            else:
+                _shade(body)
             out.append(body)
         for lo in self.lights:
             _shade(lo)
@@ -1347,10 +1358,20 @@ def panneau_avertissement():
 PROPS = {f.__name__: f for f in _REG}
 
 
+QUEST_RATIO = None   # --quest : maillages réduits (fusion d'arêtes) pour le casque autonome
+
+
 def build(name, out_dir):
     lib.reset()
     P = PROPS[name]()
     objs = P.bake()
+    if QUEST_RATIO:
+        for ob in objs:
+            if len(ob.data.polygons) > 200:
+                m = ob.modifiers.new("allege", "DECIMATE")
+                m.ratio = QUEST_RATIO
+                with bpy.context.temp_override(object=ob, active_object=ob):
+                    bpy.ops.object.modifier_apply(modifier=m.name)
     path = os.path.join(out_dir, name + ".glb")
     n = lib.export(path, objs)
     return n
@@ -1367,4 +1388,7 @@ def main(out_dir, names=None):
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
+    if "--quest" in argv:
+        argv.remove("--quest")
+        QUEST_RATIO = 0.45
     main(argv[0] if argv else "assets/models/props", argv[1:] or None)

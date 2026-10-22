@@ -25,6 +25,7 @@ public partial class Avatar : Node3D
     double actionLeft;
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
+    bool dash;     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
     static readonly System.Collections.Generic.List<Avatar> all = new();
@@ -44,7 +45,9 @@ public partial class Avatar : Node3D
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
         string teamName = team == 0 ? "orange" : "bleu";
-        var rigged = ModelLibrary.Instance($"avatar_{teamName}_rig");
+        // deux persos par équipe (Riko/Bo, Nova/Kai) : le second joueur de chaque équipe prend la variante
+        var rigged = (playerId >= 0 && playerId / 2 % 2 == 1 ? ModelLibrary.Instance($"avatar_{teamName}2_rig") : null)
+                     ?? ModelLibrary.Instance($"avatar_{teamName}_rig");
         if (rigged != null)
         {
             avatar.body = rigged;
@@ -284,12 +287,14 @@ public partial class Avatar : Node3D
                 if (seenBalls.TryGetValue(ball, out var prev))
                 {
                     // balle lente = ramassée au sol, balle rapide = attrapée au vol
-                    if (!prev.held && cur.held && cur.owner == playerId) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.35);
-                    else if (prev.held && !cur.held && prev.owner == playerId) PlayAction(ball.IsPass ? "Passe" : "Lancer", ball.IsPass ? 0.45 : 0.6);
+                    if (!prev.held && cur.held && cur.owner == playerId) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.5);
+                    else if (prev.held && !cur.held && prev.owner == playerId) PlayAction(ball.IsPass ? "Passe" : "Lancer", ball.IsPass ? 0.45 : 0.65);
                 }
                 seenBalls[ball] = cur;
             }
         if (actionLeft <= 0 && climb > 2.2f) PlayAction("Saut", 0.7);
+        if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
+        dash = false;
         if (actionLeft > 0) { actionLeft -= delta; return; }
         string loop = speed > 1.0f ? "Course" : "Repos";
         if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
@@ -306,6 +311,7 @@ public partial class Avatar : Node3D
             if (dt > 0 && lastHead != Vector3.Zero)
             {
                 speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / dt, 12f), 0.25f);
+                if (flat.Length() / dt > 13f && flat.Length() < 1.5f) dash = true;   // pas une téléportation (réapparition)
                 climb = (head.Y - lastHead.Y) / dt;
             }
             lastHead = head;

@@ -94,6 +94,14 @@ public partial class Main : Node3D
         GetTree().ReloadCurrentScene();
     }
 
+    public override void _ExitTree()
+    {
+        // ressources gardées dans des champs static : à lâcher avant l'arrêt du runtime C# (sinon « Leaked unsafe reference » puis plantage)
+        Visual.KcShaders.ClearCache();
+        Visual.Materials.ClearCache();
+        Audio.Sfx.ClearCache();
+    }
+
     public override void _Ready()
     {
         Online.CrashReporter.Start(GetTree());
@@ -101,6 +109,7 @@ public partial class Main : Node3D
         MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
+        Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque
         UI.GameSettings.Load();
         UI.GameSettings.WatchScene(GetTree());
         Audio.Sfx.Preload();   // pas de lecture disque ni de synthèse en pleine partie
@@ -193,9 +202,10 @@ public partial class Main : Node3D
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
         };
-        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
+        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive && !Visual.ModelLibrary.Quest);
         AddChild(arena.Root);
         platforms = arena.Platforms;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista") >= 0) AddChild(new Visual.VistaCamera { Name = "Vista" });   // captures du décor
 
         if (cfg.Mode != NetMode.Offline)
         {
