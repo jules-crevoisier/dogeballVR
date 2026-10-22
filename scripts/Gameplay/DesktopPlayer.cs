@@ -769,6 +769,7 @@ public partial class DesktopPlayer : Node3D
             catchWindowLeft = CatchWindow;
             catchCooldownLeft = CatchRecovery;
             catchOpenedAt = time;
+            Sfx.Play(this, SfxKind.Dash, null, 1.7f, -13f);   // main qui s'ouvre : l'appui est entendu tout de suite, attrape ou pas
         }
 
         // Prend une balle : attrape (main tendue) ou ramassage automatique des balles lentes près des pieds.

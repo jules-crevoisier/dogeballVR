@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using DogeballVR.Audio;
 using DogeballVR.Gameplay;
+using DogeballVR.UI;
 
 namespace DogeballVR.Visual;
 
@@ -23,8 +24,13 @@ public partial class Feedback : Node
     public bool GrayWhenKo { get; set; }
     /// <summary>Noms des joueurs (facultatif, à brancher par Main, par exemple sur MatchView.NameOf). Sinon déduits ici.</summary>
     public Func<int, string>? NameOf { get; set; }
+    /// <summary>VR : vibration d'une manette (main 0 gauche, 1 droite, -1 les deux ; amplitude 0..1 ; durée s). Null au clavier-souris.</summary>
+    public Action<int, float, float>? Haptic { get; set; }
+    bool Vr => !GrayWhenKo;
 
-    record struct BallState(bool Held, int Charge, int Owner, int OwnerId, bool Pass, float Speed, Vector3 Pos);
+    record struct BallState(bool Held, int Charge, int Owner, int OwnerId, bool Pass, float Speed, Vector3 Pos, bool Exploded, int Hand);
+    // Balle adverse qui frôle le joueur local : distance mini à la tête et vies au début du passage (pas de « frôlé » si elle a touché).
+    readonly Dictionary<Ball, (float Min, int Lives)> nearMiss = new();
     readonly Dictionary<Ball, BallState> balls = new();
     readonly Dictionary<Hurtbox, bool> eliminated = new();
     readonly Dictionary<Hurtbox, int> lastLives = new();
@@ -75,8 +81,8 @@ void fragment() {
         grayTween.TweenMethod(Callable.From<float>(a => mat.SetShaderParameter("amount", a)), 0f, 1f, 0.3);
     }
 
-    public override void _EnterTree() { current = this; MatchController.HitScored += OnHitScored; Ball.CaughtThrow += OnCaughtThrow; PerfectCatchNoted += OnPerfectCatch; }
-    public override void _ExitTree() { if (current == this) current = null; MatchController.HitScored -= OnHitScored; Ball.CaughtThrow -= OnCaughtThrow; PerfectCatchNoted -= OnPerfectCatch; }
+    public override void _EnterTree() { current = this; MatchController.HitScored += OnHitScored; Ball.CaughtThrow += OnCaughtThrow; PerfectCatchNoted += OnPerfectCatch; Ball.Exploded += OnBombExploded; }
+    public override void _ExitTree() { if (current == this) current = null; MatchController.HitScored -= OnHitScored; Ball.CaughtThrow -= OnCaughtThrow; PerfectCatchNoted -= OnPerfectCatch; Ball.Exploded -= OnBombExploded; }
 
     /// <summary>Attrape parfaite signalée hors de l'hôte (client PC) : l'autocollant devient « PRISE PARFAITE ! ».</summary>
     public static void NotePerfectCatch(int playerId) => PerfectCatchNoted?.Invoke(playerId);
@@ -154,13 +160,16 @@ void fragment() {
             if (n is not Ball ball || ball.IsQueuedForDeletion()) continue;
             seen.Add(ball);
             var pos = ball.GlobalPosition;
-            var cur = new BallState(ball.IsHeld, ball.Charge, ball.OwnerTeam, ball.OwnerPlayerId, ball.IsPass, ball.LinearVelocity.Length(), pos);
+            bool mine = ball.IsHeld && IsInstanceValid(Local) && ball.OwnerPlayerId == Local.PlayerId;
+            var cur = new BallState(ball.IsHeld, ball.Charge, ball.OwnerTeam, ball.OwnerPlayerId, ball.IsPass, ball.LinearVelocity.Length(), pos,
+                ball.HasExploded, mine ? Local.HeldHand : -1);
             if (balls.TryGetValue(ball, out var prev))
             {
                 if (!prev.Held && cur.Held)
                 {
                     bool steal = prev.Owner >= 0 && cur.Owner != prev.Owner && prev.Speed >= Ball.HitMinSpeed && !prev.Pass;
                     Sfx.Play(this, steal ? SfxKind.Perfect : SfxKind.Catch, pos, steal ? 1f : 1f + 0.1f * cur.Charge);
+                    if (IsLocal(cur.OwnerId)) OnLocalCatch(steal, cur.Hand);
                     // « PRISE ! » seulement si le joueur local attrape, ou si c'est sa balle qu'on attrape (pas pour un ramassage de bot).
                     if (steal && (IsLocal(cur.OwnerId) || IsLocal(prev.OwnerId)) && HurtboxOf(cur.OwnerId) is { } catcher)
                     {
@@ -173,14 +182,23 @@ void fragment() {
                 }
                 else if (prev.Held && !cur.Held)
                 {
-                    if (ball.Kind != Ball.KindBomb) Sfx.Play(this, SfxKind.Throw, pos, 0.8f + 0.35f * prev.Charge);
+                    // Passe : souffle plus aigu et plus doux qu'un tir (on entend tout de suite si c'est une passe ou une attaque).
+                    if (ball.Kind != Ball.KindBomb && cur.Speed > 1.5f) Sfx.Play(this, SfxKind.Throw, pos, cur.Pass ? 1.3f : 0.8f + 0.35f * prev.Charge, cur.Pass ? -6f : 0f);
+                    // Vrai lancer seulement (une balle lâchée au KO ou au décompte ne vibre pas).
+                    if (IsLocal(prev.OwnerId) && cur.Speed > 1.5f) Haptic?.Invoke(prev.Hand, cur.Pass ? 0.25f : 0.35f + 0.15f * prev.Charge, 0.05f);
                 }
-                else if (cur.Held && cur.Charge > prev.Charge) Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
+                else if (cur.Held && cur.Charge > prev.Charge)
+                {
+                    Sfx.Play(this, SfxKind.Tier, pos, 0.8f + 0.3f * cur.Charge);
+                    if (IsLocal(cur.OwnerId)) Haptic?.Invoke(cur.Hand, 0.25f + 0.2f * cur.Charge, 0.05f);   // un cran plus fort à chaque palier
+                }
+                if (!prev.Exploded && cur.Exploded) BombSound(pos);   // client : la marionnette passe à l'état explosé
+                NearMiss(ball, cur);
                 if (!prev.Pass && cur.Pass && IsLocal(cur.OwnerId)) Sticker("PASSE !", Local, Palette.Team(Local.Team), SpeechBubble.Size.Small);
             }
             balls[ball] = cur;
         }
-        foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) balls.Remove(dead);
+        foreach (var dead in new List<Ball>(balls.Keys)) if (!seen.Contains(dead)) { balls.Remove(dead); nearMiss.Remove(dead); }
 
         var cam = GetViewport().GetCamera3D();
         foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
@@ -278,6 +296,67 @@ void fragment() {
         else ImpactFx.Hit(this, pos, Palette.Team(step % 2));
     }
 
+    ulong lastBombMs;
+    /// <summary>Explosion de la bombe (elle était muette) : chez l'hôte par l'événement, chez le client par l'état de la marionnette.</summary>
+    void OnBombExploded(Vector3 pos, int a, int b, int c) => BombSound(pos);
+    void BombSound(Vector3 pos)
+    {
+        if (Time.GetTicksMsec() - lastBombMs < 400) return;
+        lastBombMs = Time.GetTicksMsec();
+        Sfx.Play(this, SfxKind.Bomb, pos);
+        if (IsInstanceValid(Local) && pos.DistanceTo(Local.GlobalPosition) < 6f) Haptic?.Invoke(-1, 0.7f, 0.2f);
+    }
+
+    /// <summary>Le joueur local prend une balle : vibration de la main qui la tient ; attrape d'un tir adverse : double coup « clac-clac »
+    /// et liseré doré en VR. Le son et le mot sont posés par l'appelant.</summary>
+    void OnLocalCatch(bool steal, int hand)
+    {
+        if (Haptic == null) return;
+        if (!steal) { Haptic(hand, 0.45f, 0.05f); return; }
+        Haptic(hand, 1f, 0.09f);
+        var h = Haptic;
+        GetTree().CreateTimer(0.12, false).Timeout += () => h(hand, 0.55f, 0.05f);
+        bool perfect = perfectAt.ContainsKey(Local.PlayerId);
+        VrVignette.Flash(perfect ? UiKit.Gold : Palette.Team(Local.Team), perfect ? 0.55f : 0.3f, 0.35f);
+    }
+
+    /// <summary>
+    /// Balle adverse lancée qui passe à moins de 0,9 m de la tête du joueur local sans le toucher : souffle qui file (« frôlé »), petite
+    /// vibration en VR. Esquiver est une action : elle doit s'entendre autant qu'une attrape.
+    /// </summary>
+    void NearMiss(Ball ball, BallState cur)
+    {
+        if (!IsInstanceValid(Local) || Local.Eliminated || cur.Held || cur.Pass || cur.Owner < 0 || cur.Owner == Local.Team || cur.Speed < Ball.HitMinSpeed)
+        {
+            nearMiss.Remove(ball);
+            return;
+        }
+        var head = Local.Head?.GlobalPosition ?? HeadOf(Local);
+        float d = cur.Pos.DistanceTo(head);
+        int lives = Lives(Local.PlayerId);
+        if (!nearMiss.TryGetValue(ball, out var n)) { if (d < 3f) nearMiss[ball] = (d, lives); return; }
+        if (d < n.Min) { nearMiss[ball] = (d, n.Lives); return; }
+        if (n.Min < 0.9f && d > n.Min + 0.3f)
+        {
+            nearMiss.Remove(ball);
+            if (lives < n.Lives) return;   // elle a touché
+            Sfx.Play(this, SfxKind.Dash, cur.Pos, 1.35f, -2f);
+            if (Haptic != null)
+            {
+                // Côté de la balle par rapport à la tête : la manette de ce côté vibre.
+                var right = Local.Head?.GlobalTransform.Basis.X ?? Vector3.Right;
+                Haptic((cur.Pos - head).Dot(right) >= 0 ? 1 : 0, 0.3f, 0.04f);
+            }
+        }
+    }
+
+    /// <summary>Arrêt sur image : au clavier-souris tel quel ; en VR plus court et moins appuyé (un monde figé dans le casque ressemble à une saccade).</summary>
+    void Stop(float seconds, float scale = 0.12f)
+    {
+        if (Vr) Juice.HitStop(this, seconds * 0.5f, Mathf.Max(scale, 0.35f));
+        else Juice.HitStop(this, seconds, scale);
+    }
+
     /// <summary>Touche ou KO sur un joueur, vu par tout le monde : impact, autocollant, son ; au PC, secousse et arrêt sur image dosés.</summary>
     void OnTouched(Hurtbox h, Camera3D? cam, bool ko)
     {
@@ -298,7 +377,18 @@ void fragment() {
             // Au clavier-souris, pas d'autocollant « KO ! » : le KO d'un adversaire a déjà le bandeau et le fil des KO,
             // le mien le grand titre central et le bandeau « KO ! par X ». En VR (sans HUD), l'autocollant reste.
             if (word && !GrayWhenKo) Sticker("KO !", h, shooterColor, SpeechBubble.Size.Big);
-            if (localTarget || localShooter || near) Juice.HitStop(this, 0.12f, 0.08f);
+            if (localTarget || localShooter || near) Stop(0.12f, 0.08f);
+            if (Vr && localTarget)
+            {
+                Haptic?.Invoke(-1, 1f, 0.35f);
+                VrVignette.Flash(new Color(0.9f, 0.08f, 0.1f), 0.85f, 0.9f);
+                Sfx.Play(this, SfxKind.HurtSelf);
+            }
+            if (Vr && localShooter)
+            {
+                Haptic?.Invoke(-1, 0.8f, 0.12f);
+                Sfx.Play(this, SfxKind.KoConfirm);   // au clavier-souris, DesktopHud le joue déjà
+            }
             if (GrayWhenKo) CameraFx.Shake(localTarget ? 0.75f : near ? 0.1f + 0.15f * closeness : 0f);
             Sfx.Play(this, SfxKind.Ko, hit);
             return;
@@ -307,8 +397,20 @@ void fragment() {
         if (word) Sticker(HitWords[wordIndex % HitWords.Length], h, shooterColor, SpeechBubble.Size.Normal);
         wordIndex++;
         Sfx.Play(this, SfxKind.Hit, hit, 0.95f + 0.1f * (wordIndex % 3));
-        if (localTarget || localShooter) Juice.HitStop(this, localTarget ? 0.09f : 0.06f);
-        else if (near) Juice.HitStop(this, 0.04f, 0.3f);   // touche entre d'autres joueurs sous nos yeux : à peine marquée
+        if (localTarget || localShooter) Stop(localTarget ? 0.09f : 0.06f);
+        else if (near && !Vr) Juice.HitStop(this, 0.04f, 0.3f);   // touche entre d'autres joueurs sous nos yeux : à peine marquée
+        if (Vr && localTarget)
+        {
+            // VR : pas de secousse. Les deux manettes encaissent, liseré rouge sur les bords, son sourd.
+            Haptic?.Invoke(-1, 1f, 0.14f);
+            VrVignette.Flash(new Color(0.9f, 0.08f, 0.1f), 0.6f, 0.45f);
+            Sfx.Play(this, SfxKind.HurtSelf);
+        }
+        if (Vr && localShooter)
+        {
+            Haptic?.Invoke(-1, 0.5f, 0.07f);
+            Sfx.Play(this, SfxKind.Click, null, 1.15f);   // confirmation de touche (« clic » du HUD clavier-souris)
+        }
         if (localTarget && GrayWhenKo)
         {
             // Joueur clavier-souris touché : la vue encaisse (secousse, coup de côté), son plus sourd que pour les autres.

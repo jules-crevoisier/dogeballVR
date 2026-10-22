@@ -274,7 +274,7 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
-                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
+                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
             case 2: GameSettings.MasterVolume = 0.85f; GameSettings.MusicVolume = 0.6f; GameSettings.SfxVolume = 0.9f; GameSettings.UiVolume = 0.8f; break;

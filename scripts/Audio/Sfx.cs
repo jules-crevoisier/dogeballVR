@@ -97,6 +97,9 @@ public static class Sfx
     /// <summary>Vrai si le type a au moins un fichier (sinon il sonnera en synthèse).</summary>
     public static bool HasFile(SfxKind kind) => Variants(FileName(kind)).Length > 0;
 
+    /// <summary>--feel-log : chaque son joué est écrit dans la sortie (vérification des retours sans casque ni haut-parleur).</summary>
+    public static readonly bool FeelLog = Array.IndexOf(OS.GetCmdlineUserArgs(), "--feel-log") >= 0;
+
     static string BusOf(SfxKind kind) => kind is SfxKind.UiHover or SfxKind.UiClick or SfxKind.UiBack ? "UI" : "SFX";
 
     /// <summary>Joue un son ; pitch 1 = normal (les paliers de charge montent la hauteur), volumeDb s'ajoute au gain de base du type.</summary>
@@ -110,6 +113,7 @@ public static class Sfx
         ulong now = Time.GetTicksMsec();
         if (lastPlayMs.TryGetValue(kind, out var prev) && now - prev < 25) return;
         lastPlayMs[kind] = now;
+        if (FeelLog) GD.Print($"[Feel] son {kind} hauteur {pitch:0.00}{(position != null ? " (3D)" : "")}");
 
         if (!voices.TryGetValue(kind, out var active)) voices[kind] = active = new List<Node>();
         active.RemoveAll(n => !GodotObject.IsInstanceValid(n) || n.IsQueuedForDeletion());
