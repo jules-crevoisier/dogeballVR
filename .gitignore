@@ -16,3 +16,7 @@ addons/steam_natives/
 *.log
 *.log.run
 *.log.exit
+
+# Build Quest : modèle Gradle et plugin OpenXR installés par tools/quest/prepare-android.sh
+/android/
+addons/godotopenxrvendors/
