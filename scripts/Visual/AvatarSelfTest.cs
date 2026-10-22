@@ -55,6 +55,7 @@ public partial class AvatarSelfTest : Node3D
     float sideYaw;   // --avatar-side : tout le monde de profil (genoux, buste penché de l'accroupi)
     readonly Dictionary<int, float> duckChecked = new();
     Node3D? stealer;
+    readonly Dictionary<int, float> catchChecked = new();
     bool swapped;   // tête du modèle 0,1 s après le baissé
     double clock;
     bool done;
@@ -163,7 +164,12 @@ public partial class AvatarSelfTest : Node3D
             {
                 // bot : pas de pose, comme en jeu (il se déplace comme un nœud) ; élan = animation « Lancer » balle en main
                 if (c.Kind == Kind.BotWindup && clock > 1.8) avatars[i].PlayAction("Lancer", 5.0);
-                if (c.Kind == Kind.BotCatch && clock > 2.3) avatars[i].PlayAction("Attrape", 5.0);   // vérifié 0,2 s après, en plein geste
+                if (c.Kind == Kind.BotCatch && clock > 2.0) avatars[i].PlayAction("Attrape", 5.0);
+                // balle dans la main 0,2 s après, en plein geste (le clip dure moins que le test) ; la balle suit la main de
+                // l'image d'avant : mesuré seulement à 20 images/s ou plus (pas pendant une capture en rendu logiciel)
+                if (c.Kind == Kind.BotCatch && clock >= 2.2 && delta < 0.05 && !catchChecked.ContainsKey(i) && balls.TryGetValue(i, out var caught)
+                    && avatars[i].FindChild("AvatarIk", true, false) is AvatarIk cik)
+                    catchChecked[i] = caught.GlobalPosition.DistanceTo(cik.FinalWristR);
                 continue;
             }
             bool pc = c.Kind is Kind.Pc or Kind.PcLan or Kind.PcBall or Kind.PcBallClient;
@@ -255,10 +261,9 @@ public partial class AvatarSelfTest : Node3D
                 // balle au point de visée de DesktopPlayer (0,9 m devant la tête) : hors de portée du bras, bras tendu vers elle
                 Check($"{c.Name} : main droite vers la balle", angle < 15f && reach < 0.45f, $"écart d'angle {angle:0} °, balle à {reach:0.00} m du poignet");
             }
-            if (c.Kind == Kind.BotCatch && balls.TryGetValue(i, out var caught))
+            if (c.Kind == Kind.BotCatch && catchChecked.TryGetValue(i, out float inHand))
             {
-                float d = caught.GlobalPosition.DistanceTo(ik.FinalWristR);
-                Check($"{c.Name} : balle dans la main animée", d < 0.25f, $"centre de la balle à {d:0.00} m du poignet");
+                Check($"{c.Name} : balle dans la main animée", inHand < 0.25f, $"centre de la balle à {inHand:0.00} m du poignet");
             }
             if (c.Kind == Kind.BotCatch)
                 Check($"{c.Name} : l'animation d'attrape garde les bras", ik.RightWeight < 0.5f, $"poids de l'IK {ik.RightWeight:0.00}");
