@@ -25,7 +25,9 @@ public partial class Avatar : Node3D
     double actionLeft;
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
-    bool dash;     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
+    bool dash;
+    /// <summary>Le joueur charge un tir (clic maintenu) : pose « Armer » tenue jusqu'au lâcher, qui enchaîne sur « Lancer ».</summary>
+    public bool Charging { get; set; }     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
     static readonly System.Collections.Generic.List<Avatar> all = new();
@@ -54,7 +56,7 @@ public partial class Avatar : Node3D
             avatar.modelName = $"avatar_{teamName}_rig";
             avatar.anim = rigged.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
             avatar.AddChild(rigged);
-            foreach (var loop in new[] { "Repos", "Course" })
+            foreach (var loop in new[] { "Repos", "Course", "Armer" })
                 if (avatar.anim?.HasAnimation(loop) == true) avatar.anim.GetAnimation(loop).LoopMode = Animation.LoopModeEnum.Linear;
             if (avatar.anim != null) AddRecoil(avatar.anim);
             avatar.anim?.Play("Repos");
@@ -298,7 +300,7 @@ public partial class Avatar : Node3D
         if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
         dash = false;
         if (actionLeft > 0) { actionLeft -= delta; return; }
-        string loop = speed > 1.0f ? "Course" : "Repos";
+        string loop = Charging && anim.HasAnimation("Armer") ? "Armer" : speed > 1.0f ? "Course" : "Repos";
         if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
         anim.SpeedScale = loop == "Course" ? Mathf.Clamp(speed / 4.5f, 0.7f, 1.6f) : 1f;
     }

@@ -1096,6 +1096,7 @@ public partial class DesktopPlayer : Node3D
             var pose = Pose;
             selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > 1.6f;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
+            selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
     }
 

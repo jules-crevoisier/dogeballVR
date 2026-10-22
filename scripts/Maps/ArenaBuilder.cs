@@ -57,7 +57,7 @@ public static class ArenaBuilder
     static readonly Dictionary<string, Mood> Moods = new()
     {
         // Croix Néon : plein jour, ciel bleu et horizon pêche
-        ["jour"] = new("4C8DE8", "FFDDBA", "EBCDB4", "FFE6C2", 1.5f, new Vector3(-48, -35, 0), "FFE2C4", 0.006f, 0.45f, 0.45f, 1.15f, 0.9f),
+        ["jour"] = new("4C8DE8", "FFE3CA", "EBCDB4", "FFF0DE", 1.45f, new Vector3(-48, -35, 0), "FFE8D2", 0.006f, 0.5f, 0.45f, 1.04f, 0.88f),
         // Fosse croisée, chantier : fin d'après-midi dorée, soleil rasant
         ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
         // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
