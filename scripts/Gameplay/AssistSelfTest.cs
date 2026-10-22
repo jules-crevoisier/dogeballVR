@@ -77,16 +77,16 @@ public partial class AssistSelfTest : Node
         Check("prise avec 30 à 150 ms d'avance de l'hôte acceptée", legit == legitTotal, $"{legit}/{legitTotal}");
 
         // 1d) Rebond juste derrière la main : la balle frôle la main (0,2 m), tape le mur 1 m derrière et repart de côté ;
-        // l'hôte, 150 ms plus tard, la voit à plus de 2 m, sa vitesse ne pointe plus vers la main.
+        // l'hôte, 0,22 s plus tard, la voit à plus de 2 m, sa vitesse ne pointe plus vers la main.
         {
             const float speed = 18f;
             var path = new List<Vector3>();
             for (float z = 6f; z > -1f; z -= speed * dt) path.Add(new Vector3(0.2f, 0, z));   // arrivée
             var wall = new Vector3(0.2f, 0, -1f);
             var bounceDir = new Vector3(1f, 0, 0.3f).Normalized();
-            for (float t = 0; t <= 0.15f; t += dt) path.Add(wall + bounceDir * speed * 0.55f * t);   // rebond à 0,55
+            for (int i = 0; i <= 13; i++) path.Add(wall + bounceDir * speed * 0.55f * (i * dt));   // rebond à 0,55, 13 pas (0,22 s)
             var host = path[^1];
-            Check("prise juste avant un rebond acceptée", Assist.HostAccepts(host, Vector3.Zero, speed * 0.55f, Assist.PathDistance(path, Vector3.Zero)),
+            Check("prise juste avant un rebond acceptée", host.Length() > Assist.TrajectoryCheckFrom && Assist.HostAccepts(host, Vector3.Zero, speed * 0.55f, Assist.PathDistance(path, Vector3.Zero)),
                 $"balle à {host.Length():0.0} m après le rebond");
             // Même balle, main 1,9 m plus loin dans le sens du rebond : assez près pour la marge de latence,
             // mais la balle ne fait que s'en approcher (sa trajectoire n'est jamais passée à portée) : refus.

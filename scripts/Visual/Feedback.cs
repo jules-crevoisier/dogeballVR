@@ -210,7 +210,7 @@ void fragment() {
     // --impact-test : rejoue toutes les 0,8 s, après le « GO ! », sur l'adversaire le plus central à l'écran (s'il y en a un) : le joueur
     // local le touche, le local met un adversaire KO, le local est touché, le local attrape (« PRISE ! »). Mots, étiquettes et réaction du modèle
     // (Avatar.React) passent par les mêmes chemins qu'en match. Sans adversaire visible : effets seuls, droit devant la caméra.
-    static readonly bool ImpactTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--impact-test") >= 0;
+    static readonly bool ImpactTest = Tools.DevFlags.Has("--impact-test");
     double testClock = 4.0;
     int testStep;
 

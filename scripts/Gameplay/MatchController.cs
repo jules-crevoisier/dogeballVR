@@ -245,7 +245,8 @@ public partial class MatchController : Node3D
     /// <summary>Retire une hurtbox (joueur remplacé par un bot ou l'inverse). Ses vies restent à jour au prochain Register.</summary>
     public void Unregister(int playerId)
     {
-        hurtboxes.Remove(playerId);
+        if (hurtboxes.Remove(playerId, out var hurtbox) && IsInstanceValid(hurtbox)) hurtbox.Hit -= OnHit;   // un tir tardif sur l'ancien corps ne compte plus
+        // respawnAt est gardé : le remplaçant (bot ou retour) reprend le retour prévu ; _Process ne l'indexe plus sans garde.
     }
 
     public void Register(Hurtbox hurtbox)
@@ -434,7 +435,7 @@ public partial class MatchController : Node3D
             if (now < respawnAt[id]) continue;
             if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
             else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
-            hurtboxes[id].Eliminated = false;
+            if (hurtboxes.TryGetValue(id, out var back)) back.Eliminated = false;
             ringGraceUntil[id] = now + 1.6;
             respawnAt.Remove(id);
         }
@@ -689,9 +690,8 @@ public partial class MatchController : Node3D
     {
         if (endTestStep >= 2) return;
         int team = -1;
-        if (Tools.DevFlags.Allowed)   // manche gagnée d'office : jamais dans l'export de sortie
-            foreach (var a in OS.GetCmdlineUserArgs())
-                if (a.StartsWith("--end-screen-test")) team = a.EndsWith("defaite") ? 1 : 0;
+        foreach (var a in Tools.DevFlags.Args)   // manche gagnée d'office : jamais dans l'export de sortie
+            if (a.StartsWith("--end-screen-test")) team = a.EndsWith("defaite") ? 1 : 0;
         if (team < 0) { endTestStep = 2; return; }
         if (endTestStep == 0 && matchClock >= 5 && inRound) { endTestStep = 1; GD.Print("[Match] Test de fin : manche gagnée d'office"); FinishRound(team); }
         else if (endTestStep == 1 && matchClock >= 14 && inRound)

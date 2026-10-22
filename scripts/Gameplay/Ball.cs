@@ -520,18 +520,27 @@ public partial class Ball : RigidBody3D
     /// <summary>Hôte : durée (s) de trajectoire gardée pour juger une prise déclarée par un client (sa latence + l'interpolation).</summary>
     public const double PathSeconds = 0.4;
     readonly List<Vector3> pathPoints = new();
-    readonly List<double> pathTimes = new();
+    readonly List<ulong> pathFrames = new();
 
-    /// <summary>Hôte : distance minimale entre <paramref name="point"/> et la trajectoire réelle des <see cref="PathSeconds"/> dernières secondes, rebonds compris.</summary>
-    public float PathDistanceTo(Vector3 point) => pathPoints.Count == 0 ? GlobalPosition.DistanceTo(point) : Assist.PathDistance(pathPoints, point);
+    /// <summary>
+    /// Hôte : distance minimale entre <paramref name="point"/> et la trajectoire réelle des <see cref="PathSeconds"/> dernières
+    /// secondes, rebonds compris, jusqu'à la position actuelle (le dernier pas de physique n'est pas encore enregistré).
+    /// </summary>
+    public float PathDistanceTo(Vector3 point)
+    {
+        float toNow = pathPoints.Count == 0 ? GlobalPosition.DistanceTo(point) : Assist.SweepDistance(pathPoints[^1], GlobalPosition, point);
+        return pathPoints.Count == 0 ? toNow : Mathf.Min(toNow, Assist.PathDistance(pathPoints, point));
+    }
 
+    /// <summary>Enregistre la position à chaque pas de physique, datée en pas (indépendant de --fixed-fps et de l'horloge murale).</summary>
     void RecordPath()
     {
-        double now = Time.GetTicksMsec() / 1000.0;
-        if (IsHeld) { pathPoints.Clear(); pathTimes.Clear(); return; }
+        if (IsHeld) { pathPoints.Clear(); pathFrames.Clear(); return; }
+        ulong frame = Engine.GetPhysicsFrames();
+        ulong keep = (ulong)Mathf.CeilToInt((float)PathSeconds * Engine.PhysicsTicksPerSecond);
         pathPoints.Add(GlobalPosition);
-        pathTimes.Add(now);
-        while (pathTimes.Count > 2 && now - pathTimes[0] > PathSeconds) { pathPoints.RemoveAt(0); pathTimes.RemoveAt(0); }
+        pathFrames.Add(frame);
+        while (pathFrames.Count > 2 && frame - pathFrames[0] > keep) { pathPoints.RemoveAt(0); pathFrames.RemoveAt(0); }
     }
 
     public override void _PhysicsProcess(double delta)

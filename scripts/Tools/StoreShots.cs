@@ -26,8 +26,7 @@ public partial class StoreShots : Node
         string? folder = null, at = null;
         string prefix = "shot";
         bool clean = false;
-        if (!DevFlags.Allowed) return;   // écrit des PNG dans un dossier choisi en ligne de commande : outil de l'éditeur seulement
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in DevFlags.Args)   // écrit des PNG dans un dossier choisi en ligne de commande : outil de l'éditeur seulement
         {
             if (a.StartsWith("--shots=")) folder = a["--shots=".Length..];
             else if (a.StartsWith("--shots-at=")) at = a["--shots-at=".Length..];

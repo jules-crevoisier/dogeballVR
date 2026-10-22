@@ -107,7 +107,7 @@ public partial class Tutorial : CanvasLayer
         check.Visible = false;
         card.AddChild(check);
         // Captures : `--tutorial-step=N` commence à l'étape N.
-        foreach (var arg in OS.GetCmdlineUserArgs())
+        foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--tutorial-step=") && int.TryParse(arg["--tutorial-step=".Length..], out int first)) index = Mathf.Clamp(first, 1, steps.Count) - 2;
         CallDeferred(nameof(Next));
     }

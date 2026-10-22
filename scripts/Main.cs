@@ -113,7 +113,7 @@ public partial class Main : Node3D
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
         AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
+        if (!Tools.DevFlags.Has("--gc-default")) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
@@ -384,9 +384,8 @@ public partial class Main : Node3D
         // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
         Bot.Level = UI.GameSettings.BotLevel;
         Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
-        if (Tools.DevFlags.Allowed)
-            foreach (var arg in OS.GetCmdlineUserArgs())
-                if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
+        foreach (var arg in Tools.DevFlags.Args)
+            if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
