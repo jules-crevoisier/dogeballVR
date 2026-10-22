@@ -65,8 +65,9 @@ public partial class ContextHints : CanvasLayer
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
         panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.86f), 16, 0f, 3, new Color(UiKit.Yellow, 0.8f), 4);
-        box.ContentMarginLeft = box.ContentMarginRight = 22; box.ContentMarginTop = 6; box.ContentMarginBottom = 6;
+        // Pastille dans la DA du menu : aplat violet nuit penché, liseré crème, accent jaune à gauche.
+        var box = UiKit.ButtonIdle(UiKit.Yellow);
+        box.ContentMarginLeft = box.ContentMarginRight = 30; box.ContentMarginTop = 6; box.ContentMarginBottom = 8;
         panel.AddThemeStyleboxOverride("panel", box);
         panel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         panel.GrowHorizontal = Control.GrowDirection.Both;
@@ -75,6 +76,7 @@ public partial class ContextHints : CanvasLayer
         root.AddChild(panel);
         label = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, AutowrapMode = TextServer.AutowrapMode.Off, MouseFilter = Control.MouseFilterEnum.Ignore };
         label.AddThemeFontSizeOverride("normal_font_size", 28);
+        if (UiKit.Italic is Font it) label.AddThemeFontOverride("normal_font", it);   // lettres penchées des boutons du menu
         label.AddThemeConstantOverride("outline_size", 6);
         label.AddThemeColorOverride("font_outline_color", UiKit.Navy);
         panel.AddChild(label);

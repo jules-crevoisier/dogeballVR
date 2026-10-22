@@ -57,13 +57,14 @@ public partial class XpBanner : CanvasLayer
         AddChild(root);
 
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.92f), 18, 0f, 3, new Color(UiKit.Yellow, 0.6f), 5);
-        box.ContentMarginTop = 6; box.ContentMarginBottom = 6; box.ContentMarginLeft = 12; box.ContentMarginRight = 20;
+        var box = UiKit.PanelBox(14, 14);
+        box.StripColor = new Color(0, 0, 0, 0);   // bandeau bas : pas de bande violette qui déborde de l'écran
+        box.ContentMarginTop = 8; box.ContentMarginBottom = 8; box.ContentMarginLeft = 22; box.ContentMarginRight = 28;
         panel.AddThemeStyleboxOverride("panel", box);
         panel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         panel.GrowHorizontal = Control.GrowDirection.Both;
         panel.GrowVertical = Control.GrowDirection.Begin;
-        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -84; panel.OffsetBottom = -8;
+        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -98; panel.OffsetBottom = -20;   // marge : l'ombre penchée reste dans l'écran
         root.AddChild(panel);
 
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -72,9 +73,7 @@ public partial class XpBanner : CanvasLayer
 
         // Pastille du niveau.
         badge = new PanelContainer { CustomMinimumSize = new Vector2(62, 62), PivotOffset = new Vector2(31, 31), MouseFilter = Control.MouseFilterEnum.Ignore };
-        var disc = UiKit.Box(UiKit.Yellow, 31, 0f, 0, null, 0);
-        disc.ContentMarginLeft = disc.ContentMarginRight = disc.ContentMarginTop = disc.ContentMarginBottom = 0;
-        badge.AddThemeStyleboxOverride("panel", disc);
+        badge.AddThemeStyleboxOverride("panel", ProfileScreen.Badge(8f));
         var badgeCol = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         badgeCol.AddThemeConstantOverride("separation", -6);
         badgeCol.AddChild(UiKit.Text("NIV.", 14, UiKit.Navy, 0, HorizontalAlignment.Center));
@@ -87,7 +86,7 @@ public partial class XpBanner : CanvasLayer
         var mid = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         mid.AddThemeConstantOverride("separation", 3);
         var top = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        titleLabel = UiKit.Text("", 22, UiKit.Cream, 6);
+        titleLabel = UiKit.Title("", 26, HorizontalAlignment.Left);
         titleLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         top.AddChild(titleLabel);
         progressLabel = UiKit.Text("", 18, UiKit.Sky, 5, HorizontalAlignment.Right);
@@ -102,7 +101,7 @@ public partial class XpBanner : CanvasLayer
         mid.AddChild(detail);
         row.AddChild(mid);
 
-        gainLabel = UiKit.Text("+0 XP", 38, UiKit.Yellow, 8, HorizontalAlignment.Right);
+        gainLabel = UiKit.Title("+0 XP", 40, HorizontalAlignment.Right);
         gainLabel.CustomMinimumSize = new Vector2(150, 0);
         gainLabel.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(gainLabel);
@@ -143,15 +142,8 @@ public partial class XpBanner : CanvasLayer
     void DrawBar()
     {
         var size = bar.Size;
-        bar.DrawStyleBox(Pill(new Color(1, 1, 1, 0.14f)), new Rect2(Vector2.Zero, size));
-        if (fill > 0) bar.DrawStyleBox(Pill(UiKit.Yellow), new Rect2(Vector2.Zero, new Vector2(Mathf.Max(size.Y, size.X * fill), size.Y)));
-    }
-
-    static StyleBoxFlat Pill(Color c)
-    {
-        var b = UiKit.Box(c, 7, 0f, 0, null, 0);
-        b.ContentMarginLeft = b.ContentMarginRight = b.ContentMarginTop = b.ContentMarginBottom = 0;
-        return b;
+        bar.DrawStyleBox(ProfileScreen.Gauge(false, 6f), new Rect2(Vector2.Zero, size));
+        if (fill > 0) bar.DrawStyleBox(ProfileScreen.Gauge(true, 6f), new Rect2(Vector2.Zero, new Vector2(Mathf.Max(size.Y * 2, size.X * fill), size.Y)));
     }
 
     /// <summary>1 240 plutôt que 1240 (espace simple : la police n'a pas l'espace fine insécable).</summary>

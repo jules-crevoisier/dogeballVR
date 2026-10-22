@@ -24,7 +24,7 @@ public partial class ProfileScreen : Control
         center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(center);
         var panel = new PanelContainer { CustomMinimumSize = new Vector2(1280, 0) };
-        panel.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.Navy, 0.95f), 22, 0f, 3, new Color(UiKit.Yellow, 0.55f), 8));
+        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(22, 34));   // la fenêtre du menu principal
         center.AddChild(panel);
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 14);
@@ -37,9 +37,7 @@ public partial class ProfileScreen : Control
         head.AddThemeConstantOverride("separation", 22);
         col.AddChild(head);
         var badge = new PanelContainer { CustomMinimumSize = new Vector2(104, 104) };
-        var disc = UiKit.Box(UiKit.Yellow, 52, 0f, 0, null, 0);
-        disc.ContentMarginLeft = disc.ContentMarginRight = disc.ContentMarginTop = disc.ContentMarginBottom = 0;
-        badge.AddThemeStyleboxOverride("panel", disc);
+        badge.AddThemeStyleboxOverride("panel", Badge());
         var badgeCol = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         badgeCol.AddThemeConstantOverride("separation", -10);
         badgeCol.AddChild(UiKit.Text("NIVEAU", 18, UiKit.Navy, 0, HorizontalAlignment.Center));
@@ -49,7 +47,7 @@ public partial class ProfileScreen : Control
         var who = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
         who.AddThemeConstantOverride("separation", 4);
         var nameRow = new HBoxContainer();
-        var name = UiKit.Text(Identity.Name.ToUpper(), 44, UiKit.Orange, 10);
+        var name = UiKit.Title(Identity.Name.ToUpper(), 50, HorizontalAlignment.Left);
         name.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         nameRow.AddChild(name);
         nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : "NIVEAU MAX", 22, UiKit.Sky, 6, HorizontalAlignment.Right));
@@ -59,8 +57,8 @@ public partial class ProfileScreen : Control
         var bar = new Control { CustomMinimumSize = new Vector2(0, 18) };
         bar.Draw += () =>
         {
-            bar.DrawStyleBox(Pill(new Color(1, 1, 1, 0.14f)), new Rect2(Vector2.Zero, bar.Size));
-            if (fill > 0) bar.DrawStyleBox(Pill(UiKit.Yellow), new Rect2(Vector2.Zero, new Vector2(Mathf.Max(bar.Size.Y, bar.Size.X * fill), bar.Size.Y)));
+            bar.DrawStyleBox(Gauge(false), new Rect2(Vector2.Zero, bar.Size));
+            if (fill > 0) bar.DrawStyleBox(Gauge(true), new Rect2(Vector2.Zero, new Vector2(Mathf.Max(bar.Size.Y * 2, bar.Size.X * fill), bar.Size.Y)));
         };
         who.AddChild(bar);
         head.AddChild(who);
@@ -108,13 +106,13 @@ public partial class ProfileScreen : Control
         panel.CreateTween().TweenProperty(panel, "modulate:a", 1.0, 0.2);
     }
 
-    static Label Heading(string text) => UiKit.Text(text, 26, UiKit.Yellow, 6);
+    static Label Heading(string text) => UiKit.Title(text, 32, HorizontalAlignment.Left);
 
     static void StatRow(VBoxContainer parent, string label, string value)
     {
         var row = new PanelContainer();
-        var box = UiKit.Box(new Color(1, 1, 1, 0.06f), 10, 0f, 0, null, 0);
-        box.ContentMarginTop = box.ContentMarginBottom = 6; box.ContentMarginLeft = box.ContentMarginRight = 16;
+        var box = UiKit.InsetBox(null, 10);
+        box.ContentMarginTop = box.ContentMarginBottom = 6;
         row.AddThemeStyleboxOverride("panel", box);
         var h = new HBoxContainer();
         var l = UiKit.Text(label, 24, UiKit.Cream, 4);
@@ -128,8 +126,9 @@ public partial class ProfileScreen : Control
     static Control AchievementRow(AchievementDef a, bool unlocked)
     {
         var row = new PanelContainer();
-        var box = UiKit.Box(unlocked ? new Color(UiKit.Yellow, 0.16f) : new Color(1, 1, 1, 0.05f), 10, 0f, unlocked ? 2 : 0, new Color(UiKit.Yellow, 0.7f), 0);
-        box.ContentMarginTop = box.ContentMarginBottom = 6; box.ContentMarginLeft = box.ContentMarginRight = 14;
+        // Débloqué : encart doré à liseré jaune (comme la barre du menu) ; à faire : encart sombre.
+        var box = unlocked ? UiKit.InsetBox(new Color(UiKit.Gold, 0.2f), 10, 2, new Color(UiKit.Yellow, 0.8f)) : UiKit.InsetBox(null, 10);
+        box.ContentMarginTop = box.ContentMarginBottom = 6;
         row.AddThemeStyleboxOverride("panel", box);
         var h = new HBoxContainer();
         h.AddThemeConstantOverride("separation", 14);
@@ -146,9 +145,18 @@ public partial class ProfileScreen : Control
         return row;
     }
 
-    static StyleBoxFlat Pill(Color c)
+    /// <summary>Pastille du niveau : la barre jaune du menu (jaune vers or, penchée, ombre encre).</summary>
+    public static KcBox Badge(float slant = 12f)
     {
-        var b = UiKit.Box(c, 9, 0f, 0, null, 0);
+        var b = new KcBox { Top = UiKit.Yellow, Bottom = UiKit.Gold, Slant = slant, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.55f) };
+        b.ContentMarginLeft = b.ContentMarginRight = b.ContentMarginTop = b.ContentMarginBottom = 0;
+        return b;
+    }
+
+    /// <summary>Jauge d'XP penchée : rail sombre, remplissage jaune vers or.</summary>
+    public static KcBox Gauge(bool filled, float slant = 8f)
+    {
+        var b = filled ? new KcBox { Top = UiKit.Yellow, Bottom = UiKit.Gold, Slant = slant } : UiKit.InsetBox(null, slant);
         b.ContentMarginLeft = b.ContentMarginRight = b.ContentMarginTop = b.ContentMarginBottom = 0;
         return b;
     }

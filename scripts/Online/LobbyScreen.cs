@@ -2,16 +2,17 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using DogeballVR.Net;
+using DogeballVR.UI;
 
 namespace DogeballVR.Online;
 
 /// <summary>
 /// Écran de la salle d'avant-match : code à partager, carte (choisie par l'hôte), deux équipes, « prêt », lancement.
-/// Sobre et fonctionnel ; le fil interfaces peut le restyler (il ne fait qu'appeler <see cref="OnlineLobby"/>).
+/// Dans la DA du menu principal : fond violet nuit, fenêtre penchée à liseré crème, titres jaunes penchés, boutons à barre jaune.
 /// </summary>
 public partial class LobbyScreen : CanvasLayer
 {
-    static readonly Color Ink = new("101830"), Orange = new("FF6A1A"), Blue = new("3A7BD5"), Gray = new("55607F");
+    static readonly Color Orange = UiKit.Orange, Blue = UiKit.Blue, Gray = UiKit.Grey;
     static readonly string[] TeamNames = { "ÉQUIPE ORANGE", "ÉQUIPE BLEUE" };
     static readonly Color[] TeamColors = { new("FF6A1A"), new("2F8BFF") };
 
@@ -24,15 +25,20 @@ public partial class LobbyScreen : CanvasLayer
     {
         Layer = 15;
         lobby = OnlineLobby.Instance!;
-        var bg = new ColorRect { Color = new Color("4C8DE8") };
+        // Fond du menu : dégradé violet profond vers marine, en biais.
+        var gradient = new Gradient { Colors = new[] { UiKit.VioletTop, UiKit.VioletMid, UiKit.NavyLow }, Offsets = new[] { 0f, 0.5f, 1f } };
+        var bg = new TextureRect { Texture = new GradientTexture2D { Gradient = gradient, FillFrom = new Vector2(0, 0), FillTo = new Vector2(0.35f, 1), Width = 64, Height = 64 }, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale };
         bg.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(bg);
-        var center = new CenterContainer();
+        var center = new CenterContainer { Theme = UiKit.Theme };
         center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(center);
+        var panel = new PanelContainer();
+        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(22, 34));
+        center.AddChild(panel);
         root = new VBoxContainer { CustomMinimumSize = new Vector2(860, 0) };
         root.AddThemeConstantOverride("separation", 14);
-        center.AddChild(root);
+        panel.AddChild(root);
         lobby.Changed += MarkDirty;
         Input.MouseMode = Input.MouseModeEnum.Visible;
     }
@@ -109,27 +115,26 @@ public partial class LobbyScreen : CanvasLayer
         for (int t = 0; t < 2; t++)
         {
             var panel = new PanelContainer { CustomMinimumSize = new Vector2(400, 0) };
-            panel.AddThemeStyleboxOverride("panel", Box(new Color(1, 1, 1, 0.92f), 16, TeamColors[t]));
+            // Encart sombre penché, liseré de la couleur de l'équipe.
+            var box = UiKit.InsetBox(null, 10, 3, TeamColors[t]);
+            box.ContentMarginTop = box.ContentMarginBottom = 12;
+            panel.AddThemeStyleboxOverride("panel", box);
             var col = new VBoxContainer();
             col.AddThemeConstantOverride("separation", 6);
             panel.AddChild(col);
-            var head = Text(TeamNames[t], 24);
-            head.AddThemeColorOverride("font_color", TeamColors[t]);
+            var head = UiKit.Title(TeamNames[t], 30, HorizontalAlignment.Center, TeamColors[t]);
             col.AddChild(head);
             var inTeam = lobby.Members.Where(m => m.Team == t).ToList();
             foreach (var m in inTeam)
             {
                 string tags = (m.Host ? " · hôte" : "") + (m.Vr ? " · VR" : " · PC");
                 var line = Text($"{(m.Ready ? "✔" : "…")}  {m.Name}{tags}", 22, HorizontalAlignment.Left);
-                line.AddThemeColorOverride("font_color", Ink);
-                line.AddThemeConstantOverride("outline_size", 0);
                 col.AddChild(line);
             }
             for (int k = inTeam.Count; k < perTeam; k++)
             {
                 var bot = Text("     Bot", 22, HorizontalAlignment.Left);
-                bot.AddThemeColorOverride("font_color", new Color(Ink, 0.45f));
-                bot.AddThemeConstantOverride("outline_size", 0);
+                bot.AddThemeColorOverride("font_color", UiKit.Lavender);
                 col.AddChild(bot);
             }
             teams.AddChild(panel);
@@ -163,7 +168,7 @@ public partial class LobbyScreen : CanvasLayer
         else if (lobby.QuickStartIn > 0)
         {
             root.AddChild(quickLabel = Text(QuickText(), 26));
-            quickLabel.AddThemeColorOverride("font_color", new Color("FFD23F"));
+            quickLabel.AddThemeColorOverride("font_color", UiKit.Yellow);
             root.AddChild(Text(lobby.Members.Count < lobby.MaxPlayers ? "Les places libres seront tenues par des bots. D'autres joueurs peuvent encore arriver." : "Salle pleine !", 20));
         }
         else if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
@@ -218,14 +223,7 @@ public partial class LobbyScreen : CanvasLayer
         _ => map,
     };
 
-    static Label Title(string text)
-    {
-        var l = Text(text, 64);
-        l.AddThemeColorOverride("font_color", Orange);
-        l.AddThemeColorOverride("font_outline_color", Ink);
-        l.AddThemeConstantOverride("outline_size", 16);
-        return l;
-    }
+    static Label Title(string text) => UiKit.Title(text, 64);
 
     /// <summary>Texte dans une rangée (HBox) : sans retour à la ligne, sinon la rangée lui donne une largeur nulle et il s'écrit lettre par lettre.</summary>
     static Label Inline(Label l)
@@ -236,36 +234,20 @@ public partial class LobbyScreen : CanvasLayer
 
     static Label Text(string text, int size, HorizontalAlignment align = HorizontalAlignment.Center)
     {
-        var l = new Label { Text = text, HorizontalAlignment = align, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        l.AddThemeFontSizeOverride("font_size", size);
-        l.AddThemeColorOverride("font_color", Colors.White);
-        l.AddThemeColorOverride("font_outline_color", Ink);
-        l.AddThemeConstantOverride("outline_size", 6);
+        var l = UiKit.Text(text, size, Colors.White, 6, align);
+        l.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         return l;
     }
 
-    static StyleBoxFlat Box(Color c, int radius = 18, Color? border = null) => new()
-    {
-        BgColor = c, CornerRadiusTopLeft = radius, CornerRadiusTopRight = radius, CornerRadiusBottomLeft = radius, CornerRadiusBottomRight = radius,
-        ContentMarginLeft = 22, ContentMarginRight = 22, ContentMarginTop = 12, ContentMarginBottom = 12,
-        BorderWidthBottom = 6, BorderColor = border ?? Ink,
-    };
-
+    /// <summary>Bouton du menu (barre jaune au focus) ; gris = action secondaire. Désactivé : aplat éteint, texte lavande.</summary>
     static Button MakeButton(string text, Color color, System.Action onPress, int width = 420)
     {
-        var b = new Button { Text = text, CustomMinimumSize = new Vector2(width, 58), FocusMode = Control.FocusModeEnum.All };
-        b.AddThemeFontSizeOverride("font_size", 24);
-        b.AddThemeColorOverride("font_color", Colors.White);
-        b.AddThemeColorOverride("font_hover_color", Colors.White);
-        b.AddThemeStyleboxOverride("normal", Box(color));
-        b.AddThemeStyleboxOverride("hover", Box(color.Lightened(0.18f)));
-        b.AddThemeStyleboxOverride("pressed", Box(color.Darkened(0.2f)));
-        // Focus (manette) : contour blanc bien visible.
-        var focus = Box(color.Lightened(0.1f), 18, Colors.White);
-        focus.BorderWidthTop = focus.BorderWidthLeft = focus.BorderWidthRight = 4;
-        b.AddThemeStyleboxOverride("focus", focus);
-        b.AddThemeStyleboxOverride("disabled", Box(color.Darkened(0.35f)));
-        b.Pressed += onPress;
+        var b = UiKit.Button(text, color, onPress, 24, new Vector2(width, 58));
+        b.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;   // largeur fixe, centré (pas étiré sur toute la fenêtre)
+        var off = UiKit.ButtonIdle(new Color(0, 0, 0, 0));
+        off.Top = new Color(off.Top, 0.5f); off.Bottom = new Color(off.Bottom, 0.5f); off.BorderColor = new Color(UiKit.Cream, 0.3f);
+        b.AddThemeStyleboxOverride("disabled", off);
+        b.AddThemeColorOverride("font_disabled_color", new Color(UiKit.Lavender, 0.6f));
         return b;
     }
 }
