@@ -1,0 +1,93 @@
+# Configuration Claude Code Game Studios (CCGS) pour dogeballVR.
+# Source unique des réglages du kit : moteur, spécialistes, modes, commandes.
+# Schéma complet : .claude/docs/effects-map.md. Mode d'emploi : docs/STUDIO-CLAUDE.md.
+#
+# Ne pas ajouter ici modes.review_mode, modes.workflow, docs.density, qa.level,
+# modes.story_granularity ni team.size : modes.rigor les fixe d'un coup.
+
+schema_version: 1
+
+framework:
+  version: 1.2.0
+  last_upgraded: 2026-10-22
+
+project:
+  name: "DogeballVR"
+  genre: "Dodgeball multijoueur (façon Knockout City), VR et PC"
+  version: "0.1.0"
+  # Le jeu tourne déjà (match 2v2, bots, réseau, CI). /gate-check fera avancer
+  # l'étape ; l'audit /adopt liste les documents du kit qui manquent encore.
+  stage: Production
+  kind: game
+
+modes:
+  # Les fils travaillent sans humain pour répondre : ils décident, journalisent
+  # (production/session-logs/decision-log.md) et continuent.
+  automation: autonomous
+  # On ne s'arrête que pour supprimer des fichiers (action irréversible).
+  automation_always_ask:
+    - file_deletions
+  # standard : revues « lean » par les directeurs, docs équilibrées, QA standard.
+  rigor: standard
+
+testing:
+  # Pas encore de gdUnit4 : nos tests sont les parties simulées de la CI
+  # (.github/workflows/build.yml) et le self-test réseau.
+  framework: ci-headless
+
+platform:
+  multiplayer: true
+  online: true
+  targets: [PC, VR]
+  primary_input: "Keyboard/Mouse (PC) ; manettes Meta Quest (VR EVA)"
+  gamepad_support: "Partial"
+  touch_support: "None"
+  cert_tier: steam
+
+engine:
+  name: "Godot"
+  version: "4.3"
+  language: "C#"
+  # project.godot : renderer "mobile" (Meta Quest), OpenXR activé.
+  rendering: "Mobile"
+  # Godot Physics (Jolt n'existe qu'à partir de Godot 4.4).
+  physics: "Godot Physics"
+  # Propre à dogeballVR : le code C# est dans scripts/, pas dans src/.
+  # Lu par les scripts du kit que nous avons adaptés (yaml-helper, project-state…).
+  code_root: "scripts"
+
+specialists:
+  code: "godot-csharp-specialist"
+  shader: "godot-shader-specialist"
+  ui: "godot-specialist"
+  additional: ["network-programmer", "gameplay-programmer"]
+
+naming:
+  classes: PascalCase
+  variables: camelCase
+  constants: PascalCase
+  signals: on_event_name
+  files: PascalCase
+  scenes: PascalCase
+
+performance:
+  # Meta Quest : 72 i/s minimum en VR. PC : 60 i/s.
+  target_framerate: 72
+  frame_budget_ms: 13.9
+  draw_call_limit: null
+  memory_ceiling_mb: null
+  enforce: warn
+
+commands:
+  build: "dotnet build DogeballVR.csproj --nologo"
+  # Même vérification que la CI : 150 s de partie simulée, aucune erreur de script.
+  test: "godot --headless --path . --fixed-fps 60 --quit-after 9000"
+  run: "godot --path ."
+  smoke: "godot --headless --path . --quit-after 600"
+
+features:
+  session_state: on
+
+updates:
+  # Pas d'appel à l'API GitHub du kit à chaque session.
+  check: false
