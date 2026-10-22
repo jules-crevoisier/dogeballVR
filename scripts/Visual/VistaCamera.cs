@@ -16,11 +16,33 @@ public partial class VistaCamera : Camera3D
         Current = true;
     }
 
+    /// <summary>`--vista-at=x,y,z:x,y,z` : caméra fixe (position : point visé), pour comparer une même vue avant/après.</summary>
+    static readonly (Vector3 from, Vector3 to)? Fixed = ParseFixed();
+
+    static (Vector3, Vector3)? ParseFixed()
+    {
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (!a.StartsWith("--vista-at=")) continue;
+            var parts = a[11..].Split(':');
+            static Vector3 V(string s) { var c = s.Split(','); var ci = System.Globalization.CultureInfo.InvariantCulture; return new Vector3(float.Parse(c[0], ci), float.Parse(c[1], ci), float.Parse(c[2], ci)); }
+            return (V(parts[0]), V(parts[1]));
+        }
+        return null;
+    }
+
     static readonly bool Orbit = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista-orbit") >= 0;
 
     public override void _Process(double delta)
     {
         t += delta;
+        if (Fixed is var (fx, tx))
+        {
+            GlobalPosition = fx;
+            LookAt(tx, Vector3.Up);
+            Current = true;
+            return;
+        }
         if (Orbit)
         {
             float o = 0.6f + (float)(t * 0.12);

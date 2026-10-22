@@ -43,7 +43,7 @@ public static class ArenaBuilder
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
-        if (map.IsRing) { AddRingExtras(root, map, kc); if (pcProfile) AddPcExtras(root, map); }
+        if (map.IsRing) { AddRingExtras(root, map, kc); if (pcProfile) AddPcExtras(root, map, kc); }
         foreach (var prop in map.Props) AddProp(root, prop);
         foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o, kc);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
@@ -165,8 +165,12 @@ public static class ArenaBuilder
         Strip(x1 - w / 2f, (z0 + z1) / 2f, w, z1 - z0 - 2 * w);
     }
 
-    /// <summary>Terrasses et tremplins du profil PC. Terrasse : bloc plein à parapet (les balles ne le traversent pas) ; tremplin : disque lumineux au sol.</summary>
-    static void AddPcExtras(Node3D root, MapData map)
+    /// <summary>
+    /// Terrasses et tremplins du profil PC. Terrasse : bloc plein à parapet (les balles ne le traversent pas) ; tremplin : disque lumineux au sol.
+    /// Décor continu (kc) : la terrasse prend l'habillage des abris (béton, socle, chapeau, bande de danger, liseré néon) et ses murets
+    /// sont en béton clair coiffés d'un néon à la couleur de l'équipe ; la greybox (grille indigo, murets en aplat) tranchait sur le toit.
+    /// </summary>
+    static void AddPcExtras(Node3D root, MapData map, bool kc = false)
     {
         if (map.Pc == null) return;
         foreach (var t in map.Pc.Terraces)
@@ -174,8 +178,11 @@ public static class ArenaBuilder
             var zone = map.Zones.Find(z => z.Id == t.Zone);
             var color = Palette.Team(zone?.Team ?? 0);
             var body = new StaticBody3D { Name = t.Id, Position = new Vector3(t.X, t.Sy / 2f, t.Z) };
-            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(t.Sx, t.Sy, t.Sz) }, MaterialOverride = Materials.Grid(Palette.Indigo, color.Darkened(0.35f)) });
-            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(t.Sx, t.Sy, t.Sz) } });
+            var blockSize = new Vector3(t.Sx, t.Sy, t.Sz);
+            Material blockLook = kc ? KcShaders.Toon(new Color("8C93AB"), new Color("757D97"), 2) : Materials.Grid(Palette.Indigo, color.Darkened(0.35f));
+            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = blockSize }, MaterialOverride = blockLook });
+            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = blockSize } });
+            if (kc) AddObstacleTrim(body, blockSize, false);
             root.AddChild(body);
             // Parapet : quatre murets fins sur le bord de la terrasse.
             const float th = 0.12f;
@@ -183,7 +190,14 @@ public static class ArenaBuilder
             {
                 var size = new Vector3(sx, t.ParapetHeight, sz);
                 var w = new StaticBody3D { Name = $"{t.Id}_parapet", Position = new Vector3(cx, t.Sy + t.ParapetHeight / 2f, cz) };
-                w.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(color.Darkened(0.2f)) });
+                Material look = kc ? KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2) : Materials.Flat(color.Darkened(0.2f));
+                w.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look });
+                if (kc)   // néon d'équipe sur le chapeau du muret : on voit de loin à qui est la terrasse
+                    w.AddChild(new MeshInstance3D
+                    {
+                        Mesh = new BoxMesh { Size = new Vector3(sx + 0.02f, 0.05f, sz + 0.02f) }, Position = new Vector3(0, t.ParapetHeight / 2f, 0),
+                        MaterialOverride = KcShaders.Toon(color, color, 0, 1f, 2.2f), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                    });
                 w.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
                 root.AddChild(w);
             }
