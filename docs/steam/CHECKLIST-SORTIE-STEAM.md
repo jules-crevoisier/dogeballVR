@@ -144,7 +144,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Sensibilité souris enregistrée (`user://settings.cfg`) | code | scripts/Gameplay/DesktopPlayer.cs |
 | [~] | Options vidéo (plein écran / fenêtré, résolution, V-Sync, limite d'i/s, qualité, champ de vision) | code (fil interfaces) | |
 | [~] | Options audio (général, musique, effets) | code (fil interfaces) | |
-| [~] | Touches réassignables (aujourd'hui ZQSD et WASD actifs ensemble, pas de rebind) | code (fil interfaces) | |
+| [x] | Touches réassignables (Options > Touches) : clavier-souris (touches physiques, ZQSD ou WASD selon le clavier), et à la manette boutons et gâchettes (échange avec l'action qui avait le bouton ; sticks et Menu fixes). Enregistré dans settings.cfg, donc suivi par Steam Cloud | code | scripts/UI/InputSetup.cs |
 | [ ] | Inversion de l'axe Y | code | docs/CHOIX-REGLES.md (noté manquant) |
 | [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
 | [x] | Réduction des secousses d'écran (curseur), de l'arrêt sur image (option) et des flashs (option : éclairs d'impact à 35 %, voile de dégâts à 40 %) | code | scripts/UI/OptionsMenu.cs |

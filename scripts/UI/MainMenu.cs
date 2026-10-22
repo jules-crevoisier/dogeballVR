@@ -111,6 +111,7 @@ public partial class MainMenu : CanvasLayer
         Music.PlayMenu();
         ShowMain();
         if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--options-test") >= 0) OpenOverlay(new OptionsMenu { FirstTab = 1 });
     }
 
     void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); } });
