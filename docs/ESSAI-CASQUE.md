@@ -44,8 +44,8 @@ même : un nouvel APK s'installe par-dessus l'ancien.
 
 ## 3. Installer et lancer
 
+- **Avec MQDH :** Device Manager > Apps > **Add Build**, puis choisir l'APK.
 - **Avec adb** (Android platform-tools : MQDH en contient un, mais pas dans le PATH) :
-- **Avec adb :**
 
   ```
   adb install -r DogeballVR-quest-essai.apk
