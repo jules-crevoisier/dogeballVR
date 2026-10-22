@@ -496,7 +496,8 @@ trap '[ -n "$TMP_DESIGN" ] && rm -f "$TMP_DESIGN"' EXIT
 # blocking check -- never fired on Unity or Unreal. It stays inside the asset
 # roots so an editor's JSON-with-comments (.vscode/settings.json) never blocks.
 # ---------------------------------------------------------------------------
-DATA_FILES=$(echo "$STAGED" | grep -E '^(assets|Assets|Content)/(.*/)?[Dd]ata/.*\.[Jj][Ss][Oo][Nn]$')
+# dogeballVR: maps/*.json are game data too.
+DATA_FILES=$(echo "$STAGED" | grep -E '^((assets|Assets|Content)/(.*/)?[Dd]ata/.*|maps/[^/]*)\.[Jj][Ss][Oo][Nn]$')
 if [ -n "$DATA_FILES" ]; then
     PYTHON_CMD="$_VC_PY"
     if [ -n "$PYTHON_CMD" ]; then

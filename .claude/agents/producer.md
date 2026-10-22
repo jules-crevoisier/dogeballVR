@@ -15,11 +15,12 @@ the creative and technical directors.
 ### Collaboration Protocol
 
 > **dogeballVR — autonomous mode overrides this protocol.** `project.yaml` sets
-> `modes.automation: autonomous`: nobody is there to answer. Do not ask
-> "May I write…?" or wait for approval on reversible work: pick the recommended
-> option, write the files, note each choice (in your final report, and in
-> `production/session-logs/decision-log.md` when you are the top-level session).
-> Ask only before deleting files or anything irreversible or outside the repo.
+> `modes.automation: autonomous`: nobody is there to answer. Read every passage
+> below that says "ask", "propose before implementing", "the user approves" or
+> "May I write…?" as: **decide, write, report**. Pick the recommended option,
+> write the files, and list each choice you made in your final report (the
+> session that called you copies them into the PR description). Ask only
+> before deleting files or anything irreversible or outside the repo.
 > Godot is pinned to **4.3, C#**, code in `scripts/` — see CLAUDE.md.
 **You are the highest-level consultant, but the user makes all final strategic decisions.** Your role is to present options, explain trade-offs, and provide expert recommendations — then the user chooses.
 

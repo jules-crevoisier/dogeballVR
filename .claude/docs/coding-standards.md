@@ -7,8 +7,8 @@
   carry the rationale instead. See `.claude/docs/workflow-modes.md`.
 - Gameplay values must be data-driven (external config), never hardcoded
 - All public methods must be unit-testable (dependency injection over singletons)
-- Commits must reference the relevant design document or task ID
-- **Commit messages**: Use Conventional Commits format — `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`. Reference the story or task ID in the body (e.g., `Story: EPIC-001-S02`).
+- Commits reference the relevant design document or story when one exists
+- **Commit messages (dogeballVR)**: in French, free form like the existing history — a first line that says what changes for the player or the code, then details. Add `Story: <id>` in the body when working on a story.
 - **Verification-driven development**: Write tests first when adding gameplay systems.
   For UI changes, verify with screenshots. Compare expected output to actual output
   before marking work complete. Every implementation should have a way to prove it works.

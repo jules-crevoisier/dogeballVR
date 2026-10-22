@@ -32,7 +32,7 @@
 
 - **Classes**: PascalCase, one class per file, file named after the class (`MatchRules.cs`)
 - **Variables**: camelCase locals and parameters; private fields camelCase (match the surrounding file)
-- **Signals/Events**: C# events or `[Signal]` delegates named `<Event>EventHandler`
+- **Signals/Events**: C# `event Action<…>` named in the past tense (`PlayerEliminated`, `RoundWon`, `PeerLeft`); Godot `[Signal]` only when the editor needs it
 - **Files**: PascalCase `.cs` and `.tscn`; maps in snake_case `.json`
 - **Scenes/Prefabs**: PascalCase
 - **Constants**: PascalCase `const`

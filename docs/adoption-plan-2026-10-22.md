@@ -8,6 +8,8 @@
 Objectif : que chaque prochaine session fasse avancer le jeu avec les skills du kit.
 Travailler dans l'ordre, cocher au fur et à mesure, relancer `/adopt` après l'étape 3.
 Sources hors dépôt (lecture seule, à convertir, jamais à copier) : `/mnt/project-files/masterclasse/` (noté `MC/` ci-dessous).
+Si ce dossier n'est pas accessible dans la session, partir de `README.md`, `docs/ARCHITECTURE.md`, `docs/CHOIX-REGLES.md` et du code, puis le signaler dans la PR.
+Règle de priorité : le travail demandé au fil passe avant ce plan (voir `CLAUDE.md`). `/gate-check` est toujours soumis à jules.
 
 ## Résumé de l'audit
 

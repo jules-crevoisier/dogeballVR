@@ -11,9 +11,10 @@ faire avancer le jeu.
 Claude Code charge `CLAUDE.md`, `.claude/agents/`, `.claude/skills/` et les hooks
 **au démarrage d'une session ouverte à la racine du dépôt**. Une session qui part
 de `main` n'a donc le kit que lorsque la PR d'installation est fusionnée. Avant
-cela, une session peut fusionner la branche d'installation dans la sienne ; elle
-peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs consignes
-à la main.
+cela, une session peut récupérer les fichiers du kit sans fusionner
+(`git checkout origin/claude/project-thread-kqje36 -- .claude CLAUDE.md project.yaml docs`).
+Elle peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs
+consignes à la main.
 
 Au démarrage, le hook `session-start.sh` affiche la branche, les derniers
 commits, le mode de revue et l'état de session
@@ -28,7 +29,7 @@ commits, le mode de revue et l'état de session
 | `modes.automation` | `autonomous` | Pas de « May I write… ? ». Le kit prend l'option recommandée et la note |
 | `modes.automation_always_ask` | `file_deletions` | La seule question qui reste : avant de supprimer des fichiers |
 | `modes.rigor` | `standard` | Revues « lean » par les directeurs, docs équilibrées, QA standard |
-| `project.stage` | `Production` | Le jeu tourne déjà. `/gate-check` fera avancer l'étape |
+| `project.stage` | `Production` | Le jeu tourne déjà, même si les documents du kit manquent. Seul jules lance `/gate-check` |
 | `commands.*` | build `dotnet build`, test = partie headless de 150 s | Mêmes vérifications que la CI |
 | `updates.check` | `false` | Pas d'appel à l'API GitHub du kit à chaque session |
 
@@ -39,8 +40,18 @@ dans une PR.
 
 - Une branche et une PR par travail, CI verte. **Jamais de push ni de fusion
   dans `main`** : jules relit et fusionne.
-- Autonomie : on décide, on note la décision dans la PR, on continue. On
-  s'arrête seulement avant une suppression ou une action hors du dépôt.
+- Autonomie : on décide et on continue. Les choix sont notés dans la
+  description de la PR (section « Choix faits »). Le journal du kit
+  (`production/session-logs/`) disparaît avec le conteneur. On s'arrête
+  seulement avant une suppression ou une action hors du dépôt.
+- Le travail demandé passe d'abord. Les documents du plan d'adoption ne
+  s'écrivent que si c'est le sujet du fil, ou en fin de PR pour le système
+  touché.
+- Rien dans l'outillage n'empêche de pousser sur `main` ou de fusionner. Seule
+  la règle l'interdit. Une protection de branche sur GitHub
+  (Settings › Branches) la rendrait sûre.
+- Pas de Godot ni de .NET dans les conteneurs cloud. Le build, les tests et le
+  smoke check passent par la CI : on pousse, puis on lit son résultat.
 - Revue en boucle avant livraison : au moins un agent indépendant note le
   travail sur 10. On corrige jusqu'à 8/10, au plus 5 tours.
 - Code et commentaires en français, Godot 4.3, autorité unique de l'hôte,
@@ -69,7 +80,7 @@ l'outil Agent (`subagent_type: "nom-de-l-agent"`).
 | Tests et QA | `/qa-plan`, `/smoke-check`, `/regression-suite`, `/bug-report`, `/bug-triage` | qa-lead, qa-tester |
 | Jeu en ligne | `/security-audit` | network-programmer, security-engineer |
 | Sortie Steam | `/release-checklist`, `/team-release`, `/patch-notes`, `/changelog` | release-manager, devops-engineer |
-| Vérifier une étape du projet | `/gate-check` | creative-director, technical-director, producer |
+| Vérifier une étape du projet | `/gate-check` (toujours soumis à jules : le fil prépare le rapport) | creative-director, technical-director, producer |
 
 La liste complète est dans `.claude/docs/skills-reference.md` et
 `.claude/docs/agent-roster.md`. Le parcours type est décrit dans
@@ -101,6 +112,10 @@ Toutes les modifications portent la mention `dogeballVR`
   `write-guard.sh`, `asset-scan.sh`, `project-coherence.sh` : lecture de
   `engine.code_root`. Le kit codait `src/` en dur pour Godot.
 - `.claude/hooks/detect-gaps.sh` : `scripts/` compte comme dossier de code.
+- `.claude/hooks/validate-commit.sh` et `validate-assets.sh` : les cartes
+  `maps/*.json` sont vérifiées comme données (un JSON invalide bloque).
+- `.claude/docs/coding-standards.md` : commits en français, en texte libre
+  comme l'historique (le kit imposait les Conventional Commits).
 - `.claude/agents/*.md` (les 49) : un encadré en tête du « Collaboration
   Protocol » qui remplace le « demander avant d'écrire » par le mode autonome.
 - `.claude/rules/*.md` : les règles de code s'appliquent aussi à nos dossiers
@@ -123,7 +138,7 @@ et `.github/` du kit. `src/` est inutile chez nous.
 interdictions (`rm -rf`, `git push --force`, `git reset --hard`,
 `git clean -f`, `sudo`, lecture des `.env`), une barre d'état et les hooks.
 Les hooks ne bloquent que deux cas : un commit avec un JSON de données invalide
-sous `assets/**/data/`, et la lecture d'un seul tenant d'un document de design
+sous `assets/**/data/` ou dans `maps/`, et la lecture d'un seul tenant d'un document de design
 de plus de 40 Ko (il faut alors lire par plages).
 
 ## 8. Mettre le kit à jour

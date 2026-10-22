@@ -54,15 +54,29 @@ autonomous mode** (`modes.automation: autonomous` in `project.yaml`): sessions
 usually have nobody to answer questions, and jules wants full autonomy.
 
 - Do not ask "May I write…?" and do not wait for approval on reversible work:
-  pick the recommended option, log it in
-  `production/session-logs/decision-log.md`, and keep going.
+  pick the recommended option and keep going.
+- **Decisions go in the PR description** (a "Choix faits" section). The kit's
+  `production/session-logs/decision-log.md` is gitignored and disappears with
+  the container: it is a scratch copy, never the record.
 - Work on a branch, commit, push, open a PR and drive the CI to green. **Never
-  push or merge into `main`**: jules reviews and merges.
+  push to `main`, never merge a PR**: jules reviews and merges. Nothing in the
+  tooling blocks it, so this rule is on you.
 - Stop and ask only for irreversible actions or anything outside the project
   (deleting files or data, production, messages to other people) —
   `modes.automation_always_ask: [file_deletions]`.
-- A question with no answer is not an answer: log the default you chose and say
-  so in the final report.
+- A question with no answer is not an answer: take the default, write it in
+  the PR, and say so in the final report.
+- **The task you were given comes first.** Kit documents (GDD, ADR, stories
+  from `docs/adoption-plan-2026-10-22.md`) are written only when they are the
+  thread's subject, or at the end of a PR for the system it touched. Tick the
+  plan's boxes in your own PR.
+- `/gate-check` and `/setup-engine` always ask a human (kit exemption): prepare
+  their report, then leave the decision to jules.
+- **No Godot or .NET in the cloud containers**: `commands.*` cannot run there.
+  Push and read the CI (`.github/workflows/build.yml`) — it is the build, the
+  test and the smoke check.
+- `project.stage` is `Production` because the game runs, although the kit's
+  documents are still missing.
 - Quality loop before delivering anything visible: get it critiqued by at least
   one independent agent (score out of 10), fix, re-review, until ≥ 8/10 or 5
   rounds; report the scores.

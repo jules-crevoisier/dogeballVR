@@ -15,8 +15,9 @@ project:
   name: "DogeballVR"
   genre: "Dodgeball multijoueur (façon Knockout City), VR et PC"
   version: "0.1.0"
-  # Le jeu tourne déjà (match 2v2, bots, réseau, CI). /gate-check fera avancer
-  # l'étape ; l'audit /adopt liste les documents du kit qui manquent encore.
+  # Le jeu tourne déjà (match 2v2, bots, réseau, CI), d'où Production, même si
+  # les documents du kit (GDD, ADR, stories) restent à écrire (voir
+  # docs/adoption-plan-2026-10-22.md). /gate-check est réservé à jules.
   stage: Production
   kind: game
 
@@ -66,7 +67,7 @@ naming:
   classes: PascalCase
   variables: camelCase
   constants: PascalCase
-  signals: on_event_name
+  signals: past_tense
   files: PascalCase
   scenes: PascalCase
 
@@ -81,7 +82,7 @@ performance:
 commands:
   build: "dotnet build DogeballVR.csproj --nologo"
   # Même vérification que la CI : 150 s de partie simulée, aucune erreur de script.
-  test: "godot --headless --path . --fixed-fps 60 --quit-after 9000"
+  test: "godot --headless --path . --build-solutions --quit && godot --headless --path . --fixed-fps 60 --quit-after 9000"
   run: "godot --path ."
   smoke: "godot --headless --path . --quit-after 600"
 

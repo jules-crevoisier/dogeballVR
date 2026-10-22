@@ -87,6 +87,7 @@ shopt -u nocasematch
 # Only check files under an asset root.
 case "$REL_PATH" in
     assets/*|Assets/*|Content/*) ;;
+    maps/*.json) ;;  # dogeballVR: maps are game data
     *) exit 0 ;;
 esac
 
@@ -109,7 +110,7 @@ esac
 # BLOCKING: Check JSON validity for data files, in any engine's data folder --
 # the same set validate-commit.sh blocks on.
 # Invalid JSON will break runtime loading -- this is a build-breaking error
-if echo "$REL_PATH" | grep -qE '^(assets|Assets|Content)/(.*/)?[Dd]ata/.*\.[Jj][Ss][Oo][Nn]$'; then
+if echo "$REL_PATH" | grep -qE '^((assets|Assets|Content)/(.*/)?[Dd]ata/.*|maps/[^/]*)\.[Jj][Ss][Oo][Nn]$'; then  # dogeballVR: + maps/
     FILE_PATH="$REL_PATH"
     if [ -f "$FILE_PATH" ]; then
         # Find a working Python command
