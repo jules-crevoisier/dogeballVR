@@ -24,6 +24,7 @@ public partial class NetSession : Node
     const double MissedCatchCooldown = 0.15; // une demande refusée n'en autorise pas une autre avant ce délai
     const double MinPoseInterval = 1.0 / 60.0; // au-delà, les paquets de pose sont ignorés (anti-inondation)
     const float RpcPerSecond = 20f;   // les autres RPC d'un client : seau de 20 jetons par pair et par RPC, au-delà le message est ignoré
+    const float GrabRpcPerSecond = 40f;   // prise et parade : la main VR redemande à chaque tick physique pendant le contact
     const double HelloTimeout = 20.0;         // un pair sans Hello est déconnecté (chargement de la partie compris)
     const int PlayerFloats = 15;
     const float MaxHandReach = 1.0f;   // une main reste près de la tête
@@ -398,15 +399,15 @@ public partial class NetSession : Node
 
     // Anti-inondation (règle network-code.md) : un client modifié pouvait envoyer des milliers de demandes par seconde,
     // chacune parcourant les balles et écrivant une ligne de journal. Un client normal redemande la prise à chaque image
-    // tant que l'hôte n'a pas confirmé : le seau en laisse passer une toutes les 50 ms, sous le délai de 0,15 s entre deux prises.
+    // tant que l'hôte n'a pas confirmé : le seau en laisse passer une toutes les 25 ms, bien sous le délai de 0,15 s entre deux prises.
     readonly Dictionary<(int peer, string rpc), (float tokens, double at)> rpcBudget = new();
 
     /// <summary>Hôte : vrai si le pair a épuisé son débit pour ce RPC (le message est alors ignoré).</summary>
-    bool OverBudget(int peer, string rpc)
+    bool OverBudget(int peer, string rpc, float perSecond = RpcPerSecond)
     {
         double now = Time.GetTicksMsec() / 1000.0;
-        var (tokens, at) = rpcBudget.TryGetValue((peer, rpc), out var budget) ? budget : (RpcPerSecond, now);
-        tokens = Mathf.Min(RpcPerSecond, tokens + (float)(now - at) * RpcPerSecond);
+        var (tokens, at) = rpcBudget.TryGetValue((peer, rpc), out var budget) ? budget : (perSecond, now);
+        tokens = Mathf.Min(perSecond, tokens + (float)(now - at) * perSecond);
         bool over = tokens < 1f;
         rpcBudget[(peer, rpc)] = (over ? tokens : tokens - 1f, now);
         return over;
@@ -710,7 +711,7 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void CatchRpc(int ballId, int hand, bool perfect)
     {
-        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(CatchRpc))) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(CatchRpc), GrabRpcPerSecond)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) { CatchRefused(remote, "bras pris ou main pleine"); return; }   // une seule balle par joueur
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
@@ -726,10 +727,10 @@ public partial class NetSession : Node
             var t = remote.TargetPose;
             var handLatest = remote.Avatar.GlobalTransform * (hand == 0 ? t.Left : t.Right);
             float ballSpeed = ball.LinearVelocity.Length();
-            bool bounced = catchNow - ball.LastContactAt <= Assist.TrajectoryLookback;   // rebond récent : la trajectoire passée n'est plus une droite
             // Ramassage d'une balle lente au sol (joueur PC) : jugé depuis les pieds, comme chez le client (point de ramassage à 0,9 m).
             bool scoop = ballSpeed < 3.5f && ball.GlobalPosition.DistanceTo(remote.Avatar.GlobalTransform * (t.Head + Vector3.Down * 0.85f)) <= 1.5f;
-            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity, bounced) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ball.LinearVelocity, bounced))
+            var handNow = remote.HandNode(hand).GlobalPosition;
+            if (!scoop && !Assist.HostAccepts(ball.GlobalPosition, handNow, ballSpeed, ball.PathDistanceTo(handNow)) && !Assist.HostAccepts(ball.GlobalPosition, handLatest, ballSpeed, ball.PathDistanceTo(handLatest)))
             {
                 CatchRefused(remote, $"balle à {Mathf.Min(ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition), ball.GlobalPosition.DistanceTo(handLatest)):0.0} m de la main à {ballSpeed:0} m/s");
                 return;
@@ -768,14 +769,14 @@ public partial class NetSession : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ParryRpc(int ballId, int hand, Vector3 normal)
     {
-        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(ParryRpc))) return;
+        if (!IsHost || !Remotes.TryGetValue(Sender, out var remote) || OverBudget(Sender, nameof(ParryRpc), GrabRpcPerSecond)) return;
         double now = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || !normal.IsFinite() || normal.LengthSquared() < 0.01f || now - remote.LastParryAt < 1.4 || remote.Hurtbox.Eliminated
             || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
-            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity, now - ball.LastContactAt <= Assist.TrajectoryLookback)) return;
+            if (ball.OwnerTeam < 0 || ball.OwnerTeam == remote.Hurtbox.Team || ball.LinearVelocity.Length() < Ball.HitMinSpeed || ball.LinearVelocity.Dot(remote.Hurtbox.GlobalPosition - ball.GlobalPosition) <= 0f || !Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length(), ball.PathDistanceTo(remote.HandNode(hand).GlobalPosition))) return;
             if (!ball.Deflect(normal)) return;   // chargée, passe, tenue : pas de parade
             remote.LastParryAt = now;
             GD.Print($"[Net] Balle {ballId} parée par la zone {remote.Hurtbox.PlayerId}");

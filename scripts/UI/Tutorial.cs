@@ -43,7 +43,7 @@ public partial class Tutorial : CanvasLayer
 
     const string CatchTitle = "ATTRAPE UN TIR";
     // Test (CI) : `--tutorial-test` passe seule une étape restée 8 s sans être faite, pour parcourir tout l'entraînement.
-    static readonly bool autoTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--tutorial-test") >= 0;
+    static readonly bool autoTest = Tools.DevFlags.Has("--tutorial-test");
     double stepStart;
 
     static string K(string action) => $"[color=#ffd23f]{InputSetup.KeyName(action)}[/color]";

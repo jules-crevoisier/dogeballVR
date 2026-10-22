@@ -119,7 +119,7 @@ public partial class OnlineLobby : Node
         Multiplayer.ConnectedToServer += OnConnectedToServer;
         Multiplayer.ConnectionFailed += OnConnectionFailed;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
-        var args = OS.GetCmdlineUserArgs();
+        var args = Tools.DevFlags.Allowed ? OS.GetCmdlineUserArgs() : Array.Empty<string>();   // --auto-ready, --autostart= : tests CI
         autoReady = Array.IndexOf(args, "--auto-ready") >= 0 || IsVr;   // pas d'écran de salle dans le casque : un joueur VR est prêt d'office
         NetHandshake.Install(Multiplayer);
         NetHandshake.Rejected += reason => { if (!IsHost) Fail(reason); };

@@ -11,6 +11,8 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class MatchController : Node3D
 {
+    static readonly bool SpecialTest = Tools.DevFlags.Has("--special-test");   // CI : balle spéciale bombe et essais de bombe
+
     const int BallsOnField = 4;
     const float BallSpawnInterval = 3f;   // une nouvelle balle toutes les 3 s tant qu'il en manque
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
@@ -290,7 +292,7 @@ public partial class MatchController : Node3D
         matchClock = 0;
         foreach (var st in stats.Values) { st.Kos = st.Hits = st.Catches = st.Throws = st.PerfectCatches = 0; }
         MatchStarted?.Invoke();
-        specialKind = Tools.DevFlags.Has("--special-test") ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        specialKind = SpecialTest ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
@@ -374,7 +376,7 @@ public partial class MatchController : Node3D
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
         if (!inRound || countdownLeft > 0) return;   // pas de touche pendant le compte à rebours
-        if (!Rules.HasPlayer(targetId)) return;   // pair parti pendant le vol de la balle : pas de KO fantôme
+        if (!Rules.HasPlayer(targetId) || !hurtboxes.ContainsKey(targetId)) return;   // cible inconnue ou désinscrite : rien à compter
         double clock = gameClock;
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
@@ -611,7 +613,7 @@ public partial class MatchController : Node3D
     {
         if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
-        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && Tools.DevFlags.Has("--special-test")) { bombTests++; BombTest(); }
+        if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && SpecialTest) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {

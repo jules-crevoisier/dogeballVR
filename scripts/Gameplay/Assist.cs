@@ -36,12 +36,8 @@ public static class Assist
     public const float LatencyFactor = 0.12f, LatencyMaxSlack = 2.0f;
     /// <summary>Au-delà de cette distance main-balle (m), la marge de latence ne vaut que si la balle vient de passer près de la main.</summary>
     public const float TrajectoryCheckFrom = CatchReach + 0.4f;
-    /// <summary>Durée (s) de trajectoire regardée en arrière par l'hôte : ce que le client a pu voir avec sa latence.</summary>
-    public const float TrajectoryLookback = 0.3f;
-    /// <summary>Distance (m) entre cette trajectoire et la main vue par l'hôte : portée + retard de la main (pose lissée, main PC tendue au clic).</summary>
+    /// <summary>Distance (m) entre la trajectoire récente (Ball.PathSeconds) et la main vue par l'hôte : portée + retard de la main (pose lissée, main PC tendue au clic).</summary>
     public const float TrajectoryReach = CatchReach + 0.5f;
-    /// <summary>Balle qui vient de rebondir (trajectoire passée inconnue) : marge de latence plafonnée à cette valeur (m).</summary>
-    public const float BouncedMaxSlack = 0.8f;
 
     /// <summary>Vrai en VR : l'hôte planifie la vitesse de chaque lancer (ThrowPlan).</summary>
     public static bool VrRules { get; set; }
@@ -137,19 +133,24 @@ public static class Assist
 
     /// <summary>
     /// Contrôle de l'hôte : la balle (position hôte, en avance sur ce que voyait le client) doit être près de la main.
-    /// La marge de latence (jusqu'à 2 m pour un tir rapide) n'est accordée que si la trajectoire des
-    /// <see cref="TrajectoryLookback"/> dernières secondes est passée à portée de la main : sinon un client modifié
-    /// prendrait toute balle passant à 3 m de lui (audit réseau, constat S1). Si la balle a rebondi pendant ce temps
-    /// (<paramref name="bouncedRecently"/>), sa vitesse ne dit plus d'où elle vient : la marge est alors plafonnée à
-    /// <see cref="BouncedMaxSlack"/>.
+    /// La marge de latence (jusqu'à 2 m pour un tir rapide) n'est accordée que si la trajectoire réelle des dernières
+    /// secondes (<paramref name="pathDistance"/>, voir <see cref="Ball.PathDistanceTo"/>, rebonds compris) est passée à
+    /// portée de la main : sinon un client modifié prendrait toute balle passant à 3 m de lui (audit réseau, constat S1).
     /// </summary>
-    public static bool HostAccepts(Vector3 ballHost, Vector3 handHost, Vector3 ballVelocity, bool bouncedRecently = false)
+    public static bool HostAccepts(Vector3 ballHost, Vector3 handHost, float ballSpeed, float pathDistance)
     {
         float distance = ballHost.DistanceTo(handHost);
-        float slack = Mathf.Min(ballVelocity.Length() * LatencyFactor, bouncedRecently ? BouncedMaxSlack : LatencyMaxSlack);
-        if (distance > CatchReach + slack) return false;
-        if (distance <= TrajectoryCheckFrom || bouncedRecently) return true;
-        return SweepDistance(ballHost - ballVelocity * TrajectoryLookback, ballHost, handHost) <= TrajectoryReach;
+        if (distance > CatchReach + Mathf.Min(ballSpeed * LatencyFactor, LatencyMaxSlack)) return false;
+        return distance <= TrajectoryCheckFrom || pathDistance <= TrajectoryReach;
+    }
+
+    /// <summary>Distance minimale entre <paramref name="point"/> et la ligne brisée <paramref name="path"/> (positions dans l'ordre).</summary>
+    public static float PathDistance(IReadOnlyList<Vector3> path, Vector3 point)
+    {
+        if (path.Count == 0) return float.PositiveInfinity;
+        float best = path[0].DistanceTo(point);
+        for (int i = 1; i < path.Count; i++) best = Mathf.Min(best, SweepDistance(path[i - 1], path[i], point));
+        return best;
     }
 
     /// <summary>Attrape parfaite : tir adverse encore assez rapide par rapport à sa vitesse de lancer (ball.SpeedCap, 0 = inconnue).</summary>

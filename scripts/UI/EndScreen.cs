@@ -309,6 +309,7 @@ public partial class EndScreen : CanvasLayer
     /// </summary>
     void TestKeys()
     {
+        if (!Tools.DevFlags.Allowed) return;
         foreach (var a in OS.GetCmdlineUserArgs())
         {
             if (!a.StartsWith("--end-screen-keys=")) continue;

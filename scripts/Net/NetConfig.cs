@@ -52,8 +52,8 @@ public class NetConfig
             else if (a.StartsWith("--zone=") && int.TryParse(a["--zone=".Length..], out int z)) cfg.Zone = z;
             else if (a.StartsWith("--port=") && int.TryParse(a["--port=".Length..], out int p)) cfg.Port = p;
             else if (a.StartsWith("--map=")) cfg.Map = a["--map=".Length..];
-            else if (a.StartsWith("--net-lag=") && int.TryParse(a["--net-lag=".Length..], out int lag)) cfg.LagMs = lag;
-            else if (a.StartsWith("--net-loss=") && float.TryParse(a["--net-loss=".Length..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float loss)) cfg.LossRate = Mathf.Clamp(loss, 0f, 0.9f);
+            else if (a.StartsWith("--net-lag=") && Tools.DevFlags.Allowed && int.TryParse(a["--net-lag=".Length..], out int lag)) cfg.LagMs = lag;
+            else if (a.StartsWith("--net-loss=") && Tools.DevFlags.Allowed && float.TryParse(a["--net-loss=".Length..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float loss)) cfg.LossRate = Mathf.Clamp(loss, 0f, 0.9f);
             else if (a.StartsWith("--token=")) cfg.Token = a["--token=".Length..];
             else if (a.StartsWith("--name=")) cfg.PlayerName = a["--name=".Length..];
             else if (a == "--net-selftest") cfg.SelfTest = Tools.DevFlags.Allowed;   // le client joue seul : jamais dans l'export de sortie

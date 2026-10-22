@@ -62,7 +62,7 @@ jobs:
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
-            stop "Secrets GitHub manquants :$missing (Settings > Secrets and variables > Actions)."
+            stop "Secrets GitHub manquants :$missing (Settings > Environments > steam-production > Environment secrets, voir tools/steam/README.md §4)."
           fi
           for name in STEAM_APP_ID STEAM_DEPOT_ID_WINDOWS; do
             [[ "${!name}" =~ ^[0-9]+$ ]] || stop "$name doit être un nombre (l'identifiant affiché dans Steamworks)."

@@ -307,12 +307,8 @@ public partial class Ball : RigidBody3D
 
     ulong lastBounceMs;
 
-    /// <summary>Hôte : instant (s, horloge Time.GetTicksMsec) du dernier choc qui a pu changer la trajectoire (décor, balle, parade).</summary>
-    public double LastContactAt { get; private set; } = double.NegativeInfinity;
-
     void OnContact(Node body)
     {
-        if (body is not Hurtbox) LastContactAt = Time.GetTicksMsec() / 1000.0;
         // son de rebond au contact du décor (hôte seulement : les clients n'ont pas la physique) ; aucune incidence sur la trajectoire
         if (!IsHeld && kind != KindBomb && body is not Ball && body is not Hurtbox && LinearVelocity.Length() is float v && v > 1.5f && Time.GetTicksMsec() - lastBounceMs > 110)
         {
@@ -476,7 +472,6 @@ public partial class Ball : RigidBody3D
     {
         if (Charge > 0 || IsHeld || exploded || IsPass) return false;
         LinearVelocity = LinearVelocity.Bounce(palmNormal.Normalized()) * 0.6f;
-        LastContactAt = Time.GetTicksMsec() / 1000.0;
         Spent();
         return true;
     }
@@ -522,10 +517,28 @@ public partial class Ball : RigidBody3D
         trailMesh.SurfaceEnd();
     }
 
+    /// <summary>Hôte : durée (s) de trajectoire gardée pour juger une prise déclarée par un client (sa latence + l'interpolation).</summary>
+    public const double PathSeconds = 0.4;
+    readonly List<Vector3> pathPoints = new();
+    readonly List<double> pathTimes = new();
+
+    /// <summary>Hôte : distance minimale entre <paramref name="point"/> et la trajectoire réelle des <see cref="PathSeconds"/> dernières secondes, rebonds compris.</summary>
+    public float PathDistanceTo(Vector3 point) => pathPoints.Count == 0 ? GlobalPosition.DistanceTo(point) : Assist.PathDistance(pathPoints, point);
+
+    void RecordPath()
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (IsHeld) { pathPoints.Clear(); pathTimes.Clear(); return; }
+        pathPoints.Add(GlobalPosition);
+        pathTimes.Add(now);
+        while (pathTimes.Count > 2 && now - pathTimes[0] > PathSeconds) { pathPoints.RemoveAt(0); pathTimes.RemoveAt(0); }
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         if (IsPuppet) return;
         if (exploded) { if ((explodedFor += delta) > 0.15) QueueFree(); return; }
+        RecordPath();
         sinceRelease += delta;
         if (kind == KindBomb && !IsHeld && OwnerTeam >= 0 && !IsPass && sinceRelease > 0.12)
             foreach (var b in GetCollidingBodies()) if (b is not Ball) { Explode(-1, OwnerTeam, OwnerPlayerId); return; }   // déjà au contact au lâcher
