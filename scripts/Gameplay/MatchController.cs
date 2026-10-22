@@ -211,6 +211,7 @@ public partial class MatchController : Node3D
     {
         foreach (var zone in map.Zones) SpawnZones.Add(zone.Center);
         planZones.AddRange(map.Zones);
+        mapObstacles = map.Obstacles;
         returnSeconds = map.BallReturn.Seconds;
         maxBallsInPlay = map.BallRules.MaxBallsInPlay;
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
@@ -224,7 +225,7 @@ public partial class MatchController : Node3D
         foreach (var def in map.BallSpawns)
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
-            else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); hubObstacles = map.Obstacles; }
+            else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); }
             else if (def.Kind == "dispenser")
             {
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
@@ -235,7 +236,7 @@ public partial class MatchController : Node3D
 
     BallSpawnDef? hubLauncher;
     readonly List<ZoneDef> hubZones = new();
-    IEnumerable<ObstacleDef> hubObstacles = System.Array.Empty<ObstacleDef>();
+    IEnumerable<ObstacleDef> mapObstacles = System.Array.Empty<ObstacleDef>();
     double hubTimer;
 
     bool UsesDispensers => dispensers.Count > 0;
@@ -791,42 +792,85 @@ public partial class MatchController : Node3D
         foreach (var z in hubZones)
         {
             if (kind != 0 && OccupantTeam(z) != trailing) continue;   // balle spéciale : toujours chez l'équipe menée (celle qui occupe la plaque après les échanges)
-            int count = 0;
-            foreach (var n in GetTree().GetNodesInGroup("balls"))
-                if (n is Ball { IsHeld: false } b && new Vector2(b.GlobalPosition.X - z.X, b.GlobalPosition.Z - z.Z).Length() < 5.5f) count++;
+            int count = LooseBallsNear(z);
             // La plaque d'une équipe qui perd passe devant à nombre de balles égal.
             if (count < fewest || (count == fewest && target != null && z.Team == trailing && target.Team != trailing)) { fewest = count; target = z; }
         }
         if (target == null) return false;
         var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
-        var to = new Vector3(target.X, 0.6f, target.Z);
-        for (int attempt = 0; attempt < 8; attempt++)   // pas sur un couvert : la balle roulerait hors de portée
-        {
-            var c = new Vector3(target.X + rng.RandfRange(-2f, 2f), 0.6f, target.Z + rng.RandfRange(-1.5f, 1.5f));
-            bool blocked = false;
-            foreach (var o in hubObstacles)
-                if (o.Kind != "pit" && o.Y < 1.5f && Mathf.Abs(c.X - o.X) < o.Sx * 0.5f + 0.6f && Mathf.Abs(c.Z - o.Z) < o.Sz * 0.5f + 0.6f) { blocked = true; break; }
-            to = c;
-            if (!blocked) break;
-        }
-        const float flight = 1.6f;
-        float g = 9.8f * Ball.GravityFactor;
-        var d = to - from;
+        var to = FreeSpot(target, 2f, 1.5f, 0.6f);
         var ball = SpawnBallAt(from);
         ball.Kind = kind;
-        ball.LinearVelocity = new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
+        ball.LinearVelocity = LobVelocity(from, to);
         if (ballsCached >= 0) ballsCached++;
         return true;
     }
 
-    /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>
+    /// <summary>Lob lent de 1,6 s de vol de <paramref name="from"/> vers <paramref name="to"/> : on le voit arriver et on l'attrape.</summary>
+    static Vector3 LobVelocity(Vector3 from, Vector3 to)
+    {
+        const float flight = 1.6f;
+        float g = 9.8f * Ball.GravityFactor;
+        var d = to - from;
+        return new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
+    }
+
+    /// <summary>Balles libres (pas tenues) à moins de 5,5 m du centre de la zone, à plat.</summary>
+    int LooseBallsNear(ZoneDef zone)
+    {
+        int count = 0;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+            if (n is Ball { IsHeld: false } b && new Vector2(b.GlobalPosition.X - zone.X, b.GlobalPosition.Z - zone.Z).Length() < 5.5f) count++;
+        return count;
+    }
+
+    /// <summary>Point au hasard près du centre de la zone (±rx, ±rz), hors des couverts bas : une balle posée dessus roulerait hors de portée.</summary>
+    Vector3 FreeSpot(ZoneDef zone, float rx, float rz, float height)
+    {
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            var c = new Vector3(zone.X + rng.RandfRange(-rx, rx), zone.Y + height, zone.Z + rng.RandfRange(-rz, rz));
+            bool blocked = false;
+            foreach (var o in mapObstacles)
+                if (o.Kind != "pit" && o.Y < 1.5f && Mathf.Abs(c.X - o.X) < o.Sx * 0.5f + 0.6f && Mathf.Abs(c.Z - o.Z) < o.Sz * 0.5f + 0.6f) { blocked = true; break; }
+            if (!blocked) return c;
+        }
+        return new Vector3(zone.X, zone.Y + height, zone.Z);   // huit tirages bloqués : le centre de la zone
+    }
+
+    readonly int[] neutralZoneTurn = new int[2];
+
+    /// <summary>
+    /// Balle neutre : pour l'équipe qui perd (alternée à égalité), elle tombe à la verticale au-dessus d'une de ses zones occupées,
+    /// celle qui a le moins de balles (à tour de rôle à égalité), hors des couverts. Sécurité VR : jamais sur la jonction
+    /// entre deux zones physiques, où deux coéquipiers iraient la chercher en même temps, et pas de rebond qui l'enverrait
+    /// hors de la zone (un lob arrivait à 6 m/s et rebondissait jusqu'au mur, hors de la zone physique).
+    /// </summary>
     void DropNeutral(BallSpawnDef def)
     {
         int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
-        // Équipe 0 côté z négatif, équipe 1 côté z positif (repère des maps).
-        float dirZ = trailing == 0 ? -1f : 1f;
-        var ball = SpawnBallAt(new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z));
-        ball.LinearVelocity = new Vector3(0, 2f, dirZ * 3f);
+        var targets = planZones.FindAll(z => z.Team == trailing && Rules.HasPlayer(z.Id) && Rules.LivesOf(z.Id) > 0);
+        if (targets.Count == 0) targets = planZones.FindAll(z => z.Team == trailing);
+        if (targets.Count == 0)
+        {
+            // Pas de zone pour cette équipe : ancien lob depuis le centre (équipe 0 côté z négatif, équipe 1 côté z positif).
+            var lob = SpawnBallAt(new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z));
+            lob.LinearVelocity = new Vector3(0, 2f, (trailing == 0 ? -1f : 1f) * 3f);
+            return;
+        }
+        int turn = neutralZoneTurn[trailing]++;
+        ZoneDef zone = targets[turn % targets.Count];
+        int fewest = LooseBallsNear(zone);
+        for (int i = 1; i < targets.Count; i++)
+        {
+            var z = targets[(turn + i) % targets.Count];
+            int count = LooseBallsNear(z);
+            if (count < fewest) { fewest = count; zone = z; }
+        }
+        var spot = FreeSpot(zone, 1.5f, 1f, Mathf.Max(def.Y, 3.5f));
+        var ball = SpawnBallAt(spot);
+        ball.LinearVelocity = Vector3.Zero;
+        GD.Print($"[Balle neutre] zone {zone.Id} (équipe {trailing}), lâchée en ({spot.X:0.0}, {spot.Z:0.0}), centre ({zone.X:0.0}, {zone.Z:0.0})");
     }
 
     /// <summary>Entraînement : une balle spéciale lâchée à 1,5 m de haut, elle retombe à cet endroit.</summary>

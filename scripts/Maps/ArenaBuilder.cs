@@ -39,7 +39,7 @@ public static class ArenaBuilder
             if (city != null) root.AddChild(city);
             HideFloorMeshes(root);   // le toit du décor remplace la grille ; les collisions restent
         }
-        AddZones(map, platforms, kc);
+        AddZones(map, platforms, kc, pcProfile);
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
@@ -199,7 +199,7 @@ public static class ArenaBuilder
     }
 
     /// <param name="kc">Décor continu (DA Knockout City) : pas de dalles, contours ni textes de zone peints au sol ; les zones physiques ne sont marquées que par les limites en jeu.</param>
-    static void AddZones(MapData map, Dictionary<int, Node3D> platforms, bool kc = false)
+    static void AddZones(MapData map, Dictionary<int, Node3D> platforms, bool kc = false, bool pcProfile = true)
     {
         foreach (var zone in map.Zones)
         {
@@ -208,7 +208,7 @@ public static class ArenaBuilder
             var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
             if (kc)
             {
-                if (zone.Lift != null) AddLift(root, map, zone);
+                if (zone.Lift != null) AddLift(root, map, zone, pcProfile);
                 continue;
             }
             // Dalle teintée un peu au-dessus du sol (sans collision : le sol sert de support).
@@ -225,7 +225,7 @@ public static class ArenaBuilder
             AddEdge(root, zone, basis, color, map.ZoneWidth, 0.06f, new Vector3(0, 0, map.ZoneDepth * 0.5f));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(-map.ZoneWidth * 0.5f, 0, 0));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(map.ZoneWidth * 0.5f, 0, 0));
-            if (zone.Lift != null) AddLift(root, map, zone);
+            if (zone.Lift != null) AddLift(root, map, zone, pcProfile);
             // Nom d'équipe peint au sol : lisible sous les pieds du joueur VR. Le joueur PC le voit de loin, rasant et illisible :
             // DesktopPlayer cache le groupe « zone_label ».
             var label = new Label3D
@@ -243,7 +243,8 @@ public static class ArenaBuilder
     }
 
     /// <summary>Plateau qui monte avec le lift : dalle sous la zone (visible et solide seulement quand elle est haute) et pad rond.</summary>
-    static void AddLift(Node3D platform, MapData map, ZoneDef zone)
+    /// <param name="pcProfile">Faux en VR : le garde-corps devient une ligne au sol (voir plus bas).</param>
+    static void AddLift(Node3D platform, MapData map, ZoneDef zone, bool pcProfile = true)
     {
         var basis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
         var size = new Vector3(map.ZoneWidth, 0.3f, map.ZoneDepth);
@@ -252,12 +253,21 @@ public static class ArenaBuilder
         slab.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         platform.AddChild(slab);
         // Garde-corps du bord avant (côté adverse) : 0,9 m, il retient les balles et sert d'appui visuel en hauteur.
+        // Sécurité VR : il est posé exactement sur la limite de la zone physique et rien ne le porte dans la salle ;
+        // un joueur en casque qui s'y appuierait tomberait au-delà de sa zone. En VR on ne montre ni barre ni surface
+        // d'appui : une ligne au sol et un voile lumineux très transparent. La collision reste la même sur toutes les
+        // machines (l'hôte simule les balles, qu'il soit PC ou VR) : elle retient les balles et couvre le joueur en haut.
         float rail = map.LiftRules.RailingHeight;
         if (rail > 0f)
         {
             var railSize = new Vector3(map.ZoneWidth, rail, 0.06f);
             var railing = new StaticBody3D { Name = "GardeCorps", Basis = basis, Position = zone.Center + basis * new Vector3(0, rail * 0.5f, -map.ZoneDepth * 0.5f) };
-            railing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = railSize }, MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+            if (pcProfile) railing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = railSize }, MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+            else
+            {
+                railing.AddChild(new MeshInstance3D { Name = "LigneDeBord", Mesh = new BoxMesh { Size = new Vector3(map.ZoneWidth, 0.02f, 0.1f) }, Position = new Vector3(0, -rail * 0.5f + 0.01f, 0), MaterialOverride = Materials.Glow(Palette.Team(zone.Team), 0.6f) });
+                railing.AddChild(new MeshInstance3D { Name = "Voile", Mesh = new QuadMesh { Size = new Vector2(map.ZoneWidth, rail) }, MaterialOverride = Materials.Additive(new Color(Palette.Team(zone.Team), 0.12f)) });
+            }
             railing.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = railSize } });
             platform.AddChild(railing);
         }

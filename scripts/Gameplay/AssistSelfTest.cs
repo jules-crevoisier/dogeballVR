@@ -145,6 +145,10 @@ public partial class AssistSelfTest : Node
         Visual.CameraFx.Reset();
         Check("Ressort de caméra stable", float.IsFinite(fxRot.X) && Mathf.Abs(fxRot.X) < 0.5f && Mathf.Abs(fxRot.Y) < 0.5f, $"après une image de 0,5 s : {fxRot}");
 
+        // Lift VR : un enfant (tête à 1,15 m debout) ne le déclenche pas debout ; l'adulte moyen garde le seuil de 1,15 m.
+        Check("Accroupi du lift relatif à la taille", LiftController.CrouchThreshold(1.15f) < 1.0f && Mathf.IsEqualApprox(LiftController.CrouchThreshold(1.6f), 1.152f)
+            && LiftController.CrouchThreshold(1.85f) > 1.15f && LiftController.CrouchThreshold(2.1f) < 1.25f, $"enfant {LiftController.CrouchThreshold(1.15f):0.00} m, adulte {LiftController.CrouchThreshold(1.6f):0.00} m, grand {LiftController.CrouchThreshold(1.85f):0.00} m");
+
         // Joueur parti (identifiant inconnu des règles) : aucune exception, rien de compté, pas de boucle.
         {
             var rules = new Rules.MatchRules();

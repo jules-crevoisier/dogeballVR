@@ -187,11 +187,12 @@ public partial class Main : Node3D
         zones = new ZoneManager { Name = "ZoneManager" };
         AddChild(zones);
         zones.Setup(map, localZone.Id);
-        double lastEdgeLog = -10;
+        double lastEdgeLog = -10, lastEdgePulse = -10, lastEdgeSound = -10;
         zones.EdgeWarning += d =>
         {
             double now = Time.GetTicksMsec() / 1000.0;
             if (map.IsRing && xrOrigin == null) return;   // jeu libre au clavier : pas de bord de zone
+            if (xrOrigin != null) WarnEdgeVr(d, now, ref lastEdgePulse, ref lastEdgeSound);
             if (now - lastEdgeLog < 2.0) return;   // pas un message par image contre le bord
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
@@ -216,6 +217,28 @@ public partial class Main : Node3D
         else BuildHost(localZone);
     }
 
+    /// <summary>
+    /// Sécurité VR : près du bord de la zone physique, les deux manettes vibrent (impulsions longues et douces, de plus en plus
+    /// serrées) et un clic grave part toutes les 1,5 s. Le mur de limite ne se voit que si l'on regarde devant soi ;
+    /// la vibration prévient aussi en reculant ou en tournant le dos au bord. Motif distinct des impulsions courtes de
+    /// l'alerte de tir, qui garde la main quand un tir arrive, sauf tout près du bord (0,3 m).
+    /// </summary>
+    void WarnEdgeVr(float distance, double now, ref double lastPulse, ref double lastSound)
+    {
+        float closeness = 1f - Mathf.Clamp(distance / Mathf.Max(map.EdgeWarningDistance, 0.01f), 0f, 1f);
+        bool shotIncoming = Visual.ThreatIndicator.LocalTimeToImpact < Visual.ThreatIndicator.WarnSeconds;
+        if ((!shotIncoming || distance < 0.3f) && now - lastPulse >= Mathf.Lerp(0.6f, 0.3f, closeness))
+        {
+            lastPulse = now;
+            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.25f, 0.6f, closeness), 0.25f);
+        }
+        if (now - lastSound >= 1.5)
+        {
+            lastSound = now;
+            Audio.Sfx.Play(this, Audio.SfxKind.Click, pitch: 0.6f);   // bus SFX : le volume des menus ne le coupe pas
+        }
+    }
+
     // ------------------------------------------------------------------ joueur local
 
     void BuildLocalPlayer(bool xrActive, ZoneDef localZone)
@@ -227,6 +250,20 @@ public partial class Main : Node3D
             var left = new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = localHurtbox };
             var right = new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = localHurtbox };
             origin.AddChild(camera);
+            // Le joueur voit ses mains : sans elles, on ne sait pas où est la main par rapport à la balle à attraper.
+            // Gant posé sur la pose « grip » (la paume), pas sur la pose par défaut des HandThrower (pointe de la manette).
+            // OpenXR, pose grip : l'axe X est normal à la paume (vers la paume à droite, à l'opposé à gauche) ; le modèle a la paume
+            // vers le bas, d'où un roulis de ∓GloveRollDegrees. Valeur à confirmer au casque.
+            foreach (var tracker in new[] { "left_hand", "right_hand" })
+            {
+                bool leftHand = tracker == "left_hand";
+                var grip = new Xr.GripGlove { Name = leftHand ? "LeftGlove" : "RightGlove", Tracker = tracker };
+                var glove = Visual.Avatar.Glove();
+                if (leftHand) glove.Scale = new Vector3(-1, 1, 1);   // main gauche : gant en miroir (pouce côté droit)
+                glove.RotationDegrees = new Vector3(GlovePitchDegrees, 0, leftHand ? GloveRollDegrees : -GloveRollDegrees);
+                grip.AddChild(glove);
+                origin.AddChild(grip);
+            }
             origin.AddChild(left);
             origin.AddChild(right);
             localHurtbox.Head = camera;
@@ -370,7 +407,10 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || Tools.DevFlags.Has("--swap-test"));
+        // Échange de plaques coupé en VR (sécurité, audit du 22/10) : le joueur ne bouge pas dans la salle, mais son monde
+        // tourne vers une autre plaque ; le voisin réel s'affiche alors du mauvais côté, et sur Tour 4v4 les plaques échangées
+        // se touchent. À rouvrir après un essai au casque avec le plan de la salle EVA. --swap-test le garde pour la CI.
+        match.PlateSwaps = map.IsRing && Tools.DevFlags.Has("--swap-test");
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
@@ -559,6 +599,11 @@ public partial class Main : Node3D
             LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
         });
 
+    /// <summary>Roulis du gant sur la pose grip (paume du modèle vers le bas → paume vers le côté). À régler au casque.</summary>
+    const float GloveRollDegrees = 90f;
+    /// <summary>Tangage du gant : l'axe -Z de la pose grip suit le poing fermé (les jointures) ; à régler au casque si les doigts piquent.</summary>
+    const float GlovePitchDegrees = 0f;
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
@@ -566,13 +611,15 @@ public partial class Main : Node3D
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
         AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
         if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
-        // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
-        var left = hands.Find(h => h.Tracker == "left_hand");
+        // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet. Accrochés au gant (pose grip,
+        // repère du modèle : dos de la main vers +Y), pas à la manette (pointe), pour rester sur la main.
+        Node3D? left = xrOrigin?.GetNodeOrNull<Node3D>("LeftGlove/Glove") ?? hands.Find(h => h.Tracker == "left_hand");
         if (left != null)
         {
             var hearts = Visual.HeartsDisplay.Create(() => lives(localZone.Id), maxLives, Visual.Palette.Team(localZone.Team), 0.0007f, false);
-            hearts.Position = new Vector3(0, 0.08f, 0.04f);
+            hearts.Position = new Vector3(0, 0.14f, 0.04f);   // au-dessus du gant (paume vers 0,09-0,11 m)
             hearts.RotationDegrees = new Vector3(-90, 0, 0);
+            if (left.Scale.X < 0f) hearts.Scale = new Vector3(-1, 1, 1);   // annule le miroir du gant gauche (ordre des cœurs)
             left.AddChild(hearts);
         }
     }
