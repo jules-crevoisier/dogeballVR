@@ -382,6 +382,7 @@ public partial class Main : Node3D
         targetIndexOfZone[localZone.Id] = 0;
         // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
         Bot.Level = UI.GameSettings.BotLevel;
+        Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
         foreach (var arg in OS.GetCmdlineUserArgs())
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)

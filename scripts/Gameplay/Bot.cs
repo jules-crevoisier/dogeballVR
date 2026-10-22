@@ -42,13 +42,13 @@ public partial class Bot : Node3D
     static Skill Current => Skills[Mathf.Clamp(Level, 0, Skills.Length - 1)];
 
     // Compteurs de tous les bots depuis la dernière fin de manche (journal, pour régler les niveaux).
-    static int nCatches, nPerfects, nMissed, nDodges, nPasses, nFeints, nThrows;
+    static int nCatches, nPerfects, nMissed, nDodges, nPasses, nFeints, nThrows, nPunish;
 
     /// <summary>Ligne de journal de fin de manche, puis remise à zéro des compteurs.</summary>
     public static string Report()
     {
-        var line = $"niveau {Current.Name} : {nThrows} tirs, {nPasses} passes, {nFeints} feintes, {nCatches} attrapes de tirs ({nPerfects} parfaites), {nMissed} ratées, {nDodges} esquives";
-        nCatches = nPerfects = nMissed = nDodges = nPasses = nFeints = nThrows = 0;
+        var line = $"niveau {Current.Name} : {nThrows} tirs, {nPasses} passes, {nFeints} feintes, {nCatches} attrapes de tirs ({nPerfects} parfaites), {nMissed} ratées, {nDodges} esquives, {nPunish} punitions";
+        nCatches = nPerfects = nMissed = nDodges = nPasses = nFeints = nThrows = nPunish = 0;
         return line;
     }
 
@@ -58,6 +58,8 @@ public partial class Bot : Node3D
     public static bool Calm { get; set; }
     /// <summary>Vrai tant que les lancers sont interdits (compte à rebours de manche) ; posé par Main.</summary>
     public System.Func<bool>? HoldFire { get; set; }
+    /// <summary>Le joueur local vient-il de rater une attrape (bouton bloqué) ? Posé par Main ; entre bots, on le sait directement.</summary>
+    public static System.Func<Node3D, bool>? ArmsLocked { get; set; }
 
     public ZoneDef Zone { get; set; } = null!;
     public float ZoneWidth { get; set; } = 15f;
@@ -72,6 +74,7 @@ public partial class Bot : Node3D
     Ball? held;
     double throwDelay;
     double catchCooldown; // évite de rattraper aussitôt la balle qu'on vient de lancer
+    double whiffLeft;     // attrape ratée : bras pris, c'est le moment de le punir
     float targetX;
     double changeDirTimer;
     readonly RandomNumberGenerator rng = new();
@@ -102,6 +105,7 @@ public partial class Bot : Node3D
         Visible = true;
         if (held != null && !IsInstanceValid(held)) { held = null; windupLeft = -1; } // balle supprimée au changement de manche
         catchCooldown -= delta;
+        whiffLeft -= delta;
         TrackTargets(delta);
         ReadThreats();
         Dodge(delta);
@@ -255,7 +259,7 @@ public partial class Bot : Node3D
             if (reads.TryGetValue(ball, out var read))
             {
                 // Tir adverse lu à l'avance : on s'y tient (raté = bras pris un instant, la balle passe et touche).
-                if (!read.take) { catchCooldown = 0.5f; nMissed++; return; }
+                if (!read.take) { catchCooldown = whiffLeft = 0.5f; nMissed++; return; }
                 // Attrape au dernier moment : on attend que la balle soit tout près (moins de 0,15 s) pour une parfaite.
                 if (read.perfect && IncomingIn(ball) is float t && t > 0.15f) return;
                 perfect = read.perfect;
@@ -263,7 +267,7 @@ public partial class Bot : Node3D
             else if (ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f && rng.Randf() > Current.Catch)
             {
                 // Tir adverse rapide pas encore lu (lancé à bout portant) : même chance d'attrape que le niveau.
-                catchCooldown = 0.5f;
+                catchCooldown = whiffLeft = 0.5f;
                 nMissed++;
                 return;
             }
@@ -308,6 +312,8 @@ public partial class Bot : Node3D
             return;
         }
         throwDelay -= delta;
+        // Punition (guide de KC) : une cible qui vient de rater son attrape a les bras pris une demi-seconde, on tire aussitôt.
+        if (throwDelay > 0.1 && Level >= 1 && !Gentle && !Calm && Nearest(enemy: true) is { } prey && ArmsBusy(prey)) { throwDelay = 0.1; nPunish++; }
         if (throwDelay > 0) return;
         // Pas de lancer avant le « GO ! » ni pendant les étapes calmes de l'entraînement : la balle reste en main.
         if (Calm || HoldFire?.Invoke() == true) { throwDelay = rng.RandfRange(0.2f, 0.6f); return; }
@@ -361,6 +367,9 @@ public partial class Bot : Node3D
         held = null;
         catchCooldown = 0.6;
     }
+
+    /// <summary>Cible qui vient de rater une attrape et ne peut pas attraper tout de suite.</summary>
+    static bool ArmsBusy(Node3D t) => t is Bot b ? b.whiffLeft > 0 : ArmsLocked?.Invoke(t) == true;
 
     /// <summary>Vitesse du tir (point unique : les règles de palier s'appliquent ici).</summary>
     float ThrowSpeed(Skill s) => Gentle ? rng.RandfRange(12f, 15f) : rng.RandfRange(s.MinSpeed, s.MaxSpeed);
