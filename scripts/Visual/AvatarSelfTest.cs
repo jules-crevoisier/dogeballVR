@@ -192,7 +192,7 @@ public partial class AvatarSelfTest : Node3D
             if (pc) rw = World(i, head) + new Basis(Vector3.Up, yaw - handLag) * PcRight;
             avatars[i].Pose(World(i, head), yaw, lw, rw, c.Floor);
             if (c.Kind == Kind.PcLan && clock > 1.4 && avatars[i].ArmsTracked) pcSpinTracked = true;
-            if (c.DuckAt > 0f && clock >= c.DuckAt + 0.1f && !duckChecked.ContainsKey(i))
+            if (c.DuckAt > 0f && clock >= c.DuckAt + 0.1f && delta < 0.05 && !duckChecked.ContainsKey(i))   // pas pendant une capture en rendu logiciel
                 duckChecked[i] = (avatars[i].FindChild("AvatarIk", true, false) as AvatarIk)?.FinalHead.Y + 0.13f * avatars[i].ModelScale ?? 99f;
         }
         if (clock < Duration) return;
