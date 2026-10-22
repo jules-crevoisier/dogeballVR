@@ -250,6 +250,8 @@ public class MapData
     public RulesDef Rules { get; set; } = new();
     public LiftRulesDef LiftRules { get; set; } = new();
     public List<ZoneDef> Zones { get; set; } = new();
+    /// <summary>Décor visuel optionnel (assets/models/&lt;decor&gt;.glb et &lt;decor&gt;_ville.glb) : toit, skyline et ciel de la DA Knockout City. Sans collision.</summary>
+    public string? Decor { get; set; }
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();

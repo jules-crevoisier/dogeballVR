@@ -81,12 +81,23 @@ public partial class OnlineLobby : Node
     public static void Ensure(SceneTree tree, Action<OnlineLobby>? then = null)
     {
         if (Instance != null && IsInstanceValid(Instance) && Instance.IsInsideTree()) { then?.Invoke(Instance); return; }
-        var lobby = new OnlineLobby { Name = "OnlineLobby" };
+        // Déjà en cours de création (ajout différé) : un seul nœud, sinon les RPC visent deux salles.
+        var lobby = creating != null && IsInstanceValid(creating) ? creating : null;
+        if (lobby == null)
+        {
+            lobby = creating = new OnlineLobby { Name = "OnlineLobby" };
+            tree.Root.CallDeferred(Node.MethodName.AddChild, lobby);
+        }
         if (then != null) lobby.Ready += () => then(lobby);
-        tree.Root.CallDeferred(Node.MethodName.AddChild, lobby);
     }
 
-    public override void _EnterTree() => Instance = this;
+    static OnlineLobby? creating;
+
+    public override void _EnterTree()
+    {
+        Instance = this;
+        if (creating == this) creating = null;
+    }
 
     public override void _Ready()
     {
@@ -215,7 +226,7 @@ public partial class OnlineLobby : Node
         address = ip; port = joinPort;
         SteamBridge.Target = 0;
         Multiplayer.MultiplayerPeer = peer;
-        NetSession.ShortenTimeout(peer, 1);
+        NetSession.RelaxTimeout(peer, 1);
         IsHost = false;
         if (State != LobbyState.Reconnecting) SetState(LobbyState.Connecting, $"Connexion à {ip}:{joinPort}…");
     }
@@ -316,8 +327,16 @@ public partial class OnlineLobby : Node
         SetState(LobbyState.InMatch, "Partie en cours");
         BroadcastRoster();
         SteamBridge.OnMatchStarted(this);
+        RelaxTimeouts();
         GameLaunch.Set(cfg);
         GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
+    /// <summary>Avant un rechargement de scène (lancement, retour à la salle) : délais longs, le chargement peut figer la machine.</summary>
+    void RelaxTimeouts()
+    {
+        if (IsHost) foreach (int p in Multiplayer.GetPeers()) NetSession.RelaxTimeout(Multiplayer.MultiplayerPeer, p);
+        else NetSession.RelaxTimeout(Multiplayer.MultiplayerPeer, 1);
     }
 
     /// <summary>Hôte : la scène de jeu est construite et la session réseau écoute ; les joueurs de la salle peuvent entrer.</summary>
@@ -339,6 +358,7 @@ public partial class OnlineLobby : Node
         foreach (var m in members.Values) if (!m.Host) { m.Ready = false; RpcId(m.PeerId, MethodName.ReturnToLobbyRpc); }
         SetState(LobbyState.InRoom, "De retour dans la salle");
         BroadcastRoster();
+        RelaxTimeouts();
         GameLaunch.ShowLobby = true;
         GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
@@ -384,9 +404,18 @@ public partial class OnlineLobby : Node
 
     // ------------------------------------------------------------------ boucle
 
+    // Test (CI) : `--quit-file=CHEMIN` ferme proprement le jeu dès que ce fichier existe (fin des clients du test).
+    static readonly string? quitFile = System.Array.Find(OS.GetCmdlineUserArgs(), a => a.StartsWith("--quit-file="))?["--quit-file=".Length..];
+    double quitCheck;
+
     public override void _Process(double delta)
     {
         stateClock += delta;
+        if (quitFile != null && (quitCheck += delta) > 0.5)
+        {
+            quitCheck = 0;
+            if (System.IO.File.Exists(quitFile)) { GD.Print("[Lobby] Fin du test : fermeture"); GetTree().Quit(); }
+        }
         switch (State)
         {
             case LobbyState.Searching:
@@ -435,7 +464,7 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost) return;
         pendingPeers[(int)id] = Time.GetTicksMsec() / 1000.0;
-        NetSession.ShortenTimeout(Multiplayer.MultiplayerPeer, (int)id);
+        NetSession.RelaxTimeout(Multiplayer.MultiplayerPeer, (int)id);
     }
 
     /// <summary>Hôte : un pair qui inonde la salle de messages est déconnecté.</summary>
@@ -615,6 +644,7 @@ public partial class OnlineLobby : Node
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void ReturnToLobbyRpc()
     {
+        RelaxTimeouts();
         SetState(LobbyState.InRoom, "De retour dans la salle");
         GameLaunch.ShowLobby = true;
         GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
@@ -631,6 +661,7 @@ public partial class OnlineLobby : Node
         cfg.Zone = zone;
         cfg.Preconnected = true;
         SetState(LobbyState.InMatch, "Partie en cours");
+        RelaxTimeouts();
         GameLaunch.Set(cfg);
         GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }

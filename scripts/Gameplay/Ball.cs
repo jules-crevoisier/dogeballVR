@@ -21,8 +21,8 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
-    /// <summary>Un adversaire attrape une balle lancée vite : (balle, id du receveur). Le receveur regagne une vie.</summary>
-    public static event System.Action<int>? CaughtThrow;
+    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Le receveur regagne une vie.</summary>
+    public static event System.Action<int, bool>? CaughtThrow;
     double flightTime;
 
     /// <summary>Balle spéciale (une famille par match, voir specialBalls dans les maps) : 0 normale, 1 bombe, 2 rebond.</summary>
@@ -43,9 +43,33 @@ public partial class Ball : RigidBody3D
         {
             kind = value;
             if (core != null) core.MaterialOverride = Materials.Glow(KindColor() ?? Palette.BallCore, 1f);
+            ShowDecor();
             UpdateLook();
         }
     }
+    /// <summary>Bandes, mèche et anneaux des modèles Blender (assets/models), un jeu par type de balle ; le cœur reste procédural pour garder la teinte par type.</summary>
+    readonly Node3D?[] decor = new Node3D?[3];
+
+    void AddDecor()
+    {
+        string[] names = { "balle_normale", "balle_bombe", "balle_rebond" };
+        for (int i = 0; i < names.Length; i++)
+        {
+            var model = Visual.ModelLibrary.Instance(names[i]);
+            if (model == null) continue;
+            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // le cœur est déjà dans la balle
+            model.Visible = i == kind || (kind > KindBounce && i == 0);
+            decor[i] = model;
+            AddChild(model);
+        }
+    }
+
+    void ShowDecor()
+    {
+        for (int i = 0; i < decor.Length; i++)
+            if (decor[i] != null) decor[i]!.Visible = i == (kind <= KindBounce ? kind : 0);
+    }
+
     Color? KindColor() => kind == KindBomb ? BombColor : kind == KindBounce ? BounceColor : null;
     MeshInstance3D? core;
 
@@ -115,6 +139,7 @@ public partial class Ball : RigidBody3D
             MaterialOverride = Materials.Glow(Palette.BallCore, 1f),
         };
         ball.AddChild(ball.core);
+        ball.AddDecor();
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
         ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
@@ -193,7 +218,7 @@ public partial class Ball : RigidBody3D
     /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
-        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
+        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
         if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
         else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
         EndArc();
@@ -251,8 +276,16 @@ public partial class Ball : RigidBody3D
         UpdateLook();
     }
 
+    ulong lastBounceMs;
+
     void OnContact(Node body)
     {
+        // son de rebond au contact du décor (hôte seulement : les clients n'ont pas la physique) ; aucune incidence sur la trajectoire
+        if (!IsHeld && kind != KindBomb && body is not Ball && body is not Hurtbox && LinearVelocity.Length() is float v && v > 1.5f && Time.GetTicksMsec() - lastBounceMs > 110)
+        {
+            lastBounceMs = Time.GetTicksMsec();
+            Audio.Sfx.Play(this, Audio.SfxKind.Bounce, GlobalPosition, 1.05f - Mathf.Min(v, 20f) * 0.008f, Mathf.Clamp(-16f + v * 1.1f, -16f, 0f));
+        }
         if (exploded || kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
         if (sinceRelease < 0.12) return;   // pas dans la main qui la lâche
         Explode(-1, OwnerTeam, OwnerPlayerId);

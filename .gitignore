@@ -9,6 +9,7 @@ obj/
 .vs/
 .idea/
 build/
+__pycache__/
 .claude/
 
 # Natifs Steam (tools/steam/fetch-steam-natives.sh)

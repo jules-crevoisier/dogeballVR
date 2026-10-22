@@ -102,6 +102,11 @@ public partial class NetSession : Node
 
     public Func<int, bool> TeammateHigh { get; set; } = _ => false;
     public Func<string> HudText { get; set; } = () => "";
+    /// <summary>Hôte : statistiques de la partie à plat (voir MatchView.EncodeStats), envoyées aux clients quand elles changent.</summary>
+    public Func<int[]>? StatsData { get; set; }
+    /// <summary>Client : statistiques reçues de l'hôte.</summary>
+    public event Action<int[]>? StatsReceived;
+    int[] lastStats = Array.Empty<int>();
     public Dictionary<int, RemotePlayer> Remotes { get; } = new();   // par pair réseau
 
     // Client.
@@ -146,6 +151,13 @@ public partial class NetSession : Node
     public static void ShortenTimeout(MultiplayerPeer? peer, int id)
     {
         if (peer is ENetMultiplayerPeer enet && enet.GetPeer(id) is { } p) p.SetTimeout(0, 3000, 8000);
+    }
+
+    /// <summary>Salle et chargement d'une partie : une machine peut se figer plusieurs secondes en chargeant la carte,
+    /// on ne la croit pas partie pour autant (le délai court revient à l'entrée en jeu, Welcome / Hello).</summary>
+    public static void RelaxTimeout(MultiplayerPeer? peer, int id)
+    {
+        if (peer is ENetMultiplayerPeer enet && enet.GetPeer(id) is { } p) p.SetTimeout(0, 15000, 40000);
     }
 
     void OnPeerConnected(long id) => ShortenTimeout(Multiplayer.MultiplayerPeer, (int)id);
@@ -423,9 +435,11 @@ public partial class NetSession : Node
         secret = NewSecret();
         secretOfPeer[peer] = secret;
         zoneOfSecret[secret] = zoneId;
+        ShortenTimeout(Multiplayer.MultiplayerPeer, peer);
         reserved.Remove(zoneId);
         RpcId(peer, MethodName.WelcomeRpc, zoneId, secret);
         RpcId(peer, MethodName.HudRpc, HudText());
+        if (StatsData?.Invoke() is { } joinStats) RpcId(peer, MethodName.StatsRpc, joinStats);
     }
 
     /// <summary>Session de jeu en cours (null hors partie) : le lobby s'en sert pour placer un joueur qui entre en cours de partie.</summary>
@@ -455,6 +469,7 @@ public partial class NetSession : Node
     {
         GD.Print($"[Net] Entrée acceptée par l'hôte, zone {zoneId}");
         welcomed = true;
+        ShortenTimeout(Multiplayer.MultiplayerPeer, 1);   // en jeu : une coupure se voit en 3 à 8 s
         Token = secret;
         Welcomed?.Invoke(zoneId, secret);
     }
@@ -772,7 +787,17 @@ public partial class NetSession : Node
         // Envois aux seuls joueurs entrés (Hello accepté) : un pair encore dans le lobby n'a pas la scène de jeu.
         if (Remotes.Count == 0) return;
         string hud = HudText();
-        if (hud != lastHud) { lastHud = hud; foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.HudRpc, hud); }
+        if (hud != lastHud)
+        {
+            lastHud = hud;
+            foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.HudRpc, hud);
+            // Statistiques (au plus une fois par changement du tableau, soit environ chaque seconde) : seulement si elles ont bougé.
+            if (StatsData?.Invoke() is { } stats && !stats.AsSpan().SequenceEqual(lastStats))
+            {
+                lastStats = stats;
+                foreach (var r in Remotes.Values) RpcId(r.PeerId, MethodName.StatsRpc, stats);
+            }
+        }
         snapshotTimer += delta;
         if (snapshotTimer < SnapshotInterval - 0.002f) return;   // marge : 1/30 en float dépasse 2 ticks de 1/60 et tombait à 20 Hz
         snapshotTimer = 0;
@@ -844,6 +869,9 @@ public partial class NetSession : Node
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     void HudRpc(string text) => HudReceived?.Invoke(text);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void StatsRpc(int[] stats) => Later(() => StatsReceived?.Invoke(stats), unreliable: false);
 
     /// <summary>Hôte : chaque touche validée (tireur, cible, KO) part chez les clients, pour leur marqueur de touche, leur fil des KO et leurs succès.</summary>
     void OnHitScored(int shooterId, int targetId, bool kill)

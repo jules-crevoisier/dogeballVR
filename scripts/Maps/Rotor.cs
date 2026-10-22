@@ -26,7 +26,7 @@ public partial class Rotor : AnimatableBody3D
     float target;
     bool hasTarget;
 
-    public static Rotor Create(HubDef hub)
+    public static Rotor Create(HubDef hub, bool kc = false)
     {
         var r = hub.Rotor!;
         var rotor = new Rotor
@@ -37,7 +37,24 @@ public partial class Rotor : AnimatableBody3D
             ArmLength = r.ArmLength, Thickness = r.Thickness, YMin = r.YMin, YMax = r.YMax, DegPerSecond = r.DegPerSecond,
         };
         var size = new Vector3(r.ArmLength * 2f, r.YMax - r.YMin, r.Thickness);
-        rotor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(new Color("b7bcc8")) });
+        if (kc)
+        {
+            var body = KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f);
+            body.NextPass = KcShaders.Outline(0.03f);
+            rotor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = body });
+            // arbre central sombre et pointes lumineuses : on lit le sens de rotation de loin
+            var hubMat = KcShaders.Toon(new Color("2B3658"), null, 0);
+            hubMat.NextPass = KcShaders.Outline(0.03f);
+            rotor.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.6f, BottomRadius = 0.6f, Height = size.Y + 0.15f }, MaterialOverride = hubMat });
+            foreach (float side in new[] { -1f, 1f })
+                rotor.AddChild(new MeshInstance3D
+                {
+                    Mesh = new BoxMesh { Size = new Vector3(0.18f, size.Y + 0.06f, size.Z + 0.06f) },
+                    Position = new Vector3(side * (r.ArmLength - 0.09f), 0, 0),
+                    MaterialOverride = KcShaders.Toon(new Color("FF6A1A"), new Color("FF6A1A"), 0, 1f, 2.5f),
+                });
+        }
+        else rotor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(new Color("b7bcc8")) });
         rotor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         return rotor;
     }

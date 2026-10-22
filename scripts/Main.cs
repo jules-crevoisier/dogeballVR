@@ -39,11 +39,72 @@ public partial class Main : Node3D
     readonly List<int> targetTeams = new();
     readonly Dictionary<int, int> targetIndexOfZone = new();
 
+    /// <summary>Retour au menu principal demandé (pause, fin de partie) : la scène est rechargée et affiche le menu même si le jeu a été lancé avec des options.</summary>
+    public static bool ReturnToMenu;
+
+    /// <summary>Partie d'entraînement guidée (tutoriel) : hors ligne, bots qui lancent doucement, consignes pas à pas.</summary>
+    public static bool Tutorial { get; private set; }
+
+    static bool PlayOfflineOnLoad;
+
+    void PlayForReal()
+    {
+        PlayOfflineOnLoad = true;
+        ReturnToMenu = false;
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
+        GetTree().ReloadCurrentScene();
+    }
+
+    /// <summary>Le noir du menu se dissipe une fois la partie construite.</summary>
+    void FadeIn()
+    {
+        var layer = new CanvasLayer { Layer = 90 };
+        var rect = new ColorRect { Color = new Color(0, 0, 0, 1), MouseFilter = Control.MouseFilterEnum.Ignore };
+        rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        layer.AddChild(rect);
+        AddChild(layer);
+        var tw = rect.CreateTween();
+        tw.TweenInterval(0.15);
+        tw.TweenProperty(rect, "color:a", 0.0, 0.5);
+        tw.TweenCallback(Callable.From(layer.QueueFree));
+    }
+
+    /// <summary>Écran de la salle en ligne sur le décor du menu ; <paramref name="start"/> lance l'action choisie (partie rapide, code…).</summary>
+    void ShowLobbyScreen(System.Action<Online.OnlineLobby>? start)
+    {
+        if (DisplayServer.GetName() == "headless") { if (start != null) Online.OnlineLobby.Ensure(GetTree(), start); return; }
+        if (GetNodeOrNull("MenuBackdrop") == null) AddChild(new UI.MenuBackdrop { Name = "MenuBackdrop" });
+        Online.OnlineLobby.Ensure(GetTree(), l =>
+        {
+            AddChild(new Online.LobbyScreen { Name = "LobbyScreen" });
+            start?.Invoke(l);
+        });
+    }
+
+    /// <summary>Recharge la scène sur le menu principal (ferme la connexion réseau, quitte la salle en ligne).</summary>
+    public void GoToMenu()
+    {
+        Online.OnlineLobby.Instance?.Leave();
+        ReturnToMenu = true;
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
+        Multiplayer.MultiplayerPeer = null;
+        Input.MouseMode = Input.MouseModeEnum.Visible;
+        GetTree().ReloadCurrentScene();
+    }
+
     public override void _Ready()
     {
         Online.CrashReporter.Start(GetTree());
         Online.SteamBridge.Init();   // sans effet sans Steam (CI, LAN)
+        MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
         bool xrActive = XrBootstrap.Start(GetViewport());
+        UI.GameSettings.Load();
+        UI.InputSetup.Register();
+        UI.GameSettings.Apply(xrActive ? null : GetViewport());
+        Engine.TimeScale = 1.0;
+        GetTree().Paused = false;
         pcProfile = !xrActive;
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
@@ -51,9 +112,54 @@ public partial class Main : Node3D
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
         {
             Online.GameLaunch.ShowLobby = false;
-            if (DisplayServer.GetName() != "headless") Online.OnlineLobby.Ensure(GetTree(), _ => AddChild(new Online.LobbyScreen { Name = "LobbyScreen" }));
+            ShowLobbyScreen(null);
             return;
         }
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--tutorial") >= 0) Tutorial = true;
+        if (PlayOfflineOnLoad)
+        {
+            // Fin du tutoriel : « vraie partie » recharge la scène et lance directement contre les bots.
+            PlayOfflineOnLoad = false;
+            Tutorial = false;
+            cfg.Choose(NetMode.Offline);
+            StartMatch(xrActive);
+            FadeIn();
+            return;
+        }
+        // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
+        if (!xrActive && !cfg.Preconnected && DisplayServer.GetName() != "headless" && (ReturnToMenu || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0 || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
+        {
+            ReturnToMenu = false;
+            var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
+            AddChild(backdrop);
+            var menu = new UI.MainMenu { Name = "MainMenu" };
+            void Begin(NetMode mode, string address, bool tutorial)
+            {
+                menu.QueueFree();
+                backdrop.QueueFree();
+                cfg.Choose(mode, address);
+                Tutorial = tutorial;
+                StartMatch(xrActive);
+                FadeIn();
+            }
+            menu.Chosen += (mode, address) => Begin(mode, address, false);
+            menu.TutorialChosen += () => Begin(NetMode.Offline, "", true);
+            // En ligne : la salle (Steam si disponible, sinon réseau local / code) remplace le menu, le décor reste derrière.
+            void Room(System.Action<Online.OnlineLobby> start) { menu.QueueFree(); ShowLobbyScreen(start); }
+            menu.QuickMatch += () => Room(l => l.QuickMatch());
+            menu.CreatePrivate += () => Room(l => l.CreatePrivate());
+            menu.HostLan += () => Room(l => l.HostLan());
+            menu.JoinCode += code => Room(l => l.JoinByCode(code));
+            menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
+            AddChild(menu);
+            return;
+        }
+        StartMatch(xrActive);
+    }
+
+    void StartMatch(bool xrActive)
+    {
+        Audio.Music.PlayMatch();
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
@@ -231,6 +337,8 @@ public partial class Main : Node3D
         tween.TweenMethod(Callable.From<float>(v => swapFade(v)), 1f, 0f, 0.4);
     }
 
+    static bool PcAutoplay => System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+
     bool pcProfile = true;   // fosse, tremplins et tacle : réservés au clavier-souris, la VR garde ses règles
 
     void BuildHost(ZoneDef localZone)
@@ -264,8 +372,18 @@ public partial class Main : Node3D
             if (z.Id != localZone.Id) SpawnBot(z);
 
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => match.Rules.LivesOf(localZone.Id), MaxLives = match.Rules.LivesPerPlayer, Score = () => match.HudText });
+        {
+            // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
+            var view = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+            // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
+            match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
+        }
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
+        if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
+        if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
+            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
@@ -294,6 +412,7 @@ public partial class Main : Node3D
             var bnds = map.Bounds;
             net.ArenaXZ = new Rect2(bnds.MinX, bnds.MinZ, bnds.MaxX - bnds.MinX, bnds.MaxZ - bnds.MinZ);
             net.HudText = () => match.HudText;
+            net.StatsData = () => MatchView.EncodeStats(match.Stats, id => bots.ContainsKey(id));
             net.PeerHello += OnPeerHello;
             net.PeerLeft += OnPeerLeft;
             net.ZoneAvailable = id => bots.ContainsKey(id) && id != localZone.Id;
@@ -393,6 +512,15 @@ public partial class Main : Node3D
         GD.Print($"[Net] Joueur de la zone {zoneId} parti, un bot reprend");
     }
 
+    /// <summary>Menu pause du joueur clavier-souris (Échap).</summary>
+    void AddPauseMenu(bool canFreeze, System.Action? restart)
+    {
+        var lockLayer = new CanvasLayer { Name = "LockOn", Layer = 5 };
+        lockLayer.AddChild(new UI.LockOnMarker { Player = desktopPlayer! });
+        AddChild(lockLayer);
+        AddChild(new UI.PauseMenu { Name = "PauseMenu", CanFreeze = canFreeze, Restart = restart, QuitToMenu = GoToMenu });
+    }
+
     // ------------------------------------------------------------------ client
 
     /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
@@ -410,7 +538,7 @@ public partial class Main : Node3D
         if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
         AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
-        foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));
+        if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
         var left = hands.Find(h => h.Tracker == "left_hand");
         if (left != null)
@@ -440,9 +568,16 @@ public partial class Main : Node3D
         net!.LocalPose = localPose;
         currentPlate = localZone.Id;
         net.PlatesReceived += ApplyPlates;
+        net.StatsReceived += MatchView.ApplyRemoteStats;   // statistiques de fin et bots, envoyées par l'hôte
         if (localBody is DesktopPlayer desktop)
-            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, Lives = () => world.Lives(localZone.Id), Score = () => hud.Text });
+        {
+            // Le client relit le texte du tableau de score ; touches, statistiques et bots arrivent de l'hôte par le réseau.
+            var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+        }
         if (localBody is DesktopPlayer) hud.Visible = false;
+        if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
         AddKnockoutFeedback(localZone, world.Lives, 2, () => hud.Text);
 
         if (cfg.SelfTest)

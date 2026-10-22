@@ -26,6 +26,8 @@ jobs:
           unzip -q godot.zip
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           "$GODOT" --headless --path . --build-solutions --quit
+          # Importe les modèles glb (assets/models) avant les parties : sans cela ils ne sont pas chargés et le jeu retombe sur les formes du code.
+          "$GODOT" --headless --path . --import --quit || true
           # 9000 images à 60 i/s = 150 s de jeu : une manche entière, la prolongation et le début de la suivante.
           # Toute erreur de script C# fait échouer le job.
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 2>&1 | tee run.log
@@ -291,7 +293,7 @@ jobs:
         run: |
           GODOT_VERSION=4.3-stable
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
-          "$GODOT" --headless --path . --max-fps 60 --quit-after 15000 -- --lobby-host --autostart=1 --map=croix_neon --pc-autoplay --name=Hote > lobby-host.log 2>&1 &
+          "$GODOT" --headless --path . --max-fps 60 --quit-after 15000 -- --lobby-host --autostart=1 --map=croix_neon --pc-autoplay --name=Hote --quit-file=lobby-done > lobby-host.log 2>&1 &
           HOST_PID=$!
           # On attend que la salle soit ouverte (démarrage de Godot .NET plus ou moins lent selon le runner).
           for i in $(seq 1 60); do grep -q "\[Lobby\] Salle ouverte" lobby-host.log && break; sleep 0.5; done
@@ -309,13 +311,14 @@ jobs:
           # Relance aussitôt : selon que l'hôte a déjà vu la coupure ou non, la zone revient par la réservation ou par l'éviction de la connexion muette.
           sleep 1
           "$GODOT" --headless --path . --max-fps 60 --quit-after 900 -- --lobby-join=127.0.0.1 --auto-ready --pc-autoplay --token=ci-crash --name=Crash > lobby-c3.log 2>&1
-          # L'hôte a de la marge (250 s) : on l'arrête dès que les clients ont fini, quelle que soit la vitesse du runner.
-          kill $HOST_PID 2>/dev/null || true
+          # L'hôte a de la marge (250 s) : on le ferme proprement dès que les clients ont fini, quelle que soit la vitesse du runner.
+          touch lobby-done
           wait $HOST_PID || true
+          rm -f lobby-done
           grep -E "\[Lobby\]|\[Net\] (Pair|Joueur|Reconnexion|Secret|Entrée|Test|Version)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log | head -70
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log; then echo "Erreur à l'exécution (lobby)"; exit 1; fi
           # RPC vers un nœud absent (course entre rechargement de scène et réseau) : Godot l'écrit en ERROR, pas en exception.
-          if grep -iE "ERROR:.*(node not found|invalid packet|rpc|cached)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log | grep -v "Unreferenced static string"; then echo "RPC perdu ou mal routé (lobby)"; exit 1; fi
+          if grep -iE "ERROR:.*(node not found|invalid packet|rpc|cached)" lobby-host.log lobby-c0.log lobby-c1.log lobby-c2.log lobby-c3.log; then echo "RPC perdu ou mal routé (lobby)"; exit 1; fi
           FAIL=0
           grep -q "\[Lobby\] Échec : Version différente" lobby-c0.log || { echo "Version différente non détectée à la poignée de main"; FAIL=1; }
           grep -q "\[Lobby\] Partie trouvée" lobby-c1.log || { echo "Partie rapide : salle LAN non trouvée"; FAIL=1; }

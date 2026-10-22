@@ -15,6 +15,9 @@ public partial class Bot : Node3D
     const float Speed = 3.0f;
     const float CatchRadius = 1.6f;
 
+    /// <summary>Entraînement (tutoriel) : les bots attendent plus longtemps et lancent moins fort, pour qu'on apprenne à attraper.</summary>
+    public static bool Gentle { get; set; }
+
     public ZoneDef Zone { get; set; } = null!;
     public float ZoneWidth { get; set; } = 15f;
     public float ZoneDepth { get; set; } = 8f;
@@ -120,7 +123,7 @@ public partial class Bot : Node3D
             }
             held = ball;
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team);
-            throwDelay = rng.RandfRange(0.3f, 0.7f);
+            throwDelay = Gentle ? rng.RandfRange(2.0f, 3.5f) : rng.RandfRange(0.3f, 0.7f);
             return;
         }
     }
@@ -163,7 +166,7 @@ public partial class Bot : Node3D
         // Hors de portée utile (18 m et plus : aucune touche mesurée) : on attend un peu que la cible se rapproche.
         if (!pass && bestDist > MaxUsefulRange && waitedForRange < 3) { waitedForRange++; throwDelay = 0.5; return; }
         waitedForRange = 0;
-        float speed = rng.RandfRange(16f, 24f);
+        float speed = Gentle ? rng.RandfRange(12f, 15f) : rng.RandfRange(16f, 24f);
         // Anticipation : on vise là où la cible sera à l'arrivée de la balle.
         var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
         var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.1f, rng.RandfRange(-0.1f, 0.1f));

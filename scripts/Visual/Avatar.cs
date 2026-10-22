@@ -22,41 +22,60 @@ public partial class Avatar : Node3D
         var dark = Materials.Flat(Palette.Panel);
         var white = Materials.Flat(Palette.Lines);
 
+        // Modèles Blender (assets/models) pour tout le monde, bots compris ; fichiers absents : formes simples ci-dessous.
+        string team_ = team == 0 ? "orange" : "bleu";
+        var bodyModel = ModelLibrary.Instance($"avatar_{team_}_corps");
+        var headModel = ModelLibrary.Instance($"avatar_{team_}_tete");
+        var gloveModel = ModelLibrary.Instance("main");
+
         avatar.torso = new Node3D { Name = "Torso" };
-        avatar.torso.AddChild(new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.22f, Height = 0.75f }, MaterialOverride = suit });
-        // Épaules marquées.
-        foreach (float side in new[] { -1f, 1f })
-            avatar.torso.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.12f, Height = 0.24f }, Position = new Vector3(0.24f * side, 0.2f, 0), MaterialOverride = suit });
-        // Jambes sombres sous le torse.
-        foreach (float side in new[] { -1f, 1f })
-            avatar.torso.AddChild(new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.09f, Height = 0.7f }, Position = new Vector3(0.11f * side, -0.6f, 0), MaterialOverride = dark });
-        // Emblème blanc sur le torse (face avant = -Z) : disque pour l'équipe 1, losange pour l'équipe 2.
-        avatar.torso.AddChild(team == 0
-            ? new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.085f, BottomRadius = 0.085f, Height = 0.02f }, Position = new Vector3(0, 0.1f, -0.215f), RotationDegrees = new Vector3(90, 0, 0), MaterialOverride = white }
-            : new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.12f, 0.12f, 0.02f) }, Position = new Vector3(0, 0.1f, -0.215f), RotationDegrees = new Vector3(0, 0, 45), MaterialOverride = white });
+        if (bodyModel != null) avatar.torso.AddChild(bodyModel);
+        else
+        {
+            avatar.torso.AddChild(new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.22f, Height = 0.75f }, MaterialOverride = suit });
+            // Épaules marquées.
+            foreach (float side in new[] { -1f, 1f })
+                avatar.torso.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.12f, Height = 0.24f }, Position = new Vector3(0.24f * side, 0.2f, 0), MaterialOverride = suit });
+            // Jambes sombres sous le torse.
+            foreach (float side in new[] { -1f, 1f })
+                avatar.torso.AddChild(new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.09f, Height = 0.7f }, Position = new Vector3(0.11f * side, -0.6f, 0), MaterialOverride = dark });
+            // Emblème blanc sur le torse (face avant = -Z) : disque pour l'équipe 1, losange pour l'équipe 2.
+            avatar.torso.AddChild(team == 0
+                ? new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.085f, BottomRadius = 0.085f, Height = 0.02f }, Position = new Vector3(0, 0.1f, -0.215f), RotationDegrees = new Vector3(90, 0, 0), MaterialOverride = white }
+                : new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.12f, 0.12f, 0.02f) }, Position = new Vector3(0, 0.1f, -0.215f), RotationDegrees = new Vector3(0, 0, 45), MaterialOverride = white });
+        }
         avatar.AddChild(avatar.torso);
 
         avatar.Head = new Node3D { Name = "Head" };
-        avatar.Head.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.13f, Height = 0.26f }, MaterialOverride = suit });
-        // Visière sombre, pas de visage.
-        avatar.Head.AddChild(new MeshInstance3D
+        if (headModel != null) avatar.Head.AddChild(headModel);
+        else
         {
-            Mesh = new BoxMesh { Size = new Vector3(0.2f, 0.07f, 0.06f) }, Position = new Vector3(0, 0.01f, -0.1f), MaterialOverride = dark,
-        });
+            avatar.Head.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.13f, Height = 0.26f }, MaterialOverride = suit });
+            // Visière sombre, pas de visage.
+            avatar.Head.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.2f, 0.07f, 0.06f) }, Position = new Vector3(0, 0.01f, -0.1f), MaterialOverride = dark,
+            });
+        }
         avatar.AddChild(avatar.Head);
 
-        avatar.LeftHand = MakeGlove(white);
-        avatar.RightHand = MakeGlove(white);
+        avatar.LeftHand = MakeGlove(white, gloveModel);
+        avatar.RightHand = MakeGlove(white, ModelLibrary.Instance("main"));
         avatar.AddChild(avatar.LeftHand);
         avatar.AddChild(avatar.RightHand);
         avatar.Pose(new Vector3(0, 1.6f, 0), 0f, new Vector3(-0.35f, 1.0f, -0.2f), new Vector3(0.35f, 1.0f, -0.2f));
         return avatar;
     }
 
-    static Node3D MakeGlove(Material white)
+    static Node3D MakeGlove(Material white, Node3D? model)
     {
         var glove = new Node3D { Name = "Glove" };
-        glove.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.11f, Height = 0.22f }, MaterialOverride = white });
+        if (model != null)
+        {
+            model.RotationDegrees = new Vector3(-90, 0, 0);   // doigts vers l'avant (-Z)
+            glove.AddChild(model);
+        }
+        else glove.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.11f, Height = 0.22f }, MaterialOverride = white });
         return glove;
     }
 

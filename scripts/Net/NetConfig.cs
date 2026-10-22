@@ -35,6 +35,9 @@ public class NetConfig
     public string Token { get; set; } = "";
     public string PlayerName { get; set; } = "";
 
+    /// <summary>Choix fait depuis le menu principal.</summary>
+    public void Choose(NetMode mode, string address = "127.0.0.1") { Mode = mode; Address = address; Map = "croix_neon"; }
+
     public static NetConfig Parse()
     {
         var cfg = new NetConfig();

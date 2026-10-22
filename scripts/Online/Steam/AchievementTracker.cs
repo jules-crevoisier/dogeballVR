@@ -109,7 +109,7 @@ public partial class AchievementTracker : Node
         }
     }
 
-    void OnCaughtThrow(int catcherId)
+    void OnCaughtThrow(int catcherId, bool perfect)
     {
         if (catcherId != LocalPlayerId) return;
         Achievements.AddStat(AchievementDefs.StatCatches, 1);
