@@ -105,6 +105,8 @@ public partial class MainMenu : CanvasLayer
         int i = 0;
         foreach (var c in items)
         {
+            // Items en lettres penchées et grasses, comme les menus de Knockout City.
+            if (UiKit.Italic is Font it && c is Button or Label) c.AddThemeFontOverride("font", it);
             column.AddChild(c);
             UiKit.SlideIn(c, 0.05f * i++);
         }
