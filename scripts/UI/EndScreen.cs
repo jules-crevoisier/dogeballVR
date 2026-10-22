@@ -25,7 +25,8 @@ public partial class EndScreen : CanvasLayer
     public bool Autoplay { get; set; }
     /// <summary>Partie lancée depuis une salle en ligne : à la fin, tout le monde y retourne (compte à rebours au lieu de REJOUER).</summary>
     public bool BackToRoom { get; set; }
-    public const double BackToRoomSeconds = 7.0;
+    // Podium (1,8 + 3,2 s) puis tableau : environ 8 s pour lire les stats et voir la barre d'XP se remplir. L'hôte peut abréger (Entrée).
+    public const double BackToRoomSeconds = 14.0;
 
     const double OpenDelay = 1.8;
     const double AutoRestartSeconds = 8.0;   // MatchController.MatchEndSeconds
@@ -183,6 +184,7 @@ public partial class EndScreen : CanvasLayer
         middle.AddThemeConstantOverride("separation", 34);
         col.AddChild(middle);
         Control? mvpCard = null;
+        GD.Print($"[Fin] Tableau : {(View.HasStats ? $"{View.Stats!.Count} joueurs" : "sans statistiques")}");
         if (View.HasStats)
         {
             mvpCard = MvpCard();
@@ -202,6 +204,9 @@ public partial class EndScreen : CanvasLayer
             autoLabel.CustomMinimumSize = new Vector2(440, 70);
             autoLabel.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(autoLabel);
+            // Hôte de la salle : tout le monde a lu, on y retourne sans attendre la fin du compte à rebours.
+            if (BackToRoom && View.CanRestart)
+                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76)));
         }
         else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76)));
         else
@@ -252,8 +257,15 @@ public partial class EndScreen : CanvasLayer
         tw.TweenProperty(c, "scale", Vector2.One, 0.35).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
     }
 
+    void BackNow()
+    {
+        GD.Print("[Fin] Retour à la salle demandé par l'hôte");
+        Online.OnlineLobby.Instance?.ReturnToLobby();
+    }
+
     void Replay()
     {
+        if (BackToRoom) { BackNow(); return; }
         GD.Print("[Fin] Rejouer");
         Close(true);
         View.Restart();
