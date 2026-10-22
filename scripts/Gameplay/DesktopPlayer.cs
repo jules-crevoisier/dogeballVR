@@ -1149,8 +1149,9 @@ public partial class DesktopPlayer : Node3D
                 if (rel.Length() < 6f && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
             }
 
-        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche.
-        if (held != null && enemy != null)
+        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche. Pas avant le « GO ! » : un lancer relâché
+        // pendant le décompte serait annulé et le joueur automatique, déjà relâché, ne tirerait plus jamais cette balle.
+        if (held != null && enemy != null && !ThrowLocked)
         {
             float err = Mathf.RadToDeg((-head.GlobalTransform.Basis.Z).AngleTo(enemy.GlobalPosition - head.GlobalPosition));
             if (apFireStart < 0 && err < 6f) apFireStart = time + rng.RandfRange(0.0f, 0.7f);
