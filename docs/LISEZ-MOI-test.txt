@@ -3,37 +3,53 @@ DogeballVR : version de test (PC)
 Lancer : double-clic sur DogeballVR.exe (Windows peut afficher un avertissement car le fichier n'est pas signé : "Informations complémentaires" puis "Exécuter quand même").
 Garde le dossier data_DogeballVR_windows_x86_64 à côté du .exe.
 
-Tu es en 2 contre 2. Ton allié et les deux adversaires sont des bots.
+Première fois : JOUER propose l'entraînement, aussi dans le menu (ENTRAÎNEMENT). 11 étapes, environ 3 minutes :
+courir, sauter, esquiver, lancer chargé, attraper, passe, feinte, balle spéciale. Entrée (ou Vue à la manette) passe une étape.
+Pendant les premières parties, de petites aides rappellent la bonne touche au bon moment (Options > Contrôles pour les couper).
+
 En ligne (jusqu'à 8 joueurs, les places vides sont tenues par des bots) :
-  Partie rapide   rejoint une salle ouverte (Steam, ou réseau local sans Steam), sinon en crée une
-  Créer un salon  donne un code à envoyer aux amis (et « Inviter des amis » avec Steam)
-  Rejoindre       taper le code reçu
+  Partie rapide   rejoint une salle ouverte (Steam, ou réseau local sans Steam), sinon en ouvre une
+                  qui se lance seule au bout de 20 s, complétée par des bots ; d'autres joueurs peuvent entrer en cours de partie
+  Salle privée    donne un code à envoyer aux amis (et « Inviter des amis » avec Steam)
+  Rejoindre       « Rejoindre avec le code » : taper le code reçu
   Dans la salle : chacun choisit son équipe et se déclare prêt, l'hôte lance.
   Si ta connexion coupe, le jeu se reconnecte seul et te rend ta place, tes vies et ton score.
   Sans menu : DogeballVR.exe --lobby-quick, --lobby-host ou --lobby-join=CODE.
-  Ancienne méthode, toujours possible : --host d'un côté, --join=ADRESSE_IP_DE_L_HOTE de l'autre (port UDP 7777).
-Parties d'environ 10 minutes : 5 manches de 2 minutes (3 KO = manche), prolongation de 30 s à mort subite en cas d'égalité.
-En ligne entre joueurs PC (format Knockout City) : premier à 7 KO en 2 contre 2 (15 en 4 contre 4), chrono de 5:00 par manche,
+
+Formats
+  Contre les bots (JOUER) : 5 manches de 2 minutes, la première équipe à 3 KO gagne la manche, prolongation à mort subite.
+  En ligne entre joueurs PC (format Knockout City) : premier à 7 KO en 2 contre 2 (15 en 4 contre 4), chrono de 5:00 par manche,
   2 manches gagnantes, retour en jeu 5 s après un KO. Dès qu'un joueur VR est dans la salle, on garde les 5 manches de 2 minutes.
   À la fin, tout le monde revient dans la salle et la revanche part seule au bout de 10 s (« PAS PRÊT » pour l'arrêter).
 
-Contrôles
-  ZQSD / WASD     se déplacer dans ta zone (tu ne peux pas en sortir)
-  Souris          viser
-  Maj             s'accroupir (esquive)
-  Clic droit      attraper une balle à portée de bras (même au sol)
-  Clic gauche     maintenir pour charger, relâcher pour lancer (plus long = plus fort)
-  Échap           libérer la souris (clic pour la reprendre)
+Contrôles (modifiables dans Options > Touches)        Manette (Xbox, Steam Deck)
+  ZQSD / WASD     courir                              stick gauche
+  Souris          viser                               stick droit
+  Espace          sauter                              A
+  Maj             esquive (bond invulnérable)         B
+  Clic gauche     maintenir pour charger, lancer      RT
+  Clic droit      attraper, juste avant l'impact      LT
+  Clic milieu / X passe à un allié (charge la balle)  X
+  R               tir en cloche                       Y
+  F               feinte                              RB
+  E               effet (maintenir + gauche/droite)   LB
+  Ctrl / C        s'accroupir                         L3
+  Tab             tableau des scores                  Vue
+  Échap           pause                               Menu
 
-Règles : 2 vies par joueur, KO = retour au bout de 3 s. Une balle passée à ton allié devient plus lumineuse ;
-à 2 charges ou plus elle retire 2 vies. Le score s'affiche au-dessus de l'arène.
+Règles : 2 vies par joueur. Une balle passée à ton allié devient plus lumineuse ; à 2 charges ou plus elle retire 2 vies.
+Toutes les 45 s, une balle spéciale (bombe ou rebond) tombe du centre vers l'équipe menée.
+
+Progression : chaque match rapporte de l'XP (niveau dans PROFIL, avec les statistiques et les 23 succès).
 
 Steam (test)
   Le zip contient steam_api64.dll et un fichier steam_appid.txt qui vaut 480 : c'est Spacewar, le jeu de test public de Valve.
   Il sert à essayer les lobbies, invitations et parties en ligne via Steam sans que le jeu soit encore sur Steam.
   Pour ça, Steam doit être lancé et connecté avant d'ouvrir DogeballVR.exe (ton profil Steam affichera « Spacewar »).
-  Sans Steam, le jeu marche quand même : solo contre les bots, ou à deux en réseau local / par adresse IP (--host / --join=IP).
+  Avec cet AppID, les succès et l'XP restent enregistrés dans le jeu, pas sur Steam : c'est normal.
+  Sans Steam, le jeu marche quand même : solo contre les bots, ou en réseau local / par code.
   Ne supprime pas ces deux fichiers. (La vraie version Steam n'aura pas steam_appid.txt : Steam lui donne son propre AppID.)
 
-Si quelque chose ne va pas (trop rapide, trop lent, bots trop forts ou trop faibles), dis-le : tout est réglable.
+Si quelque chose ne va pas (trop rapide, trop lent, bots trop forts ou trop faibles), dis-le : tout est réglable
+(la difficulté des bots est dans Options > Contrôles).
 Journal du jeu et rapports de plantage : %APPDATA%\DogeballVR\logs et %APPDATA%\DogeballVR\crash (à joindre si un bug se produit).
