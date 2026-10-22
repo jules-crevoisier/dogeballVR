@@ -10,3 +10,10 @@ obj/
 .idea/
 build/
 __pycache__/
+.claude/
+
+# Natifs Steam (tools/steam/fetch-steam-natives.sh)
+addons/steam_natives/
+*.log
+*.log.run
+*.log.exit

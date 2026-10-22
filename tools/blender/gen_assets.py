@@ -36,8 +36,10 @@ def _ball_core(kind):
 
 
 def ball(kind):  # noqa
+    """Balles de jeu : ball_kit.py (coque caoutchouc peinte, couture lumineuse). _ball_core reste pour mémoire."""
     def f():
-        return _ball_core(kind)
+        import ball_kit
+        return ball_kit.parts(kind)
     return f
 
 
@@ -336,12 +338,66 @@ def fx_spark():
     return lambda: p
 
 
-def avatar_rig(team):
-    """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs)."""
+HERO_BUDGET = 15000   # triangles par héros (fiche modeleurs) ; au-delà, réduction douce par fusion d'arêtes
+
+
+def avatar_rig(team, variant=0, budget=None):
+    """Personnage jouable riggé et animé (hero.py, proportions de la fiche modeleurs), ramené au budget s'il est fourni."""
     import hero
     import rig as rigmod
-    out = rigmod.rig_character(hero.hero(team), rigmod.HERO_BONES, arm_rest=-14)
-    return lambda: out
+    rig_obj, body = rigmod.rig_character(hero.hero(team, variant), rigmod.HERO_BONES, arm_rest=-14)
+    if budget:
+        tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
+        if tris > budget:
+            _decimate(body, budget * 0.97 / tris)
+    return lambda: [rig_obj, body]
+
+
+KC_CAST = {("orange", 0): "Riko", ("orange", 1): "Bo", ("bleu", 0): "Nova", ("bleu", 1): "Kai"}
+
+
+def avatar_kc(team, variant=0, budget=None):
+    """Héros style Knockout City (perso_kc.py, proportions du Blockout posé par le plugin Scenario dans plan_persos.json) :
+    même squelette HERO_BONES et mêmes animations, jambes raccourcies ; l'échelle de la taille du plan est appliquée au rig et au maillage."""
+    import json
+
+    import perso_kc
+    name = KC_CAST[(team, variant)]
+    plan = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "plan_persos.json")))
+    m = dict(perso_kc.cfg_from_plan(plan, name), x=0.0)
+    rig_obj, body = perso_kc.build(name, m)
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in (rig_obj, body):
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = rig_obj
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if budget:
+        tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
+        if tris > budget:
+            _decimate(body, budget * 0.97 / tris)
+    return lambda: [rig_obj, body]
+
+
+def avatar_kc_quest(team, variant=0, ratio=0.5):
+    rig_obj, body = avatar_kc(team, variant)()
+    _decimate(body, ratio)
+    return lambda: [rig_obj, body]
+
+
+def _decimate(body, ratio):
+    m = body.modifiers.new("allege", "DECIMATE")
+    m.ratio = ratio
+    m.use_collapse_triangulate = True
+    with bpy.context.temp_override(object=body, active_object=body):
+        bpy.ops.object.modifier_move_to_index(modifier=m.name, index=0)
+        bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def avatar_rig_quest(team, variant=0, ratio=0.5):
+    """Version allégée Quest : même rig et mêmes animations, maillage réduit par fusion d'arêtes (les poids suivent)."""
+    rig_obj, body = avatar_rig(team, variant)()
+    _decimate(body, ratio)
+    return lambda: [rig_obj, body]
 
 
 def L(f, *a):
@@ -353,7 +409,10 @@ ASSETS = {
     "avatar_orange_corps": L(avatar, "orange", "corps"), "avatar_orange_tete": L(avatar, "orange", "tete"),
     "avatar_orange": L(avatar, "orange", "tout"), "avatar_bleu": L(avatar, "bleu", "tout"),
     "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
-    "avatar_orange_rig": L(avatar_rig, "orange"), "avatar_bleu_rig": L(avatar_rig, "bleu"),
+    "avatar_orange_rig": L(avatar_kc, "orange", 0, HERO_BUDGET), "avatar_bleu_rig": L(avatar_kc, "bleu", 0, HERO_BUDGET),
+    "avatar_orange2_rig": L(avatar_kc, "orange", 1, HERO_BUDGET), "avatar_bleu2_rig": L(avatar_kc, "bleu", 1, HERO_BUDGET),
+    "avatar_orange_rig_quest": L(avatar_kc_quest, "orange"), "avatar_bleu_rig_quest": L(avatar_kc_quest, "bleu"),
+    "avatar_orange2_rig_quest": L(avatar_kc_quest, "orange", 1), "avatar_bleu2_rig_quest": L(avatar_kc_quest, "bleu", 1),
     "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
     "moyeu": L(hub), "mur": L(wall), "mur_orange": L(wall, "orange"), "mur_bleu": L(wall, "bleu"), "sol_tuile": L(floor_tile), "sol_tuile_orange": L(floor_tile, "orange"), "sol_tuile_bleu": L(floor_tile, "bleu"), "abri": L(cover_block),
     "tremplin": L(ramp), "bord_fosse": L(pit_edge), "tableau_score": L(scoreboard), "lampe": L(lamp),

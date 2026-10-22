@@ -7,4 +7,8 @@
     <RootNamespace>DogeballVR</RootNamespace>
     <AssemblyName>DogeballVR</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Steam (succès, salons, P2P relayé). Natifs : tools/steam/fetch-steam-natives.sh -->
+    <PackageReference Include="Steamworks.NET" Version="2024.8.0" />
+  </ItemGroup>
 </Project>

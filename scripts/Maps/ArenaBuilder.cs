@@ -30,12 +30,12 @@ public static class ArenaBuilder
 
         var decor = map.Decor == null ? null : ModelLibrary.Instance(map.Decor);
         bool kc = decor != null;
-        if (kc) AddKcEnvironment(root, pcProfile); else AddEnvironment(root);
+        if (kc) AddKcEnvironment(root, pcProfile, map.Ambiance); else AddEnvironment(root);
         AddFloor(root, map);
         if (kc)
         {
             root.AddChild(decor!);
-            var city = ModelLibrary.Instance(map.Decor + "_ville");
+            var city = ModelLibrary.Instance(map.Decor + "_ville") ?? ModelLibrary.Instance("toit_ville");   // variantes du toit (autres cartes) : skyline commune
             if (city != null) root.AddChild(city);
             HideFloorMeshes(root);   // le toit du décor remplace la grille ; les collisions restent
         }
@@ -43,20 +43,39 @@ public static class ArenaBuilder
         var local = map.Zones.Find(z => z.Id == localZoneId);
         if (local != null) AddLimitWall(ParentOf(local.Id), map, local);
         AddBounds(root, map);
-        if (map.IsRing) { AddRingExtras(root, map, kc); if (pcProfile) AddPcExtras(root, map); }
+        if (map.IsRing) { AddRingExtras(root, map, kc); if (pcProfile) AddPcExtras(root, map, kc); }
         foreach (var prop in map.Props) AddProp(root, prop);
         foreach (var o in map.Obstacles) AddObstacle(ParentOf(o.Zone), o, kc);
         foreach (var def in map.BallSpawns) AddPedestal(ParentOf(def.Zone), def);
         return new Result(root, platforms);
     }
 
-    /// <summary>Ciel de jour dégradé, brume lointaine, soleil chaud : l'ambiance de la DA Knockout City. Le glow n'est activé qu'au clavier-souris.</summary>
-    internal static void AddKcEnvironment(Node3D root, bool pcProfile)
+    /// <summary>Ciel, soleil et brume d'une ambiance : chaque carte a son heure et sa palette (la jouabilité ne change pas).</summary>
+    record Mood(string Top, string Horizon, string Ground, string Sun, float SunEnergy, Vector3 SunRot, string Fog, float FogDensity,
+                float Ambient, float Glow, float Saturation, float Exposure);
+
+    static readonly Dictionary<string, Mood> Moods = new()
     {
+        // Croix Néon : plein jour, ciel bleu et horizon pêche
+        ["jour"] = new("4C8DE8", "FFE3CA", "EBCDB4", "FFF0DE", 1.45f, new Vector3(-48, -35, 0), "FFE8D2", 0.006f, 0.5f, 0.45f, 1.04f, 0.88f),
+        // Fosse croisée, chantier : fin d'après-midi dorée, soleil rasant
+        ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
+        // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
+        ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.011f, 0.55f, 0.6f, 1.25f, 0.95f),
+        // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
+        ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
+        // La Fosse, port : matin brumeux, lumière blanche et douce
+        ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.013f, 0.6f, 0.35f, 0.95f, 0.95f),
+    };
+
+    /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null)
+    {
+        var m = Moods.TryGetValue(ambiance ?? "jour", out var mood) ? mood : Moods["jour"];
         var sky = new ProceduralSkyMaterial
         {
-            SkyTopColor = new Color("4C8DE8"), SkyHorizonColor = new Color("FFDDBA"), SkyCurve = 0.18f,
-            GroundHorizonColor = new Color("EBCDB4"), GroundBottomColor = new Color("6B6470"),
+            SkyTopColor = new Color(m.Top), SkyHorizonColor = new Color(m.Horizon), SkyCurve = 0.18f,
+            GroundHorizonColor = new Color(m.Ground), GroundBottomColor = new Color("6B6470"),
             SunAngleMax = 20f, SunCurve = 0.1f,
         };
         var env = new Godot.Environment
@@ -64,21 +83,24 @@ public static class ArenaBuilder
             BackgroundMode = Godot.Environment.BGMode.Sky,
             Sky = new Sky { SkyMaterial = sky },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume chaude qui repousse le fond
-            AmbientLightEnergy = 0.45f,
-            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = 0.8f, TonemapWhite = 4f,
-            FogEnabled = true, FogLightColor = new Color("FFE2C4"), FogDensity = 0.006f, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
-            GlowEnabled = pcProfile, GlowIntensity = 0.45f, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
+            // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume qui repousse le fond
+            AmbientLightEnergy = m.Ambient,
+            TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = m.Exposure, TonemapWhite = 6f,
+            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            GlowEnabled = pcProfile, GlowIntensity = m.Glow, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
-            AdjustmentEnabled = true, AdjustmentSaturation = 1.15f, AdjustmentContrast = 1.08f,
+            AdjustmentEnabled = true, AdjustmentSaturation = m.Saturation, AdjustmentContrast = 1.08f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
         root.AddChild(new DirectionalLight3D
         {
-            RotationDegrees = new Vector3(-48, -35, 0), LightEnergy = 1.9f, LightColor = new Color("FFE6C2"),
-            ShadowEnabled = pcProfile, ShadowBias = 0.06f, ShadowNormalBias = 1.5f, ShadowBlur = 0.6f,
+            RotationDegrees = m.SunRot, LightEnergy = m.SunEnergy, LightColor = new Color(m.Sun),
+            ShadowEnabled = pcProfile, ShadowBias = 0.1f, ShadowNormalBias = 2.2f, ShadowBlur = 0.6f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
+        if (ambiance == "nuit" && pcProfile)   // marché de nuit : la lumière chaude des guirlandes sur le terrain (sans ombres)
+            foreach (var p in new[] { new Vector3(-9, 7.5f, -5), new Vector3(9, 7.5f, -5), new Vector3(-9, 7.5f, 5), new Vector3(9, 7.5f, 5), new Vector3(0, 7.5f, 0) })
+                root.AddChild(new OmniLight3D { Position = p, LightColor = new Color("FFC46A"), LightEnergy = 1.4f, OmniRange = 13f, OmniAttenuation = 0.8f });
     }
 
     static void HideFloorMeshes(Node3D root)
@@ -143,8 +165,12 @@ public static class ArenaBuilder
         Strip(x1 - w / 2f, (z0 + z1) / 2f, w, z1 - z0 - 2 * w);
     }
 
-    /// <summary>Terrasses et tremplins du profil PC. Terrasse : bloc plein à parapet (les balles ne le traversent pas) ; tremplin : disque lumineux au sol.</summary>
-    static void AddPcExtras(Node3D root, MapData map)
+    /// <summary>
+    /// Terrasses et tremplins du profil PC. Terrasse : bloc plein à parapet (les balles ne le traversent pas) ; tremplin : disque lumineux au sol.
+    /// Décor continu (kc) : la terrasse prend l'habillage des abris (béton, socle, chapeau, bande de danger, liseré néon) et ses murets
+    /// sont en béton clair coiffés d'un néon à la couleur de l'équipe ; la greybox (grille indigo, murets en aplat) tranchait sur le toit.
+    /// </summary>
+    static void AddPcExtras(Node3D root, MapData map, bool kc = false)
     {
         if (map.Pc == null) return;
         foreach (var t in map.Pc.Terraces)
@@ -152,8 +178,11 @@ public static class ArenaBuilder
             var zone = map.Zones.Find(z => z.Id == t.Zone);
             var color = Palette.Team(zone?.Team ?? 0);
             var body = new StaticBody3D { Name = t.Id, Position = new Vector3(t.X, t.Sy / 2f, t.Z) };
-            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(t.Sx, t.Sy, t.Sz) }, MaterialOverride = Materials.Grid(Palette.Indigo, color.Darkened(0.35f)) });
-            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(t.Sx, t.Sy, t.Sz) } });
+            var blockSize = new Vector3(t.Sx, t.Sy, t.Sz);
+            Material blockLook = kc ? KcShaders.Toon(new Color("8C93AB"), new Color("757D97"), 2) : Materials.Grid(Palette.Indigo, color.Darkened(0.35f));
+            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = blockSize }, MaterialOverride = blockLook });
+            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = blockSize } });
+            if (kc) AddObstacleTrim(body, blockSize, false);
             root.AddChild(body);
             // Parapet : quatre murets fins sur le bord de la terrasse.
             const float th = 0.12f;
@@ -161,7 +190,14 @@ public static class ArenaBuilder
             {
                 var size = new Vector3(sx, t.ParapetHeight, sz);
                 var w = new StaticBody3D { Name = $"{t.Id}_parapet", Position = new Vector3(cx, t.Sy + t.ParapetHeight / 2f, cz) };
-                w.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(color.Darkened(0.2f)) });
+                Material look = kc ? KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2) : Materials.Flat(color.Darkened(0.2f));
+                w.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look });
+                if (kc)   // néon d'équipe sur le chapeau du muret : on voit de loin à qui est la terrasse
+                    w.AddChild(new MeshInstance3D
+                    {
+                        Mesh = new BoxMesh { Size = new Vector3(sx + 0.02f, 0.05f, sz + 0.02f) }, Position = new Vector3(0, t.ParapetHeight / 2f, 0),
+                        MaterialOverride = KcShaders.Toon(color, color, 0, 1f, 2.2f), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                    });
                 w.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
                 root.AddChild(w);
             }
@@ -226,7 +262,9 @@ public static class ArenaBuilder
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(-map.ZoneWidth * 0.5f, 0, 0));
             AddEdge(root, zone, basis, color, 0.06f, map.ZoneDepth, new Vector3(map.ZoneWidth * 0.5f, 0, 0));
             if (zone.Lift != null) AddLift(root, map, zone);
-            root.AddChild(new Label3D
+            // Nom d'équipe peint au sol : lisible sous les pieds du joueur VR. Le joueur PC le voit de loin, rasant et illisible :
+            // DesktopPlayer cache le groupe « zone_label ».
+            var label = new Label3D
             {
                 Text = $"ÉQUIPE {zone.Team + 1}",
                 Position = zone.Center + new Vector3(0, 0.03f, 0),
@@ -234,7 +272,9 @@ public static class ArenaBuilder
                 FontSize = 96,
                 PixelSize = 0.006f,
                 Modulate = color,
-            });
+            };
+            label.AddToGroup("zone_label");
+            root.AddChild(label);
         }
     }
 
@@ -321,13 +361,22 @@ public static class ArenaBuilder
         var h = map.Hub;
         if (h.Rotor != null) root.AddChild(Rotor.Create(h, kc));
         // Le pylône est l'obstacle « pylone » du JSON (déjà construit avec les couverts) : ici seulement le lanceur.
-        root.AddChild(new MeshInstance3D
+        // Coupole blanc-cyan peu lumineuse cerclée d'un anneau : ni la couleur ni la forme d'une balle (la sphère jaune s'y confondait).
+        var launcher = new Node3D { Name = "Lanceur", Position = new Vector3(h.X, h.Launcher.Y, h.Z) };
+        launcher.AddChild(new MeshInstance3D
         {
-            Name = "Lanceur",
-            Mesh = new SphereMesh { Radius = 0.35f, Height = 0.7f },
-            Position = new Vector3(h.X, h.Launcher.Y, h.Z),
-            MaterialOverride = Materials.Glow(Palette.BallCore, 1.4f),
+            Mesh = new SphereMesh { Radius = 0.42f, Height = 0.42f, IsHemisphere = true, RadialSegments = 24, Rings = 8 },
+            Position = new Vector3(0, -0.2f, 0),
+            Scale = new Vector3(1f, 0.55f, 1f),
+            MaterialOverride = Materials.Glow(new Color("dff6ff"), 0.25f),
         });
+        launcher.AddChild(new MeshInstance3D
+        {
+            Mesh = new TorusMesh { InnerRadius = 0.44f, OuterRadius = 0.5f, Rings = 32, RingSegments = 8 },
+            Position = new Vector3(0, -0.2f, 0),
+            MaterialOverride = Materials.Glow(new Color("7fe8ff"), 0.6f),
+        });
+        root.AddChild(launcher);
     }
 
     /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>
@@ -372,12 +421,14 @@ public static class ArenaBuilder
         if (kc && look is ShaderMaterial sm && o.Kind != "pit") sm.NextPass = KcShaders.Outline(0.03f);
         body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = look, Visible = !(kc && o.Kind == "hubfloor") });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-        if (kc && (o.Kind == "bumper" || o.Kind == "cover" || o.Kind == null)) AddObstacleTrim(body, size, o.Kind == "bumper");
+        int seed = 0;
+        foreach (char ch in o.Id ?? "") seed += ch;   // stable d'une partie à l'autre (string.GetHashCode ne l'est pas)
+        if (kc && (o.Kind == "bumper" || o.Kind == "cover" || o.Kind == null)) AddObstacleTrim(body, size, o.Kind == "bumper", o.Kind == "bumper" || seed % 3 == 0);
         root.AddChild(body);
     }
 
     /// <summary>Détails d'abri façon barrière de chantier : socle sombre, bande de danger, chapeau clair et liseré néon. Visuel seulement.</summary>
-    static void AddObstacleTrim(Node3D body, Vector3 size, bool pylon)
+    static void AddObstacleTrim(Node3D body, Vector3 size, bool pylon, bool stripes = true)
     {
         void Piece(Vector3 sz, float y, ShaderMaterial m, bool outline = true)
         {
@@ -389,7 +440,9 @@ public static class ArenaBuilder
         Piece(new Vector3(wide.X, 0.16f, wide.Z), 0.08f, KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2));
         Piece(new Vector3(wide.X, 0.1f, wide.Z), size.Y - 0.05f, KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2));
         float band = pylon ? 1.0f : Mathf.Min(0.7f, size.Y * 0.55f);
-        Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f), false);
+        // bande de danger sur un abri sur trois ; les autres ont un bandeau peint uni (sinon l'écran n'est que rayures)
+        var bandMat = stripes ? KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f) : KcShaders.Toon(new Color("E36A2E"), null, 0);
+        Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, bandMat, false);
         var glow = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f);
         Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), size.Y - 0.13f, glow, false);
         if (pylon) Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), 2.3f, KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f), false);

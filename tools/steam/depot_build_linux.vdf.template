@@ -1,0 +1,16 @@
+// Depot Linux 64 bits de DogeballVR (modèle, facultatif). __DEPOTID_LINUX__ : voir app_build.vdf.template.
+// Sans depot Linux, le Steam Deck lance le build Windows avec Proton.
+"DepotBuild"
+{
+	"DepotID" "__DEPOTID_LINUX__"
+	"FileMapping"
+	{
+		"LocalPath" "linux/*"
+		"DepotPath" "."
+		"Recursive" "1"
+	}
+	"FileExclusion" "steam_appid.txt"
+	"FileExclusion" "*.pdb"
+	"FileExclusion" "*.sh"
+	"FileExclusion" "LISEZ-MOI-test.txt"
+}

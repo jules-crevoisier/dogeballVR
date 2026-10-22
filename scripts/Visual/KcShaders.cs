@@ -14,6 +14,9 @@ public static class KcShaders
 
     static Shader? toon, pbr, outline;
 
+    /// <summary>Lâche les shaders en cache à la sortie : une ressource Godot gardée dans un champ static C# fait planter la fermeture.</summary>
+    public static void ClearCache() => toon = pbr = outline = null;
+
     public static void ParseLook()
     {
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -69,6 +72,13 @@ public static class KcShaders
         return m;
     }
 
+    /// <summary>
+    /// Un seul matériau converti par matériau source (et par choix de contour) : les surfaces d'un même glb, et toutes les instances
+    /// d'un même modèle, partagent le même ShaderMaterial au lieu d'en créer un par surface (décor de Croix Néon : 600 surfaces).
+    /// Personne ne modifie ces matériaux après coup, le partage est donc sans effet visible.
+    /// </summary>
+    static readonly System.Collections.Generic.Dictionary<(ulong, bool, LookKind), ShaderMaterial> converted = new();
+
     /// <summary>Remplace les matériaux standard d'un modèle importé par le shader toon (avec contour si demandé).</summary>
     public static void Apply(Node root, bool withOutline)
     {
@@ -78,11 +88,13 @@ public static class KcShaders
             {
                 var src = mi.Mesh.SurfaceGetMaterial(s) as BaseMaterial3D;
                 if (src == null) continue;
+                var key = (src.GetInstanceId(), withOutline, Look);
+                if (converted.TryGetValue(key, out var done) && GodotObject.IsInstanceValid(done)) { mi.SetSurfaceOverrideMaterial(s, done); continue; }
                 string name = src.ResourceName;
                 var color = src.AlbedoColor;
                 ShaderMaterial m;
                 if (name.StartsWith("neon_") || src.EmissionEnabled && src.EmissionEnergyMultiplier > 1.5f)
-                    m = Toon(color, null, 0, 1f, 2.5f);
+                    m = Toon(color, null, 0, 1f, withOutline ? 0.9f : 2.5f);   // persos : liserés lumineux discrets, sinon ils brûlent au blanc
                 else if (src.AlbedoTexture != null)
                 {
                     m = Toon(Colors.White, null, 9);
@@ -95,6 +107,7 @@ public static class KcShaders
                 else
                     m = Toon(color, null, 0, 1f, src.EmissionEnabled ? src.EmissionEnergyMultiplier * 0.8f : 0f);
                 if (withOutline && !name.StartsWith("neon_") && name is not ("oeil" or "pupille" or "peau_nez" or "bouche")) m.NextPass = Outline();
+                converted[key] = m;
                 mi.SetSurfaceOverrideMaterial(s, m);
             }
         }
