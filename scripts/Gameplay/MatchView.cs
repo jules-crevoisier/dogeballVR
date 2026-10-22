@@ -39,6 +39,8 @@ public sealed class MatchView
     /// <summary>Statistiques par joueur : seulement chez l'hôte (null côté client).</summary>
     public IReadOnlyDictionary<int, MatchController.PlayerStats>? Stats => match?.Stats;
     public bool HasStats => match != null;
+    /// <summary>Balle spéciale de la partie (intermission : « balle spéciale de la manche suivante ») : hôte seulement, vide sinon.</summary>
+    public string SpecialBall => match?.SpecialBallName ?? "";
     /// <summary>Seul l'hôte relance une partie ; le client attend.</summary>
     public bool CanRestart => match != null;
     /// <summary>La partie suivante démarrera seule (pas d'attente du joueur sur l'écran de fin).</summary>

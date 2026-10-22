@@ -67,6 +67,7 @@ public partial class DesktopHud : CanvasLayer
         // HUD créé en plein compte à rebours : on fait comme s'il commençait, pour annoncer « MANCHE N » dès le premier chiffre.
         if (prev.Phase == MatchView.Phase.Countdown) prev = prev with { Phase = MatchView.Phase.Playing, Countdown = 0 };
         lastLives = View.Lives(View.LocalId);
+        SnapRoundKos();
         View.Hit += OnHit;
         View.Ko += OnKo;
     }
@@ -1443,116 +1444,286 @@ public partial class DesktopHud : CanvasLayer
 
     // ------------------------------------------------------------------ intermission (pause entre deux manches)
 
-    // Écran de pause entre deux manches, comme l'intermission de Knockout City (« Next Round in… ») : résultat de la manche,
-    // manches gagnées en pastilles, KO de la manche par équipe, compte à rebours de la suivante. Aucune touche « prêt » :
-    // la manche repart seule à la fin du compte. Il arrive après le bandeau « MANCHE GAGNÉE » et le client le lit dans le texte
-    // du tableau (MatchView.FromText). Rien pendant l'entraînement ni à la fin de la partie (écran de fin).
+    // Écran de pause entre deux manches, comme l'intermission de Knockout City (« Next Round in… ») : plein écran en deux
+    // moitiés aux couleurs des équipes (orange à gauche, bleue à droite, séparation inclinée) qui glissent depuis les bords,
+    // résultat de la manche en très gros, score de manches au centre façon tableau avec ses pastilles, joueurs de chaque équipe
+    // avec leurs KO de la manche, compte à rebours de la suivante (et sa balle spéciale). Aucune touche « prêt » : la manche
+    // repart seule à la fin du compte, les moitiés repartent vers les bords. Il arrive après le bandeau « MANCHE GAGNÉE » et le
+    // client le lit dans le texte du tableau (MatchView.FromText). Rien pendant l'entraînement ni à la fin de la partie (écran de fin).
+    // Calque à part, au-dessus du gris de KO (50) et sous l'écran de fin (55) et la pause (60) : rien du jeu ne le traverse.
     const double BannerSeconds = 2.85;   // durée du bandeau de fin de manche (ShowBanner) : l'intermission s'ouvre ensuite
-    Control inter = null!;
-    Label interHead = null!, interTitle = null!, interRule = null!, interNextTitle = null!, interNext = null!;
-    readonly Label[] interKos = new Label[2];
-    readonly Panel[] interCards = new Panel[2];
-    readonly HBoxContainer[] interPips = new HBoxContainer[2];
-    Control interNextRow = null!;
+    const double InterSlide = 0.35;      // glissement des deux moitiés, à l'entrée comme à la sortie
+    CanvasLayer interLayer = null!;
+    Control inter = null!, interContent = null!, interNextRow = null!;
+    readonly InterHalf[] interHalves = new InterHalf[2];
+    Label interHead = null!, interTitle = null!, interRule = null!, interNextTitle = null!, interNext = null!, interSpecial = null!, interKoLine = null!;
+    readonly Label[] interScore = new Label[2];
+    readonly Label[] interTeamTags = new Label[2];
+    readonly VBoxContainer[] interLists = new VBoxContainer[2];
+    HBoxContainer interPips = null!;
+    readonly Dictionary<int, Label> interPlayerKos = new();
+    readonly Dictionary<int, int> roundStartKos = new();   // KO de chaque joueur au début de la manche (hôte) : KO de la manche = écart
+    Tween? interTween;
     double roundOverAt = -1;
     int interShownNext = -1;
     bool interVisible;
 
+    /// <summary>
+    /// Moitié d'écran de l'intermission : aplat à la couleur de l'équipe, plus sombre vers le bord de l'écran, en haut et en bas
+    /// (le texte blanc reste lisible), rayé de grandes bandes parallèles à la séparation inclinée. La moitié bleue porte la
+    /// bande marine de la séparation. Dessinée à la taille de l'écran ; elle glisse en entier (Position.X).
+    /// </summary>
+    sealed partial class InterHalf : Control
+    {
+        public int Team;
+        public const float Slant = 0.14f;   // décalage de la séparation par unité de hauteur (haut vers la droite)
+
+        public override void _Draw()
+        {
+            float w = Size.X, h = Size.Y, mid = w / 2f, s = Slant * h;
+            var color = Team == 0 ? UiKit.Orange : UiKit.Blue;
+            var edge = color.Darkened(0.55f);              // bord de l'écran
+            var seam = Team == 0 ? color.Darkened(0.05f) : color.Lightened(0.05f);
+            var seamDark = color.Darkened(0.3f);           // haut et bas de la séparation
+            // Séparation : de (mid + s, 0) en haut à (mid - s, h) en bas. Le polygone déborde de 40 px sous l'autre moitié.
+            float top = mid + s, bottom = mid - s, over = Team == 0 ? 40f : -40f;
+            float outer = Team == 0 ? -4f : w + 4f;
+            // Deux quadrilatères (haut et bas) : sombre au bord de l'écran, en haut et en bas ; clair à mi-hauteur de la séparation.
+            var seamMid = new Vector2((top + bottom) / 2f + over, h / 2f);
+            DrawPolygon(new[] { new Vector2(outer, -4), new Vector2(top + over, -4), seamMid, new Vector2(outer, h / 2f) }, new[] { edge, seamDark, seam, edge.Lerp(seam, 0.2f) });
+            DrawPolygon(new[] { new Vector2(outer, h / 2f), seamMid, new Vector2(bottom + over, h + 4), new Vector2(outer, h + 4) }, new[] { edge.Lerp(seam, 0.2f), seam, seamDark, edge });
+            // Grandes bandes parallèles à la séparation, à peine plus claires (motif discret).
+            float dir = Team == 0 ? -1f : 1f;
+            for (int i = 1; i < 14; i++)
+            {
+                float d = 70f + i * 150f;          // distance à la séparation
+                float bw = i % 2 == 0 ? 56f : 22f; // largeur de bande
+                float a = dir * d, b = dir * (d + bw);
+                var band = new[] { new Vector2(top + a, 0), new Vector2(top + b, 0), new Vector2(bottom + b, h), new Vector2(bottom + a, h) };
+                var tint = new Color(1, 1, 1, i % 2 == 0 ? 0.04f : 0.028f);
+                DrawPolygon(band, new[] { tint, tint, tint, tint });
+            }
+            // Liseré clair côté séparation, puis (moitié bleue) la bande marine qui sépare les deux équipes.
+            var lip = new Color(UiKit.Cream, 0.55f);
+            float lo = Team == 0 ? -19f : 19f;   // hors de la bande marine (±13 px)
+            DrawLine(new Vector2(top + lo, -4), new Vector2(bottom + lo, h + 4), lip, 4f, true);
+            if (Team == 1)
+            {
+                const float bw = 13f;
+                DrawPolygon(new[] { new Vector2(top - bw, -4), new Vector2(top + bw, -4), new Vector2(bottom + bw, h + 4), new Vector2(bottom - bw, h + 4) },
+                    new[] { UiKit.Navy, UiKit.Navy, UiKit.Navy, UiKit.Navy });
+            }
+        }
+    }
+
+    static Label Italic(Label l)
+    {
+        if (UiKit.Italic != null) l.AddThemeFontOverride("font", UiKit.Italic);
+        return l;
+    }
+
+    static Label Place(Label l, float x, float y, float w, float h)
+    {
+        l.Position = new Vector2(x, y);
+        l.Size = new Vector2(w, h);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        return l;
+    }
+
     void BuildIntermission()
     {
-        inter = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        interLayer = new CanvasLayer { Name = "Intermission", Layer = 52 };
+        AddChild(interLayer);
+        inter = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         inter.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        inter.OffsetTop = 120;   // sous le tableau de score, qui reste visible
-        centerLayer.AddChild(inter);
-        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.9f), 26, 0f, 3, UiKit.NavySoft, 8);
-        box.ContentMarginLeft = 56; box.ContentMarginRight = 56; box.ContentMarginTop = 26; box.ContentMarginBottom = 30;
-        panel.AddThemeStyleboxOverride("panel", box);
-        inter.AddChild(panel);
-        var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        col.AddThemeConstantOverride("separation", 10);
-        panel.AddChild(col);
-
-        interHead = UiKit.Text("FIN DE LA MANCHE", 30, UiKit.Sky, 8, HorizontalAlignment.Center);
-        col.AddChild(interHead);
-        interTitle = UiKit.Text("", 84, Colors.White, 16, HorizontalAlignment.Center);
-        interTitle.PivotOffset = new Vector2(500, 50);
-        col.AddChild(interTitle);
-
-        var teams = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-        teams.AddThemeConstantOverride("separation", 34);
-        col.AddChild(teams);
-        for (int team = 0; team < 2; team++)
+        interLayer.AddChild(inter);
+        for (int t = 0; t < 2; t++)
         {
-            bool mine = team == View.LocalTeam;
-            var color = team == 0 ? UiKit.Orange : UiKit.Blue;
-            var card = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(420, 236) };
-            card.AddThemeStyleboxOverride("panel", UiKit.Box(color, 18, team == 0 ? -0.12f : 0.12f, 0, null, 7));
-            interCards[team] = card;
-            var name = UiKit.Text(team == 0 ? "ORANGE" : "BLEUE", 40, Colors.White, 10, HorizontalAlignment.Center);
-            name.Position = new Vector2(0, 12); name.Size = new Vector2(420, 50);
-            card.AddChild(name);
-            var tag = UiKit.Text(mine ? "TON ÉQUIPE" : "ADVERSES", 22, UiKit.Cream, 6, HorizontalAlignment.Center);
-            tag.Position = new Vector2(0, 60); tag.Size = new Vector2(420, 30);
-            card.AddChild(tag);
-            // Manches gagnées : une pastille par manche de la partie.
-            var pips = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-            pips.AddThemeConstantOverride("separation", 12);
-            pips.Position = new Vector2(0, 100); pips.Size = new Vector2(420, 40);
-            card.AddChild(pips);
-            interPips[team] = pips;
-            var koLabel = UiKit.Text("KO", 26, UiKit.Cream, 7, HorizontalAlignment.Right);
-            koLabel.Position = new Vector2(40, 162); koLabel.Size = new Vector2(150, 50);
-            koLabel.VerticalAlignment = VerticalAlignment.Center;
-            card.AddChild(koLabel);
-            var kos = UiKit.Text("0", 72, Colors.White, 14, HorizontalAlignment.Left);
-            kos.Position = new Vector2(205, 140); kos.Size = new Vector2(180, 90);
-            kos.VerticalAlignment = VerticalAlignment.Center;
-            card.AddChild(kos);
-            interKos[team] = kos;
-            teams.AddChild(card);
+            var half = new InterHalf { Team = t, MouseFilter = Control.MouseFilterEnum.Ignore };
+            half.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            inter.AddChild(half);
+            interHalves[t] = half;
         }
-        // Mon équipe à gauche, comme l'écran de fin.
-        if (View.LocalTeam == 1) teams.MoveChild(interCards[1], 0);
 
-        interRule = UiKit.Text("", 24, new Color(1, 1, 1, 0.75f), 6, HorizontalAlignment.Center);
-        col.AddChild(interRule);
-        col.AddChild(UiKit.Spacer(4));
+        // Contenu dessiné pour 1920x1080, centré (écrans plus larges : les moitiés s'étendent, le contenu reste au milieu).
+        interContent = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        interContent.SetAnchorsPreset(Control.LayoutPreset.Center);
+        interContent.OffsetLeft = -960; interContent.OffsetRight = 960; interContent.OffsetTop = -540; interContent.OffsetBottom = 540;
+        inter.AddChild(interContent);
+        var c = interContent;
+
+        interHead = Put(c, Place(UiKit.Text("FIN DE LA MANCHE 1/5", 38, UiKit.Cream, 10, HorizontalAlignment.Center), 0, 34, 1920, 56));
+        interTitle = Put(c, Place(Italic(UiKit.Text("", 140, Colors.White, 26, HorizontalAlignment.Center)), 0, 84, 1920, 170));
+
+        // Score de manches au centre, façon tableau : « 1 – 0 », pastilles, KO de la manche, règle de la partie.
+        var plate = MakePanel(new Color(UiKit.Navy, 0.96f), 0f, 26, 4, UiKit.NavySoft, 10);
+        plate.Position = new Vector2(960 - 250, 316); plate.Size = new Vector2(500, 400);
+        c.AddChild(plate);
+        plate.AddChild(Place(UiKit.Text("MANCHES", 30, UiKit.Sky, 8, HorizontalAlignment.Center), 0, 16, 500, 40));
+        var score = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 50), Size = new Vector2(500, 160) };
+        score.AddThemeConstantOverride("separation", 26);
+        plate.AddChild(score);
+        for (int t = 0; t < 2; t++)
+        {
+            var digit = Italic(UiKit.Text("0", 160, t == 0 ? UiKit.Orange.Lightened(0.1f) : UiKit.Sky, 22, HorizontalAlignment.Center));
+            digit.VerticalAlignment = VerticalAlignment.Center;
+            digit.CustomMinimumSize = new Vector2(130, 0);
+            interScore[t] = digit;
+            score.AddChild(digit);
+            if (t == 0) score.AddChild(Italic(UiKit.Text("–", 110, UiKit.Cream, 16, HorizontalAlignment.Center)));
+        }
+        // Pastilles de manches à la Knockout City : les manches de l'orange se remplissent depuis la gauche, celles de la bleue depuis la droite.
+        interPips = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 220), Size = new Vector2(500, 60) };
+        interPips.AddThemeConstantOverride("separation", 14);
+        plate.AddChild(interPips);
+        interKoLine = Put(plate, Place(UiKit.Text("", 28, UiKit.Yellow, 8, HorizontalAlignment.Center), 0, 292, 500, 40));
+        interRule = Put(plate, Place(UiKit.Text("", 21, new Color(UiKit.Cream, 0.8f), 6, HorizontalAlignment.Center), 0, 336, 500, 34));
+
+        // Équipes : nom en très gros, « TON ÉQUIPE » / « ADVERSES », puis les joueurs et leurs KO de la manche (rangés vers le centre).
+        for (int t = 0; t < 2; t++)
+        {
+            bool left = t == 0;
+            var align = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+            float x = left ? 60 : 1240;
+            c.AddChild(Place(Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 104, Colors.White, 22, align)), x, 296, 620, 120));
+            interTeamTags[t] = Put(c, Place(UiKit.Text("", 30, UiKit.Cream, 9, align), x, 410, 620, 40));
+            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 468), Size = new Vector2(620, 0) };
+            list.AddThemeConstantOverride("separation", 10);
+            c.AddChild(list);
+            interLists[t] = list;
+        }
+
+        // Compte à rebours de la manche suivante, en bas, et la balle spéciale qu'elle lancera.
+        var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 790), Size = new Vector2(1920, 250) };
+        c.AddChild(bottom);
+        var nextPanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var nextBox = UiKit.Box(new Color(UiKit.Navy, 0.96f), 24, -0.12f, 4, UiKit.Yellow, 10);
+        nextBox.ContentMarginLeft = 64; nextBox.ContentMarginRight = 64; nextBox.ContentMarginTop = 0; nextBox.ContentMarginBottom = 24;
+        nextPanel.AddThemeStyleboxOverride("panel", nextBox);
+        bottom.AddChild(nextPanel);
+        interNextRow = nextPanel;
+        var nextCol = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        nextCol.AddThemeConstantOverride("separation", -6);
+        nextPanel.AddChild(nextCol);
         var next = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-        next.AddThemeConstantOverride("separation", 22);
-        col.AddChild(next);
-        interNextRow = next;
-        interNextTitle = UiKit.Text("MANCHE 2 DANS", 44, UiKit.Yellow, 10);
+        next.AddThemeConstantOverride("separation", 26);
+        nextCol.AddChild(next);
+        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 64, UiKit.Yellow, 14));
         interNextTitle.VerticalAlignment = VerticalAlignment.Center;
         next.AddChild(interNextTitle);
-        interNext = UiKit.Text("12", 104, UiKit.Yellow, 18, HorizontalAlignment.Center);
+        interNext = Italic(UiKit.Text("12", 128, UiKit.Yellow, 22, HorizontalAlignment.Center));
         interNext.CustomMinimumSize = new Vector2(150, 0);
-        interNext.PivotOffset = new Vector2(75, 70);
         next.AddChild(interNext);
+        interSpecial = UiKit.Text("", 28, UiKit.Cream, 8, HorizontalAlignment.Center);
+        nextCol.AddChild(interSpecial);
     }
+
+    /// <summary>Ligne d'un joueur : nom en gros (le mien en jaune, « Toi », cerclé), KO de la manche du côté du centre (hôte seulement).</summary>
+    Control InterPlayerRow(MatchView.PlayerInfo p, bool left)
+    {
+        bool me = p.Id == View.LocalId;
+        var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsHorizontal = left ? Control.SizeFlags.ShrinkEnd : Control.SizeFlags.ShrinkBegin };
+        var box = UiKit.Box(new Color(UiKit.Navy, me ? 0.8f : 0.5f), 12, left ? -0.12f : 0.12f, me ? 4 : 0, UiKit.Yellow, 0);
+        box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 0; box.ContentMarginBottom = 2;
+        row.AddThemeStyleboxOverride("panel", box);
+        var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        line.AddThemeConstantOverride("separation", 22);
+        row.AddChild(line);
+        var name = UiKit.Text(View.NameOf(p.Id), 50, me ? UiKit.Yellow : Colors.White, 12, left ? HorizontalAlignment.Right : HorizontalAlignment.Left);
+        name.VerticalAlignment = VerticalAlignment.Center;
+        name.CustomMinimumSize = new Vector2(230, 0);
+        var ko = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = View.HasStats };
+        ko.AddThemeConstantOverride("separation", 6);
+        var n = UiKit.Text("0", 50, UiKit.Yellow, 12, HorizontalAlignment.Right);
+        n.VerticalAlignment = VerticalAlignment.Center;
+        n.CustomMinimumSize = new Vector2(34, 0);
+        var unit = UiKit.Text("KO", 26, UiKit.Cream, 7);
+        unit.VerticalAlignment = VerticalAlignment.Center;
+        unit.SizeFlagsVertical = Control.SizeFlags.Fill;
+        ko.AddChild(n);
+        ko.AddChild(unit);
+        interPlayerKos[p.Id] = n;
+        if (left) { line.AddChild(name); line.AddChild(ko); }
+        else { line.AddChild(ko); line.AddChild(name); }
+        return row;
+    }
+
+    /// <summary>Retient les KO de chacun au début de la manche (hôte) : ceux de la manche se lisent par différence.</summary>
+    void SnapRoundKos()
+    {
+        roundStartKos.Clear();
+        if (View.Stats == null) return;
+        foreach (var (id, st) in View.Stats) roundStartKos[id] = st.Kos;
+    }
+
+    int RoundKosOf(int id) =>
+        View.Stats != null && View.Stats.TryGetValue(id, out var st) ? Mathf.Max(0, st.Kos - (roundStartKos.TryGetValue(id, out int k) ? k : 0)) : 0;
 
     void FillIntermission(MatchView.Snapshot s)
     {
         int w = s.Winner;
         interHead.Text = s.Round > s.MaxRounds ? "FIN DE LA MANCHE DÉCISIVE" : $"FIN DE LA MANCHE {Mathf.Max(1, s.Round)}/{s.MaxRounds}";
-        interTitle.Text = w < 0 ? "MANCHE NULLE" : w == View.LocalTeam ? "MANCHE GAGNÉE !" : "MANCHE PERDUE";
-        interTitle.AddThemeColorOverride("font_color", w < 0 ? UiKit.Cream : w == 0 ? UiKit.Orange : UiKit.Blue);
+        interTitle.Text = w < 0 ? "ÉGALITÉ" : w == View.LocalTeam ? "MANCHE GAGNÉE !" : "MANCHE PERDUE";
+        interTitle.AddThemeColorOverride("font_color", w < 0 ? UiKit.Cream : w == View.LocalTeam ? UiKit.Yellow : Colors.White);
         for (int t = 0; t < 2; t++)
         {
-            var color = t == 0 ? UiKit.Orange : UiKit.Blue;
-            interCards[t].AddThemeStyleboxOverride("panel", UiKit.Box(color, 18, t == 0 ? -0.12f : 0.12f, t == w ? 5 : 0, UiKit.Yellow, 7));
-            interKos[t].Text = s.Kos(t).ToString();
-            foreach (var c in interPips[t].GetChildren()) c.QueueFree();
-            int max = Mathf.Max(s.MaxRounds, s.Rounds(t));
-            for (int i = 0; i < max; i++)
-                interPips[t].AddChild(new Pip { Color = color, On = i < s.Rounds(t), CustomMinimumSize = new Vector2(36, 36), MouseFilter = Control.MouseFilterEnum.Ignore });
+            interScore[t].Text = s.Rounds(t).ToString();
+            bool mine = t == View.LocalTeam;
+            interTeamTags[t].Text = mine ? "TON ÉQUIPE" : "ADVERSES";
+            interTeamTags[t].AddThemeColorOverride("font_color", mine ? UiKit.Yellow : UiKit.Cream);
+            foreach (var row in interLists[t].GetChildren()) row.QueueFree();
         }
-        int mine = s.Rounds(View.LocalTeam), theirs = s.Rounds(1 - View.LocalTeam);
-        interRule.Text = $"Manches  {mine} – {theirs}   ·   partie en {s.MaxRounds} manches, égalité = manche décisive";
+        interPlayerKos.Clear();
+        foreach (var p in View.Players)
+            if (p.Team is 0 or 1) interLists[p.Team].AddChild(InterPlayerRow(p, p.Team == 0));
+        foreach (var pip in interPips.GetChildren()) pip.QueueFree();
+        int count = Mathf.Max(s.MaxRounds, s.Rounds0 + s.Rounds1);
+        for (int i = 0; i < count; i++)
+        {
+            int team = i < s.Rounds0 ? 0 : i >= count - s.Rounds1 ? 1 : -1;
+            interPips.AddChild(new Pip
+            {
+                Color = team == 0 ? UiKit.Orange : UiKit.Blue.Lightened(0.15f), On = team >= 0,
+                CustomMinimumSize = new Vector2(48, 48), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore,
+            });
+        }
+        interRule.Text = $"Partie en {s.MaxRounds} manches  ·  égalité = manche décisive";
+        interSpecial.Text = View.SpecialBall != "" ? $"Balle spéciale : {View.SpecialBall.ToUpper()}" : "";
+        interSpecial.Visible = interSpecial.Text != "";
+    }
+
+    void ShowIntermission(bool show)
+    {
+        interTween?.Kill();
+        float width = inter.Size.X > 0 ? inter.Size.X : 1920f;
+        interTween = inter.CreateTween().SetParallel();
+        if (show)
+        {
+            // Entrée : les deux moitiés glissent depuis leurs bords et se rejoignent, puis le contenu se pose.
+            inter.Visible = true;
+            interHalves[0].Position = new Vector2(-width, 0);
+            interHalves[1].Position = new Vector2(width, 0);
+            interContent.Modulate = new Color(1, 1, 1, 0);
+            foreach (var half in interHalves)
+                interTween.TweenProperty(half, "position:x", 0.0, InterSlide).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+            interTween.TweenProperty(interContent, "modulate:a", 1.0, 0.18).SetDelay(InterSlide * 0.6);
+            interTween.TweenCallback(Callable.From(() => UiKit.Punch(interTitle, 1.5f, 0.3))).SetDelay(InterSlide * 0.6);
+            Sfx.Play(this, SfxKind.Dash, null, 0.8f, -6f);   // souffle des deux moitiés
+        }
+        else
+        {
+            // Sortie : le contenu s'efface, les moitiés repartent vers les bords et découvrent le compte à rebours de la manche.
+            interTween.TweenProperty(interContent, "modulate:a", 0.0, 0.12);
+            interTween.TweenProperty(interHalves[0], "position:x", (double)-width, InterSlide).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+            interTween.TweenProperty(interHalves[1], "position:x", (double)width, InterSlide).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+            interTween.Chain().TweenCallback(Callable.From(() => inter.Visible = false));
+        }
     }
 
     void UpdateIntermission(MatchView.Snapshot s)
     {
+        // Début de manche (et de partie : statistiques remises à zéro) : point de départ des KO de la manche.
+        if (s.Phase == MatchView.Phase.Countdown && prev.Phase != MatchView.Phase.Countdown) SnapRoundKos();
         // Arrivée en pleine pause (client qui se connecte, HUD recréé) : pas de bandeau, l'intermission s'ouvre tout de suite.
         if (s.Phase != MatchView.Phase.RoundOver) roundOverAt = -1;
         else if (roundOverAt < 0) roundOverAt = prev.Phase != MatchView.Phase.RoundOver ? age : age - BannerSeconds;
@@ -1560,17 +1731,17 @@ public partial class DesktopHud : CanvasLayer
         if (want && !interVisible)
         {
             FillIntermission(s);
-            inter.Visible = true;
-            inter.Modulate = new Color(1, 1, 1, 0);
-            var tw = inter.CreateTween();
-            tw.TweenProperty(inter, "modulate:a", 1.0, 0.25);
-            UiKit.Punch(interTitle, 1.4f, 0.3);
+            ShowIntermission(true);
             interShownNext = -1;
+            GD.Print($"[HUD] Intermission : {interTitle.Text}, manches {s.Rounds0}-{s.Rounds1}, suite dans {s.NextRoundIn} s{(View.HasStats ? "" : " (client)")}");
         }
-        else if (!want && interVisible) inter.Visible = false;
+        else if (!want && interVisible) ShowIntermission(false);
         interVisible = want;
+        interLayer.Visible = !EndScreen.IsOpen;
         if (!want) return;
-        interKos[0].Text = s.Kos0.ToString(); interKos[1].Text = s.Kos1.ToString();
+        interScore[0].Text = s.Rounds0.ToString(); interScore[1].Text = s.Rounds1.ToString();
+        interKoLine.Text = $"KO de la manche   {s.Kos0} – {s.Kos1}";
+        foreach (var (id, label) in interPlayerKos) label.Text = RoundKosOf(id).ToString();
         bool known = s.NextRoundIn > 0;
         interNextRow.Visible = known;
         int nextRound = s.Round + 1;
@@ -1583,6 +1754,12 @@ public partial class DesktopHud : CanvasLayer
             if (s.NextRoundIn <= 3) Sfx.Play(this, SfxKind.ChargeTick, null, 1.1f, -4f);
         }
         interNext.AddThemeColorOverride("font_color", s.NextRoundIn <= 3 ? Colors.White : UiKit.Yellow);
+    }
+
+    static T Put<T>(Control parent, T child) where T : Control
+    {
+        parent.AddChild(child);
+        return child;
     }
 
     // ------------------------------------------------------------------ aide des touches (F1, bas droite)
@@ -1880,9 +2057,10 @@ public partial class DesktopHud : CanvasLayer
         crosshair.QueueRedraw();
 
         ConfirmKo(s);
-        // Compte à rebours : pas de lancer avant le « GO ! » (hôte et client), étiquettes 3D cachées tant que le chiffre ou le GO est là.
+        // Compte à rebours : pas de lancer avant le « GO ! » (hôte et client), étiquettes 3D cachées tant que le chiffre ou le GO est là,
+        // et pendant toute l'intermission (moitiés qui glissent comprises).
         Player.ThrowLocked = s.Phase == MatchView.Phase.Countdown;
-        PlayerTag.HideAll = !Tutorial.Running && (s.Phase == MatchView.Phase.Countdown || countdown.Visible && countdown.Modulate.A > 0.05f);
+        PlayerTag.HideAll = !Tutorial.Running && (s.Phase == MatchView.Phase.Countdown || countdown.Visible && countdown.Modulate.A > 0.05f || interVisible || inter.Visible);
         UpdateScoreBoard(s);
         UpdateHearts(n, delta);
         UpdateBottomCenter();
@@ -1900,8 +2078,8 @@ public partial class DesktopHud : CanvasLayer
         heartsHolder.Visible = bottomHolder.Visible = feed.Visible = !matchOver;
         helpLayer.Visible = !paused && !matchOver;
         if (matchOver) { koBanner.Visible = false; table.Visible = false; vignette.Strength = 0f; heartBreak.T = -1f; }
-        // Intermission : les boutons d'action et le viseur passeraient sur le panneau ; rien à viser pendant la pause.
-        if (interVisible) bottomHolder.Visible = crosshair.Visible = false;
+        // Intermission : rien à viser pendant la pause ; boutons d'action, viseur et bandeau « KO ! » ne dépassent pas pendant le glissement.
+        if (interVisible || inter.Visible) { bottomHolder.Visible = crosshair.Visible = false; koBanner.Visible = false; }
         root.Visible = !EndScreen.IsOpen;
         prev = s;
     }

@@ -601,6 +601,9 @@ public partial class MatchController : Node3D
 
     static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
 
+    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a pas de lanceur central.</summary>
+    public string SpecialBallName => hubLauncher == null || specialKind == 0 ? "" : SpecialName(specialKind);
+
     void UpdateSpecialBalls(double delta)
     {
         if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
