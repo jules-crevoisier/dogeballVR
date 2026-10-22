@@ -244,6 +244,7 @@ public partial class DesktopPlayer : Node3D
         }
         dashCharges = MaxCharges;
         autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-test") >= 0) StartCamTest();
         rng.Seed = 4242;
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -331,6 +332,7 @@ public partial class DesktopPlayer : Node3D
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
         var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
         if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        if (camTest) CamTestMeasure();
         camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
         FadeBallsNearCamera();
     }
@@ -381,7 +383,7 @@ public partial class DesktopPlayer : Node3D
     {
         time += delta;
         float dt = (float)delta;
-        var input = autoplay ? AutoplayInput(delta) : ReadInput();
+        var input = camTest ? CamTestInput() : autoplay ? AutoplayInput(delta) : ReadInput();
         if (!autoplay && (PauseMenu.IsOpen || Input.MouseMode != Input.MouseModeEnum.Captured && !padActive))
         {
             input = default;                                   // souris libérée : plus de réaction aux clics
@@ -1049,8 +1051,28 @@ public partial class DesktopPlayer : Node3D
         // Le bras réel est testé à chaque image depuis le pivot réel : aucune position intermédiaire du lissage n'entre dans le décor.
         var boom = Boom(basis, pivot, minCamY, len);
         free = CamFree(pivot, pivot + boom, bnd);
-        camDist = free < camDist ? free : Mathf.Lerp(camDist, free, 1f - Mathf.Exp(-2.5f * dt));   // rapproche tout de suite, recule doucement
+        // Dos à un grand couvert (pylône, pilier) : la caméra serait collée au joueur, caché. Elle passe alors derrière le couvert,
+        // qui devient translucide tant qu'il est entre elle et le joueur (voir GhostCovers). Jamais à travers les murs d'enceinte.
+        coversThrough.Clear();
+        if (free < AvatarHideDistance + 0.4f && killCamBlend < 0.01f)
+        {
+            float past = CamFree(pivot, pivot + boom, bnd, coversThrough);
+            if (past > len - 0.01f && CamInsideSolid(pivot + boom, bnd))
+            {
+                // Le bras finit dans le couvert (pylône épais) : on le prolonge jusqu'à en sortir, de 1,5 m au plus.
+                float reach = CamFree(pivot, pivot + boom * ((len + 1.5f) / len), bnd, coversThrough);
+                past = 0f;
+                for (float d = len + 0.2f; d <= reach + 0.001f; d += 0.2f)
+                    if (!CamInsideSolid(pivot + boom * (d / len), bnd)) { past = d; break; }
+            }
+            if (past > free + 1f && !CamInsideSolid(pivot + boom * (past / len), bnd)) free = past;
+            else coversThrough.Clear();
+        }
+        camDist = free < camDist ? free : Mathf.Lerp(camDist, free, 1f - Mathf.Exp(-(coversThrough.Count > 0 ? 10f : 2.5f) * dt));   // rapproche tout de suite, recule doucement (vite quand elle passe derrière un couvert : le joueur est caché tant qu'elle est collée)
         var pos = pivot + boom * (camDist / len);
+        // Filet de sécurité : un modèle plus gros que sa collision (abri, conteneur) ne doit jamais avaler l'objectif.
+        float inside = OutsideDecorFraction(pivot, pos);
+        if (inside < 1f) { camDist *= inside; pos = pivot + boom * (camDist / len); }
         pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
@@ -1058,6 +1080,14 @@ public partial class DesktopPlayer : Node3D
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
         HideDecorInFront(pos, from);
+        // Rotor du moyeu (barre rayée de 8 m qui tourne) : la caméra l'ignore pour ne pas sauter à chaque passage,
+        // mais il devient translucide dès qu'il passe entre elle et le joueur ou frôle l'objectif.
+        var chest = from + Vector3.Down * 0.7f;
+        if (RotorCrosses(pos, from, 0.1f) || RotorCrosses(pos, chest, 0.1f) || RotorCrosses(pos, pos, 0.6f)) rotorGhostUntil = time + 0.25;
+        // Un couvert qui cache la tête (bras d'épaule libre, mais ligne de vue coupée par un coin) est aussi translucide.
+        // Pas pour le buste : derrière un muret bas, on doit le voir opaque (c'est lui qui protège).
+        CoversOnSight(pos, from, bnd);
+        GhostCovers();
     }
 
     /// <summary>
@@ -1115,7 +1145,7 @@ public partial class DesktopPlayer : Node3D
     /// Le plafond, le rotor, les balles et les joueurs sont ignorés ; les accessoires fins (lampadaires, poteaux…)
     /// aussi : la caméra ne saute pas en les frôlant, ils sont cachés s'ils passent devant (voir HideDecorInFront).
     /// </summary>
-    float CamFree(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    float CamFree(Vector3 a, Vector3 b, Maps.BoundsDef bnd, System.Collections.Generic.HashSet<StaticBody3D>? throughCovers = null)
     {
         var motion = b - a;
         float full = motion.Length();
@@ -1135,8 +1165,10 @@ public partial class DesktopPlayer : Node3D
             bool blocked = hits.Count == 0;   // contact sans collider trouvé : prudence, on s'arrête là
             foreach (var h in hits)
             {
-                if (BlocksCamera(h["collider"].AsGodotObject(), h["shape"].AsInt32(), bnd)) blocked = true;
-                else exclude.Add(h["rid"].AsRid());
+                var col = h["collider"].AsGodotObject();
+                if (!BlocksCamera(col, h["shape"].AsInt32(), bnd)) exclude.Add(h["rid"].AsRid());
+                else if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) { throughCovers.Add(sb); exclude.Add(h["rid"].AsRid()); }
+                else blocked = true;
             }
             if (blocked) { free = full * r[0]; break; }
         }
@@ -1146,10 +1178,15 @@ public partial class DesktopPlayer : Node3D
         {
             var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, rayExclude));
             if (hit.Count == 0) break;
-            if (BlocksCamera(hit["collider"].AsGodotObject(), hit["shape"].AsInt32(), bnd))
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
             {
-                free = Mathf.Min(free, a.DistanceTo(hit["position"].AsVector3()) - CamRadius);
-                break;
+                if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) throughCovers.Add(sb);
+                else
+                {
+                    free = Mathf.Min(free, a.DistanceTo(hit["position"].AsVector3()) - CamRadius);
+                    break;
+                }
             }
             rayExclude.Add(hit["rid"].AsRid());
         }
@@ -1163,6 +1200,151 @@ public partial class DesktopPlayer : Node3D
         var p = body.GlobalPosition;
         if (p.Y > bnd.CeilingHeight - 0.5f) return false;
         return !(body.ShapeOwnerGetOwner(body.ShapeFindOwner(shape)) is CollisionShape3D cs && IsThin(cs));
+    }
+
+    readonly System.Collections.Generic.HashSet<StaticBody3D> coversThrough = new();
+    readonly System.Collections.Generic.Dictionary<ulong, bool> coverCache = new();
+    readonly System.Collections.Generic.Dictionary<MeshInstance3D, Material?> ghosted = new();
+    static StandardMaterial3D? ghostMat;
+
+    /// <summary>Couvert qu'on peut voir en transparence : emprise au sol de moins de 4,5 m (pylône, piliers, abris, gros accessoires), pas un mur d'enceinte.</summary>
+    bool IsCover(StaticBody3D body)
+    {
+        if (coverCache.TryGetValue(body.GetInstanceId(), out bool c)) return c;
+        c = false;
+        foreach (var n in body.GetChildren())
+        {
+            if (n is not CollisionShape3D { Shape: { } shape } cs) continue;
+            var sc = cs.GlobalTransform.Basis.Scale;
+            float size = shape switch
+            {
+                BoxShape3D box => Mathf.Max(box.Size.X * sc.X, box.Size.Z * sc.Z),
+                CylinderShape3D cyl => 2f * cyl.Radius * Mathf.Max(sc.X, sc.Z),
+                CapsuleShape3D cap => 2f * cap.Radius * Mathf.Max(sc.X, sc.Z),
+                _ => 99f,
+            };
+            if (size > 4.5f) { c = false; break; }
+            c = true;
+        }
+        return coverCache[body.GetInstanceId()] = c;
+    }
+
+    /// <summary>Maillages des couverts (boîte locale grossie de 0,2 m, transformée inverse) pour OutsideDecorFraction.</summary>
+    System.Collections.Generic.List<(MeshInstance3D mesh, Transform3D toLocal, Aabb box)>? coverMeshes;
+
+    /// <summary>
+    /// Part du segment pivot → cam (0 → 1) que l'objectif peut parcourir sans entrer dans le maillage d'un couvert (boîte orientée du
+    /// maillage). 1 si la caméra est dehors. Les couverts rendus translucides (GhostCovers) ne comptent pas.
+    /// </summary>
+    float OutsideDecorFraction(Vector3 pivot, Vector3 cam)
+    {
+        if (coverMeshes == null)
+        {
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return 1f;
+            coverMeshes = new();
+            foreach (var n in arena.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi) continue;
+                StaticBody3D? body = null;
+                for (var p = mi.GetParent(); p != null && p != arena; p = p.GetParent())
+                    if (p is StaticBody3D sb) { body = sb; break; }
+                if (body == null || body is Maps.Rotor || !IsCover(body)) continue;
+                var box = mi.GetAabb();
+                if (box.Size.LengthSquared() < 1e-4f) continue;
+                coverMeshes.Add((mi, mi.GlobalTransform.AffineInverse(), box.Grow(0.2f)));
+            }
+        }
+        bool Inside(Vector3 p)
+        {
+            foreach (var (mi, toLocal, box) in coverMeshes!)
+            {
+                if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
+                if (box.HasPoint(toLocal * p)) return true;
+            }
+            return false;
+        }
+        if (!Inside(cam) || Inside(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
+        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
+        for (int i = 0; i < 10; i++)
+        {
+            float mid = 0.5f * (lo + hi);
+            if (Inside(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
+    /// <summary>Vrai si la sphère de caméra posée en p est dans un décor plein.</summary>
+    bool CamInsideSolid(Vector3 p, Maps.BoundsDef bnd)
+    {
+        var q = new PhysicsShapeQueryParameters3D { Shape = camShape, Transform = new Transform3D(Basis.Identity, p) };
+        foreach (var h in GetWorld3D().DirectSpaceState.IntersectShape(q, 8))
+            if (BlocksCamera(h["collider"].AsGodotObject(), h["shape"].AsInt32(), bnd)) return true;
+        return false;
+    }
+
+    double rotorGhostUntil = -1;
+
+    /// <summary>Ajoute à coversThrough les couverts coupés par le segment a → b (rayon).</summary>
+    void CoversOnSight(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 6; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, exclude));
+            if (hit.Count == 0) return;
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
+            {
+                if (col is StaticBody3D sb && IsCover(sb)) coversThrough.Add(sb);
+                else return;   // mur d'enceinte : rien à faire
+            }
+            exclude.Add(hit["rid"].AsRid());
+        }
+    }
+
+    /// <summary>Le segment a → b passe dans la barre ou le tambour du rotor (boîtes grossies de grow), ou a y est déjà.</summary>
+    bool RotorCrosses(Vector3 a, Vector3 b, float grow)
+    {
+        if (Maps.Rotor.Current is not { } r || !IsInstanceValid(r) || !r.IsInsideTree()) return false;
+        var inv = r.GlobalTransform.AffineInverse();
+        Vector3 la = inv * a, lb = inv * b;
+        float h = r.YMax - r.YMin;
+        var bar = new Aabb(new Vector3(-r.ArmLength, -h / 2f, -r.Thickness / 2f), new Vector3(2f * r.ArmLength, h, r.Thickness)).Grow(grow);
+        var drum = new Aabb(new Vector3(-0.6f, -h / 2f - 0.1f, -0.6f), new Vector3(1.2f, h + 0.2f, 1.2f)).Grow(grow);
+        return bar.HasPoint(la) || drum.HasPoint(la) || bar.IntersectsSegment(la, lb) || drum.IntersectsSegment(la, lb);
+    }
+
+    /// <summary>Couverts entre la caméra et le joueur (coversThrough) et rotor gênant : matériau translucide ; rétablis dès qu'ils ne gênent plus.</summary>
+    void GhostCovers()
+    {
+        ghostMat ??= new StandardMaterial3D
+        {
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0.78f, 0.84f, 0.95f, 0.12f), CullMode = BaseMaterial3D.CullModeEnum.Back,
+        };
+        var keep = new System.Collections.Generic.HashSet<MeshInstance3D>();
+        var roots = new System.Collections.Generic.List<Node3D>(coversThrough);
+        if (time < rotorGhostUntil && Maps.Rotor.Current is { } rotor && IsInstanceValid(rotor)) roots.Add(rotor);
+        foreach (var body in roots)
+        {
+            if (!IsInstanceValid(body)) continue;
+            foreach (var n in body.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi || !mi.Visible) continue;
+                keep.Add(mi);
+                if (ghosted.ContainsKey(mi)) continue;
+                ghosted[mi] = mi.MaterialOverride;
+                mi.MaterialOverride = ghostMat;
+            }
+        }
+        if (ghosted.Count == keep.Count) return;
+        foreach (var mi in new System.Collections.Generic.List<MeshInstance3D>(ghosted.Keys))
+        {
+            if (keep.Contains(mi)) continue;
+            if (IsInstanceValid(mi)) mi.MaterialOverride = ghosted[mi];
+            ghosted.Remove(mi);
+        }
     }
 
     /// <summary>Accessoire fin : emprise au sol de moins de 0,8 m dans les deux sens (lampadaire, poteau, borne, piédestal).</summary>
