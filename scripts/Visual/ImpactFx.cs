@@ -59,7 +59,8 @@ public static class ImpactFx
     {
         var mat = new StandardMaterial3D
         {
-            AlbedoColor = color.Lerp(Colors.White, 0.2f), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            // Plus saturé que la couleur d'équipe : le bleu clair se perdait sur le ciel.
+            AlbedoColor = Color.FromHsv(color.H, Mathf.Min(1f, color.S * 1.35f), color.V), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             VertexColorUseAsAlbedo = false, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
         var scale = new Curve();
