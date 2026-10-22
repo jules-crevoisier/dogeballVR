@@ -28,6 +28,7 @@ public partial class VrEndStage : Node3D
 
     Node3D? stage;
     Label3D? footer;
+    float placedAt;
     double clock, shownAt;   // temps de jeu (suit --fixed-fps), pas l'horloge murale
 
     // Abscisses dans le repère du tableau, vu depuis -Z : +X est à la gauche du joueur.
@@ -38,8 +39,8 @@ public partial class VrEndStage : Node3D
         clock += delta;
         View.Update();
         bool over = View.State.Phase == MatchView.Phase.MatchOver;
-        if (over && stage == null) Show();
-        else if (!over && stage != null) Hide();
+        if (over && stage == null) ShowStage();
+        else if (!over && stage != null) HideStage();
         if (stage != null && FollowCamera) Place();
         if (stage != null && footer != null)
         {
@@ -50,7 +51,7 @@ public partial class VrEndStage : Node3D
 
     public override void _ExitTree() => View.Detach();
 
-    void Show()
+    void ShowStage()
     {
         shownAt = clock;
         stage = new Node3D { Name = "Scene" };
@@ -105,7 +106,7 @@ public partial class VrEndStage : Node3D
         }
 
         BuildBoard(stats, mvp);
-        GD.Print($"[FinVR] Scène devant le joueur à {Distance:0.0} m : {title}, podium de {ids.Count} joueur(s), MVP {(mvp >= 0 ? View.NameOf(mvp) : "aucun")}, "
+        GD.Print($"[FinVR] Scène devant le joueur à {placedAt:0.0} m : {title}, podium de {ids.Count} joueur(s), MVP {(mvp >= 0 ? View.NameOf(mvp) : "aucun")}, "
             + $"tableau {(stats != null ? View.Players.Count : 0)} ligne(s), relance {(HoldSeconds > 0 ? $"dans {HoldSeconds:0} s" : "par l'opérateur")}");
     }
 
@@ -117,8 +118,33 @@ public partial class VrEndStage : Node3D
         var look = cam != null ? -cam.GlobalTransform.Basis.Z : Vector3.Forward;
         look.Y = 0;
         look = look.LengthSquared() < 1e-4f ? Vector3.Forward : look.Normalized();
-        stage!.GlobalPosition = new Vector3(eye.X, FloorY(), eye.Z) + look * Distance;
+        var feet = new Vector3(eye.X, FloorY(), eye.Z);
+        placedAt = ClearDistance(feet, look);
+        stage!.GlobalPosition = feet + look * placedAt;
         stage.GlobalRotation = new Vector3(0, Mathf.Atan2(look.X, look.Z), 0);
+    }
+
+    /// <summary>
+    /// Distance de la scène, ramenée devant le premier décor solide (couvert, mur) pour que le podium ne soit pas caché derrière :
+    /// trois rayons à 1 m du sol (centre, côté podium, côté tableau), jamais plus près que 2 m.
+    /// </summary>
+    float ClearDistance(Vector3 feet, Vector3 look)
+    {
+        var space = GetWorld3D()?.DirectSpaceState;
+        if (space == null) return Distance;
+        var side = new Vector3(look.Z, 0, -look.X);   // +X de la scène
+        float best = Distance;
+        foreach (float offset in new[] { 0f, -1.0f, 1.9f })
+        {
+            var from = feet + Vector3.Up * 1.0f;
+            var to = from + look * Distance + side * offset;
+            var query = PhysicsRayQueryParameters3D.Create(from, to);
+            query.CollideWithAreas = false;
+            var hit = space.IntersectRay(query);
+            if (hit.Count > 0 && hit["collider"].AsGodotObject() is StaticBody3D)
+                best = Mathf.Min(best, from.DistanceTo(hit["position"].AsVector3()) - 0.6f);
+        }
+        return Mathf.Max(2f, best);
     }
 
     /// <summary>Tableau des joueurs à droite du podium, tourné de 20° vers le joueur : une ligne par joueur, équipe gagnante en haut.</summary>
@@ -184,7 +210,7 @@ public partial class VrEndStage : Node3D
         return l;
     }
 
-    void Hide()
+    void HideStage()
     {
         GD.Print($"[FinVR] Scène retirée après {clock - shownAt:0.0} s");
         stage?.QueueFree();

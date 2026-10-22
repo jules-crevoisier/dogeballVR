@@ -22,7 +22,8 @@ jobs:
         run: |
           # Toute lecture de la ligne de commande passe par scripts/Tools/DevFlags.cs (éditeur et export de debug seulement),
           # sauf les modes de lancement des fichiers ci-dessous. Une nouvelle option de test ailleurs rouvrirait l'export de sortie.
-          autorises='scripts/(Tools/DevFlags|Main|Net/NetConfig|UI/GameSettings|Online/OnlineLobby|Online/GameLaunch|Online/Steam/SteamPlatform|Online/Steam/UdpPipe)\.cs'
+          # EvaSettings : réglages de salle passés par le lanceur EVA (vibrations, volume, flashs, durée de fin), voulus en sortie.
+          autorises='scripts/(Tools/DevFlags|Main|Net/NetConfig|UI/GameSettings|UI/EvaSettings|Online/OnlineLobby|Online/GameLaunch|Online/Steam/SteamPlatform|Online/Steam/UdpPipe)\.cs'
           hors=$(grep -rlE 'GetCmdline(User)?Args|Environment\.(GetCommandLineArgs|CommandLine)' scripts | grep -vxE "$autorises" || true)
           if [ -n "$hors" ]; then echo "::error title=Option de test hors de DevFlags::${hors//$'\n'/ }"; exit 1; fi
           echo "Lectures de la ligne de commande : toutes dans DevFlags ou les modes de lancement."
