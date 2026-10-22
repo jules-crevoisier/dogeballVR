@@ -61,7 +61,7 @@ public static class UiKit
         t.SetConstant("outline_size", "Button", 6);
         t.SetFontSize("font_size", "Button", 26);
 
-        var slider = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0.45f), CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6, ContentMarginTop = 6, ContentMarginBottom = 6 };
+        var slider = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0.45f), CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6, ContentMarginTop = 9, ContentMarginBottom = 9 };
         var fill = new StyleBoxFlat { BgColor = Orange, CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6, ContentMarginTop = 6, ContentMarginBottom = 6 };
         t.SetStylebox("slider", "HSlider", slider);
         t.SetStylebox("grabber_area", "HSlider", fill);

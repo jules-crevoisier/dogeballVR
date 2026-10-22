@@ -58,9 +58,11 @@ public partial class OptionsMenu : Control
         list.AddThemeConstantOverride("separation", 10);
         margin.AddChild(list);
 
+        col.AddChild(UiKit.Spacer(6));
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
         col.AddChild(bottom);
+        col.AddChild(UiKit.Spacer(8));
         bottom.AddChild(UiKit.Button("PAR DÉFAUT", UiKit.Grey, ResetTab, 24, new Vector2(260, 56)));
         var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
         bottom.AddChild(back);

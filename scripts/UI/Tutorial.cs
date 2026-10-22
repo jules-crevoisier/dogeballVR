@@ -68,7 +68,7 @@ public partial class Tutorial : CanvasLayer
         counter = UiKit.Text("", 22, UiKit.Sky, 6);
         counter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         head.AddChild(counter);
-        head.AddChild(UiKit.Text("Entrée : passer", 18, new Color(1, 1, 1, 0.6f), 4));
+        head.AddChild(UiKit.Text("Entrée : passer l'étape", 22, UiKit.Cream, 6));
         title = UiKit.Text("", 44, UiKit.Yellow, 10);
         col.AddChild(title);
         body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(720, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
