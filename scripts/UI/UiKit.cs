@@ -144,6 +144,26 @@ public static class UiKit
         return b;
     }
 
+    /// <summary>Bouton secondaire en texte seul (crédits, quitter) : pas de fond, jaune au survol, flèche au focus.</summary>
+    public static Button TextButton(string text, Action onPress, int fontSize = 26)
+    {
+        var b = new Button { Text = text, Flat = true, CustomMinimumSize = new Vector2(440, 48), FocusMode = Control.FocusModeEnum.All, Alignment = HorizontalAlignment.Left };
+        b.AddThemeFontSizeOverride("font_size", fontSize);
+        var empty = new StyleBoxEmpty { ContentMarginLeft = 24 };
+        foreach (var st in new[] { "normal", "hover", "pressed", "focus" }) b.AddThemeStyleboxOverride(st, empty);
+        b.AddThemeColorOverride("font_color", new Color(Cream, 0.85f));
+        b.AddThemeColorOverride("font_hover_color", Yellow);
+        b.AddThemeColorOverride("font_focus_color", Yellow);
+        b.AddThemeColorOverride("font_pressed_color", Orange);
+        b.AddThemeConstantOverride("outline_size", 6);
+        b.AddThemeColorOverride("font_outline_color", Navy);
+        b.FocusEntered += () => b.Text = "› " + text;
+        b.FocusExited += () => b.Text = text;
+        Juicy(b);
+        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
+        return b;
+    }
+
     /// <summary>Survol et focus : petit grossissement élastique et son ; s'applique à tout contrôle cliquable.</summary>
     public static void Juicy(Control c)
     {
