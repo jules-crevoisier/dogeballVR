@@ -176,7 +176,9 @@ public partial class LobbyScreen : CanvasLayer
         if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(lobby.Status, 20));
         root.AddChild(MakeButton("QUITTER LA SALLE", Gray, BackToMenu));
         if (lobby.IsHost && lobby.Members.Count == 1)
-            root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code." : "Sur le même réseau, tes amis te trouvent avec « Partie rapide ». Par Internet : donne le code (port UDP 7777 ouvert).", 20));
+            root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code."
+                : lobby.ListedOnLan ? "Sur le même réseau, tes amis te trouvent avec « Partie rapide ». Par Internet : donne le code (port UDP 7777 ouvert)."
+                : "Salle privée : seuls ceux qui ont le code entrent. Par Internet, le port UDP 7777 doit être ouvert (Options > Partie).", 20));
     }
 
     string QuickText() => lobby.Members.All(m => m.Ready)

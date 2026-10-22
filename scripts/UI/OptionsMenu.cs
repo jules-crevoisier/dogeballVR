@@ -44,6 +44,9 @@ public partial class OptionsMenu : Control
     /// <summary>Description de chaque option (en bas du panneau), par libellé : une ligne ajoutée ailleurs y met la sienne.</summary>
     static readonly System.Collections.Generic.Dictionary<string, string> Help = new()
     {
+        ["Difficulté des bots"] = "Niveau des bots qui complètent les équipes, hors ligne comme en ligne.",
+        ["Aides contextuelles (premières parties)"] = "Pendant tes premières parties, rappelle la bonne touche au bon moment (attraper, esquiver, charger).",
+        ["Ouvrir le port sur ma box (UPnP)"] = "Pour héberger par Internet sans Steam : demande à ta box d'ouvrir le port UDP 7777 tant que ta salle est ouverte. Le code de salle contient alors ton adresse IP publique. NON : jeu en réseau local ou par Steam seulement.",
         ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
         ["Inverser l'axe vertical"] = "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.",
         ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
@@ -63,7 +66,7 @@ public partial class OptionsMenu : Control
         ["Résolution de rendu"] = "Calcule l'image en plus petit puis l'agrandit : plus fluide, un peu plus flou.",
         ["Afficher les images par seconde"] = "Compteur d'images par seconde dans un coin de l'écran.",
         ["Taille du texte et de l'interface"] = "Agrandit tout le texte et l'interface, menus et HUD compris.",
-        ["Réduire les flashs"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
+        ["Réduire les flashs (photosensibilité)"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
         ["Symboles d'équipe (daltonisme)"] = "Ajoute une forme à chaque équipe (rond orange, triangle bleu) sur les noms et au viseur, pour ne pas dépendre des couleurs.",
         ["Sons importants à l'écran"] = "Montre autour du viseur les lancers, explosions, attrapes et touches entendus, avec leur direction (jeu sans le son).",
     };
@@ -254,6 +257,7 @@ public partial class OptionsMenu : Control
                 Section("Partie", true);
                 Choice("Difficulté des bots", new[] { "Facile", "Normal", "Difficile" }, GameSettings.BotLevel, k => GameSettings.BotLevel = k);
                 Toggle("Aides contextuelles (premières parties)", GameSettings.ContextHints, v => GameSettings.ContextHints = v);
+                Toggle("Ouvrir le port sur ma box (UPnP)", GameSettings.Upnp, v => GameSettings.Upnp = v);
                 Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
@@ -298,6 +302,7 @@ public partial class OptionsMenu : Control
             case 0:
                 GameSettings.BotLevel = 1;
                 GameSettings.ContextHints = true;
+                GameSettings.Upnp = false;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;

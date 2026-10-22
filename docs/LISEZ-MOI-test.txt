@@ -5,19 +5,21 @@ Garde le dossier data_DogeballVR_windows_x86_64 à côté du .exe.
 
 Première fois : JOUER propose l'entraînement, aussi dans le menu (ENTRAÎNEMENT). 11 étapes, environ 3 minutes :
 courir, sauter, esquiver, lancer chargé, attraper, passe, feinte, balle spéciale. Entrée (ou Vue à la manette) passe une étape.
-Pendant les premières parties, de petites aides rappellent la bonne touche au bon moment (Options > Contrôles pour les couper).
+Pendant les premières parties, de petites aides rappellent la bonne touche au bon moment (Options > CONTRÔLES pour les couper).
 
 En ligne (jusqu'à 8 joueurs, les places vides sont tenues par des bots) :
   Partie rapide   rejoint une salle ouverte (Steam, ou réseau local sans Steam), sinon en ouvre une
                   qui se lance seule au bout de 20 s, complétée par des bots ; d'autres joueurs peuvent entrer en cours de partie
-  Salle privée    donne un code à envoyer aux amis (et « Inviter des amis » avec Steam)
+  Salle privée    donne un code à envoyer aux amis (et « Inviter des amis » avec Steam) ; Partie rapide ne la trouve pas
+                  Par Internet sans Steam : activer « Ouvrir le port sur ma box (UPnP) » dans Options > CONTRÔLES
   Rejoindre       « Rejoindre avec le code » : taper le code reçu
   Dans la salle : chacun choisit son équipe et se déclare prêt, l'hôte lance.
   Si ta connexion coupe, le jeu se reconnecte seul et te rend ta place, tes vies et ton score.
   Sans menu : DogeballVR.exe --lobby-quick, --lobby-host ou --lobby-join=CODE.
 
 Formats
-  Contre les bots (JOUER) : 5 manches de 2 minutes, la première équipe à 3 KO gagne la manche, prolongation à mort subite.
+  Contre les bots (JOUER) : 5 manches de 2 minutes. Une manche se gagne à 6 KO (10 sur la Tour 4 contre 4), sinon au nombre de KO
+  à la fin du chrono ; prolongation à mort subite en cas d'égalité.
   En ligne entre joueurs PC (format Knockout City) : premier à 7 KO en 2 contre 2 (15 en 4 contre 4), chrono de 5:00 par manche,
   2 manches gagnantes, retour en jeu 5 s après un KO. Dès qu'un joueur VR est dans la salle, on garde les 5 manches de 2 minutes.
   À la fin, tout le monde revient dans la salle et la revanche part seule au bout de 10 s (« PAS PRÊT » pour l'arrêter).
@@ -37,7 +39,8 @@ Contrôles (modifiables dans Options > Touches)        Manette (Xbox, Steam Deck
   Tab             tableau des scores                  Vue
   Échap           pause                               Menu
 
-Règles : 2 vies par joueur. Une balle passée à ton allié devient plus lumineuse ; à 2 charges ou plus elle retire 2 vies.
+Règles : 2 vies par joueur. Une passe d'un allié charge la balle (palier 1, plus lumineuse) ; une attrape parfaite d'un tir
+adverse ajoute un palier. Dès le palier 2, la balle retire 2 vies d'un coup (KO).
 Toutes les 45 s, une balle spéciale (bombe ou rebond) tombe du centre vers l'équipe menée.
 
 Progression : chaque match rapporte de l'XP (niveau dans PROFIL, avec les statistiques et les 23 succès).
