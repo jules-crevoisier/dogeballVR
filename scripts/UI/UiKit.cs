@@ -229,8 +229,12 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>Lilita One penchée et un peu grasse (pas d'italique dans la police) : titres et items à la Knockout City.</summary>
-    public static Font? Italic => italic ??= Font == null ? null : new FontVariation { BaseFont = Font, VariationTransform = new Transform2D(new Vector2(1, 0), new Vector2(-0.22f, 1), Vector2.Zero), VariationEmbolden = 0.35f };
+    /// <summary>
+    /// Lilita One penchée et un peu grasse (pas d'italique dans la police) : titres et items à la Knockout City.
+    /// La matrice passe telle quelle à FreeType (repère y vers le haut) : le biais va dans la composante y de l'axe x
+    /// (x' = x + 0,22·y), sinon c'est la ligne de base qui penche au lieu des lettres.
+    /// </summary>
+    public static Font? Italic => italic ??= Font == null ? null : new FontVariation { BaseFont = Font, VariationTransform = new Transform2D(new Vector2(1, 0.22f), new Vector2(0, 1), Vector2.Zero), VariationEmbolden = 0.35f };
     static Font? italic;
 
     /// <summary>Survol et focus : petit grossissement élastique et son ; s'applique à tout contrôle cliquable.</summary>
