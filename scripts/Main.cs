@@ -30,6 +30,7 @@ public partial class Main : Node3D
     ClientWorld? clientWorld;
     System.Collections.Generic.Dictionary<int, Node3D> platforms = new();
     Node3D localMarker = null!;
+    MatchView? pcView;   // vue du match du joueur PC (HUD, écran de fin, succès)
     Hurtbox localHurtbox = null!;
     System.Func<PoseData>? localPose;
 
@@ -401,9 +402,11 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
         {
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
-            var view = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
+            var view = pcView = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
             match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
@@ -555,12 +558,13 @@ public partial class Main : Node3D
     // ------------------------------------------------------------------ client
 
     /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
-    /// <summary>Succès Steam (ou leur repli local) : KO, prises, victoires. Sans match local (client), la victoire vient de l'hôte.</summary>
+    /// <summary>Succès Steam (ou leur repli local), stats et XP. Sans match local (client), fin et tableau viennent de l'hôte.</summary>
     void AddAchievementTracker(ZoneDef localZone, MatchController? localMatch) =>
         AddChild(new Online.Steam.AchievementTracker
         {
-            Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch,
+            Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch, View = pcView,
             TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Vr = xrOrigin != null, Online = net != null,
+            LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
         });
 
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
@@ -603,10 +607,12 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer desktop)
         {
             // Le client relit le texte du tableau de score ; touches, statistiques et bots arrivent de l'hôte par le réseau.
-            var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            var view = pcView = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
             if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
         }
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);

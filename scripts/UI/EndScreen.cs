@@ -36,6 +36,8 @@ public partial class EndScreen : CanvasLayer
     Star? star;
     EndPodium? podium;     // première phase, libérée à la fin du glissement
     Control? page;         // tableau : null tant que le podium est à l'écran
+    /// <summary>Le tableau est à l'écran (le bandeau d'XP attend ce moment).</summary>
+    public bool ShowingStats => page != null;
     double podiumLeft;
     const double PodiumSeconds = 3.2, SlideSeconds = 0.5;
 
