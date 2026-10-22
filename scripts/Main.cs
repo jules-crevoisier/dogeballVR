@@ -315,6 +315,7 @@ public partial class Main : Node3D
     {
         match = new MatchController { Name = "MatchController" };
         AddChild(match);
+        BallActions.ThrowsLocked = () => match.CountdownLeft > 0;
         match.PcProfile = pcProfile;
         match.ConfigureMap(map);
         match.ZoneElevation = ZoneElevation;
