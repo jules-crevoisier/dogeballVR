@@ -262,18 +262,20 @@
   },
   "rules": {
     "hearts": 2,
-    "hitCost": "une balle retire 1 cœur ; une balle de palier 2 met KO (le dépôt double les dégâts à 2 charges)",
+    "hitCost": "une balle retire 1 cœur, quel que soit son palier (doubleDamageCharge = 0 ; 2 rétablirait l'ancien KO au palier 2)",
     "friendlyFire": false,
     "heldBallMaxSeconds": 10,
     "friendlyFireNote": "y compris pour la bombe en v3 (simplification, contrairement à Knockout City)",
-    "heartRegen": "remis à 2 au respawn ; +1 cœur après 10 s sans être touché",
+    "heartRegen": "remis à 2 au respawn ; en VR, +1 cœur après 10 s sans être touché (heartRegenSeconds) ; au clavier, aucune régénération (pcHeartRegenSeconds = 0)",
     "invulnerableAfterHitSeconds": 1.5,
     "heartRegenSeconds": 10,
     "koTarget": 6,
-    "catchReward": "un attrapé rend un cœur à l'attrapeur (règle du dépôt) ; un perfect catch ajoute en plus 1 palier",
+    "catchReward": "attraper ne rend pas de cœur (catchHealsHeart = false) ; une attrape parfaite d'un tir adverse renvoie la balle avec 1 palier de plus (palier 3 au plus)",
     "respawnSeconds": 3,
-    "chargeByPass": "paliers 0 à 2 : chaque passe d'allié et chaque perfect catch ajoutent 1 palier ; palier 2 = KO direct ; au palier 0 ou 1, 1 cœur",
-    "passInterception": "phase 2 : une passe adverse ne s'intercepte pas du tout (ni catch ni perfect catch) ; l'interception par perfect catch viendra plus tard",
+    "chargeByPass": "paliers 0 à 3 : une passe d'allié porte la balle au palier 1 (pas plus), une attrape parfaite ajoute 1 palier ; le palier ne change pas les dégâts : en VR il raccourcit la fenêtre d'attrape normale de celui qui reçoit (0,35 / 0,30 / 0,27 / 0,25 s, vrCatchWindowCutByCharge), au clavier il accélère le tir (+15 % par palier : 24 / 27,6 / 31,7 / 36,5 m/s, plafond 40)",
+    "passInterception": "une passe adverse s'intercepte par n'importe quelle attrape (interceptPasses = true), et une attrape parfaite lui ajoute 1 palier ; une passe ne blesse personne",
+    "missedCatchLock": "VR : un grip qui expire sans contact alors qu'un vrai tir adverse arrivait (moins de 0,6 s) bloque la main 0,6 s (vrMissedCatchLockSeconds) ; jamais sur un plot ni une balle au sol ; au clavier, le clic droit garde son propre blocage de 0,6 s après tout appui raté",
+    "roundBreak": "pause de 20 s entre deux manches en VR (vrRoundBreakSeconds), 12 s au clavier (pcRoundBreakSeconds), avec écran d'intermission",
     "specialBallTarget": "l'équipe menée, pas la plaque (survit aux échanges)",
     "roundFormat": "5 manches de 2 min ; une manche s'arrête aussi quand une équipe atteint le seuil de KO ; égalité en fin de manche = mort subite (premier KO) ; équipe menée à 0-0 = tirage au sort",
     "parry": "paume ouverte (VR) ou clic droit pressé tôt (PC) : dévie une balle sans charge",
@@ -284,7 +286,7 @@
     "team_ko": {
       "players": "2v2",
       "koToWinRound": 6,
-      "rounds": "premier à 3 manches sur 5",
+      "rounds": "5 manches toutes jouées ; égalité de manches après la 5e = manche décisive",
       "roundNote": "manche de 2 min, fin anticipée au seuil de KO",
       "note": "1 KO = 1 point, comme Knockout City (10 KO par manche en 3v3)"
     },
@@ -327,7 +329,7 @@
         "W"
       ]
     ],
-    "note": "un échange à la fois, dans l'ordre de la séquence, en boucle ; échanges à 20, 45, 70 et 95 s de chaque manche (l'ordre des paires tourne d'une manche à l'autre), placement initial rétabli au début de chaque manche ; une balle tenue suit son joueur ; les deux plaques échangent leurs joueurs, donc les voisins changent (alliés côte à côte une fois sur deux)"
+    "note": "échanges suspendus par défaut (rules.plateSwapTimes vide) ; une carte qui les réactive les fait un à la fois, dans l'ordre de la séquence, en boucle, aux instants de plateSwapTimes (par exemple 20, 45, 70 et 95 s de chaque manche (l'ordre des paires tourne d'une manche à l'autre), placement initial rétabli au début de chaque manche ; une balle tenue suit son joueur ; les deux plaques échangent leurs joueurs, donc les voisins changent (alliés côte à côte une fois sur deux)"
   },
   "obstacles": [
     {
