@@ -147,6 +147,11 @@ public static class AudioBuses
             AudioServer.SetBusName(i, name);
             AudioServer.SetBusSend(i, "Master");
         }
+        // Limiteur sur Master : au KO subi, coup + KO + foule + musique dépassaient 0 dBFS et écrêtaient.
+        int master = AudioServer.GetBusIndex("Master");
+        bool hasLimiter = false;
+        for (int e = 0; e < AudioServer.GetBusEffectCount(master); e++) hasLimiter |= AudioServer.GetBusEffect(master, e) is AudioEffectHardLimiter;
+        if (!hasLimiter) AudioServer.AddBusEffect(master, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f });
     }
 
     public static void SetVolume(string bus, float linear)

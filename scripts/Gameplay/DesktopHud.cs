@@ -1033,8 +1033,8 @@ public partial class DesktopHud : CanvasLayer
         {
             if (Strength <= 0.01f) return;
             var s = Size;
-            // Tout bat : doucement pour un verrou, de plus en plus vite pour un tir entrant.
-            float pulse = Incoming ? 0.6f + 0.4f * Mathf.Sin(Clock * Mathf.Lerp(14f, 32f, Urgency)) : 0.72f + 0.28f * Mathf.Sin(Clock * 6f);
+            // Tout bat : doucement pour un verrou, plus vite pour un tir entrant, mais jamais au-delà de 2,4 Hz (seuil photosensible : 3 Hz).
+            float pulse = Incoming ? 0.6f + 0.4f * Mathf.Sin(Clock * Mathf.Lerp(6f, 15f, Urgency)) : 0.72f + 0.28f * Mathf.Sin(Clock * 6f);
             float w = Mathf.Min(s.X, s.Y) * (Incoming ? 0.3f : 0.2f);
             const float Rim = 40f;   // liseré : dégradé vif de 40 px collé au bord
             var hue = Color.Lightened(0.15f);

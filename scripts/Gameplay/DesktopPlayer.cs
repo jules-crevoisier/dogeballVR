@@ -402,7 +402,7 @@ public partial class DesktopPlayer : Node3D
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
             if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
             if (held != null) held.LocalHoldOverride = holdPoint;
-            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « PRISE PARFAITE ! » (Feedback)
+            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « ATTRAPE PARFAITE ! » (Feedback)
         }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
@@ -793,7 +793,7 @@ public partial class DesktopPlayer : Node3D
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
-                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « PRISE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
+                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « ATTRAPE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
                 if (viaCatch && !ally)
                 {
                     // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.

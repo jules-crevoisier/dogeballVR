@@ -5,8 +5,8 @@ using DogeballVR.Gameplay;
 namespace DogeballVR.Audio;
 
 /// <summary>
-/// VR : les annonces sonores de la partie que le HUD du clavier-souris joue déjà (DesktopHud) : bips « 3, 2, 1 », « GO ! », sifflet de fin de
-/// manche, mort subite, jingle de victoire ou de défaite. Le casque n'a pas de HUD : sans ces sons, rien ne dit que la manche démarre.
+/// VR : les annonces sonores de la partie que le HUD du clavier-souris joue déjà (DesktopHud) : bips « 3, 2, 1 », « GO ! », tics des 5 dernières
+/// secondes, sifflet de fin de manche, mort subite, musique tendue, jingle de victoire ou de défaite puis reprise de la musique. Le casque n'a pas de HUD : sans ces sons, rien ne dit que la manche démarre.
 /// « GO ! » fait aussi vibrer les deux manettes (départ senti même sans regarder le panneau de score).
 /// </summary>
 public partial class MatchCues : Node
@@ -25,6 +25,13 @@ public partial class MatchCues : Node
         View.Update();
         var s = View.State;
         if (first) { prev = s; first = false; return; }
+        // Même musique que le HUD clavier-souris : plus tendue en fin de manche serrée, et qui repart pour la revanche après le jingle
+        // (le match VR enchaîne seul ; sans ça, la deuxième partie se jouait dans le silence).
+        bool tense = s.Phase == MatchView.Phase.Playing && (s.Overtime || s.Seconds <= 20
+            || Mathf.Max(s.Kos0, s.Kos1) >= s.KoTarget - 1 && Mathf.Abs(s.Kos0 - s.Kos1) <= 1);
+        Music.PlayIntensity(tense);
+        if (prev.Phase == MatchView.Phase.MatchOver && s.Phase != MatchView.Phase.MatchOver) Music.PlayMatch(0.6f);
+        if (s.Phase == MatchView.Phase.Playing && s.Seconds != prev.Seconds && s.Seconds is > 0 and <= 5) Sfx.Play(this, SfxKind.ChargeTick, null, 1.2f, -4f);
         if (s.Phase == MatchView.Phase.Countdown && s.Countdown > 0 && (prev.Phase != MatchView.Phase.Countdown || s.Countdown != prev.Countdown))
             Sfx.Play(this, SfxKind.Countdown);
         if (prev.Phase == MatchView.Phase.Countdown && s.Phase == MatchView.Phase.Playing)
