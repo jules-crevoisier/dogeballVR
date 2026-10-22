@@ -1150,7 +1150,7 @@ public partial class DesktopPlayer : Node3D
             }
 
         // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche.
-        if (held != null && enemy != null)
+        if (held != null && enemy != null && !ThrowLocked)
         {
             float err = Mathf.RadToDeg((-head.GlobalTransform.Basis.Z).AngleTo(enemy.GlobalPosition - head.GlobalPosition));
             if (apFireStart < 0 && err < 6f) apFireStart = time + rng.RandfRange(0.0f, 0.7f);
