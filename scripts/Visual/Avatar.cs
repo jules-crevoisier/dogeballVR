@@ -203,6 +203,7 @@ public partial class Avatar : Node3D
         if (ghost == null) return;
         scene.AddChild(ghost);
         ghost.GlobalTransform = koTransform;
+        GD.Print($"[Avatar] KO du joueur {playerId} : chute jouée par une copie (joueur masqué)");
         if (ghost.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation("KO")) ap.Play("KO");
         var tw = ghost.CreateTween();
         tw.TweenInterval(0.95);

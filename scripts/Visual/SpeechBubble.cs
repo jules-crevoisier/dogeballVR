@@ -162,8 +162,10 @@ public partial class SpeechBubble : Node3D
         var p = cam.UnprojectPosition(origin);
         float width = (widthEm + RimEm) * emPx720 * f, height = 1.15f * emPx720 * f, pad = 8f * f;
         float dx = 0f, dy = 0f;
-        if (side > 0f && p.X + width > size.X - pad) dx = size.X - pad - (p.X + width);
-        else if (side < 0f && p.X - width < pad) dx = pad - (p.X - width);
+        // Bords gauche et droit, quel que soit le côté (la cible peut sortir du cadre pendant que le mot est affiché).
+        float left = side > 0f ? p.X - RimEm * emPx720 * f : p.X - width, right = left + width + RimEm * emPx720 * f;
+        if (right > size.X - pad) dx = size.X - pad - right;
+        if (left + dx < pad) dx = pad - left;
         float top = 96f * f;   // sous le bandeau de score du HUD
         if (p.Y - height < top) dy = -(top - (p.Y - height));   // trop haut : on descend (y écran vers le bas)
         return (camBasis.X * dx + camBasis.Y * dy) * (mpp / f);
