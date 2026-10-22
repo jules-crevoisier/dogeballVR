@@ -105,6 +105,39 @@ public static class SteamPlatform
         return false;
     }
 
+    static Callback<GamepadTextInputDismissed_t>? textInputCb;
+    static Action<string?>? textInputDone;
+
+    /// <summary>Steam tourne sur un Steam Deck.</summary>
+    public static bool OnSteamDeck => Available && SteamUtils.IsSteamRunningOnSteamDeck();
+
+    /// <summary>
+    /// Clavier virtuel de Steam pour un champ de texte. Sur Steam Deck : clavier flottant qui tape directement dans le champ
+    /// (<paramref name="field"/> en pixels de la fenêtre, pour ne pas le couvrir). Ailleurs (Big Picture, manette) : fenêtre de saisie
+    /// de Steam, le texte revient par <paramref name="done"/> (null si annulé). Faux si Steam ne peut pas l'ouvrir.
+    /// </summary>
+    public static bool ShowTextInput(string description, string current, int maxLength, Rect2I field, Action<string?> done)
+    {
+        if (!Available) return false;
+        if (SteamUtils.IsSteamRunningOnSteamDeck()
+            && SteamUtils.ShowFloatingGamepadTextInput(EFloatingGamepadTextInputMode.k_EFloatingGamepadTextInputModeModeSingleLine,
+                field.Position.X, field.Position.Y, field.Size.X, field.Size.Y))
+            return true;
+        textInputCb ??= Callback<GamepadTextInputDismissed_t>.Create(r =>
+        {
+            var callback = textInputDone;
+            textInputDone = null;
+            string? text = null;
+            if (r.m_bSubmitted && SteamUtils.GetEnteredGamepadTextInput(out string entered, SteamUtils.GetEnteredGamepadTextLength() + 1)) text = entered;
+            callback?.Invoke(text);
+        });
+        textInputDone = done;
+        bool shown = SteamUtils.ShowGamepadTextInput(EGamepadTextInputMode.k_EGamepadTextInputModeNormal, EGamepadTextInputLineMode.k_EGamepadTextInputLineModeSingleLine,
+            description, (uint)maxLength, current);
+        if (!shown) textInputDone = null;
+        return shown;
+    }
+
     /// <summary>À chaque image (fait par <see cref="SteamRunner"/>).</summary>
     public static void RunCallbacks()
     {

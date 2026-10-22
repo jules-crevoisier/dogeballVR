@@ -19,6 +19,8 @@ public static class GameSettings
     public static float Fov = 100f;                          // champ horizontal (degrés)
     public static float AimAssist = 1f;                      // 0 = aucune aide, 1 = aide normale
     public static bool ToggleCrouch;
+    // Partie
+    public static int BotLevel = 1;                          // bots : 0 facile, 1 normal, 2 difficile
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
     public static bool HitStop = true;
@@ -53,6 +55,7 @@ public static class GameSettings
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
+        BotLevel = Mathf.Clamp((int)F(cfg, "game", "bot_level", BotLevel), 0, 2);
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
@@ -92,6 +95,7 @@ public static class GameSettings
         cfg.SetValue("audio", "ui", UiVolume);
         cfg.SetValue("video", "fullscreen", Fullscreen);
         cfg.SetValue("video", "vsync", VSync);
+        cfg.SetValue("game", "bot_level", BotLevel);
         cfg.SetValue("video", "max_fps", MaxFps);
         cfg.SetValue("video", "quality", Quality);
         cfg.SetValue("video", "render_scale", RenderScale);

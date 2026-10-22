@@ -241,6 +241,8 @@ public partial class Avatar : Node3D
     public void PlayAction(string name, double seconds)
     {
         if (anim == null || !anim.HasAnimation(name)) return;
+        // Même geste déjà en cours (élan du bot puis lâcher de la balle) : on le prolonge au lieu de le reprendre au début.
+        if (actionLeft > 0 && anim.CurrentAnimation == name) { actionLeft = Mathf.Max(actionLeft, seconds); return; }
         anim.Play(name, 0.08);
         anim.SpeedScale = 1f;
         actionLeft = seconds;

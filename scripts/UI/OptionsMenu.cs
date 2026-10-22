@@ -241,7 +241,9 @@ public partial class OptionsMenu : Control
         switch (i)
         {
             case 0:
-                Section("Souris", true);
+                Section("Partie", true);
+                Choice("Difficulté des bots", new[] { "Facile", "Normal", "Difficile" }, GameSettings.BotLevel, k => GameSettings.BotLevel = k);
+                Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Caméra et visée");
@@ -282,6 +284,7 @@ public partial class OptionsMenu : Control
         switch (tab)
         {
             case 0:
+                GameSettings.BotLevel = 1;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = 100f;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false;

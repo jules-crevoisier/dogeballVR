@@ -160,6 +160,7 @@ public partial class Main : Node3D
             menu.HostLan += () => Room(l => l.HostLan());
             menu.JoinCode += code => Room(l => l.JoinByCode(code));
             menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
+            UI.MainMenu.TextInput = (desc, cur, max, rect, done) => Online.SteamBridge.Init() && Online.Steam.SteamPlatform.ShowTextInput(desc, cur, max, rect, done);
             AddChild(menu);
             return;
         }
@@ -379,6 +380,10 @@ public partial class Main : Node3D
         targets.Add(localMarker);
         targetTeams.Add(localZone.Team);
         targetIndexOfZone[localZone.Id] = 0;
+        // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
+        Bot.Level = UI.GameSettings.BotLevel;
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
