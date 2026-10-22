@@ -350,11 +350,10 @@ void fragment() {
         }
     }
 
-    /// <summary>Arrêt sur image : au clavier-souris tel quel ; en VR plus court et moins appuyé (un monde figé dans le casque ressemble à une saccade).</summary>
+    /// <summary>Arrêt sur image, au clavier-souris seulement (et hors ligne, voir Juice.HitStop).</summary>
     void Stop(float seconds, float scale = 0.12f)
     {
-        if (Vr) Juice.HitStop(this, seconds * 0.5f, Mathf.Max(scale, 0.35f));
-        else Juice.HitStop(this, seconds, scale);
+        if (!Vr) Juice.HitStop(this, seconds, scale);   // VR : jamais (un monde figé au casque est une saccade) ; la vibration porte le choc
     }
 
     /// <summary>Touche ou KO sur un joueur, vu par tout le monde : impact, autocollant, son ; au PC, secousse et arrêt sur image dosés.</summary>

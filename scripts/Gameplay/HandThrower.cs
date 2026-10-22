@@ -17,7 +17,12 @@ public partial class HandThrower : XRController3D
     public Hurtbox Hurtbox { get; set; } = null!;
 
     /// <summary>Vibration de la manette (OpenXR : action « haptic » de l'action map).</summary>
-    public void Pulse(float amplitude, float seconds) => TriggerHapticPulse("haptic", 0f, Mathf.Clamp(amplitude, 0f, 1f), seconds, 0f);
+    /// <summary>Vibration de cette manette, à l'intensité réglée par le joueur (GameSettings.Haptics, 0 coupe tout).</summary>
+    public void Pulse(float amplitude, float seconds)
+    {
+        float a = Mathf.Clamp(amplitude * UI.GameSettings.Haptics, 0f, 1f);
+        if (a > 0f) TriggerHapticPulse("haptic", 0f, a, seconds, 0f);
+    }
 
     public Ball? HeldBall => held != null && IsInstanceValid(held) ? held : null;
     int HandIndex => Tracker == "left_hand" ? 0 : 1;

@@ -486,7 +486,7 @@ public partial class Main : Node3D
         // VR : main 0 gauche, 1 droite, -1 les deux (attrape, lancer, palier, touche, frôlé, départ de manche).
         System.Action<int, float, float>? haptic = hands.Count == 0 ? null : (hand, a, d) =>
         {
-            foreach (var h in hands) if (hand < 0 || (hand == 0) == (h.Tracker == "left_hand")) h.Pulse(a * UI.GameSettings.Haptics, d);
+            foreach (var h in hands) if (hand < 0 || (hand == 0) == (h.Tracker == "left_hand")) h.Pulse(a, d);
         };
         // --feel-log sans casque : les vibrations sont écrites dans la sortie (mêmes appels qu'en VR).
         if (haptic == null && Audio.Sfx.FeelLog) haptic = (hand, a, d) => GD.Print($"[Feel] vibration main {(hand < 0 ? "les deux" : hand == 0 ? "gauche" : "droite")} {a:0.00} pendant {d:0.00} s");

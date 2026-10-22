@@ -47,7 +47,8 @@ public partial class OptionsMenu : Control
         ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
         ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
         ["Secousses de l'écran"] = "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
-        ["Arrêt sur image aux impacts"] = "Le jeu se fige une fraction de seconde quand une balle touche ou est attrapée, pour bien sentir le choc.",
+        ["Arrêt sur image aux impacts"] = "Le jeu se fige une fraction de seconde quand une balle touche ou est attrapée, pour bien sentir le choc. Hors ligne seulement.",
+        ["Vibrations des manettes"] = "Force des vibrations au casque : attrape, lancer, balle qui frôle, touche, KO, explosion. 0 % : aucune vibration.",
         ["Marqueur de touche"] = "Une marque s'affiche sur le viseur quand ta balle touche un adversaire.",
         ["S'accroupir : appui = bascule"] = "OUI : un appui pour s'accroupir, un autre pour se relever. NON : tu restes accroupi tant que la touche est tenue.",
         ["Volume général"] = "Volume de tout le jeu.",
@@ -245,6 +246,8 @@ public partial class OptionsMenu : Control
                 Toggle("Arrêt sur image aux impacts", GameSettings.HitStop, v => GameSettings.HitStop = v);
                 Toggle("Marqueur de touche", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
                 Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
+                Section("Casque VR");
+                Slider("Vibrations des manettes", GameSettings.Haptics, 0f, 1f, 0.05f, v => GameSettings.Haptics = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
