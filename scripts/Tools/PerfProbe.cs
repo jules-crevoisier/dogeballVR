@@ -22,6 +22,8 @@ public partial class PerfProbe : Node
     ulong reportAt = Time.GetTicksMsec();
     int gc0 = System.GC.CollectionCount(0), gc2 = System.GC.CollectionCount(2);
 
+    static readonly bool memGc = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--mem-gc") >= 0;
+
     public static void AttachIfAsked(Node parent)
     {
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf-log") >= 0) parent.AddChild(new PerfProbe { Name = "PerfProbe" });
@@ -80,6 +82,9 @@ public partial class PerfProbe : Node
                  $"{prims / samples / 1000:0} k triangles, {maxNodes} nœuds au plus, {slow} images au-delà de 16,7 ms (pire {sorted[^1]:0} ms), " +
                  $"GC : {g0} collectes rapides, {g2} complètes, {mbps:0.0} Mo alloués par seconde, tas {System.GC.GetTotalMemory(false) / 1048576} Mo");
         // Fuites : ces compteurs doivent rester à plat d'une tranche à l'autre sur une longue session.
+        // --mem-gc : ramasse-miettes forcé avant la mesure ; sinon les objets Godot que seul un objet C# mort retient
+        // attendent la prochaine collecte complète et passent pour une fuite.
+        if (memGc) { System.GC.Collect(); System.GC.WaitForPendingFinalizers(); System.GC.Collect(); }
         GD.Print($"[Mémoire] tranche {part} : moteur {OS.GetStaticMemoryUsage() / 1048576.0:0.0} Mo, tas .NET {System.GC.GetTotalMemory(false) / 1048576.0:0.0} Mo, " +
                  $"{(int)Performance.GetMonitor(Performance.Monitor.ObjectNodeCount)} nœuds, {(int)Performance.GetMonitor(Performance.Monitor.ObjectCount)} objets, " +
                  $"{(int)Performance.GetMonitor(Performance.Monitor.ObjectResourceCount)} ressources, {(int)Performance.GetMonitor(Performance.Monitor.ObjectOrphanNodeCount)} nœuds orphelins");
