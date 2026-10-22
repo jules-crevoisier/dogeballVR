@@ -11,7 +11,7 @@ fichiers du kit restent en anglais.
 ## Technology Stack
 
 - **Engine**: Godot 4.3 (.NET) — pinned, no 4.4+ API (see the import below)
-- **Language**: C# (.NET 8)
+- **Language**: C# 10 — the csproj targets `net6.0` (net7.0 for Android): no C# 11/12 features (primary constructors, collection expressions `[..]`, raw strings, `required`)
 - **Rendering**: Mobile renderer, OpenXR (Meta Quest)
 - **Physics**: Godot Physics
 - **Networking**: Godot ENet, the host is the only authority (balls, hits, score)
@@ -77,6 +77,21 @@ usually have nobody to answer questions, and jules wants full autonomy.
   test and the smoke check.
 - `project.stage` is `Production` because the game runs, although the kit's
   documents are still missing.
+- The CI is the test evidence: `/story-done` and `/smoke-check` checks that
+  need a local run or a screenshot are satisfied by a green CI run, quoted in
+  the PR (`testing.strict` is off in `project.yaml`).
+- Every `**/*.cs` under the repo is compiled by `DogeballVR.csproj`. A test or
+  prototype project in `tests/` or `prototypes/` must be excluded with
+  `<Compile Remove="tests/**;prototypes/**" />` in the same PR. Do not run
+  `/test-setup` as is: it scaffolds gdUnit4 GDScript tests, we write C#.
+- Kit documents: section headings exactly as in the kit templates (English,
+  the scripts check them), content in French.
+- `git rm` inside your own branch is fine (reversible in the PR). Deleting
+  anything outside the repo, data, or remote branches needs jules.
+- The hooks print reminders on `git merge` and on pushes: merging `origin/main`
+  into your own branch is normal, ignore that reminder. Force pushes are denied
+  (`--force-with-lease` too): resolve with merge commits, never rebase a pushed
+  branch.
 - Quality loop before delivering anything visible: get it critiqued by at least
   one independent agent (score out of 10), fix, re-review, until ≥ 8/10 or 5
   rounds; report the scores.

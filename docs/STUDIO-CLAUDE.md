@@ -12,7 +12,7 @@ Claude Code charge `CLAUDE.md`, `.claude/agents/`, `.claude/skills/` et les hook
 **au démarrage d'une session ouverte à la racine du dépôt**. Une session qui part
 de `main` n'a donc le kit que lorsque la PR d'installation est fusionnée. Avant
 cela, une session peut récupérer les fichiers du kit sans fusionner
-(`git checkout origin/claude/project-thread-kqje36 -- .claude CLAUDE.md project.yaml docs`).
+(`git checkout origin/claude/project-thread-kqje36 -- .claude CLAUDE.md project.yaml .gitignore .gitattributes design production docs/engine-reference docs/architecture docs/registry docs/STUDIO-CLAUDE.md docs/adoption-plan-2026-10-22.md`).
 Elle peut aussi lire les fichiers d'un agent ou d'une skill et suivre leurs
 consignes à la main.
 
@@ -25,13 +25,14 @@ commits, le mode de revue et l'état de session
 | Clé | Valeur | Effet |
 |---|---|---|
 | `engine` | Godot 4.3, C#, Mobile, Godot Physics | Les agents écrivent du C# Godot 4.3, sans API 4.4 ou plus récente |
-| `engine.code_root` | `scripts` | Ajout propre à dogeballVR : le kit cherche le code dans `scripts/` et non dans `src/` |
+| `engine.code_root` | `scripts` | Ajout propre à dogeballVR : les hooks et scripts du kit cherchent le code dans `scripts/`. Les skills écrivent encore `src/…` dans leurs exemples : il faut lire `scripts/…` (c'est dit dans `code-root-resolution.md` et `directory-structure.md`) |
 | `modes.automation` | `autonomous` | Pas de « May I write… ? ». Le kit prend l'option recommandée et la note |
 | `modes.automation_always_ask` | `file_deletions` | La seule question qui reste : avant de supprimer des fichiers |
 | `modes.rigor` | `standard` | Revues « lean » par les directeurs, docs équilibrées, QA standard |
 | `project.stage` | `Production` | Le jeu tourne déjà, même si les documents du kit manquent. Seul jules lance `/gate-check` |
 | `commands.*` | build `dotnet build`, test = partie headless de 150 s | Mêmes vérifications que la CI |
 | `updates.check` | `false` | Pas d'appel à l'API GitHub du kit à chaque session |
+| `testing.strict.*` | `false` | Pas de Godot local : une CI verte, citée dans la PR, sert de preuve |
 
 Pour changer un réglage : `/settings clé=valeur`, ou modifier `project.yaml`
 dans une PR.

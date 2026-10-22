@@ -11,7 +11,7 @@
 ## Engine & Language
 
 - **Engine**: Godot 4.3 (.NET) — do not use 4.4+ APIs (see docs/engine-reference/godot/VERSION.md)
-- **Language**: C# (.NET 8), no GDScript in gameplay code
+- **Language**: C# 10 (csproj targets net6.0, net7.0 for Android; the CI uses the .NET 8 SDK), no GDScript in gameplay code. Godot node classes are `partial`.
 - **Rendering**: Mobile renderer (Meta Quest), OpenXR enabled
 - **Physics**: Godot Physics (no Jolt on 4.3)
 - **Code root**: `scripts/` (not `src/`), scenes in `scenes/`, maps as JSON data in `maps/`

@@ -31,6 +31,8 @@ own toolchain:
 | **Unity** | `Assets/` | Unity compiles **only** `Assets/` and `Packages/`. Code outside them is invisible to the compiler. |
 | **Unreal** | `Source/<Module>/` | UnrealBuildTool discovers modules under `Source/`; content lives in `Content/`. A module elsewhere is not built. |
 
+> **dogeballVR:** the code root is `engine.code_root` in `project.yaml` = **`scripts/`**, not `src/`. Read every `src/…` path in the kit as `scripts/…`.
+
 **Resolve the code root from `engine.name` before writing any source file.** A
 path shown as `src/…` alone is a Godot example: read it as *"the code root"* and
 substitute the row above. `src/` is the table's Godot row, not a universal path.

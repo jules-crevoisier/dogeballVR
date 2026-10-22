@@ -15,6 +15,9 @@ code. This file is the procedure for applying it.
 | Unity | `Assets/` | Unity compiles **only** `Assets/` and `Packages/` |
 | Unreal | `Source/<Module>/` | UnrealBuildTool discovers modules under `Source/`; content lives in `Content/` |
 
+
+> **dogeballVR:** the code root is `engine.code_root` in `project.yaml` = **`scripts/`**, not `src/`. Read every `src/…` path in the kit as `scripts/…`.
+
 `src/` is the **Godot row of that table, not a universal path.**
 
 ## Resolution order

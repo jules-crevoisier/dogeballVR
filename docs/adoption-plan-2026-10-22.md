@@ -10,6 +10,7 @@ Travailler dans l'ordre, cocher au fur et à mesure, relancer `/adopt` après l'
 Sources hors dépôt (lecture seule, à convertir, jamais à copier) : `/mnt/project-files/masterclasse/` (noté `MC/` ci-dessous).
 Si ce dossier n'est pas accessible dans la session, partir de `README.md`, `docs/ARCHITECTURE.md`, `docs/CHOIX-REGLES.md` et du code, puis le signaler dans la PR.
 Règle de priorité : le travail demandé au fil passe avant ce plan (voir `CLAUDE.md`). `/gate-check` est toujours soumis à jules.
+Travail en parallèle : avant de prendre une étape, lister les PR ouvertes du dépôt ; prendre la première case qu'aucune PR ne couvre, une étape par PR, et dire dans le titre de la PR quelle étape elle traite.
 
 ## Résumé de l'audit
 
@@ -64,7 +65,7 @@ Relancer `/adopt` ici : BLOCKING et HIGH doivent être à zéro.
 
 - [ ] **4.1 HUD et menus (PC puis VR)** — `/ux-design` à partir de `MC/knockout-city/05-interfaces.md`, `MC/knockout-city/01-analyse-visuelle.md`, l'art bible et `scripts/Gameplay/DesktopHud.cs`. Agents : `ux-designer`, `ui-programmer`. Produit : `design/ux/*.md` ; ensuite `/ux-review`.
 - [ ] **4.2 Parcours joueur** — `design/player-journey.md` (lobby, partie, résultat ; hôte/client ; VR et PC).
-- [ ] **4.3 Tests** — `/test-setup` en tenant compte de `testing.framework: ci-headless` : formaliser la CI (`.github/workflows/build.yml`, `--net-selftest`, `--pc-autoplay`) et proposer des tests unitaires de `MatchRules` (déjà noté « pas de test unitaire »). Agent : `qa-lead`. Produit : `tests/` et `production/qa/`.
+- [ ] **4.3 Tests** — ne pas lancer `/test-setup` (il génère du gdUnit4 en GDScript). Créer un projet de test C# séparé (`tests/DogeballVR.Tests/*.csproj`, xUnit ou NUnit, net6.0) pour `MatchRules` et les règles pures, l'exclure du csproj du jeu (`<Compile Remove="tests/**" />`) et le lancer depuis `.github/workflows/build.yml` ; documenter `--net-selftest` et `--pc-autoplay` dans `production/qa/`. Agent : `qa-lead`, `godot-csharp-specialist`.
 - [ ] **4.4 Épopées et stories** — `/create-epics` puis `/create-stories` (une épopée par système de l'index) ; `/story-readiness` avant de coder. Produit : `production/epics/<epopee>/EPIC.md`, `story-NNN-*.md`.
 - [ ] **4.5 Sprint** — `/sprint-plan` (1 sprint = stories prioritaires ci-dessous), puis `/sprint-status`. Produit : `production/sprints/`, `production/sprint-status.yaml`.
   Priorités déjà connues (README « État » et CHOIX-REGLES) : essai sur casque Quest (jamais fait), réglage du lancer/attrapé, latence réseau, bots plus létaux, interpolation des snapshots.
@@ -76,7 +77,7 @@ Relancer `/adopt` ici : BLOCKING et HIGH doivent être à zéro.
 2. Une story : `/story-readiness` → `/dev-story` (agents `godot-csharp-specialist`, `gameplay-programmer`, `network-programmer`) → `/code-review` → `/story-done`.
    `/dev-story` et `/story-done` ne se lancent que si un humain tape la commande : en session autonome, lire `.claude/skills/dev-story/SKILL.md` (puis `story-done`) et suivre leurs étapes (voir `docs/STUDIO-CLAUDE.md` § 5).
 3. Petit réglage de valeur : `/quick-design` + `/balance-check`. Changement de règle : `/propagate-design-change`.
-4. Avant de fusionner : `dotnet build DogeballVR.csproj --nologo`, `/smoke-check`, CI verte.
+4. Avant de livrer : pousser et attendre la CI verte (pas de Godot ni de .NET dans les conteneurs) ; jules fusionne.
 5. Après un essai : `/playtest-report` (sur casque, noter inconfort et portée réelle) ; `/bug-report` / `/bug-triage`.
 6. Fin de sprint : `/retrospective`, `/scope-check`.
 

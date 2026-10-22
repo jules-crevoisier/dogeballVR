@@ -22,8 +22,8 @@ project:
   kind: game
 
 modes:
-  # Les fils travaillent sans humain pour répondre : ils décident, journalisent
-  # (production/session-logs/decision-log.md) et continuent.
+  # Les fils travaillent sans humain pour répondre : ils décident, notent leurs
+  # choix dans la description de la PR et continuent.
   automation: autonomous
   # On ne s'arrête que pour supprimer des fichiers (action irréversible).
   automation_always_ask:
@@ -35,6 +35,13 @@ testing:
   # Pas encore de gdUnit4 : nos tests sont les parties simulées de la CI
   # (.github/workflows/build.yml) et le self-test réseau.
   framework: ci-headless
+  # Pas de Godot local : la CI verte, citée dans la PR, tient lieu de preuve.
+  strict:
+    logic: false
+    integration: false
+    visual: false
+    ui: false
+    config: false
 
 platform:
   multiplayer: true
@@ -81,7 +88,8 @@ performance:
 
 commands:
   build: "dotnet build DogeballVR.csproj --nologo"
-  # Même vérification que la CI : 150 s de partie simulée, aucune erreur de script.
+  # La première étape de la CI (150 s de partie simulée) ; la CI complète ajoute
+  # les tests réseau et cartes. Pas de Godot dans les conteneurs cloud.
   test: "godot --headless --path . --build-solutions --quit && godot --headless --path . --fixed-fps 60 --quit-after 9000"
   run: "godot --path ."
   smoke: "godot --headless --path . --quit-after 600"
