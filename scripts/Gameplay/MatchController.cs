@@ -14,7 +14,6 @@ public partial class MatchController : Node3D
     const int BallsOnField = 4;
     const float BallSpawnInterval = 3f;   // une nouvelle balle toutes les 3 s tant qu'il en manque
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
-    const float RoundBreakSeconds = 3f;
     const float MatchEndSeconds = 8f;
     const float CountdownSeconds = 3f;    // « 3, 2, 1, GO ! » au début de chaque manche : chrono figé, touches ignorées
 
@@ -666,7 +665,7 @@ public partial class MatchController : Node3D
         if (over) banner = $"VICTOIRE ÉQUIPE {TeamName(Champion)} !";
         GD.Print($"[Portée] touches/lancers par distance : {RangeReport()}");
         GD.Print($"[Match] {banner} | manches {Rules.RoundsWon[0]}-{Rules.RoundsWon[1]} | KO {Rules.Kos[0]}-{Rules.Kos[1]}");
-        breakLeft = over ? MatchEndSeconds : RoundBreakSeconds;
+        breakLeft = over ? MatchEndSeconds : Rules.BreakSeconds;
         if (over) MatchEnded?.Invoke(Champion);
     }
 

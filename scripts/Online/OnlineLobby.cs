@@ -143,6 +143,10 @@ public partial class OnlineLobby : Node
     {
         if (Instance == this) Instance = null;
         ClosePortMapping();
+        // Fermeture du jeu (la salle vit sous /root jusqu'au bout) : on lâche le transport et la poignée de main,
+        // sinon le moteur trouve encore des références C# vers eux à l'arrêt et peut planter en les libérant.
+        if (IsInsideTree() && Multiplayer.MultiplayerPeer is { } peer and not OfflineMultiplayerPeer) { peer.Close(); Multiplayer.MultiplayerPeer = null; }
+        NetHandshake.Release();
     }
 
     /// <summary>Options de test de la ligne de commande (CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
@@ -302,6 +306,10 @@ public partial class OnlineLobby : Node
         BroadcastRoster();
     }
 
+    /// <summary>Format de la partie : celui du PC en ligne (façon Knockout City), sauf si un joueur VR est dans la salle (5 manches de 2 min d'EVA).
+    /// Hôte et clients le déduisent de la même liste de joueurs.</summary>
+    public bool OnlineFormat => !members.Values.Any(m => m.Vr);
+
     public bool CanStart => IsHost && State == LobbyState.InRoom && members.Values.All(m => m.Ready);
 
     /// <summary>Hôte : lance la partie. L'hôte recharge la scène d'abord ; les autres reçoivent leur zone quand il est prêt (<see cref="HostMatchReady"/>).</summary>
@@ -326,7 +334,8 @@ public partial class OnlineLobby : Node
         cfg.Map = Map;
         cfg.HostZone = matchZones.TryGetValue(1, out int hz) ? hz : 0;
         cfg.Preconnected = true;
-        GD.Print($"[Lobby] Lancement : {Map}, {members.Count} joueur(s), zones {string.Join(", ", matchZones.Select(kv => $"{kv.Key}->{kv.Value}"))}");
+        cfg.OnlineFormat = OnlineFormat;
+        GD.Print($"[Lobby] Lancement : {Map}, {members.Count} joueur(s), format {(OnlineFormat ? "en ligne" : "VR")}, zones {string.Join(", ", matchZones.Select(kv => $"{kv.Key}->{kv.Value}"))}");
         Lan.Announcement = Announcement;
         SetState(LobbyState.InMatch, "Partie en cours");
         BroadcastRoster();
@@ -694,6 +703,7 @@ public partial class OnlineLobby : Node
         cfg.Map = map;
         cfg.Zone = zone;
         cfg.Preconnected = true;
+        cfg.OnlineFormat = OnlineFormat;
         SetState(LobbyState.InMatch, "Partie en cours");
         RelaxTimeouts();
         GameLaunch.Set(cfg);

@@ -33,6 +33,13 @@ public static class NetHandshake
         sm.PeerAuthenticating += id => sm.SendAuth((int)id, Encoding.UTF8.GetBytes(Fingerprint));
     }
 
+    /// <summary>Fermeture du jeu : plus de référence statique vers l'API multijoueur.</summary>
+    public static void Release()
+    {
+        installed = null;
+        HandshakeNode.Release();
+    }
+
     internal static void Fail(string reason) => Rejected?.Invoke(reason);
 
     static string Compute()
@@ -59,6 +66,8 @@ public partial class HandshakeNode : RefCounted
 {
     static HandshakeNode? instance;
     SceneMultiplayer api = null!;
+
+    public static void Release() => instance = null;
 
     public static HandshakeNode Get(SceneMultiplayer api)
     {

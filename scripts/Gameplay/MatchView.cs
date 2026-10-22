@@ -32,6 +32,20 @@ public sealed class MatchView
     public Func<int, int> Lives { get; init; } = _ => 0;
     public IReadOnlyList<PlayerInfo> Players { get; init; } = Array.Empty<PlayerInfo>();
     public Snapshot State { get; private set; }
+    /// <summary>Manches gagnantes qui finissent la partie (0 = toutes les manches se jouent) : nombre de pastilles par équipe.</summary>
+    public int RoundsToWin => match?.Rules.RoundsToWin ?? roundsToWin;
+    int roundsToWin;
+    /// <summary>Durée d'un KO avant le retour en jeu.</summary>
+    public float RespawnSeconds => match?.Rules.RespawnSeconds ?? respawnSeconds;
+    float respawnSeconds = 3f;
+
+    /// <summary>Client d'une partie au format en ligne : objectif de KO et manches gagnantes connus d'avance (le texte de l'hôte ne les porte pas).</summary>
+    public void UseOnlineFormat(int teamSize)
+    {
+        roundsToWin = Rules.MatchRules.OnlineRoundsToWin;
+        respawnSeconds = Rules.MatchRules.OnlineRespawnSeconds;
+        State = State with { KoTarget = Rules.MatchRules.OnlineKoTarget(teamSize), MaxRounds = Rules.MatchRules.OnlineMaxRounds };
+    }
 
     /// <summary>Statistiques par joueur : lues dans le match chez l'hôte, reçues de l'hôte chez le client (null tant que rien n'est arrivé).</summary>
     public IReadOnlyDictionary<int, MatchController.PlayerStats>? Stats => match != null ? match.Stats : remoteStats;

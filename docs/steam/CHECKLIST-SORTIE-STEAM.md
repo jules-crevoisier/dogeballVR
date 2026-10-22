@@ -116,6 +116,8 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
 | [x] | Boucle de match complète : manches, KO, prolongation, score (testé en CI) | code | scripts/Rules/MatchRules.cs, .github/workflows/build.yml |
+| [x] | Deux formats : VR d'EVA (5 manches de 2 min) et PC en ligne façon KC (premier à 7 / 15 KO en 2c2 / 4c4, chrono 5:00, 2 manches gagnantes, retour 5 s, pause 12 s), choisi par la salle : format VR dès qu'un casque est présent | code | scripts/Rules/MatchRules.cs (`UseOnlineFormat`), scripts/Online/OnlineLobby.cs |
+| [x] | Fin de partie en ligne : retour de tous dans la salle, revanche automatique en 10 s si chacun reste prêt | code | scripts/Online/OnlineLobby.cs (`ReturnToLobby`) |
 | [x] | 6 cartes (Croix Néon, Fosse croisée, Tour 4v4, Néon Court, La Fosse, démo 2v2) | code | maps/*.json |
 | [x] | Coups : passe, cloche, effet, feinte, attrape parfaite, dash, tacle, ring-out, balles spéciales (bombe, rebond) | code | docs/CHOIX-REGLES.md |
 | [x] | Bots qui complètent les places vides | code | scripts/Gameplay/Bot.cs |
@@ -156,6 +158,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | Performance mesurée : 60 i/s stables en mode écran sur la config minimale ; 90 i/s en VR (72 sur Quest Link) | code | |
 | [~] | Interpolation des autres joueurs sur l'horloge de l'hôte avec retard adaptatif à la gigue (fait, testé en CI à 80 ms et 5 % de perte) ; rembobinage côté hôte et prédiction du lancer côté client (à faire) | code | scripts/Net/ClientWorld.cs |
 | [x] | Déconnexions : client qui revient dans sa zone (coupure ou crash, secret émis par l'hôte, 45 s), bot qui reprend la place en attendant ; hôte qui ferme : les clients sont prévenus et reviennent au menu (pas de migration d'hôte) ; testé en CI | code | scripts/Net/NetSession.cs, scripts/Online/OnlineLobby.cs |
+| [x] | Test de bout en bout en CI : salle à 4 (hôte + 3 clients + 4 bots, Tour 4v4), deux parties enchaînées par la revanche, zones distinctes, chaque client joue | code | .github/workflows/build.yml |
 | [ ] | Test de charge 4c4 avec 8 humains et latence réelle (100–150 ms) | code + jules | |
 | [ ] | Tests sur plusieurs PC (NVIDIA, AMD, Intel ; Windows 10 et 11 ; écran 144 Hz) | jules | |
 | [ ] | Test sur casques réels : Quest via Link / Air Link / Steam Link, Index ou Vive | jules | |

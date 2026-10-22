@@ -348,6 +348,7 @@ public partial class Main : Node3D
         AddChild(match);
         match.PcProfile = pcProfile;
         match.ConfigureMap(map);
+        if (cfg.OnlineFormat) match.Rules.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));   // PC en ligne : façon Knockout City
         match.ZoneElevation = ZoneElevation;
         match.PlatformsMove = !(map.IsRing && xrOrigin == null);
         match.IsBot = id => bots.ContainsKey(id);
@@ -577,6 +578,7 @@ public partial class Main : Node3D
         {
             // Le client relit le texte du tableau de score ; touches, statistiques et bots arrivent de l'hôte par le réseau.
             var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
             AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected });
         }

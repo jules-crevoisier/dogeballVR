@@ -34,6 +34,8 @@ public class NetConfig
     /// <summary>Identité du joueur pour la reconnexion (jeton aléatoire gardé dans user://, ou SteamID).</summary>
     public string Token { get; set; } = "";
     public string PlayerName { get; set; } = "";
+    /// <summary>Format de partie PC en ligne (façon Knockout City, <see cref="Rules.MatchRules.UseOnlineFormat"/>) au lieu des 5 manches de la VR.</summary>
+    public bool OnlineFormat { get; set; }
 
     /// <summary>Choix fait depuis le menu principal.</summary>
     public void Choose(NetMode mode, string address = "127.0.0.1") { Mode = mode; Address = address; Map = "croix_neon"; }
@@ -55,6 +57,7 @@ public class NetConfig
             else if (a.StartsWith("--token=")) cfg.Token = a["--token=".Length..];
             else if (a.StartsWith("--name=")) cfg.PlayerName = a["--name=".Length..];
             else if (a == "--net-selftest") cfg.SelfTest = true;
+            else if (a == "--format=online") cfg.OnlineFormat = true;
         }
         // L'entraînement se joue sur la vraie carte du jeu, pas sur l'arène de test.
         if (args.Contains("--tutorial") && !args.Exists(a => a.StartsWith("--map="))) cfg.Map = "croix_neon";

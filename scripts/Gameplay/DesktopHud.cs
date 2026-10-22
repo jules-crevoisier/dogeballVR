@@ -200,6 +200,7 @@ public partial class DesktopHud : CanvasLayer
             for (int i = 0; i < 5; i++)
             {
                 var pip = (Pip)roundPips[t][i];
+                pip.Visible = View.RoundsToWin <= 0 || i < View.RoundsToWin;   // format en ligne : 2 pastilles (2 manches gagnantes)
                 bool on = i < s.Rounds(t);
                 if (pip.On == on) continue;
                 pip.On = on;
@@ -1146,7 +1147,7 @@ public partial class DesktopHud : CanvasLayer
         koTitle.Visible = koSub.Visible = ko;
         if (ko)
         {
-            int left = Mathf.CeilToInt(3f - (float)(age - koSince));
+            int left = Mathf.CeilToInt(View.RespawnSeconds - (float)(age - koSince));
             koSub.Text = left > 0 ? $"Retour dans {left}" : "Retour imminent…";
         }
         PumpAnnouncements();

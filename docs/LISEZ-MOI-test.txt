@@ -13,6 +13,9 @@ En ligne (jusqu'à 8 joueurs, les places vides sont tenues par des bots) :
   Sans menu : DogeballVR.exe --lobby-quick, --lobby-host ou --lobby-join=CODE.
   Ancienne méthode, toujours possible : --host d'un côté, --join=ADRESSE_IP_DE_L_HOTE de l'autre (port UDP 7777).
 Parties d'environ 10 minutes : 5 manches de 2 minutes (3 KO = manche), prolongation de 30 s à mort subite en cas d'égalité.
+En ligne entre joueurs PC (format Knockout City) : premier à 7 KO en 2 contre 2 (15 en 4 contre 4), chrono de 5:00 par manche,
+  2 manches gagnantes, retour en jeu 5 s après un KO. Dès qu'un joueur VR est dans la salle, on garde les 5 manches de 2 minutes.
+  À la fin, tout le monde revient dans la salle et la revanche part seule au bout de 10 s (« PAS PRÊT » pour l'arrêter).
 
 Contrôles
   ZQSD / WASD     se déplacer dans ta zone (tu ne peux pas en sortir)
