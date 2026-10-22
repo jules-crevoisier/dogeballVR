@@ -94,6 +94,12 @@ public partial class Ball : RigidBody3D
     public bool IsPuppet { get; private set; }
     /// <summary>Client : tant que ce joueur local tient la marionnette, elle suit sa main sans attendre les snapshots (pas de retard, taille réduite).</summary>
     public Node3D? LocalHoldOverride { get; set; }
+    /// <summary>
+    /// Marionnette tenue par un joueur distant : point de sa main tel que son avatar l'affiche (avatar en retard d'affichage,
+    /// balle extrapolée en avance : sans ça la balle flotte devant la main). Vaut seulement tant que <see cref="ShownFor"/> la tient.
+    /// </summary>
+    public Node3D? ShownAt { get; set; }
+    public int ShownFor { get; set; } = -1;
     bool overridden;
     Vector3 netTarget;
 
@@ -378,6 +384,13 @@ public partial class Ball : RigidBody3D
             Visible = true;
             netTarget = GlobalPosition;
             overridden = true;
+        }
+        else if (IsPuppet && IsHeld && ShownFor == OwnerPlayerId && ShownAt != null && IsInstanceValid(ShownAt))
+        {
+            if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
+            GlobalPosition = ShownAt.GlobalPosition;
+            Visible = true;
+            netTarget = GlobalPosition;
         }
         else if (IsPuppet)
         {

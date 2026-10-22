@@ -18,6 +18,8 @@ public partial class AvatarIk : SkeletonModifier3D
     public float LeftElbowOut, RightElbowOut;
     /// <summary>Buste tourné autour de la verticale (radians, positif = épaule droite vers l'avant), au-dessus du bassin.</summary>
     public float Twist;
+    /// <summary>Tête tournée par rapport au corps (radians, même sens que <see cref="Twist"/>) : cou et tête font ce que le buste ne fait pas.</summary>
+    public float Look;
     /// <summary>Descente du bassin (mètres, monde), pieds gardés au sol.</summary>
     public float Crouch;
     /// <summary>Buste penché en avant (radians), pour l'accroupi.</summary>
@@ -25,6 +27,8 @@ public partial class AvatarIk : SkeletonModifier3D
 
     /// <summary>Pose finale de la dernière image, en coordonnées monde (tests et captures : hors de ce nœud, le squelette rend la pose d'avant l'IK).</summary>
     public Vector3 FinalWristL, FinalWristR, FinalHead;
+    /// <summary>Direction de la main droite (poignet vers les doigts, monde) : la balle tenue est au creux de la main.</summary>
+    public Vector3 FinalHandDirR = Vector3.Forward;
     public float FinalAnkleY;
 
     /// <summary>Descente du bassin au-delà de laquelle les jambes ne plient plus (squat profond, mètres du modèle à l'échelle 1).</summary>
@@ -90,6 +94,12 @@ public partial class AvatarIk : SkeletonModifier3D
         }
 
         if (Mathf.Abs(Twist) > 0.001f) RotateGlobal(skel, spine, new Quaternion(up, Twist));
+        float look = Look - Twist;
+        if (Mathf.Abs(look) > 0.001f)
+        {
+            RotateGlobal(skel, neck, new Quaternion(up, look * 0.4f));
+            RotateGlobal(skel, head, new Quaternion(up, look * 0.6f));
+        }
 
         for (int s = 0; s < 2; s++)
         {
@@ -107,7 +117,9 @@ public partial class AvatarIk : SkeletonModifier3D
 
         var toWorld = skel.GlobalTransform;
         FinalWristL = toWorld * skel.GetBoneGlobalPose(arm[2]).Origin;
-        FinalWristR = toWorld * skel.GetBoneGlobalPose(arm[5]).Origin;
+        var handR = skel.GetBoneGlobalPose(arm[5]);
+        FinalWristR = toWorld * handR.Origin;
+        FinalHandDirR = (toWorld.Basis * handR.Basis.Y).Normalized();   // os Blender : Y le long de l'os
         FinalHead = toWorld * skel.GetBoneGlobalPose(head).Origin;
         FinalAnkleY = Mathf.Min((toWorld * skel.GetBoneGlobalPose(leg[2]).Origin).Y, (toWorld * skel.GetBoneGlobalPose(leg[5]).Origin).Y);
     }
