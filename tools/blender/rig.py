@@ -315,6 +315,20 @@ def animate(rig, arm_rest=6):
         cel[f] = {"Hanches": ("loc", 0, 0, 0.06 * up), "Dos": (-6, 0, 0), "Tete": (-12, 0, 0), "Bras.G": (150 - 20 * up, 30, 0),
                   "Bras.D": (150 - 20 * up, -30, 0), f"{A}.G": (20 + 30 * up, 0, 0), f"{A}.D": (20 + 30 * up, 0, 0)}
     _action(rig, "Celebration", cel, 17)
+    # podium : victoire tenue (poing droit levé, bras gauche relâché, torse bombé) et défaite (épaules basses, tête baissée),
+    # boucles lentes de respiration pour qu'ils ne soient jamais figés
+    vic = {}
+    for f, k in ((1, 0.0), (31, 1.0)):
+        vic[f] = {"Hanches": ("loc", 0, 0, -0.01 * k), "Dos": (8 + 3 * k, 0, -6), "Tete": (-10 - 3 * k, 0, 8),
+                  "Bras.D": (172 - 6 * k, -6, 0), f"{A}.D": (35 + 12 * k, 0, 0), "Bras.G": (-6, R + 8, 0), f"{A}.G": (30 + 6 * k, 0, 0),
+                  "Cuisse.G": (0, 8, 0), "Cuisse.D": (0, -8, 0)}
+    _action(rig, "Victoire", vic, 61)
+    dft = {}
+    for f, k in ((1, 0.0), (36, 1.0)):
+        dft[f] = {"Hanches": ("loc", 0, 0, -0.03 - 0.01 * k), "Dos": (-16 - 3 * k, 0, 0), "Tete": (-26 - 4 * k, 0, 4),
+                  "Bras.G": (6, R - 4, 0), "Bras.D": (6, -R + 4, 0), f"{A}.G": (8, 0, 0), f"{A}.D": (8, 0, 0),
+                  "Cuisse.G": (4, 0, 0), "Cuisse.D": (4, 0, 0), "Tibia.G": (-8, 0, 0), "Tibia.D": (-8, 0, 0)}
+    _action(rig, "Defaite", dft, 71)
 
 
 def rig_character(objs, bones=BONES, arm_rest=6):
