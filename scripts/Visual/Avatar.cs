@@ -6,6 +6,8 @@ namespace DogeballVR.Visual;
 /// Avatar de la DA v3 : combinaison unie à la couleur de l'équipe, jambes sombres, épaules marquées, tête sphérique avec
 /// visière sombre, grandes mains blanches, disque blanc (équipe 1) ou losange blanc (équipe 2) sur le torse.
 /// Sert pour les bots et (réseau) pour les joueurs distants.
+/// Personnage riggé : touché = animation « Touche » + recul court à l'opposé du tireur + éclat blanc de 0,1 s ; KO = animation « KO »,
+/// jouée par une copie du modèle laissée sur place quand le joueur disparaît aussitôt (bot ou joueur distant masqué au KO).
 /// </summary>
 public partial class Avatar : Node3D
 {
@@ -25,6 +27,19 @@ public partial class Avatar : Node3D
     float climb;   // vitesse verticale de la tête (saut)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
+    static readonly System.Collections.Generic.List<Avatar> all = new();
+    string modelName = "";
+    Vector3 bodyBase;            // position du corps posée par Pose (sans le recul)
+    ulong lastPoseFrame;         // les bots n'appellent pas Pose : leur vitesse se déduit alors du déplacement du corps
+    Vector3 lastBodyGlobal;
+    Vector3 kickDir;             // recul de touche (monde, horizontal), amorti par kickAge
+    double kickAge = 99;
+    ulong flashUntil;            // éclat blanc (temps réel : il reste visible pendant l'arrêt sur image)
+    StandardMaterial3D? flashMat;
+    MeshInstance3D[] meshes = System.Array.Empty<MeshInstance3D>();
+    double ghostWindow;          // KO à l'instant : si l'avatar est masqué dans ce délai, une copie joue la chute
+    Transform3D koTransform;
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
@@ -33,6 +48,7 @@ public partial class Avatar : Node3D
         if (rigged != null)
         {
             avatar.body = rigged;
+            avatar.modelName = $"avatar_{teamName}_rig";
             avatar.anim = rigged.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
             avatar.AddChild(rigged);
             foreach (var loop in new[] { "Repos", "Course" })
@@ -109,19 +125,90 @@ public partial class Avatar : Node3D
         return glove;
     }
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
-        if (body != null) Gameplay.MatchController.HitScored += OnHit;
+        if (body == null) return;
+        Gameplay.MatchController.HitScored += OnHit;
+        all.Add(this);
     }
 
     public override void _ExitTree()
     {
-        if (body != null) Gameplay.MatchController.HitScored -= OnHit;
+        if (body == null) return;
+        Gameplay.MatchController.HitScored -= OnHit;
+        all.Remove(this);
+    }
+
+    /// <summary>Fait réagir l'avatar de la cible comme sur une touche validée (utilisé par --impact-test).</summary>
+    public static void React(int shooterId, int targetId, bool kill)
+    {
+        foreach (var a in all.ToArray()) if (IsInstanceValid(a)) a.OnHit(shooterId, targetId, kill);
     }
 
     void OnHit(int shooterId, int targetId, bool kill)
     {
-        if (targetId == playerId && playerId >= 0) PlayAction(kill ? "KO" : "Touche", kill ? 3.0 : 0.45);
+        if (targetId != playerId || playerId < 0 || body == null) return;
+        PlayAction(kill ? "KO" : "Touche", kill ? 3.0 : 0.45);
+        Flash();
+        if (kill) { ghostWindow = 0.25; koTransform = body.GlobalTransform; return; }
+        // Recul : à l'opposé du tireur (sinon vers l'arrière du personnage, +Z : il regarde vers -Z).
+        Vector3 dir = body.GlobalTransform.Basis.Z;
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+            if (n is Gameplay.Hurtbox h && h.PlayerId == shooterId) dir = body.GlobalPosition - h.GlobalPosition;
+        dir.Y = 0;
+        kickDir = dir.LengthSquared() > 1e-4f ? dir.Normalized() : Vector3.Back;
+        kickAge = 0;
+    }
+
+    /// <summary>Éclat blanc sur tout le modèle (calque par-dessus les matériaux, le modèle n'est pas modifié).</summary>
+    void Flash()
+    {
+        if (body == null || DisplayServer.GetName() == "headless") return;
+        if (meshes.Length == 0)
+        {
+            var found = new System.Collections.Generic.List<MeshInstance3D>();
+            foreach (var n in body.FindChildren("*", "MeshInstance3D", true, false)) if (n is MeshInstance3D mi) found.Add(mi);
+            meshes = found.ToArray();
+        }
+        flashMat ??= new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            AlbedoColor = new Color(1, 1, 1, 0.85f),
+        };
+        foreach (var mi in meshes) if (IsInstanceValid(mi)) mi.MaterialOverlay = flashMat;
+        flashUntil = Time.GetTicksMsec() + FlashMs;
+    }
+
+    const ulong FlashMs = 110;
+    const double KickTime = 0.3;
+    const float KickDistance = 0.28f;
+
+    /// <summary>Recul (mètres) à l'instant t : sortie vive en 0,05 s puis retour amorti.</summary>
+    static float KickAmount(double t) =>
+        t >= KickTime ? 0f : t < 0.05 ? KickDistance * (float)(t / 0.05) : KickDistance * Mathf.Pow(1f - (float)((t - 0.05) / (KickTime - 0.05)), 2f);
+
+    Vector3 KickLocal()
+    {
+        float k = KickAmount(kickAge);
+        if (k <= 0f) return Vector3.Zero;
+        return GlobalTransform.Basis.Inverse() * (kickDir * k);
+    }
+
+    /// <summary>Copie du modèle laissée sur place, qui joue « KO » puis rétrécit : le joueur, lui, est déjà masqué.</summary>
+    void SpawnKoGhost()
+    {
+        var scene = GetTree()?.CurrentScene;
+        if (scene == null || modelName == "" || DisplayServer.GetName() == "headless") return;
+        var ghost = ModelLibrary.Instance(modelName);
+        if (ghost == null) return;
+        scene.AddChild(ghost);
+        ghost.GlobalTransform = koTransform;
+        GD.Print($"[Avatar] KO du joueur {playerId} : chute jouée par une copie (joueur masqué)");
+        if (ghost.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation("KO")) ap.Play("KO");
+        var tw = ghost.CreateTween();
+        tw.TweenInterval(0.95);
+        tw.TweenProperty(ghost, "scale", new Vector3(0.05f, 0.05f, 0.05f), 0.22).SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Back);
+        tw.TweenCallback(Callable.From(ghost.QueueFree));
     }
 
     /// <summary>Joue une animation ponctuelle (lancer, attrape, esquive, touché, KO) puis revient à la course ou au repos.</summary>
@@ -136,6 +223,32 @@ public partial class Avatar : Node3D
     public override void _Process(double delta)
     {
         if (body == null || anim == null || delta <= 0) return;
+        if (flashUntil != 0 && Time.GetTicksMsec() >= flashUntil)
+        {
+            flashUntil = 0;
+            foreach (var mi in meshes) if (IsInstanceValid(mi)) mi.MaterialOverlay = null;
+        }
+        else if (flashUntil != 0 && flashMat != null)
+            flashMat.AlbedoColor = new Color(1, 1, 1, 0.85f * (flashUntil - Time.GetTicksMsec()) / FlashMs);
+        if (ghostWindow > 0)
+        {
+            ghostWindow -= delta;
+            if (!IsVisibleInTree()) { ghostWindow = 0; SpawnKoGhost(); }
+        }
+        if (kickAge < KickTime + 0.1)
+        {
+            kickAge += delta;
+            body.Position = bodyBase + KickLocal();
+        }
+        // Bot : pas d'appel à Pose, la vitesse (course ou repos) se lit sur le déplacement du corps.
+        var bodyGlobal = body.GlobalPosition;
+        if (Engine.GetProcessFrames() - lastPoseFrame > 2 && lastBodyGlobal != Vector3.Zero)
+        {
+            var flat = bodyGlobal - lastBodyGlobal;
+            flat.Y = 0;
+            speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / (float)delta, 12f), 0.25f);
+        }
+        lastBodyGlobal = bodyGlobal;
         // Événements de balle déduits de l'état visible (hôte et clients) : prise puis lâcher par ce joueur.
         if (playerId >= 0)
             foreach (var n in GetTree().GetNodesInGroup("balls"))
@@ -170,9 +283,11 @@ public partial class Avatar : Node3D
                 climb = (head.Y - lastHead.Y) / dt;
             }
             lastHead = head;
+            lastPoseFrame = Engine.GetProcessFrames();
             // pieds au sol même pour un grand joueur (écart de taille), mais le corps suit un vrai saut
             float y = head.Y - HeadHeight;
-            body.Position = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
+            bodyBase = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
+            body.Position = bodyBase + (IsInsideTree() ? KickLocal() : Vector3.Zero);
             body.Rotation = new Vector3(0, yaw, 0);
         }
         Head.Position = head;
