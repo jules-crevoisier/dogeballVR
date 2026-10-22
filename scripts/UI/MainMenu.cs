@@ -20,7 +20,7 @@ public partial class MainMenu : CanvasLayer
     VBoxContainer column = null!;
     Control? overlay;
     ColorRect fade = null!;
-    Band band = null!;
+    MenuBand band = null!;
     SelectBar bar = null!;
     Control? barOn;   // item sous la barre jaune (null : barre cachée)
     Tween? barTween;
@@ -44,7 +44,7 @@ public partial class MainMenu : CanvasLayer
         float top = compact ? -44f : 0f;
 
         // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
-        band = new Band { MouseFilter = Control.MouseFilterEnum.Ignore };
+        band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
         band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         band.Resized += band.QueueRedraw;
         root.AddChild(band);
@@ -112,6 +112,19 @@ public partial class MainMenu : CanvasLayer
         ShowMain();
         if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
         if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--options-test") >= 0) OpenOverlay(new OptionsMenu { FirstTab = 1 });
+        // Captures d'écran : --menu-page=online | lan | credits | first ouvre la page au bout d'une seconde.
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--menu-page="))
+            {
+                string page = arg["--menu-page=".Length..];
+                GetTree().CreateTimer(1.0).Timeout += () =>
+                {
+                    if (page == "online") ShowOnline();
+                    else if (page == "lan") ShowLan();
+                    else if (page == "credits") ShowCredits();
+                    else if (page == "first") { GameSettings.TutorialDone = false; PlayBots(); }
+                };
+            }
     }
 
     void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); } });
@@ -182,7 +195,7 @@ public partial class MainMenu : CanvasLayer
     /// Item du menu racine : texte XXL penché, sans boîte. Le focus (clavier, ou survol de la souris qui le prend) le passe
     /// en marine sur la barre jaune et le pousse un peu vers la droite. Les items secondaires sont plus petits et grisés.
     /// </summary>
-    Button Item(string text, Action onPress, bool main = true)
+    Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
     {
         var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
         var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 84 : 52) };
@@ -191,7 +204,7 @@ public partial class MainMenu : CanvasLayer
         b.AddThemeFontSizeOverride("font_size", main ? 70 : 38);
         if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
         b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
-        var rest = main ? Colors.White : new Color("a9a6cf");   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
+        var rest = restColor ?? (main ? Colors.White : UiKit.Lavender);   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
         int restOutline = main ? 12 : 8;
         void Paint(Color c, int outline)
         {
@@ -269,19 +282,21 @@ public partial class MainMenu : CanvasLayer
         var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
         Button? join = null;
         PadKeyboard(code, "Code de la salle", () => join);
+        // Mêmes items que le menu racine (barre jaune qui glisse), en taille secondaire.
         Fill(
-            UiKit.Text("EN LIGNE", 44, UiKit.Yellow, 10),
-            UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, "")))),
-            UiKit.Button("CRÉER UNE SALLE PRIVÉE", UiKit.Blue, () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, ""))),
+            UiKit.Title("EN LIGNE", 56, HorizontalAlignment.Left),
+            Item("PARTIE RAPIDE", () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))), false, Colors.White),
+            Item("CRÉER UNE SALLE PRIVÉE", () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
             code,
-            join = UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
+            join = Item("REJOINDRE AVEC LE CODE", () =>
             {
                 var c = code.Text.Trim().ToUpperInvariant();
                 if (c == "") { code.GrabFocus(); if (InputSetup.UsingPad) OpenKeyboard(code, "Code de la salle", () => join); return; }
                 if (JoinCode != null) Leave(() => JoinCode(c));
-            }),
-            UiKit.Button("RÉSEAU LOCAL", UiKit.NavySoft, ShowLan),
-            UiKit.Button("RETOUR", UiKit.Grey, () => { Sfx.Play(this, SfxKind.UiBack); ShowMain(); }));
+            }, false, Colors.White),
+            Item("RÉSEAU LOCAL", ShowLan, false, Colors.White),
+            UiKit.Spacer(10),
+            Item("RETOUR", () => { Sfx.Play(this, SfxKind.UiBack); ShowMain(); }, false));
     }
 
     void ShowLan()
@@ -291,15 +306,16 @@ public partial class MainMenu : CanvasLayer
         Button? join = null;
         PadKeyboard(address, "Adresse IP de l'hôte", () => join);
         Fill(
-            UiKit.Text("RÉSEAU LOCAL", 44, UiKit.Yellow, 10),
-            UiKit.Button("HÉBERGER", UiKit.Orange, () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, ""))),
+            UiKit.Title("RÉSEAU LOCAL", 56, HorizontalAlignment.Left),
+            Item("HÉBERGER", () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
             address,
-            join = UiKit.Button("REJOINDRE", UiKit.Blue, () =>
+            join = Item("REJOINDRE", () =>
             {
                 var ip = address.Text.Trim();
                 if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));
-            }),
-            UiKit.Button("RETOUR", UiKit.Grey, () => { Sfx.Play(this, SfxKind.UiBack); ShowOnline(); }));
+            }, false, Colors.White),
+            UiKit.Spacer(10),
+            Item("RETOUR", () => { Sfx.Play(this, SfxKind.UiBack); ShowOnline(); }, false));
     }
 
     void Online(Action? handler, Action fallback) => Leave(handler ?? fallback);
@@ -315,7 +331,7 @@ public partial class MainMenu : CanvasLayer
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 14);
         card.AddChild(col);
-        col.AddChild(UiKit.Text("PREMIÈRE PARTIE ?", 46, UiKit.Yellow, 10, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("PREMIÈRE PARTIE ?", 52));
         col.AddChild(UiKit.Text("L'entraînement t'apprend à lancer, attraper et esquiver en deux minutes.", 24, Colors.White, 6, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         row.AddThemeConstantOverride("separation", 16);
@@ -338,7 +354,7 @@ public partial class MainMenu : CanvasLayer
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 10);
         card.AddChild(col);
-        col.AddChild(UiKit.Text("CRÉDITS", 50, UiKit.Yellow, 12, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("CRÉDITS", 56));
         foreach (var (who, what) in new[]
         {
             ("Conception et direction", "jules"),
@@ -422,34 +438,6 @@ public partial class MainMenu : CanvasLayer
         var tw = fade.CreateTween();
         tw.TweenProperty(fade, "color:a", 1.0, 0.35);
         tw.TweenCallback(Callable.From(then));
-    }
-
-    /// <summary>
-    /// Bandeau plein du menu : part du bord gauche, bord droit en biais (plus large en haut), dégradé violet profond vers
-    /// marine, liseré crème épais, ombre et bande violette en retrait derrière, comme les panneaux de Knockout City.
-    /// </summary>
-    sealed partial class Band : Control
-    {
-        const float TopW = 800f, BottomW = 560f;   // à 1920 px de large : ~40 % de l'écran, la droite reste aux personnages
-        static readonly Color VioletTop = new("2e1260"), VioletMid = new("221447"), NavyLow = new("121a3c"), Violet = new("5a1a8a");
-
-        /// <summary>Abscisse du bord droit (intérieur du liseré) à la hauteur y.</summary>
-        public float EdgeX(float y) => Mathf.Lerp(TopW, BottomW, Mathf.Clamp(y / Mathf.Max(Size.Y, 1f), 0f, 1f));
-
-        public override void _Draw()
-        {
-            float h = Size.Y;
-            // Bande parallèle au bord, entre deux écarts (négatifs : vers l'intérieur).
-            Vector2[] Strip(float a, float b) => new[] { new Vector2(TopW + a, 0), new Vector2(TopW + b, 0), new Vector2(BottomW + b, h), new Vector2(BottomW + a, h) };
-            DrawColoredPolygon(Strip(36, 74), new Color(Violet, 0.7f));        // seconde bande violette, en retrait
-            DrawColoredPolygon(Strip(14, 30), new Color(UiKit.Navy, 0.5f));    // ombre du liseré
-            DrawColoredPolygon(Strip(-2, 16), UiKit.Cream);                     // liseré crème
-            DrawPolygon(new[] { Vector2.Zero, new Vector2(TopW, 0), new Vector2(BottomW, h), new Vector2(0, h) },
-                new[] { VioletTop, VioletMid, NavyLow, NavyLow });
-            // Aplats graphiques en biais à l'intérieur : un reflet clair et une bande plus sombre, pour l'énergie BD.
-            DrawColoredPolygon(Strip(-150, -96), new Color(1, 1, 1, 0.035f));
-            DrawColoredPolygon(new[] { new Vector2(0, h * 0.78f), new Vector2(BottomW + 40, h * 0.62f), new Vector2(BottomW + 40, h * 0.62f + 34), new Vector2(0, h * 0.78f + 34) }, new Color(0, 0, 0, 0.12f));
-        }
     }
 
     /// <summary>Barre de sélection jaune inclinée, qui vire à l'or vers le bas, avec l'étoile marine devant le texte (« ✦ JUGAR »).</summary>

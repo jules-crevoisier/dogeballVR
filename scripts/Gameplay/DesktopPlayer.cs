@@ -118,9 +118,26 @@ public partial class DesktopPlayer : Node3D
     double pickupBlockedUntil;
     Vector2 spawnPos;
     bool wasEliminated;
-    float camFraction = 1f;          // part de la distance caméra libre de décor
+    float camDist = CameraDistance;  // distance caméra libre de décor, lissée (rapproche vite, recule doucement)
     float raise;                     // 0 → 1 : caméra montée par-dessus un couvert bas derrière le joueur
     const float ShoulderOffset = 1.0f;   // décalage à droite : le personnage occupe le tiers gauche, le viseur reste dégagé
+    // Bascule d'épaule façon Knockout City : épaule bouchée (panneau, pylône) → la caméra passe en douceur sur l'autre épaule.
+    int sideTarget = 1;                  // +1 épaule droite (côté normal), -1 épaule gauche
+    float sideT = 1f;                    // 0 → 1 : position lissée de la bascule (gauche → droite)
+    double sideSince = -10;              // instant de la dernière bascule (hystérésis)
+    bool overTarget;                     // les deux épaules bouchées : caméra rapprochée au-dessus de la tête
+    float overT;                         // 0 → 1 : position lissée de cette vue haute
+    double overSince = -10;
+    const float SideBlockedArm = 1.4f;   // bras de caméra libre plus court que ça : l'épaule est bouchée
+    const float SideSwapTime = 0.25f;    // durée de la bascule (s)
+    const double SideHold = 1.0;         // on garde un côté au moins ce temps-là avant de rebasculer
+    const float ViewProbe = 4f;          // portée du test de vue devant la caméra (m)
+    const float CamRadius = 0.25f;       // sphère de la caméra : l'objectif ne frôle plus un mur (plan proche dans le décor = écran blanc)
+    const float CamMinDistance = 1.2f;   // plus près que ça d'un couvert, la caméra préfère passer par-dessus
+    const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
+    const float RaiseHeight = 0.9f;      // hauteur du passage par-dessus un couvert bas
+    const float AvatarHideDistance = 1.6f;   // caméra plus proche de la tête : le joueur est caché pour ne pas boucher l'écran
+    readonly SphereShape3D camShape = new() { Radius = CamRadius };
     int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
     int dashCount;                   // compteur envoyé à l'hôte : chaque dash le fait avancer d'un cran
@@ -227,6 +244,7 @@ public partial class DesktopPlayer : Node3D
         }
         dashCharges = MaxCharges;
         autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-test") >= 0) StartCamTest();
         rng.Seed = 4242;
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -251,6 +269,8 @@ public partial class DesktopPlayer : Node3D
     }
 
     void ShowToast(string text) { Toast = text; ToastUntil = time + 1.5; }
+    /// <summary>Geste du joueur (feinte, tacle, poussée) : petit autocollant, même langage que « PRISE ! » ou « PASSE ! » ; message du HUD s'il n'y a pas de Feedback.</summary>
+    void ShowSticker(string text) { if (!Feedback.LocalSticker(text)) ShowToast(text); }
 
     public override void _Input(InputEvent e)
     {
@@ -312,6 +332,7 @@ public partial class DesktopPlayer : Node3D
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
         var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
         if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        if (camTest) CamTestMeasure();
         camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
         FadeBallsNearCamera();
     }
@@ -362,7 +383,7 @@ public partial class DesktopPlayer : Node3D
     {
         time += delta;
         float dt = (float)delta;
-        var input = autoplay ? AutoplayInput(delta) : ReadInput();
+        var input = camTest ? CamTestInput() : autoplay ? AutoplayInput(delta) : ReadInput();
         if (!autoplay && (PauseMenu.IsOpen || Input.MouseMode != Input.MouseModeEnum.Captured && !padActive))
         {
             input = default;                                   // souris libérée : plus de réaction aux clics
@@ -381,7 +402,7 @@ public partial class DesktopPlayer : Node3D
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
             if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
             if (held != null) held.LocalHoldOverride = holdPoint;
-            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; ShowToast("Attrape parfaite !"); }
+            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « PRISE PARFAITE ! » (Feedback)
         }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
@@ -448,7 +469,7 @@ public partial class DesktopPlayer : Node3D
             if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
-        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.035)
+        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.05)   // ~3 silhouettes par dash
         {
             lastGhostAt = time;
             Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
@@ -638,7 +659,7 @@ public partial class DesktopPlayer : Node3D
             tackledDash = dashCount;
             BallActions.Tackle(Hurtbox.PlayerId, h.PlayerId, dodgeDir);
             GD.Print($"[PC] Tacle sur le joueur {h.PlayerId}");
-            ShowToast("Tacle !");
+            ShowSticker("TACLE !");
             dodgeLeft = 0;
             velocity = dodgeDir * RunSpeed * 0.4f;   // le tacleur ralentit net
             return;
@@ -654,7 +675,7 @@ public partial class DesktopPlayer : Node3D
         dodgeLeft = 0; charging = false; chargeTime = 0; padFlight = false;
         if (Elevation > 0f) { evictDir = pushDir; evictUntil = time + 1.0; }
         GD.Print("[PC] Poussé par un tacle");
-        ShowToast("Poussé !");
+        ShowSticker("POUSSÉ !");
     }
 
     /// <summary>Quand les pieds sont sous le bord de la fosse, on tombe droit : le mur de la fosse nous garde à l'intérieur.</summary>
@@ -771,7 +792,7 @@ public partial class DesktopPlayer : Node3D
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
-                if (perfect && !BallActions.IsClient) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
+                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « PRISE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
                 if (viaCatch && !ally)
                 {
                     // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
@@ -812,7 +833,7 @@ public partial class DesktopPlayer : Node3D
                 charging = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
                 Feints++;
-                ShowToast("Feinte !");
+                ShowSticker("FEINTE !");
             }
             else if (input.Pass)
             {
@@ -988,62 +1009,397 @@ public partial class DesktopPlayer : Node3D
         fov = Mathf.Lerp(fov, target, 1f - Mathf.Exp(-10f * dt));
     }
 
-    /// <summary>3e personne : la caméra flotte derrière l'épaule droite, orientée comme la tête, et reste dans l'arène.</summary>
+    /// <summary>
+    /// 3e personne : la caméra flotte derrière l'épaule droite (la gauche si la droite est bouchée, voir ChooseShoulder), orientée comme la tête, et reste dans l'arène.
+    /// Le bras de caméra est testé avec une sphère de 0,25 m (et non un rayon) : longer un muret ne fait plus entrer l'objectif dedans.
+    /// Elle se rapproche aussitôt qu'un décor l'exige et ne recule qu'en douceur ; elle ne descend pas sous la ligne des yeux.
+    /// </summary>
     void PlaceCamera(float dt, Vector3 fxRot, Vector3 fxOffset, float realDt)
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
         var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
-        float side = velocity.Dot(right2);
-        lean = Mathf.Lerp(lean, -side * 0.28f, 1f - Mathf.Exp(-8f * realDt));
+        float strafe = velocity.Dot(right2);
+        lean = Mathf.Lerp(lean, -strafe * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
         var bnd = Zones.Map.Bounds;
         // Bras de caméra façon jeu d'épaule : d'abord le point d'épaule (à droite de la tête), puis le recul derrière ce point.
         // Si un mur rapproche la caméra, le personnage reste à gauche de l'écran au lieu de boucher le viseur.
         float lift = 0.35f + 0.8f * killCamBlend;
-        var shoulder = from + basis * new Vector3(ShoulderOffset, lift, 0f);
-        shoulder = from.Lerp(shoulder, FreeFraction(from, shoulder, bnd));
-        var boom = basis * new Vector3(0f, 0f, CameraDistance + 2.2f * killCamBlend);
-        float f = FreeFraction(shoulder, shoulder + boom, bnd);
-        // Couvert bas derrière soi : plutôt que de coller la caméra au dos, elle passe par-dessus.
-        if (f < 0.75f)
+        float len = CameraDistance + 2.2f * killCamBlend;
+        // Jamais sous la ligne des yeux, ni sous celle d'un joueur debout quand on est accroupi : la caméra reste au-dessus des épaules.
+        float minCamY = Mathf.Max(from.Y + CamMinAboveEyes, Elevation + EyeHeight - 0.1f);
+        ChooseShoulder(dt, basis, from, lift, minCamY, len, bnd);
+        // Côté lissé (-1 → +1) et vue haute : épaule plus proche du centre, pivot plus haut, bras plus court.
+        float side = Mathf.Lerp(-1f, 1f, Mathf.SmoothStep(0f, 1f, sideT));
+        float over = Mathf.SmoothStep(0f, 1f, overT);
+        lift += 0.55f * over;
+        len *= 1f - 0.35f * over;
+        var toShoulder = basis * new Vector3(ShoulderOffset * side * (1f - 0.8f * over), lift, 0f);
+        var shoulder = from + toShoulder * (CamFree(from, from + toShoulder, bnd) / toShoulder.Length());
+        float free = CamFree(shoulder, shoulder + Boom(basis, shoulder, minCamY, len), bnd);
+        // Couvert derrière soi qui collerait la caméra au dos : elle passe par-dessus, si la vue y est nettement plus dégagée.
+        bool high = false;
+        if (free < Mathf.Max(CamMinDistance + 0.3f, 0.75f * len) && CamFree(shoulder, shoulder + Vector3.Up * RaiseHeight, bnd) > RaiseHeight - 0.01f)
         {
-            var high = shoulder + Vector3.Up * 0.9f;
-            float up = FreeFraction(shoulder, high, bnd);
-            float fh = up > 0.99f ? FreeFraction(high, high + boom, bnd) : 0f;
-            if (fh > f + 0.2f) { raise = Mathf.Lerp(raise, 1f, 1f - Mathf.Exp(-8f * dt)); f = fh; }
-            else raise = Mathf.Lerp(raise, 0f, 1f - Mathf.Exp(-5f * dt));
+            var top = shoulder + Vector3.Up * RaiseHeight;
+            high = CamFree(top, top + Boom(basis, top, minCamY, len), bnd) > free + 0.6f;
         }
-        else raise = Mathf.Lerp(raise, 0f, 1f - Mathf.Exp(-5f * dt));
-        camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 1f - Mathf.Exp(-9f * dt));
-        var pivot = shoulder + Vector3.Up * 0.9f * raise;
-        var pos = pivot + boom * camFraction;
+        raise = Mathf.Lerp(raise, high ? 1f : 0f, 1f - Mathf.Exp(-(high ? 8f : 4f) * dt));
+        var pivot = shoulder;
+        if (raise > 0.01f) pivot += Vector3.Up * CamFree(shoulder, shoulder + Vector3.Up * (RaiseHeight * raise), bnd);
+        // Le bras réel est testé à chaque image depuis le pivot réel : aucune position intermédiaire du lissage n'entre dans le décor.
+        var boom = Boom(basis, pivot, minCamY, len);
+        free = CamFree(pivot, pivot + boom, bnd);
+        // Dos à un grand couvert (pylône, pilier) : la caméra serait collée au joueur, caché. Elle passe alors derrière le couvert,
+        // qui devient translucide tant qu'il est entre elle et le joueur (voir GhostCovers). Jamais à travers les murs d'enceinte.
+        coversThrough.Clear();
+        if (free < AvatarHideDistance + 0.4f && killCamBlend < 0.01f)
+        {
+            float past = CamFree(pivot, pivot + boom, bnd, coversThrough);
+            if (past > len - 0.01f && CamInsideSolid(pivot + boom, bnd))
+            {
+                // Le bras finit dans le couvert (pylône épais) : on le prolonge jusqu'à en sortir, de 1,5 m au plus.
+                float reach = CamFree(pivot, pivot + boom * ((len + 1.5f) / len), bnd, coversThrough);
+                past = 0f;
+                for (float d = len + 0.2f; d <= reach + 0.001f; d += 0.2f)
+                    if (!CamInsideSolid(pivot + boom * (d / len), bnd)) { past = d; break; }
+            }
+            if (past > free + 1f && !CamInsideSolid(pivot + boom * (past / len), bnd)) free = past;
+            else coversThrough.Clear();
+        }
+        camDist = free < camDist ? free : Mathf.Lerp(camDist, free, 1f - Mathf.Exp(-(coversThrough.Count > 0 ? 10f : 2.5f) * dt));   // rapproche tout de suite, recule doucement (vite quand elle passe derrière un couvert : le joueur est caché tant qu'elle est collée)
+        var pos = pivot + boom * (camDist / len);
+        // Filet de sécurité : un modèle plus gros que sa collision (abri, conteneur) ne doit jamais avaler l'objectif.
+        float inside = OutsideDecorFraction(pivot, pos);
+        if (inside < 1f) { camDist *= inside; pos = pivot + boom * (camDist / len); }
         pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
+        HideDecorInFront(pos, from);
+        // Rotor du moyeu (barre rayée de 8 m qui tourne) : la caméra l'ignore pour ne pas sauter à chaque passage,
+        // mais il devient translucide dès qu'il passe entre elle et le joueur ou frôle l'objectif.
+        var chest = from + Vector3.Down * 0.7f;
+        if (RotorCrosses(pos, from, 0.1f) || RotorCrosses(pos, chest, 0.1f) || RotorCrosses(pos, pos, 0.6f)) rotorGhostUntil = time + 0.25;
+        // Un couvert qui cache la tête (bras d'épaule libre, mais ligne de vue coupée par un coin) est aussi translucide.
+        // Pas pour le buste : derrière un muret bas, on doit le voir opaque (c'est lui qui protège).
+        CoversOnSight(pos, from, bnd);
+        GhostCovers();
     }
 
-    /// <summary>Part du segment libre de décor plein (couverts, pylône) ; les murs d'enceinte et le plafond sont ignorés.</summary>
-    float FreeFraction(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    /// <summary>
+    /// Choisit l'épaule de la caméra. Chaque côté est sondé à pleine épaule : bras d'épaule, bras de caméra libre, puis vue devant l'objectif.
+    /// Côté courant bouché (bras sous ~1,4 m, épaule contre le décor ou panneau juste devant l'objectif) et autre côté nettement plus dégagé :
+    /// bascule, gardée au moins 1 s. Retour à l'épaule droite seulement quand elle est clairement libre. Les deux bouchés : vue haute.
+    /// L'orientation de la caméra ne change pas : le viseur (centre de l'écran) et la direction de tir restent les mêmes.
+    /// </summary>
+    void ChooseShoulder(float dt, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
     {
-        float full = a.DistanceTo(b);
-        if (full < 0.01f) return 1f;
+        var (curArm, curOpen, curBlocked) = ProbeSide(sideTarget, basis, from, lift, minCamY, len, bnd);
+        var (othArm, othOpen, othBlocked) = ProbeSide(-sideTarget, basis, from, lift, minCamY, len, bnd);
+        if (time - sideSince >= SideHold && killCamBlend < 0.01f)
+        {
+            bool swap = curBlocked && !othBlocked && othOpen > curOpen + 1f;
+            // Retour à l'épaule droite (côté normal) quand elle est clairement libre.
+            if (sideTarget < 0 && !othBlocked && othArm > 0.65f * len && othOpen > curOpen - 0.5f) swap = true;
+            if (swap) { sideTarget = -sideTarget; sideSince = time; (curBlocked, othBlocked) = (othBlocked, curBlocked); }
+        }
+        // Vue haute seulement si les deux bras sont courts (un panneau devant soi ne se contourne pas par le haut).
+        bool both = curBlocked && othBlocked && Mathf.Max(curArm, othArm) < SideBlockedArm && killCamBlend < 0.01f;
+        if (both != overTarget && (both || time - overSince >= 0.5)) { overTarget = both; overSince = time; }
+        sideT = Mathf.MoveToward(sideT, sideTarget > 0 ? 1f : 0f, dt / SideSwapTime);
+        overT = Mathf.MoveToward(overT, overTarget ? 1f : 0f, dt / 0.3f);
+    }
+
+    /// <summary>Sonde un côté à pleine épaule : bras de caméra libre (m), note d'ouverture, et s'il est bouché.</summary>
+    (float arm, float open, bool blocked) ProbeSide(int s, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
+    {
+        var toShoulder = basis * new Vector3(ShoulderOffset * s, lift, 0f);
+        float reach = CamFree(from, from + toShoulder, bnd) / toShoulder.Length();   // 0 → 1
+        var shoulder = from + toShoulder * reach;
+        var boom = Boom(basis, shoulder, minCamY, len);
+        float arm = CamFree(shoulder, shoulder + boom, bnd);
+        var cam = shoulder + boom * (arm / len);
+        float view = CamFree(cam, cam - basis.Z * ViewProbe, bnd);   // panneau collé devant l'objectif
+        float open = arm + 0.5f * view + 1.5f * reach;
+        bool blocked = arm < SideBlockedArm || reach < 0.5f || view < 1.2f;
+        return (arm, open, blocked);
+    }
+
+    /// <summary>Bras de caméra de longueur fixe derrière le pivot ; il ne descend pas sous minCamY (plus de caméra au ras du sol en regardant en l'air ou accroupi).</summary>
+    Vector3 Boom(Basis basis, Vector3 pivot, float minCamY, float len)
+    {
+        var arm = basis * new Vector3(0f, 0f, len);
+        float minY = minCamY - pivot.Y;
+        if (arm.Y >= minY) return arm;
+        float y = Mathf.Clamp(minY, -0.95f * len, 0.95f * len);
+        var back = new Basis(Vector3.Up, yaw) * Vector3.Back;   // on garde toute la distance, à l'horizontale derrière soi
+        return back * Mathf.Sqrt(len * len - y * y) + Vector3.Up * y;
+    }
+
+    /// <summary>
+    /// Distance libre (m) que la sphère de caméra peut parcourir de a vers b sans entrer dans un décor plein.
+    /// Le plafond, le rotor, les balles et les joueurs sont ignorés ; les accessoires fins (lampadaires, poteaux…)
+    /// aussi : la caméra ne saute pas en les frôlant, ils sont cachés s'ils passent devant (voir HideDecorInFront).
+    /// </summary>
+    float CamFree(Vector3 a, Vector3 b, Maps.BoundsDef bnd, System.Collections.Generic.HashSet<StaticBody3D>? throughCovers = null)
+    {
+        var motion = b - a;
+        float full = motion.Length();
+        if (full < 0.01f) return full;
         var space = GetWorld3D().DirectSpaceState;
         var exclude = new Godot.Collections.Array<Rid>();
-        for (int i = 0; i < 4; i++)
+        float free = full;
+        for (int i = 0; i < 6; i++)
+        {
+            var q = new PhysicsShapeQueryParameters3D { Shape = camShape, Transform = new Transform3D(Basis.Identity, a), Motion = motion, Exclude = exclude };
+            var r = space.CastMotion(q);
+            if (r.Length < 2 || r[1] >= 1f) break;
+            // Qu'a-t-on touché ? La sphère posée au point de contact le dit.
+            q.Transform = new Transform3D(Basis.Identity, a + motion * r[1]);
+            q.Motion = Vector3.Zero;
+            var hits = space.IntersectShape(q, 8);
+            bool blocked = hits.Count == 0;   // contact sans collider trouvé : prudence, on s'arrête là
+            foreach (var h in hits)
+            {
+                var col = h["collider"].AsGodotObject();
+                if (!BlocksCamera(col, h["shape"].AsInt32(), bnd)) exclude.Add(h["rid"].AsRid());
+                else if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) { throughCovers.Add(sb); exclude.Add(h["rid"].AsRid()); }
+                else blocked = true;
+            }
+            if (blocked) { free = full * r[0]; break; }
+        }
+        // Rayon en complément : la sphère ignore un mur qu'elle touche déjà au départ (dos collé au mur), le rayon non.
+        var rayExclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 6; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, rayExclude));
+            if (hit.Count == 0) break;
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
+            {
+                if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) throughCovers.Add(sb);
+                else
+                {
+                    free = Mathf.Min(free, a.DistanceTo(hit["position"].AsVector3()) - CamRadius);
+                    break;
+                }
+            }
+            rayExclude.Add(hit["rid"].AsRid());
+        }
+        return Mathf.Clamp(free, 0f, full);
+    }
+
+    /// <summary>Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.</summary>
+    static bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
+    {
+        if (collider is not StaticBody3D body || body is Maps.Rotor) return false;
+        var p = body.GlobalPosition;
+        if (p.Y > bnd.CeilingHeight - 0.5f) return false;
+        return !(body.ShapeOwnerGetOwner(body.ShapeFindOwner(shape)) is CollisionShape3D cs && IsThin(cs));
+    }
+
+    readonly System.Collections.Generic.HashSet<StaticBody3D> coversThrough = new();
+    readonly System.Collections.Generic.Dictionary<ulong, bool> coverCache = new();
+    readonly System.Collections.Generic.Dictionary<MeshInstance3D, Material?> ghosted = new();
+    static StandardMaterial3D? ghostMat;
+
+    /// <summary>Couvert qu'on peut voir en transparence : emprise au sol de moins de 4,5 m (pylône, piliers, abris, gros accessoires), pas un mur d'enceinte.</summary>
+    bool IsCover(StaticBody3D body)
+    {
+        if (coverCache.TryGetValue(body.GetInstanceId(), out bool c)) return c;
+        c = false;
+        foreach (var n in body.GetChildren())
+        {
+            if (n is not CollisionShape3D { Shape: { } shape } cs) continue;
+            var sc = cs.GlobalTransform.Basis.Scale;
+            float size = shape switch
+            {
+                BoxShape3D box => Mathf.Max(box.Size.X * sc.X, box.Size.Z * sc.Z),
+                CylinderShape3D cyl => 2f * cyl.Radius * Mathf.Max(sc.X, sc.Z),
+                CapsuleShape3D cap => 2f * cap.Radius * Mathf.Max(sc.X, sc.Z),
+                _ => 99f,
+            };
+            if (size > 4.5f) { c = false; break; }
+            c = true;
+        }
+        return coverCache[body.GetInstanceId()] = c;
+    }
+
+    /// <summary>Maillages des couverts (boîte locale grossie de 0,2 m, transformée inverse) pour OutsideDecorFraction.</summary>
+    System.Collections.Generic.List<(MeshInstance3D mesh, Transform3D toLocal, Aabb box)>? coverMeshes;
+
+    /// <summary>
+    /// Part du segment pivot → cam (0 → 1) que l'objectif peut parcourir sans entrer dans le maillage d'un couvert (boîte orientée du
+    /// maillage). 1 si la caméra est dehors. Les couverts rendus translucides (GhostCovers) ne comptent pas.
+    /// </summary>
+    float OutsideDecorFraction(Vector3 pivot, Vector3 cam)
+    {
+        if (coverMeshes == null)
+        {
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return 1f;
+            coverMeshes = new();
+            foreach (var n in arena.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi) continue;
+                StaticBody3D? body = null;
+                for (var p = mi.GetParent(); p != null && p != arena; p = p.GetParent())
+                    if (p is StaticBody3D sb) { body = sb; break; }
+                if (body == null || body is Maps.Rotor || !IsCover(body)) continue;
+                var box = mi.GetAabb();
+                if (box.Size.LengthSquared() < 1e-4f) continue;
+                coverMeshes.Add((mi, mi.GlobalTransform.AffineInverse(), box.Grow(0.2f)));
+            }
+        }
+        bool Inside(Vector3 p)
+        {
+            foreach (var (mi, toLocal, box) in coverMeshes!)
+            {
+                if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
+                if (box.HasPoint(toLocal * p)) return true;
+            }
+            return false;
+        }
+        if (!Inside(cam) || Inside(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
+        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
+        for (int i = 0; i < 10; i++)
+        {
+            float mid = 0.5f * (lo + hi);
+            if (Inside(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
+    /// <summary>Vrai si la sphère de caméra posée en p est dans un décor plein.</summary>
+    bool CamInsideSolid(Vector3 p, Maps.BoundsDef bnd)
+    {
+        var q = new PhysicsShapeQueryParameters3D { Shape = camShape, Transform = new Transform3D(Basis.Identity, p) };
+        foreach (var h in GetWorld3D().DirectSpaceState.IntersectShape(q, 8))
+            if (BlocksCamera(h["collider"].AsGodotObject(), h["shape"].AsInt32(), bnd)) return true;
+        return false;
+    }
+
+    double rotorGhostUntil = -1;
+
+    /// <summary>Ajoute à coversThrough les couverts coupés par le segment a → b (rayon).</summary>
+    void CoversOnSight(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 6; i++)
         {
             var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, exclude));
-            if (hit.Count == 0) return 1f;
-            var hp = hit["position"].AsVector3();
-            bool arenaWall = hp.X < bnd.MinX + 0.6f || hp.X > bnd.MaxX - 0.6f || hp.Z < bnd.MinZ + 0.6f || hp.Z > bnd.MaxZ - 0.6f || hp.Y > bnd.CeilingHeight - 0.5f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor && !arenaWall)
-                return Mathf.Clamp((a.DistanceTo(hp) - 0.3f) / full, 0.06f, 1f);
+            if (hit.Count == 0) return;
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
+            {
+                if (col is StaticBody3D sb && IsCover(sb)) coversThrough.Add(sb);
+                else return;   // mur d'enceinte : rien à faire
+            }
             exclude.Add(hit["rid"].AsRid());
         }
-        return 1f;
+    }
+
+    /// <summary>Le segment a → b passe dans la barre ou le tambour du rotor (boîtes grossies de grow), ou a y est déjà.</summary>
+    bool RotorCrosses(Vector3 a, Vector3 b, float grow)
+    {
+        if (Maps.Rotor.Current is not { } r || !IsInstanceValid(r) || !r.IsInsideTree()) return false;
+        var inv = r.GlobalTransform.AffineInverse();
+        Vector3 la = inv * a, lb = inv * b;
+        float h = r.YMax - r.YMin;
+        var bar = new Aabb(new Vector3(-r.ArmLength, -h / 2f, -r.Thickness / 2f), new Vector3(2f * r.ArmLength, h, r.Thickness)).Grow(grow);
+        var drum = new Aabb(new Vector3(-0.6f, -h / 2f - 0.1f, -0.6f), new Vector3(1.2f, h + 0.2f, 1.2f)).Grow(grow);
+        return bar.HasPoint(la) || drum.HasPoint(la) || bar.IntersectsSegment(la, lb) || drum.IntersectsSegment(la, lb);
+    }
+
+    /// <summary>Couverts entre la caméra et le joueur (coversThrough) et rotor gênant : matériau translucide ; rétablis dès qu'ils ne gênent plus.</summary>
+    void GhostCovers()
+    {
+        ghostMat ??= new StandardMaterial3D
+        {
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0.78f, 0.84f, 0.95f, 0.12f), CullMode = BaseMaterial3D.CullModeEnum.Back,
+        };
+        var keep = new System.Collections.Generic.HashSet<MeshInstance3D>();
+        var roots = new System.Collections.Generic.List<Node3D>(coversThrough);
+        if (time < rotorGhostUntil && Maps.Rotor.Current is { } rotor && IsInstanceValid(rotor)) roots.Add(rotor);
+        foreach (var body in roots)
+        {
+            if (!IsInstanceValid(body)) continue;
+            foreach (var n in body.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi || !mi.Visible) continue;
+                keep.Add(mi);
+                if (ghosted.ContainsKey(mi)) continue;
+                ghosted[mi] = mi.MaterialOverride;
+                mi.MaterialOverride = ghostMat;
+            }
+        }
+        if (ghosted.Count == keep.Count) return;
+        foreach (var mi in new System.Collections.Generic.List<MeshInstance3D>(ghosted.Keys))
+        {
+            if (keep.Contains(mi)) continue;
+            if (IsInstanceValid(mi)) mi.MaterialOverride = ghosted[mi];
+            ghosted.Remove(mi);
+        }
+    }
+
+    /// <summary>Accessoire fin : emprise au sol de moins de 0,8 m dans les deux sens (lampadaire, poteau, borne, piédestal).</summary>
+    static bool IsThin(CollisionShape3D cs)
+    {
+        var sc = cs.GlobalTransform.Basis.Scale;
+        float s = Mathf.Max(sc.X, sc.Z);
+        return cs.Shape switch
+        {
+            BoxShape3D box => Mathf.Max(box.Size.X, box.Size.Z) * s < 0.8f,
+            CylinderShape3D cyl => cyl.Radius * s < 0.4f,
+            CapsuleShape3D cap => cap.Radius * s < 0.4f,
+            _ => false,
+        };
+    }
+
+    /// <summary>Décors cachables : accessoires sans collision (guirlandes, lampadaires décoratifs…) ou fins, avec leur boîte dans le monde.</summary>
+    System.Collections.Generic.List<(GeometryInstance3D mesh, Aabb box)>? thinDecor;
+    readonly System.Collections.Generic.HashSet<GeometryInstance3D> hiddenDecor = new();
+
+    /// <summary>
+    /// Comme MenuBackdrop.ClearShot, mais à chaque image : un accessoire fin entre la caméra et le joueur est caché, puis réaffiché dès qu'il ne gêne plus.
+    /// Les gros décors (couverts, immeubles) ne sont jamais cachés : la caméra s'arrête devant eux.
+    /// </summary>
+    void HideDecorInFront(Vector3 cam, Vector3 headPos)
+    {
+        if (thinDecor == null)
+        {
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return;
+            thinDecor = new();
+            foreach (var n in arena.FindChildren("*", "GeometryInstance3D", true, false))
+            {
+                if (n is not GeometryInstance3D g) continue;
+                StaticBody3D? body = null;
+                for (var p = g.GetParent(); p != null && p != arena; p = p.GetParent())
+                    if (p is StaticBody3D sb) { body = sb; break; }
+                if (body == null || body is Maps.Rotor) continue;
+                bool hideable = true, solid = false;
+                foreach (var c in body.GetChildren())
+                    if (c is CollisionShape3D cs) { solid = true; if (!IsThin(cs)) { hideable = false; break; } }
+                if (!hideable) continue;
+                var box = g.GlobalTransform * g.GetAabb();
+                if (box.Size.Length() > (solid ? 8f : 30f)) continue;   // jamais les grands décors (une guirlande traversable peut être longue)
+                thinDecor.Add((g, box.Grow(0.15f)));
+            }
+        }
+        var chest = headPos + Vector3.Down * 0.7f;
+        foreach (var (g, box) in thinDecor)
+        {
+            if (!IsInstanceValid(g)) continue;
+            // Devant le joueur, ou collé à l'objectif (un poteau à 30 cm de la caméra mange un quart de l'écran).
+            bool front = box.IntersectsSegment(cam, headPos) || box.IntersectsSegment(cam, chest) || box.Grow(0.45f).HasPoint(cam);
+            if (front && g.Visible && hiddenDecor.Add(g)) g.Visible = false;
+            else if (!front && hiddenDecor.Remove(g)) g.Visible = true;
+        }
     }
 
     /// <summary>Échange de plaques : le joueur se retrouve au même endroit relatif de la plaque d'arrivée (jeu libre) ou y est simplement posé (zones).</summary>
@@ -1094,7 +1450,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > 1.6f;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
+            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
         }
     }

@@ -325,13 +325,22 @@ public static class ArenaBuilder
         var h = map.Hub;
         if (h.Rotor != null) root.AddChild(Rotor.Create(h, kc));
         // Le pylône est l'obstacle « pylone » du JSON (déjà construit avec les couverts) : ici seulement le lanceur.
-        root.AddChild(new MeshInstance3D
+        // Coupole blanc-cyan peu lumineuse cerclée d'un anneau : ni la couleur ni la forme d'une balle (la sphère jaune s'y confondait).
+        var launcher = new Node3D { Name = "Lanceur", Position = new Vector3(h.X, h.Launcher.Y, h.Z) };
+        launcher.AddChild(new MeshInstance3D
         {
-            Name = "Lanceur",
-            Mesh = new SphereMesh { Radius = 0.35f, Height = 0.7f },
-            Position = new Vector3(h.X, h.Launcher.Y, h.Z),
-            MaterialOverride = Materials.Glow(Palette.BallCore, 1.4f),
+            Mesh = new SphereMesh { Radius = 0.42f, Height = 0.42f, IsHemisphere = true, RadialSegments = 24, Rings = 8 },
+            Position = new Vector3(0, -0.2f, 0),
+            Scale = new Vector3(1f, 0.55f, 1f),
+            MaterialOverride = Materials.Glow(new Color("dff6ff"), 0.25f),
         });
+        launcher.AddChild(new MeshInstance3D
+        {
+            Mesh = new TorusMesh { InnerRadius = 0.44f, OuterRadius = 0.5f, Rings = 32, RingSegments = 8 },
+            Position = new Vector3(0, -0.2f, 0),
+            MaterialOverride = Materials.Glow(new Color("7fe8ff"), 0.6f),
+        });
+        root.AddChild(launcher);
     }
 
     /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>

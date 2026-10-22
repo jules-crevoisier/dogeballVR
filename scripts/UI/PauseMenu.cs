@@ -90,30 +90,36 @@ public partial class PauseMenu : CanvasLayer
         root = new Control { Theme = UiKit.Theme };
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
-        root.AddChild(UiKit.Dim(0.62f));
+        root.AddChild(UiKit.Dim(0.5f));
+        // Le bandeau penché du menu principal, à gauche : la pause en est la suite directe.
+        var band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
+        band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        band.Resized += band.QueueRedraw;
+        root.AddChild(band);
+        UiKit.SlideIn(band, 0f, -200f);
 
         var col = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         col.SetAnchorsPreset(Control.LayoutPreset.LeftWide);
-        col.OffsetLeft = 120; col.OffsetRight = 640;
+        col.OffsetLeft = 96; col.OffsetRight = 680;
         col.AddThemeConstantOverride("separation", 14);
         root.AddChild(col);
 
-        var title = UiKit.Text("PAUSE", 96, UiKit.Yellow, 18);
+        var title = UiKit.Title("PAUSE", 104, HorizontalAlignment.Left);
         col.AddChild(title);
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
-        // Boutons neutres, un seul accent (orange) sur la sélection ; « Quitter le jeu » à part, plus bas.
+        // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
         var resume = UiKit.ListButton("REPRENDRE", Close);
         col.AddChild(resume);
         col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
         if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
         if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56)));
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        card.AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8));   // opaque : rien du jeu ne transparaît
+        card.AddThemeStyleboxOverride("panel", UiKit.PanelBox(18, 34));   // opaque : rien du jeu ne transparaît
         card.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
         card.GrowHorizontal = Control.GrowDirection.Begin;
         card.GrowVertical = Control.GrowDirection.Both;
@@ -122,7 +128,7 @@ public partial class PauseMenu : CanvasLayer
         var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         list.AddThemeConstantOverride("separation", 14);
         card.AddChild(list);
-        list.AddChild(UiKit.Text("COMMANDES", 34, UiKit.Yellow, 8));
+        list.AddChild(UiKit.Title("COMMANDES", 38, HorizontalAlignment.Left));
         list.AddChild(CommandGrid(24, 12));
         var hint = UiKit.KeyHint(InputSetup.KeyName("help"), "Aide complète", 22);
         hint.Modulate = new Color(1, 1, 1, 0.8f);
@@ -134,7 +140,7 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>Bouton à confirmer : un premier appui demande « SÛR ? », le second agit (3 s pour confirmer).</summary>
-    static Button Confirmed(string text, Action act, int fontSize = 28, Vector2? minSize = null)
+    static Button Confirmed(string text, Action act, int fontSize = 28, Vector2? minSize = null, Color? rest = null)
     {
         Button? b = null;
         double armedUntil = 0;
@@ -149,9 +155,10 @@ public partial class PauseMenu : CanvasLayer
             {
                 if (!IsInstanceValid(b)) return;
                 b.Text = text;
-                b.AddThemeColorOverride("font_color", new Color(UiKit.Cream, 0.9f));
+                b.AddThemeColorOverride("font_color", rest ?? Colors.White);
             };
         }, fontSize, minSize);
+        if (rest is Color c) b.AddThemeColorOverride("font_color", c);
         return b;
     }
 
@@ -218,14 +225,12 @@ public partial class PauseMenu : CanvasLayer
             center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
             AddChild(center);
             var panel = new PanelContainer();
-            var box = UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8);   // opaque : les étiquettes des joueurs ne transparaissent plus
-            box.ContentMarginLeft = 44; box.ContentMarginRight = 44; box.ContentMarginTop = 22; box.ContentMarginBottom = 24;
-            panel.AddThemeStyleboxOverride("panel", box);
+            panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(22, 40));   // opaque : les étiquettes des joueurs ne transparaissent plus
             center.AddChild(panel);
             var col = new VBoxContainer();
             col.AddThemeConstantOverride("separation", 16);
             panel.AddChild(col);
-            col.AddChild(UiKit.Text("COMMANDES", 48, UiKit.Yellow, 12, HorizontalAlignment.Center));
+            col.AddChild(UiKit.Title("COMMANDES", 52));
             col.AddChild(CommandGrid(26, 10));
             if (Text != "") col.AddChild(UiKit.Text(Text, 20, UiKit.Sky, 5));
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));

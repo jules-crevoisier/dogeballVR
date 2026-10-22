@@ -82,17 +82,35 @@ public static class Juice
         p.GetTree().CreateTimer(0.8).Timeout += p.QueueFree;
     }
 
-    /// <summary>Silhouette fantôme (capsule additive) laissée pendant un dash : s'efface en 0,22 s.</summary>
+    // Silhouette de dash : presque transparente au centre, liseré (fresnel) à la couleur de l'équipe sur les bords.
+    const string AfterimageCode = @"
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back, shadows_disabled;
+uniform vec4 rim_color : source_color = vec4(1.0);
+uniform float alpha = 0.12;
+void fragment() {
+    float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+    ALBEDO = rim_color.rgb;
+    ALPHA = alpha * mix(0.35, 3.0, rim);
+}";
+    static Shader? afterimageShader;
+    static CapsuleMesh? afterimageMesh;
+
+    /// <summary>Silhouette fantôme laissée pendant un dash : capsule étroite, opacité ~0,12, bord à la couleur d'équipe ; s'efface en 0,15 s.</summary>
     public static void Afterimage(Node context, Vector3 feet, Color color)
     {
         if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree() || DisplayServer.GetName() == "headless") return;
-        var mat = Materials.Additive(new Color(color.R, color.G, color.B, 0.35f));
-        var g = new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.3f, Height = 1.7f }, MaterialOverride = mat };
+        afterimageShader ??= new Shader { Code = AfterimageCode };
+        afterimageMesh ??= new CapsuleMesh { Radius = 0.17f, Height = 1.6f, RadialSegments = 16, Rings = 6 };
+        var mat = new ShaderMaterial { Shader = afterimageShader };
+        mat.SetShaderParameter("rim_color", color.Lightened(0.15f));
+        mat.SetShaderParameter("alpha", 0.12f);
+        var g = new MeshInstance3D { Mesh = afterimageMesh, MaterialOverride = mat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         context.GetTree().CurrentScene.AddChild(g);
-        g.GlobalPosition = feet + Vector3.Up * 0.85f;
+        g.GlobalPosition = feet + Vector3.Up * 0.8f;
         var tw = g.CreateTween().SetParallel();
-        tw.TweenProperty(g, "scale", new Vector3(0.7f, 1f, 0.7f), 0.22);
-        tw.TweenProperty(mat, "albedo_color:a", 0.0, 0.22);
+        tw.TweenProperty(g, "scale", new Vector3(0.8f, 1f, 0.8f), 0.15);
+        tw.TweenProperty(mat, "shader_parameter/alpha", 0.0, 0.15);
         tw.Chain().TweenCallback(Callable.From(g.QueueFree));
     }
 

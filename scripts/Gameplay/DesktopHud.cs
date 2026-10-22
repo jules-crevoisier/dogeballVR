@@ -1232,9 +1232,10 @@ public partial class DesktopHud : CanvasLayer
 
     // ------------------------------------------------------------------ textes centraux : compte à rebours, bandeaux, annonces
 
-    Label countdown = null!, countdownRound = null!, notice = null!, toast = null!, koTitle = null!, koSub = null!, resume = null!, pop = null!;
+    Label countdown = null!, countdownRound = null!, noticeMain = null!, noticeTime = null!, toast = null!, koTitle = null!, koSub = null!, resume = null!, pop = null!;
     Control bannerBox = null!;
     Panel bannerBand = null!;
+    PanelContainer notice = null!;
     Label bannerText = null!, bannerSub = null!;
     string lastNotice = "", lastToast = "";
     double koSince = -1;
@@ -1254,22 +1255,46 @@ public partial class DesktopHud : CanvasLayer
     {
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
-        countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 158, 76);
-        countdownRound.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.85f), 14, -0.12f, 0, null, 4));
+        countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
+        // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
+        var roundBox = UiKit.PanelBox(16, 4);
+        roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
+        countdownRound.AddThemeStyleboxOverride("normal", roundBox);
+        if (UiKit.Italic is Font it) countdownRound.AddThemeFontOverride("font", it);
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
-        notice = CenterLabel("", 34, UiKit.Yellow, 10, 190, 50);
-        notice.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.8f), 12, -0.12f, 0, null, 4));
+        // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
+        // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
+        notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var noticeBox = UiKit.PanelBox(14, 18);
+        noticeBox.BorderWidth = 4; noticeBox.BorderColor = UiKit.Yellow; noticeBox.ShadowOffset = new Vector2(7, 7); noticeBox.StripOffset = new Vector2(12, 12);
+        noticeBox.ContentMarginTop = noticeBox.ContentMarginBottom = 6;
+        notice.AddThemeStyleboxOverride("panel", noticeBox);
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         notice.GrowHorizontal = Control.GrowDirection.Both;
-        notice.OffsetLeft = -360; notice.OffsetRight = 360;
-        notice.PivotOffset = new Vector2(360, 25);
-        toast = CenterLabel("", 34, Colors.White, 10, 250, 50);
+        notice.OffsetLeft = 0; notice.OffsetRight = 0; notice.OffsetTop = 186; notice.OffsetBottom = 186;
+        var noticeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+        noticeRow.AddThemeConstantOverride("separation", 12);
+        noticeMain = UiKit.Text("", 34, Colors.White, 10);
+        noticeTime = UiKit.Text("", 34, UiKit.Yellow, 10);
+        noticeRow.AddChild(noticeMain);
+        noticeRow.AddChild(noticeTime);
+        notice.AddChild(noticeRow);
+        centerLayer.AddChild(notice);
+        notice.Visible = false;
+        // Messages du joueur (réglage, terrasse, pas d'allié) : même langage que les autocollants (« PRISE ! », « PASSE ! ») :
+        // lettres blanches, contour bleu nuit épais, liseré extérieur à la couleur de l'équipe, légère inclinaison.
+        toast = CenterLabel("", 36, Colors.White, 14, 250, 56);
+        toast.AddThemeColorOverride("font_shadow_color", Palette.Team(View.LocalTeam).Lerp(Colors.White, 0.1f));
+        toast.AddThemeConstantOverride("shadow_outline_size", 26);
+        toast.AddThemeConstantOverride("shadow_offset_x", 0);
+        toast.AddThemeConstantOverride("shadow_offset_y", 0);
+        toast.Rotation = Mathf.DegToRad(-4f);
         pop = CenterLabel("", 96, UiKit.Yellow, 18, 600, 120);
         // Titre du joueur KO à la couleur de l'équipe adverse : il ressort net sur le monde désaturé (Feedback, calque sous le HUD).
         koTitle = CenterLabel("KO !", 150, Palette.Team(1 - View.LocalTeam).Lightened(0.1f), 24, 330, 180);
         koSub = CenterLabel("", 40, Colors.White, 10, 500, 60);
         resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60, root);
-        foreach (var l in new[] { countdown, countdownRound, notice, toast, pop, koTitle, koSub }) l.Visible = false;
+        foreach (var l in new[] { countdown, countdownRound, toast, pop, koTitle, koSub }) l.Visible = false;
 
         // Bandeau de fin de manche : bande inclinée de la couleur de l'équipe gagnante, qui traverse l'écran.
         // Assez haute pour le titre et le sous-titre (« Manches 3 – 2 ») sans que le bord de la bande les coupe.
@@ -1370,7 +1395,7 @@ public partial class DesktopHud : CanvasLayer
             if (roundTitle != "")
             {
                 // Bandeau à la largeur du texte (posée avant le glissé, qui part de la position courante).
-                float w = (UiKit.Font?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 50).X ?? 900f) + 72f;
+                float w = (UiKit.Font?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 50).X ?? 900f) + 96f;
                 countdownRound.OffsetLeft = -w / 2; countdownRound.OffsetRight = w / 2;
                 countdownRound.PivotOffset = new Vector2(w / 2, 38);
                 countdownRound.Text = roundTitle;
@@ -1446,12 +1471,17 @@ public partial class DesktopHud : CanvasLayer
             // Même annonce dont seul le décompte change (« DANS 4 s » après « DANS 5 s ») : petit battement, sans nouvelle alerte.
             bool tick = s.Notice != "" && NoDigits(s.Notice) == NoDigits(lastNotice);
             lastNotice = s.Notice;
-            notice.Text = s.Notice;
+            // Décompte (« DANS 4 s ») en jaune, le reste en blanc.
+            int cut = s.Notice.LastIndexOf(" DANS ", System.StringComparison.Ordinal);
+            noticeMain.Text = cut > 0 ? s.Notice[..cut] : s.Notice;
+            noticeTime.Text = cut > 0 ? s.Notice[(cut + 1)..] : "";
+            noticeTime.Visible = noticeTime.Text != "";
             notice.Visible = s.Notice != "";
+            notice.OffsetLeft = notice.OffsetRight = 0;
             if (notice.Visible && tick) UiKit.Punch(notice, 1.12f, 0.2);
             else if (notice.Visible) { UiKit.Punch(notice, 1.5f, 0.3); Sfx.Play(this, SfxKind.Alert, null, 0.8f, -6f); }
         }
-        if (notice.Visible) notice.Modulate = new Color(1, 1, 1, 0.75f + 0.25f * Mathf.Sin((float)age * 8f));
+        if (notice.Visible) { notice.OffsetLeft = notice.OffsetRight = 0; notice.PivotOffset = notice.Size / 2f; }   // largeur au texte (croît des deux côtés), battement centré
         string t = Player.Time01 < Player.ToastUntil ? Player.Toast : "";
         if (t != lastToast)
         {
@@ -1587,9 +1617,7 @@ public partial class DesktopHud : CanvasLayer
         table.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(table);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8);
-        box.ContentMarginLeft = 36; box.ContentMarginRight = 36; box.ContentMarginTop = 24; box.ContentMarginBottom = 28;
-        panel.AddThemeStyleboxOverride("panel", box);
+        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(18, 30));   // la fenêtre du menu principal
         table.AddChild(panel);
         tableRows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         tableRows.AddThemeConstantOverride("separation", 6);
@@ -1623,9 +1651,9 @@ public partial class DesktopHud : CanvasLayer
     {
         var color = team == 0 ? UiKit.Orange : UiKit.Blue;
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.NavySoft, 0.9f), 10, -0.1f, 0, null, 0);
-        box.BorderWidthLeft = 12; box.BorderColor = color;
-        box.ContentMarginTop = 4; box.ContentMarginBottom = 4; box.ContentMarginLeft = 22; box.ContentMarginRight = 22;
+        var box = UiKit.InsetBox(new Color("0a0f22", 0.55f), 8);
+        box.AccentColor = color; box.AccentWidth = 12;
+        box.ContentMarginTop = 4; box.ContentMarginBottom = 4; box.ContentMarginLeft = 26; box.ContentMarginRight = 22;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 10);
@@ -1663,8 +1691,8 @@ public partial class DesktopHud : CanvasLayer
         // Couleurs d'équipe pleines et vives (comme l'écran de fin) ; ma ligne plus claire et cerclée de jaune.
         bool me = p != null && p.Id == View.LocalId;
         var bg = header ? new Color(0, 0, 0, 0) : p!.Team == 0 ? new Color(me ? "ff7a1f" : "d9520c") : new Color(me ? "2f8fff" : "1f63c9");
-        var box = UiKit.Box(bg, 8, -0.1f, p != null && p.Id == View.LocalId ? 3 : 0, UiKit.Yellow, 0);
-        box.ContentMarginTop = 2; box.ContentMarginBottom = 2; box.ContentMarginLeft = 18; box.ContentMarginRight = 18;
+        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 8, BorderWidth = me ? 3 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        box.ContentMarginTop = 2; box.ContentMarginBottom = 2; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 8);
