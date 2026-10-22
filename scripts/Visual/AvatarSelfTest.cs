@@ -14,9 +14,11 @@ namespace DogeballVR.Visual;
 /// </summary>
 public partial class AvatarSelfTest : Node3D
 {
-    enum Kind { Vr, Pc, PcBall, Bot, BotWindup }
+    enum Kind { Vr, VrFromBot, Pc, PcBall, Bot, BotWindup, BotCatch }
 
-    record struct Case(string Name, Kind Kind, Vector3 Head, Vector3 Left, Vector3 Right, float Floor = 0f, float YawDeg = 0f, bool OffCamera = false);
+    /// <param name="DuckAt">Baissé brusque à cet instant (s) : la tête passe à <c>DuckTo</c> ; vérifié 0,1 s plus tard.</param>
+    record struct Case(string Name, Kind Kind, Vector3 Head, Vector3 Left, Vector3 Right, float Floor = 0f, float YawDeg = 0f, bool OffCamera = false,
+        float DuckAt = 0f, float DuckTo = 0f);
 
     // Lacet 0 : le personnage regarde vers -Z, la caméra est devant lui. Positions dans le repère de chaque personnage.
     static readonly Case[] Cases =
@@ -31,6 +33,9 @@ public partial class AvatarSelfTest : Node3D
         new("PC balle en main", Kind.PcBall, new(0, 1.6f, 0), default, default),
         new("bot balle en main", Kind.Bot, default, default, default),
         new("bot, élan", Kind.BotWindup, default, default, default),
+        new("bot, attrape", Kind.BotCatch, default, default, default),
+        new("joueur VR à la place d'un bot", Kind.VrFromBot, new(0, 1.65f, 0), new(-0.3f, 1.45f, -0.4f), new(0.3f, 1.45f, -0.4f)),
+        new("baissé d'esquive", Kind.Vr, new(0, 1.65f, 0), new(-0.25f, 1.2f, -0.3f), new(0.25f, 1.2f, -0.3f), OffCamera: true, DuckAt: 2.0f, DuckTo: 1.05f),
         new("chute dans la fosse", Kind.Vr, new(0, -1.2f, 0), new(-0.3f, -1.5f, -0.3f), new(0.3f, -1.5f, -0.3f), OffCamera: true),
     };
     const float Spacing = 1.15f;
@@ -40,10 +45,13 @@ public partial class AvatarSelfTest : Node3D
     readonly List<Avatar> avatars = new();
     readonly Dictionary<int, Gameplay.Ball> balls = new();
     float sideYaw;   // --avatar-side : tout le monde de profil (genoux, buste penché de l'accroupi)
+    readonly Dictionary<int, float> duckChecked = new();   // tête du modèle 0,1 s après le baissé
     double clock;
     bool done;
 
-    static float X(int i) => Cases[i].OffCamera ? 40f : (i - (Cases.Length - 2) / 2f) * Spacing;
+    static float X(int i) => Cases[i].OffCamera ? 40f + 3f * i : (i - (Visible - 1) / 2f) * Spacing;
+    static readonly int Visible = System.Array.FindAll(Cases, c => !c.OffCamera).Length;
+    const double Duration = 2.5;   // la taille debout se mesure sur 1 s de tête stable, l'échelle suit ensuite
     float Yaw(int i) => sideYaw + Mathf.DegToRad(Cases[i].YawDeg);
     Vector3 At(int i) => new(X(i), 0, 0);
 
@@ -58,8 +66,9 @@ public partial class AvatarSelfTest : Node3D
         for (int i = 0; i < Cases.Length; i++)
         {
             var c = Cases[i];
-            bool bot = c.Kind is Kind.Bot or Kind.BotWindup;
-            var avatar = Avatar.Create(i % 2, bot, playerId: 100 + i);
+            bool bot = c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch;
+            var avatar = Avatar.Create(i % 2, bot || c.Kind == Kind.VrFromBot, playerId: 100 + i);
+            if (c.Kind == Kind.VrFromBot) avatar.IsBot = false;   // comme ClientWorld quand un joueur prend la zone d'un bot
             if (c.Kind is Kind.Pc or Kind.PcBall) avatar.TrackHands = false;
             AddChild(avatar);
             avatars.Add(avatar);
@@ -103,9 +112,9 @@ public partial class AvatarSelfTest : Node3D
                 Text = Cases[i].Name, Position = At(i) + new Vector3(0, 2.3f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
                 PixelSize = 0.0028f, FontSize = 48, OutlineSize = 10, Modulate = Colors.White, Width = 420, AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
-        var cam = new Camera3D { Current = true, Fov = 26 };   // cadré pour une capture en 3:1 (2400x800)
+        var cam = new Camera3D { Current = true, Fov = 30 };   // cadré pour une capture en 3:1 (2400x800)
         AddChild(cam);
-        cam.LookAtFromPosition(new Vector3(-0.6f, 1.75f, -9.8f), new Vector3(0, 1.1f, 0));
+        cam.LookAtFromPosition(new Vector3(0, 1.75f, -9.8f), new Vector3(0, 1.1f, 0));
     }
 
     public override void _Process(double delta)
@@ -115,18 +124,22 @@ public partial class AvatarSelfTest : Node3D
         for (int i = 0; i < Cases.Length; i++)
         {
             var c = Cases[i];
-            if (c.Kind is Kind.Bot or Kind.BotWindup)
+            if (c.Kind is Kind.Bot or Kind.BotWindup or Kind.BotCatch)
             {
                 // bot : pas de pose, comme en jeu (il se déplace comme un nœud) ; élan = animation « Lancer » balle en main
-                if (c.Kind == Kind.BotWindup && clock > 0.8) avatars[i].PlayAction("Lancer", 5.0);
+                if (c.Kind == Kind.BotWindup && clock > 1.8) avatars[i].PlayAction("Lancer", 5.0);
+                if (c.Kind == Kind.BotCatch && clock > 2.0) avatars[i].PlayAction("Attrape", 5.0);
                 continue;
             }
             bool pc = c.Kind is Kind.Pc or Kind.PcBall;
+            var head = c.DuckAt > 0f && clock >= c.DuckAt ? new Vector3(c.Head.X, c.DuckTo, c.Head.Z) : c.Head;
             var left = pc ? c.Head + PcLeft : c.Left;
             var right = pc ? c.Head + PcRight : c.Right;
-            avatars[i].Pose(World(i, c.Head), Yaw(i), World(i, left), World(i, right), c.Floor);
+            avatars[i].Pose(World(i, head), Yaw(i), World(i, left + (head - c.Head)), World(i, right + (head - c.Head)), c.Floor);
+            if (c.DuckAt > 0f && clock >= c.DuckAt + 0.1f && !duckChecked.ContainsKey(i))
+                duckChecked[i] = (avatars[i].FindChild("AvatarIk", true, false) as AvatarIk)?.FinalHead.Y + 0.13f * avatars[i].ModelScale ?? 99f;
         }
-        if (clock < 1.6) return;
+        if (clock < Duration) return;
         done = true;
         Report();
         var shot = Tools.DevFlags.Value("--avatar-shot=");
@@ -156,20 +169,23 @@ public partial class AvatarSelfTest : Node3D
             float headY = ik.FinalHead.Y + 0.13f * avatars[i].ModelScale;   // os Tete = base du crâne, centre de la tête 13 cm plus haut
             bool finite = float.IsFinite(ik.FinalWristL.X + ik.FinalWristR.Y + ik.FinalHead.Z + ik.FinalAnkleY);
             if (!finite) { Check($"{c.Name} : pose valide", false, "NaN"); continue; }
-            if (c.OffCamera)
+            if (c.OffCamera && c.Head.Y < 0f)
             {
                 Check($"{c.Name} : le corps suit la tête", ik.FinalAnkleY < -1.0f && ik.FinalHead.Y < 0f, $"cheville à {ik.FinalAnkleY:0.00} m, tête à {headY:0.00} m");
                 continue;
             }
             Check($"{c.Name} : pieds posés", ankle > 0.06f && ankle < 0.2f, $"cheville la plus basse à {ankle:0.00} m du sol");
-            if (c.Kind is Kind.Vr or Kind.Pc)
-                Check($"{c.Name} : hauteur de tête", Mathf.Abs(headY - c.Head.Y) < 0.12f, $"modèle {headY:0.00} m, joueur {c.Head.Y:0.00} m");
-            if (c.Kind == Kind.Vr && c.Name != "main levée")
+            float wantHead = c.DuckAt > 0f ? c.DuckTo : c.Head.Y;
+            if (c.Kind is Kind.Vr or Kind.VrFromBot or Kind.Pc)
+                Check($"{c.Name} : hauteur de tête", Mathf.Abs(headY - wantHead) < 0.06f, $"modèle {headY:0.00} m, joueur {wantHead:0.00} m");
+            if (c.DuckAt > 0f && duckChecked.TryGetValue(i, out float early))
+                Check($"{c.Name} : tête baissée en 0,1 s", Mathf.Abs(early - c.DuckTo) < 0.12f, $"tête du modèle à {early:0.00} m pour {c.DuckTo:0.00} m");
+            if (c.Kind is Kind.Vr or Kind.VrFromBot && c.DuckAt == 0f)
             {
-                // poignet = main mise à l'échelle, moins 6 cm de paume
+                // poignet = main mise à l'échelle, moins 6 cm de paume ; main levée : seule la gauche est à portée
                 var l = World(i, c.Left);
                 var r = World(i, c.Right);
-                float dl = ik.FinalWristL.DistanceTo(l), dr = ik.FinalWristR.DistanceTo(r);
+                float dl = ik.FinalWristL.DistanceTo(l), dr = c.Name == "main levée" ? 0f : ik.FinalWristR.DistanceTo(r);
                 Check($"{c.Name} : poignets sur les mains réseau", dl < 0.1f && dr < 0.1f, $"écart gauche {dl:0.00} m, droite {dr:0.00} m");
             }
             if (c.Name == "main levée") Check($"{c.Name} : main au-dessus de la tête", ik.FinalWristR.Y > headY + 0.15f, $"poignet droit à {ik.FinalWristR.Y:0.00} m");
@@ -182,8 +198,12 @@ public partial class AvatarSelfTest : Node3D
             {
                 var shoulder = At(i) + basis * new Vector3(0.19f, 1.385f, 0f);
                 float angle = Mathf.RadToDeg((ik.FinalWristR - shoulder).AngleTo(pcBall.GlobalPosition - shoulder));
-                Check($"{c.Name} : main droite vers la balle", angle < 15f, $"écart d'angle {angle:0} °, balle à {pcBall.GlobalPosition.DistanceTo(ik.FinalWristR):0.00} m du poignet");
+                float reach = pcBall.GlobalPosition.DistanceTo(ik.FinalWristR);
+                // balle au point de visée de DesktopPlayer (0,9 m devant la tête) : hors de portée du bras, bras tendu vers elle
+                Check($"{c.Name} : main droite vers la balle", angle < 15f && reach < 0.45f, $"écart d'angle {angle:0} °, balle à {reach:0.00} m du poignet");
             }
+            if (c.Kind == Kind.BotCatch)
+                Check($"{c.Name} : l'animation d'attrape garde les bras", ik.RightWeight < 0.5f, $"poids de l'IK {ik.RightWeight:0.00}");
             if (c.Kind is Kind.Bot or Kind.BotWindup && balls.TryGetValue(i, out var botBall))
             {
                 Check($"{c.Name} : bras armé", ik.FinalWristR.Y > 1.4f && ik.FinalWristL.Y > 1.0f, $"poignet lanceur à {ik.FinalWristR.Y:0.00} m, garde à {ik.FinalWristL.Y:0.00} m");

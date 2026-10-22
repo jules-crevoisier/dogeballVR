@@ -16,6 +16,8 @@ public partial class AvatarIk : SkeletonModifier3D
     public float LeftWeight, RightWeight;
     /// <summary>Coude ouvert sur le côté et relevé (1, bras armé) plutôt que vers le bas (0).</summary>
     public float LeftElbowOut, RightElbowOut;
+    /// <summary>Buste tourné autour de la verticale (radians, positif = épaule droite vers l'avant), au-dessus du bassin.</summary>
+    public float Twist;
     /// <summary>Descente du bassin (mètres, monde), pieds gardés au sol.</summary>
     public float Crouch;
     /// <summary>Buste penché en avant (radians), pour l'accroupi.</summary>
@@ -26,7 +28,7 @@ public partial class AvatarIk : SkeletonModifier3D
     public float FinalAnkleY;
 
     /// <summary>Descente du bassin au-delà de laquelle les jambes ne plient plus (squat profond, mètres du modèle à l'échelle 1).</summary>
-    public const float MaxCrouch = 0.48f;
+    public const float MaxCrouch = 0.58f;
 
     bool resolved, valid;
     int hips, spine, neck, head;
@@ -86,6 +88,8 @@ public partial class AvatarIk : SkeletonModifier3D
                 SetGlobalBasis(skel, foot, ankle.Basis);
             }
         }
+
+        if (Mathf.Abs(Twist) > 0.001f) RotateGlobal(skel, spine, new Quaternion(up, Twist));
 
         for (int s = 0; s < 2; s++)
         {

@@ -23,6 +23,7 @@ public partial class ClientWorld : Node3D
     // Cibles passives (groupe « hurtboxes ») : l'aide à la visée et le viseur du joueur PC en ont besoin côté client.
     readonly Dictionary<int, Hurtbox> aimTargets = new();
     readonly Dictionary<int, PoseData> poseTargets = new();
+    readonly Dictionary<int, float> floors = new();   // sol de chaque avatar, lissé
     // Interpolation : on affiche les autres joueurs avec un léger retard (≈ 2 snapshots + gigue), entre deux poses reçues,
     // au lieu de courir après la dernière : mouvement régulier malgré la gigue et les paquets perdus.
     readonly Dictionary<int, List<(double t, PoseData pose)>> history = new();
@@ -72,6 +73,7 @@ public partial class ClientWorld : Node3D
                 aimTargets[p.Id] = marker;
             }
             poseTargets[p.Id] = p.Pose;
+            avatar.IsBot = p.Bot;   // un joueur peut prendre la place d'un bot en cours de partie (et l'inverse)
             if (hostTime >= 0)
             {
                 if (!history.TryGetValue(p.Id, out var h)) history[p.Id] = h = new();
@@ -158,7 +160,10 @@ public partial class ClientWorld : Node3D
             var cur = new PoseData(avatar.Head.Position, avatar.Head.Rotation.Y, avatar.LeftHand.Position, avatar.RightHand.Position);
             var sampled = clockKnown ? Sample(id, renderTime) : null;
             var next = sampled is { } s ? cur.Lerp(s, tFine) : cur.Lerp(poseTargets[id], t);
-            avatar.Pose(next.Head, next.Yaw, next.Left, next.Right, sampled?.Elevation ?? poseTargets[id].Elevation);   // sol de la pose (l'état courant de l'avatar n'a pas d'altitude)
+            // sol de la pose, lissé comme la tête (l'état courant de l'avatar n'a pas d'altitude)
+            float floor = sampled?.Elevation ?? poseTargets[id].Elevation;
+            floors[id] = floors.TryGetValue(id, out float was) ? Mathf.Lerp(was, floor, sampled != null ? tFine : t) : floor;
+            avatar.Pose(next.Head, next.Yaw, next.Left, next.Right, floors[id]);
         }
     }
 }
