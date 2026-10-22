@@ -50,13 +50,13 @@ public partial class Feedback : Node
     /// <summary>Touche validée (hôte, ou relayée au client) : on retient le tireur pour doser l'arrêt sur image.</summary>
     void OnHitScored(int shooter, int target, bool kill) => lastShooter[target] = (shooter, Time.GetTicksMsec());
 
-    /// <summary>Nom affiché au-dessus d'un joueur : celui fourni par Main s'il y en a un, sinon nom de salle en ligne, « Bot N » ou « Joueur N ».</summary>
+    /// <summary>Nom affiché au-dessus d'un joueur : celui fourni par Main s'il y en a un, sinon nom de salle en ligne, surnom du bot (MatchView.BotName) ou « Joueur N ».</summary>
     string NameFor(int id)
     {
         if (NameOf?.Invoke(id) is { Length: > 0 } given) return given;
         if (MatchView.HumanName?.Invoke(id) is { Length: > 0 } human) return human;
         if (match == null || !IsInstanceValid(match)) match = GetTree().CurrentScene?.FindChild("MatchController", true, false) as MatchController;
-        return match?.IsBot?.Invoke(id) == true ? $"Bot {id + 1}" : $"Joueur {id + 1}";
+        return match?.IsBot?.Invoke(id) == true ? MatchView.BotName(id) : $"Joueur {id + 1}";
     }
 
     Hurtbox? HurtboxOf(int playerId)
