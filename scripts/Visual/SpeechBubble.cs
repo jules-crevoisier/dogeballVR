@@ -10,6 +10,7 @@ namespace DogeballVR.Visual;
 /// Animation : pop d'échelle 1,3 → 1 en 0,15 s, tenue, puis montée et fondu. Placé à hauteur de tête, décalé sur le côté
 /// (vers l'extérieur de l'écran) pour ne cacher ni le visage ni le réticule, à 40 px au moins de l'étiquette nom/cœurs du joueur
 /// concerné, et remonté au-dessus des autres étiquettes qu'il couvrirait (<see cref="PlayerTag"/>).
+/// Un seul mot à la fois : un nouvel autocollant efface le précédent.
 /// </summary>
 public partial class SpeechBubble : Node3D
 {
@@ -35,10 +36,11 @@ public partial class SpeechBubble : Node3D
     public static SpeechBubble? Spawn(Node context, string text, Vector3 position, Color color, Size size, Node3D? follow)
     {
         if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return null;
-        // Un seul autocollant par joueur : le nouveau remplace l'ancien (pas de pile illisible « BAM ! KO ! »).
-        if (follow != null)
-            foreach (var old in active.ToArray())
-                if (GodotObject.IsInstanceValid(old) && old.follow == follow) old.QueueFree();
+        // Un seul autocollant à l'écran : le nouveau remplace l'ancien, quel que soit le joueur concerné (pas de pile illisible
+        // « BAM ! » / « PRISE ! » / « WHAM ! » : les mots posés devant la caméra n'ont pas de joueur à suivre et s'empilaient).
+        foreach (var old in active.ToArray())
+            if (GodotObject.IsInstanceValid(old)) { old.Visible = false; old.QueueFree(); }
+        active.Clear();
         font ??= GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
         var b = new SpeechBubble
         {

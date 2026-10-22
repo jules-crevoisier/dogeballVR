@@ -45,6 +45,8 @@ public static class Juice
     public static void TrailGhost(Node context, Vector3 pos, Color color, float radius)
     {
         if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return;
+        // Balle qui frôle la caméra PC : pas de traînée, ses fantômes couvriraient le bas de l'écran et le bloc d'actions du HUD.
+        if (context.GetViewport()?.GetCamera3D() is { } cam && cam is not XRCamera3D && cam.GlobalPosition.DistanceTo(pos) < 2.5f) return;
         var mat = Materials.Additive(new Color(color.R, color.G, color.B, 0.45f));
         var g = new MeshInstance3D { Mesh = new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 8, Rings = 4 }, MaterialOverride = mat, TopLevel = true };
         context.GetTree().CurrentScene.AddChild(g);
