@@ -57,6 +57,14 @@ public partial class MenuBackdrop : Node3D
         ballFrom = new Vector3(-5.2f, 1.5f, 1.0f);
         ballTo = new Vector3(-6.3f, 1.4f, -3.4f);
 
+        // Personnages animés (modèles riggés) : le héros célèbre en boucle ; la balle jonglée ne sert qu'aux anciens modèles sans squelette.
+        if (hero.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation("Celebration"))
+        {
+            ap.GetAnimation("Celebration").LoopMode = Animation.LoopModeEnum.Linear;
+            hero.PlayAction("Celebration", double.MaxValue);
+            held.Visible = false;
+        }
+
         camera = new Camera3D { Fov = 62f, Current = true, Near = 0.05f };
         AddChild(camera);
         PoseAll(0);
@@ -75,7 +83,7 @@ public partial class MenuBackdrop : Node3D
         var rightHand = heroHead + basis * new Vector3(0.38f, 0.05f - 0.12f * dip, 0.28f);
         var leftHand = heroHead + basis * new Vector3(-0.42f, -0.28f + 0.04f * s, 0.32f);   // garde haute, poing vers l'adversaire
         hero!.Pose(heroHead, yaw, leftHand, rightHand);
-        if (held != null)
+        if (held != null && held.Visible)
         {
             float air = u > 0.12f ? Mathf.Sin((u - 0.12f) / 0.88f * Mathf.Pi) : 0f;
             held.GlobalPosition = rightHand + Vector3.Up * (0.18f + 0.55f * air);

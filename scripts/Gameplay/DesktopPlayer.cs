@@ -219,7 +219,7 @@ public partial class DesktopPlayer : Node3D
             var spawn = Zones.Map.Pc?.Spawns.Find(sp => sp.Zone == zone.Id);
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
-            selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false);
+            selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
             selfAvatar.TopLevel = true;
             AddChild(selfAvatar);
         }
