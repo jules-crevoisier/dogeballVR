@@ -20,6 +20,6 @@ for name, fn, light in (("toit", map_toit.build_toit, False), ("toit_ville", map
     lib.reset()
     city_kit.QUEST = light
     fn()
-    if light:   # Quest : un maillage par matériau (quelques appels de rendu au lieu de centaines)
-        quest.merge_by_material()
+    if light:   # Quest : un maillage par matériau (et par secteur pour la ville, qui entoure le joueur)
+        quest.merge_by_material(sectors=1 if name == "toit_quest" else 8)
     print(name, lib.export(os.path.join(out, name + ".glb")), "triangles")

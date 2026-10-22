@@ -228,6 +228,7 @@ def place_ring(dist_scale=1.25, rings=((30, 14), (48, 18)), seed=3):
             for o in objs:
                 c = o.copy()   # données partagées
                 c.name = f"{o.name}_{n}"
+                c.hide_render = False
                 c.location = (x, y, -base)
                 c.rotation_euler = (0, 0, yaw)
                 bpy.context.collection.objects.link(c)

@@ -93,7 +93,7 @@ public partial class Main : Node3D
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
         };
-        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
+        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive && !Visual.ModelLibrary.Quest);
         AddChild(arena.Root);
         platforms = arena.Platforms;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista") >= 0) AddChild(new Visual.VistaCamera { Name = "Vista" });   // captures du décor

@@ -186,7 +186,7 @@ def sign_fizz(x, y, z, face=-1):
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z + 1.2), "neon_orange", "EnseigneLiserePlus", 0.0)
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z - 1.2), "neon_orange", "EnseigneLiseréMoins", 0.0)
     dome(1.0, (x - 2.2, y + face * 0.45, z), "neon_rose", "EnseigneBille")
-    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face < 0 else 0))
+    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face > 0 else 0))
     t = bpy.context.active_object
     t.data.body, t.data.size, t.data.extrude, t.data.align_x = "FIZZ", 1.6, 0.05, "CENTER"
     bpy.ops.object.convert(target="MESH")
