@@ -56,6 +56,8 @@ public partial class AvatarSelfTest : Node3D
     readonly Dictionary<int, float> duckChecked = new();
     Node3D? stealer;
     readonly Dictionary<int, float> catchChecked = new();
+    readonly Dictionary<int, Node3D> holds = new();   // point de tenue du jeu (hôte) : le point de lâcher ne doit pas bouger
+    bool pcSpinTracked;                               // PC en LAN : bras pris pour des bras VR pendant le coup de souris
     bool swapped;   // tête du modèle 0,1 s après le baissé
     double clock;
     bool done;
@@ -90,10 +92,10 @@ public partial class AvatarSelfTest : Node3D
                 MaterialOverride = Materials.Flat(new Color(0.42f, 0.44f, 0.5f)),
             });
             Node3D? hold = null;
-            if (bot)   // comme Bot ; témoin : l'ancien point de tenue, au milieu de la poitrine
+            if (bot)   // comme Bot : point de tenue du jeu au milieu de la poitrine ; l'avatar montre la balle dans sa main
             {
-                hold = Avatar.IkEnabled ? avatar.BallSocket() : new Node3D { Position = new Vector3(0, 1.4f, 0) };
-                if (hold.GetParent() == null) avatar.AddChild(hold);
+                hold = new Node3D { Position = new Vector3(0, 1.4f, 0) };
+                avatar.AddChild(hold);
             }
             else if (c.Kind == Kind.PcBall)
             {
@@ -109,6 +111,7 @@ public partial class AvatarSelfTest : Node3D
                 continue;
             }
             if (hold == null) continue;
+            holds[i] = hold;
             var ball = Gameplay.Ball.Create();
             AddChild(ball);
             ball.Hold(hold, 100 + i, i % 2);
@@ -169,7 +172,7 @@ public partial class AvatarSelfTest : Node3D
                 // l'image d'avant : mesuré seulement à 20 images/s ou plus (pas pendant une capture en rendu logiciel)
                 if (c.Kind == Kind.BotCatch && clock >= 2.2 && delta < 0.05 && !catchChecked.ContainsKey(i) && balls.TryGetValue(i, out var caught)
                     && avatars[i].FindChild("AvatarIk", true, false) is AvatarIk cik)
-                    catchChecked[i] = caught.GlobalPosition.DistanceTo(cik.FinalWristR);
+                    catchChecked[i] = caught.ShownPosition.DistanceTo(cik.FinalWristR);
                 continue;
             }
             bool pc = c.Kind is Kind.Pc or Kind.PcLan or Kind.PcBall or Kind.PcBallClient;
@@ -178,9 +181,17 @@ public partial class AvatarSelfTest : Node3D
             var left = pc ? c.Head + PcLeft : c.Left;
             var right = pc ? c.Head + PcRight : c.Right;
             float yaw = Yaw(i) + (c.TurnDeg != 0f && clock >= 2.0 ? Mathf.DegToRad(c.TurnDeg) : 0f);
+            // PC en LAN : coup de souris à 300 °/s de 1,5 à 2 s ; la main interpolée à part traîne de 40 ms derrière la tête
+            const float Spin = 5.24f;
+            float spun = c.Kind == Kind.PcLan ? Spin * Mathf.Clamp((float)clock - 1.5f, 0f, 0.5f) : 0f;
+            float handLag = c.Kind == Kind.PcLan && clock > 1.5 && clock < 2.04 ? Spin * 0.04f : 0f;
+            yaw += spun;
             var lw = World(i, left + (head - c.Head));
-            if (pc) lw = World(i, head) + new Basis(Vector3.Up, yaw) * PcLeft;   // main factice fixée à la tête
-            avatars[i].Pose(World(i, head), yaw, lw, World(i, right + (head - c.Head)), c.Floor);
+            if (pc) lw = World(i, head) + new Basis(Vector3.Up, yaw - handLag) * PcLeft;   // main factice fixée à la tête
+            var rw = World(i, right + (head - c.Head));
+            if (pc) rw = World(i, head) + new Basis(Vector3.Up, yaw - handLag) * PcRight;
+            avatars[i].Pose(World(i, head), yaw, lw, rw, c.Floor);
+            if (c.Kind == Kind.PcLan && clock > 1.4 && avatars[i].ArmsTracked) pcSpinTracked = true;
             if (c.DuckAt > 0f && clock >= c.DuckAt + 0.1f && !duckChecked.ContainsKey(i))
                 duckChecked[i] = (avatars[i].FindChild("AvatarIk", true, false) as AvatarIk)?.FinalHead.Y + 0.13f * avatars[i].ModelScale ?? 99f;
         }
@@ -248,6 +259,13 @@ public partial class AvatarSelfTest : Node3D
                 Check($"{c.Name} : bras armé", ik.FinalWristR.Y > 1.4f, $"poignet lanceur à {ik.FinalWristR.Y:0.00} m");
             if (c.Kind == Kind.BotSteal)
                 Check($"{c.Name} : bras rendus à l'animation", ik.RightWeight < 0.05f && ik.LeftWeight < 0.05f, $"poids de l'IK {ik.RightWeight:0.00}");
+            if (c.Kind == Kind.PcLan)
+                Check($"{c.Name} : reste PC pendant un coup de souris à 300 °/s", !pcSpinTracked, pcSpinTracked ? "bras passés sur les mains factices" : "bras animés");
+            if (holds.TryGetValue(i, out var hold) && balls.TryGetValue(i, out var held) && held.IsHeld && held.OwnerPlayerId == 100 + i)
+            {
+                float moved = held.GlobalPosition.DistanceTo(hold.GlobalPosition);
+                Check($"{c.Name} : point de lâcher du jeu inchangé", moved < 0.001f, $"balle de jeu à {moved:0.000} m du point de tenue");
+            }
             if (c.Kind is Kind.Pc or Kind.PcLan)
             {
                 float d = ik.FinalWristL.DistanceTo(World(i, c.Head + PcLeft));
@@ -255,11 +273,9 @@ public partial class AvatarSelfTest : Node3D
             }
             if (c.Kind == Kind.PcBall && balls.TryGetValue(i, out var pcBall))
             {
-                var shoulder = At(i) + basis * new Vector3(0.19f, 1.385f, 0f);
-                float angle = Mathf.RadToDeg((ik.FinalWristR - shoulder).AngleTo(pcBall.GlobalPosition - shoulder));
-                float reach = pcBall.GlobalPosition.DistanceTo(ik.FinalWristR);
-                // balle au point de visée de DesktopPlayer (0,9 m devant la tête) : hors de portée du bras, bras tendu vers elle
-                Check($"{c.Name} : main droite vers la balle", angle < 15f && reach < 0.45f, $"écart d'angle {angle:0} °, balle à {reach:0.00} m du poignet");
+                // balle de jeu au point de visée de DesktopPlayer (0,9 m devant la tête), montrée dans la main armée
+                float reach = pcBall.ShownPosition.DistanceTo(ik.FinalWristR);
+                Check($"{c.Name} : balle montrée dans la main", reach < 0.2f && ik.FinalWristR.Y > 1.4f, $"balle à {reach:0.00} m du poignet, poignet à {ik.FinalWristR.Y:0.00} m");
             }
             if (c.Kind == Kind.BotCatch && catchChecked.TryGetValue(i, out float inHand))
             {
@@ -270,7 +286,7 @@ public partial class AvatarSelfTest : Node3D
             if (c.Kind is Kind.Bot or Kind.BotWindup && balls.TryGetValue(i, out var botBall))
             {
                 Check($"{c.Name} : bras armé", ik.FinalWristR.Y > 1.4f && ik.FinalWristL.Y > 1.0f, $"poignet lanceur à {ik.FinalWristR.Y:0.00} m, garde à {ik.FinalWristL.Y:0.00} m");
-                float d = botBall.GlobalPosition.DistanceTo(ik.FinalWristR);
+                float d = botBall.ShownPosition.DistanceTo(ik.FinalWristR);
                 Check($"{c.Name} : balle dans la main", d < 0.2f, $"centre de la balle à {d:0.00} m du poignet");
                 if (c.Kind == Kind.BotWindup)
                 {

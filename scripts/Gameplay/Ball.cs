@@ -95,11 +95,28 @@ public partial class Ball : RigidBody3D
     /// <summary>Client : tant que ce joueur local tient la marionnette, elle suit sa main sans attendre les snapshots (pas de retard, taille réduite).</summary>
     public Node3D? LocalHoldOverride { get; set; }
     /// <summary>
-    /// Marionnette tenue par un joueur distant : point de sa main tel que son avatar l'affiche (avatar en retard d'affichage,
-    /// balle extrapolée en avance : sans ça la balle flotte devant la main). Vaut seulement tant que <see cref="ShownFor"/> la tient.
+    /// Point de la main où l'avatar du porteur montre la balle, tant que <see cref="ShownFor"/> la tient. Marionnette (client) :
+    /// la balle y est déplacée (avatar en retard d'affichage, balle extrapolée en avance). Balle de jeu (hôte) : seuls les
+    /// visuels s'y décalent, le corps physique reste au point de tenue du jeu (point de lâcher inchangé).
     /// </summary>
     public Node3D? ShownAt { get; set; }
     public int ShownFor { get; set; } = -1;
+    Vector3 visualShift;   // décalage des visuels (repère de la balle), balle de jeu montrée dans une main
+
+    /// <summary>Position où la balle se voit (centre des visuels).</summary>
+    public Vector3 ShownPosition => visualShift == Vector3.Zero ? GlobalPosition : ToGlobal(visualShift);
+
+    bool Shown => IsHeld && ShownFor == OwnerPlayerId && ShownAt != null && IsInstanceValid(ShownAt);
+
+    void ShiftVisuals()
+    {
+        var shift = !IsPuppet && Shown ? ToLocal(ShownAt!.GlobalPosition) : Vector3.Zero;
+        if (shift.IsEqualApprox(visualShift)) return;
+        var delta = shift - visualShift;
+        visualShift = shift;
+        foreach (var child in GetChildren())
+            if (child is Node3D n and not CollisionShape3D && !n.TopLevel) n.Position += delta;
+    }
     bool overridden;
     Vector3 netTarget;
 
@@ -385,7 +402,7 @@ public partial class Ball : RigidBody3D
             netTarget = GlobalPosition;
             overridden = true;
         }
-        else if (IsPuppet && IsHeld && ShownFor == OwnerPlayerId && ShownAt != null && IsInstanceValid(ShownAt))
+        else if (IsPuppet && Shown)
         {
             if (overridden) { Scale = Vector3.One; GlobalTransform = new Transform3D(GlobalTransform.Basis.Orthonormalized(), GlobalPosition); overridden = false; }
             GlobalPosition = ShownAt.GlobalPosition;
@@ -401,6 +418,7 @@ public partial class Ball : RigidBody3D
             netTarget += LinearVelocity * (float)delta;
             GlobalPosition = GlobalPosition.Lerp(netTarget, 1f - Mathf.Exp(-22f * (float)delta));
         }
+        ShiftVisuals();
         float pulse = PulseHz[Charge] > 0f ? 1f + 0.08f * Mathf.Sin((float)visualTime * PulseHz[Charge] * Mathf.Tau) : 1f;
         halo.Scale = Vector3.One * HaloScale[Charge] * pulse;
         if (Charge >= 2)

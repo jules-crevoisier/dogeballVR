@@ -65,15 +65,16 @@ public partial class Avatar : Node3D
     float punchT = 99f;          // temps depuis le lâcher (coup de bras des avatars sans mains suivies)
     Vector3 punchFrom;
     float windup;                // élan du bot balle en main (0 à 1)
-    Node3D? socket;              // point de tenue de la balle des bots (BallSocket)
     float bodyYaw;               // cap du corps : suit le casque avec une zone morte (coup d'œil sans tourner les pieds)
     bool bodyYawSet;
     float turnedFor;             // tête tournée de plus de 20° par rapport au corps depuis… (s)
     Node3D? shownHold;           // balle d'un joueur distant chez un client : affichée ici (main armée, ou main réseau en VR)
-    Node3D? heldHand;            // joueur VR : main réseau qui tient la balle
+    bool? heldLeft;              // joueur VR : la balle est dans sa main gauche (null : pas encore vu)
+    Gameplay.Ball? shownBall;
+    bool showing;                // la balle tenue s'affiche dans la main de cet avatar
     float catchBlend;            // balle du bot dans la main animée pendant l'attrape ou le ramassage
-    float rigidFor;              // sans salle : mains figées par rapport à la tête depuis… (s) — mains factices d'un joueur PC
-    float rigidDist = -1f;
+    bool pcHands;                // sans salle : mains factices d'un joueur PC reconnues (TrackPcHands)
+    float pcFor;
     static System.Collections.Generic.List<Gameplay.Ball> frameBalls = new();
     static ulong frameBallsAt = ulong.MaxValue;
 
@@ -339,11 +340,8 @@ public partial class Avatar : Node3D
                 if (seenBalls.TryGetValue(ball, out var prev))
                 {
                     // balle lente = ramassée au sol, balle rapide = attrapée au vol
-                    if (!prev.held && cur.held && cur.owner == playerId)
-                    {
-                        heldHand = netLeft.DistanceSquaredTo(ball.GlobalPosition) < netRight.DistanceSquaredTo(ball.GlobalPosition) ? LeftHand : RightHand;
-                        if (!vrArms) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.35);
-                    }
+                    if (!prev.held && cur.held && cur.owner == playerId && !vrArms)
+                        PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.35);
                     else if (prev.held && !cur.held && prev.owner == playerId)
                     {
                         StartPunch();
@@ -352,12 +350,17 @@ public partial class Avatar : Node3D
                 }
                 seenBalls[ball] = cur;
             }
-            // Client : la balle tenue (marionnette, extrapolée en avance) s'affiche dans la main de l'avatar (en retard d'affichage).
-            if (heldBall != null && heldBall.IsPuppet && IkEnabled && ik != null)
+            // Main qui tient la balle (VR) : la plus proche de la balle à la prise, ou à l'arrivée d'un avatar qui la voit déjà tenue.
+            if (heldBall != shownBall) { shownBall = heldBall; heldLeft = null; }
+            if (heldBall != null && heldLeft == null) heldLeft = netLeft.DistanceSquaredTo(heldBall.GlobalPosition) < netRight.DistanceSquaredTo(heldBall.GlobalPosition);
+            // La balle tenue se voit dans la main de l'avatar (UpdateIk place shownHold) : chez un client la marionnette y va, sur
+            // l'hôte seuls ses visuels s'y décalent (point de lâcher inchangé). Sauf la balle du joueur local (son point de visée).
+            showing = heldBall != null && heldBall.LocalHoldOverride == null && IkEnabled && ik != null;
+            if (showing)
             {
                 shownHold ??= new Node3D { Name = "ShownHold", TopLevel = true };
                 if (shownHold.GetParent() == null) AddChild(shownHold);
-                heldBall.ShownAt = vrArms ? heldHand ?? RightHand : shownHold;
+                heldBall!.ShownAt = shownHold;
                 heldBall.ShownFor = playerId;
             }
         }
@@ -457,8 +460,8 @@ public partial class Avatar : Node3D
 
     /// <summary>
     /// Taille debout : hauteur de tête stable 1 s, la plus haute vue (comme LiftController) ; 1,62 m avant la première mesure.
-    /// Après la première, une mesure ne fait monter la taille que de 5 cm (pointe des pieds, casque soulevé), et un changement
-    /// de sol (lift, terrasse) relance l'attente.
+    /// Une mesure plus haute la remplace (joueur qui attendait genoux fléchis ; un saut ne dure jamais 1 s), jusqu'à 2,1 m ;
+    /// un changement de sol (lift, terrasse) relance l'attente.
     /// </summary>
     void MeasureStanding(float above, float dt)
     {
@@ -466,7 +469,7 @@ public partial class Avatar : Node3D
         steadyFor += dt;
         // Première mesure à 1,25 m au moins : un adulte qui arrive accroupi n'est pas pris pour un enfant debout.
         if (steadyFor < 1.0 || above < (standingMeasured ? 1.1f : 1.25f) || (standingMeasured && above <= standing)) return;
-        standing = standingMeasured ? Mathf.Min(above, standing + 0.05f) : Mathf.Min(above, 2.1f);
+        standing = Mathf.Min(above, 2.1f);
         standingMeasured = true;
         steadyFor = 0;
     }
@@ -475,22 +478,36 @@ public partial class Avatar : Node3D
     /// Mains suivies : joueur humain en casque. La salle en ligne sait qui est en VR ; sans salle (partie LAN, test), on suppose
     /// que tout le monde joue comme la machine locale. <see cref="TrackHands"/> force la réponse (tests).
     /// </summary>
-    bool HandsTracked => TrackHands ?? (trackable && (Online.OnlineLobby.Instance?.IsVrInZone(playerId) ?? (Gameplay.Assist.VrRules && rigidFor < RigidHandsTime)));
+    bool HandsTracked => TrackHands ?? (trackable && (Online.OnlineLobby.Instance?.IsVrInZone(playerId) ?? !pcHands));
 
     /// <summary>
-    /// Sans salle (LAN), la seule trace d'un joueur PC est sa main gauche factice, fixée à la tête (DesktopPlayer.Pose :
-    /// toujours à 0,72 m d'elle, 0,3 m à sa gauche). Une vraie main ne reste pas à 2 mm de cette place, immobile au millimètre, pendant 1 s.
+    /// Sans salle (LAN), la seule trace d'un joueur PC est sa paire de mains factices, fixée à la tête (DesktopPlayer.Pose) :
+    /// gauche à 0,3 m à gauche et 0,72 m de la tête, droite (point de tenue) à 0,3 m à droite et 0,99 m, et l'angle entre
+    /// les deux ne dépend pas du tangage. Les deux à 3 cm de cette place pendant 1 s : joueur PC. Il ne redevient joueur VR
+    /// que si sa main gauche s'en écarte de plus de 10 cm pendant 1 s (un coup de souris rapide, interpolé, l'écarte un instant ;
+    /// une attrape tend la main droite).
     /// </summary>
-    void TrackRigidHands(Vector3 head, Vector3 left, float dt)
+    void TrackPcHands(Vector3 head, Vector3 left, Vector3 right, float dt)
     {
-        float d = left.DistanceTo(head);
-        var local = new Basis(Vector3.Up, lastYaw).Inverse() * (left - head);   // x : à -0,3 m quel que soit le tangage
-        if (rigidDist >= 0f && Mathf.Abs(d - rigidDist) < 0.001f && Mathf.Abs(d - PcLeftReach) < 0.002f && Mathf.Abs(local.X + 0.3f) < 0.002f) rigidFor += dt;
-        else { rigidFor = 0f; rigidDist = d; }
+        var inv = new Basis(Vector3.Up, lastYaw).Inverse();
+        var l = inv * (left - head);
+        var r = inv * (right - head);
+        float offL = Mathf.Max(Mathf.Abs(l.Length() - PcLeft.Length()), Mathf.Abs(l.X - PcLeft.X));
+        float offR = Mathf.Max(Mathf.Abs(r.Length() - PcRight.Length()), Mathf.Abs(r.X - PcRight.X));
+        float pair = Mathf.Abs(l.Y * r.Y + l.Z * r.Z - (PcLeft.Y * PcRight.Y + PcLeft.Z * PcRight.Z));
+        if (!pcHands)
+        {
+            pcFor = offL < 0.03f && offR < 0.03f && pair < 0.03f ? pcFor + dt : 0f;
+            if (pcFor >= 1f) { pcHands = true; pcFor = 0f; }
+        }
+        else
+        {
+            pcFor = offL > 0.1f ? pcFor + dt : 0f;
+            if (pcFor >= 1f) { pcHands = false; pcFor = 0f; }
+        }
     }
 
-    const float RigidHandsTime = 1f;
-    static readonly float PcLeftReach = new Vector3(-0.3f, -0.25f, -0.6f).Length();   // DesktopPlayer.Pose
+    static readonly Vector3 PcLeft = new(-0.3f, -0.25f, -0.6f), PcRight = new(0.3f, -0.3f, -0.9f);   // DesktopPlayer.Pose et son point de tenue
 
     /// <summary>
     /// Cap du corps (comme VRIK ou Rec Room) : un joueur VR qui jette un coup d'œil derrière lui tourne la tête, pas les pieds.
@@ -499,7 +516,7 @@ public partial class Avatar : Node3D
     /// </summary>
     void UpdateBodyYaw(float yaw, Vector3 left, Vector3 right, Vector3 head, float dt)
     {
-        TrackRigidHands(head, left, dt);
+        TrackPcHands(head, left, right, dt);
         bool free = IkEnabled && ik != null && HandsTracked;
         if (!free || !bodyYawSet) { bodyYaw = yaw; bodyYawSet = true; return; }
         float diff = Mathf.Wrap(yaw - bodyYaw, -Mathf.Pi, Mathf.Pi);
@@ -511,6 +528,9 @@ public partial class Avatar : Node3D
     }
 
     const float BodyYawLimit = 0.87f;   // 50°
+
+    /// <summary>Bras pilotés par les mains réseau (joueur VR).</summary>
+    public bool ArmsTracked => HandsTracked;
 
     /// <summary>Cap du corps (radians) : celui du casque, à 50° près pour un joueur VR.</summary>
     public float BodyYaw => bodyYaw;
@@ -534,8 +554,8 @@ public partial class Avatar : Node3D
             standingMeasured = false;
             steadyFor = 0;
             modelScale = 1f;
-            rigidFor = 0;
-            rigidDist = -1f;
+            pcHands = false;
+            pcFor = 0;
         }
     }
 
@@ -568,7 +588,6 @@ public partial class Avatar : Node3D
         if (!IkEnabled)
         {
             ik.LeftWeight = ik.RightWeight = ik.Crouch = ik.Lean = ik.Twist = ik.Look = 0f;
-            if (socket != null) socket.Position = ArmedBall + WindupOffset * windup;
             return;
         }
         bool tracked = posed && HandsTracked;
@@ -603,21 +622,20 @@ public partial class Avatar : Node3D
         {
             grip = grip.Lerp(ik.FinalWristR + ik.FinalHandDirR * BallGrip * s, catchBlend);
         }
-        // Repère de l'avatar (la balle suit le bot qui court sans retard d'une image).
-        if (socket != null) socket.Position = catchBlend > 0f ? ToLocal(grip) : ArmedBall + WindupOffset * windup;
-        if (shownHold != null) shownHold.GlobalPosition = grip;
+        // Mains réseau relatives à la vraie tête, ramenées à la taille du modèle.
+        float k = HeadHeight * s / standing;
+        var modelHead = new Vector3(lastHead.X, modelHeadY, lastHead.Z);
+        Vector3 Scaled(Vector3 hand) => modelHead + (hand - lastHead) * k;
+        if (shownHold != null) shownHold.GlobalPosition = tracked && trackBlend > 0.5f ? Scaled(heldLeft == true ? netLeft : netRight) : grip;
         // Coup d'œil : la tête tourne par rapport au buste (le corps garde son cap, voir UpdateBodyYaw).
         ik.Look = posed && !ko ? Mathf.Wrap(lastYaw - bodyYaw, -Mathf.Pi, Mathf.Pi) : 0f;
 
         float twist = 0f;
         if (trackBlend >= Mathf.Max(armedBlend, punching ? 1f : 0f) && trackBlend > 0f)
         {
-            // Mains réseau relatives à la vraie tête, ramenées à la taille du modèle.
-            float k = HeadHeight * s / standing;
-            var modelHead = new Vector3(lastHead.X, modelHeadY, lastHead.Z);
             Vector3 Wrist(Vector3 hand, float side, out float elbowOut)
             {
-                var t = modelHead + (hand - lastHead) * k;
+                var t = Scaled(hand);
                 var shoulder = Shoulder(modelHead, side);
                 elbowOut = Mathf.SmoothStep(0f, 0.25f * s, t.Y - shoulder.Y);
                 var dir = t - shoulder;
@@ -655,7 +673,7 @@ public partial class Avatar : Node3D
             // La main droite tient la balle là où elle est (bot : près de l'oreille ; joueur PC : point de visée de DesktopPlayer).
             var shoulder = Shoulder(headPos, 1f);
             // Balle partie (fondu de sortie de l'armé, sans coup de bras) : dernière position tenue.
-            if (holding) lastBallAt = heldBall!.GlobalPosition;
+            if (holding) lastBallAt = showing ? grip : heldBall!.GlobalPosition;   // balle montrée dans la main armée, ou point de visée du joueur local
             var ball = lastBallAt;
             var toBall = ball - shoulder;
             ik.RightTarget = ball - (toBall.LengthSquared() > 1e-4f ? toBall.Normalized() * BallGrip * s : Vector3.Zero);
@@ -675,17 +693,6 @@ public partial class Avatar : Node3D
         if (ik == null || !IkEnabled || HandsTracked && Engine.GetProcessFrames() - lastPoseFrame <= 10) return;
         punchT = 0f;
         punchFrom = ArmedWrist + WindupOffset * windup;
-    }
-
-    /// <summary>
-    /// Point de tenue de la balle dans la main armée, enfant de l'avatar (bots) : la balle tourne avec lui et recule pendant l'élan.
-    /// </summary>
-    public Node3D BallSocket()
-    {
-        if (socket != null) return socket;
-        socket = new Node3D { Name = "BallSocket", Position = ArmedBall };
-        AddChild(socket);
-        return socket;
     }
 
     const float WristToGrip = 0.06f;
