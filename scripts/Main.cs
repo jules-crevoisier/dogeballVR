@@ -404,6 +404,8 @@ public partial class Main : Node3D
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
             var view = pcView = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
             var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
             AddChild(end);
             AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
@@ -416,7 +418,7 @@ public partial class Main : Node3D
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
-            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
+            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, Match = match, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
@@ -610,6 +612,8 @@ public partial class Main : Node3D
             var view = pcView = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
             if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
+            AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
             var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
             AddChild(end);
             AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });

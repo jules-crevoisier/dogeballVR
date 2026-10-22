@@ -52,11 +52,11 @@ public static class SteamBridge
             var pick = list.Where(l => l.Members < l.Max)
                 .OrderBy(l => SteamLobbies.GetData(l.Id, "state") == "open" ? 0 : 1).ThenByDescending(l => l.Members).FirstOrDefault();
             if (pick.Id != 0) { GD.Print($"[Steam] Partie trouvée : salon {pick.Id} ({pick.Members}/{pick.Max})"); Join(lobby, pick.Id); }
-            else { GD.Print("[Steam] Aucune partie ouverte : création d'un salon public"); Host(lobby, publicLobby: true, lobby.Map); }
+            else { GD.Print("[Steam] Aucune partie ouverte : création d'un salon public"); Host(lobby, publicLobby: true, lobby.Map, quick: true); }
         });
     }
 
-    public static void Host(OnlineLobby lobby, bool publicLobby, string map)
+    public static void Host(OnlineLobby lobby, bool publicLobby, string map, bool quick = false)
     {
         lobby.SetSearching("Création du salon Steam…");
         int ticket = ++generation;
@@ -70,6 +70,7 @@ public static class SteamBridge
             SteamLobbies.SetData(lobbyId, "state", "open");
             lobby.OpenRoomAsHost(SteamMultiplayerPeer.CreateServer(new SteamMessagesPipe()), map);
             lobby.SetCode(JoinCode.FromSteamLobby(lobbyId));
+            if (quick) lobby.BeginQuickRoom();
             RichPresence.Set(RichPresence.Lobby);
             RichPresence.SetJoinable(lobbyId, 1);
         });

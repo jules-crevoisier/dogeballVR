@@ -20,6 +20,8 @@ public partial class ThreatIndicator : Node
     public Hurtbox Local { get; set; } = null!;
     /// <summary>Vibration d'une main (amplitude 0..1, durée s) ; absent hors VR.</summary>
     public Action<float, float>? Haptic { get; set; }
+    /// <summary>Temps avant impact (s) du tir adverse le plus proche sur le joueur local, +inf sans menace (aides contextuelles).</summary>
+    public static float LocalTimeToImpact { get; private set; } = float.PositiveInfinity;
 
     readonly HashSet<Ball> alerted = new();
     ColorRect[] edges = null!;
@@ -84,6 +86,7 @@ public partial class ThreatIndicator : Node
             if (!current.Contains(b) && IsInstanceValid(b)) b.SetAlert(false, Colors.White);
         alerted.RemoveWhere(b => !current.Contains(b));
 
+        LocalTimeToImpact = localT;
         if (localT <= WarnSeconds)
         {
             float urgency = 1f - Mathf.Clamp(localT / WarnSeconds, 0f, 1f);   // 0 au début de l'alerte, 1 à l'impact
@@ -97,6 +100,8 @@ public partial class ThreatIndicator : Node
         }
         UpdateEdges(now);
     }
+
+    public override void _ExitTree() => LocalTimeToImpact = float.PositiveInfinity;
 
     void Show(Color color, double now) { edgeColor = color; edgeUntil = now + 0.12; }
 

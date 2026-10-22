@@ -24,6 +24,7 @@ public static class GameSettings
     public static bool ToggleCrouch;
     // Partie
     public static int BotLevel = 1;                          // bots : 0 facile, 1 normal, 2 difficile
+    public static bool ContextHints = true;                  // rappels de touches des premières parties (voir ContextHints)
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
     public static bool HitStop = true;
@@ -33,6 +34,7 @@ public static class GameSettings
     public static float UiScale = 1f;                        // taille du texte et de l'interface (0,85 à 1,4)
     public static bool ReduceFlashes;                        // éclairs d'impact et voile de dégâts atténués (photosensibilité)
     public static bool TeamSymbols;                          // équipes distinguées aussi par une forme (daltonisme)
+    public static bool SoundCues;                            // sons importants montrés à l'écran, avec leur direction (malentendants)
     // Audio (0 à 1)
     public static float MasterVolume = 0.85f, MusicVolume = 0.6f, SfxVolume = 0.9f, UiVolume = 0.8f;
     // Vidéo
@@ -72,11 +74,13 @@ public static class GameSettings
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
         BotLevel = Mathf.Clamp((int)F(cfg, "game", "bot_level", BotLevel), 0, 2);
+        ContextHints = B(cfg, "game", "context_hints", ContextHints);
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
         ReduceFlashes = B(cfg, "accessibility", "reduce_flashes", ReduceFlashes);
         TeamSymbols = B(cfg, "accessibility", "team_symbols", TeamSymbols);
+        SoundCues = B(cfg, "accessibility", "sound_cues", SoundCues);
         MasterVolume = Mathf.Clamp(F(cfg, "audio", "master", MasterVolume), 0f, 1f);
         MusicVolume = Mathf.Clamp(F(cfg, "audio", "music", MusicVolume), 0f, 1f);
         SfxVolume = Mathf.Clamp(F(cfg, "audio", "sfx", SfxVolume), 0f, 1f);
@@ -103,8 +107,10 @@ public static class GameSettings
         cfg.SetValue("audio", "sfx", SfxVolume);
         cfg.SetValue("audio", "ui", UiVolume);
         cfg.SetValue("game", "bot_level", BotLevel);
+        cfg.SetValue("game", "context_hints", ContextHints);
         cfg.SetValue("accessibility", "reduce_flashes", ReduceFlashes);
         cfg.SetValue("accessibility", "team_symbols", TeamSymbols);
+        cfg.SetValue("accessibility", "sound_cues", SoundCues);
         InputSetup.SaveBindings(cfg);
         // Vidéo et taille de l'interface : dans machine.cfg (retirées de settings.cfg, que Steam Cloud recopie d'un PC à l'autre).
         if (cfg.HasSection("video")) cfg.EraseSection("video");

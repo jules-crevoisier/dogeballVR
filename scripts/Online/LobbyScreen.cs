@@ -18,7 +18,7 @@ public partial class LobbyScreen : CanvasLayer
     VBoxContainer root = null!;
     OnlineLobby lobby = null!;
     bool dirty = true;
-    Label? rematchLabel;
+    Label? rematchLabel, quickLabel;
 
     public override void _Ready()
     {
@@ -45,9 +45,11 @@ public partial class LobbyScreen : CanvasLayer
     {
         if (rematchLabel != null && IsInstanceValid(rematchLabel))
             rematchLabel.Text = $"Revanche dans {Mathf.CeilToInt((float)lobby.RematchIn)} s : mêmes équipes, même carte";
+        if (quickLabel != null && IsInstanceValid(quickLabel))
+            quickLabel.Text = QuickText();
         if (!dirty) return;
         dirty = false;
-        rematchLabel = null;
+        rematchLabel = quickLabel = null;
         string? focused = (GetViewport().GuiGetFocusOwner() as Button)?.Text;
         foreach (var c in root.GetChildren()) c.QueueFree();
         CallDeferred(MethodName.RestoreFocus, focused ?? "");
@@ -158,6 +160,12 @@ public partial class LobbyScreen : CanvasLayer
             root.AddChild(row);
             if (!lobby.IsHost) root.AddChild(Text("« PAS PRÊT » arrête le compte à rebours", 20));
         }
+        else if (lobby.QuickStartIn > 0)
+        {
+            root.AddChild(quickLabel = Text(QuickText(), 26));
+            quickLabel.AddThemeColorOverride("font_color", new Color("FFD23F"));
+            root.AddChild(Text(lobby.Members.Count < lobby.MaxPlayers ? "Les places libres seront tenues par des bots. D'autres joueurs peuvent encore arriver." : "Salle pleine !", 20));
+        }
         else if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
         else if (!lobby.IsHost) root.AddChild(Text("L'hôte lance la partie quand tout le monde est prêt", 20));
         if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(lobby.Status, 20));
@@ -165,6 +173,10 @@ public partial class LobbyScreen : CanvasLayer
         if (lobby.IsHost && lobby.Members.Count == 1)
             root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code." : "Sur le même réseau, tes amis te trouvent avec « Partie rapide ». Par Internet : donne le code (port UDP 7777 ouvert).", 20));
     }
+
+    string QuickText() => lobby.Members.All(m => m.Ready)
+        ? $"Lancement dans {Mathf.CeilToInt((float)lobby.QuickStartIn)} s · {lobby.Members.Count}/{lobby.MaxPlayers} joueurs"
+        : "Lancement en pause : un joueur n'est pas prêt";
 
     // Manette (Steam Deck) : l'écran est reconstruit à chaque changement de la salle ; le focus revient sur le même bouton,
     // sinon sur l'action principale, pour que la croix et A marchent toujours.

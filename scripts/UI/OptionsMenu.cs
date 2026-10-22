@@ -28,13 +28,15 @@ public partial class OptionsMenu : Control
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
+    /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre TOUCHES).</summary>
+    public int FirstTab { get; set; }
 
     static readonly string[] TabNames = { "CONTRÔLES", "TOUCHES", "AUDIO", "VIDÉO" };
     /// <summary>Texte du bas quand aucune ligne n'est survolée.</summary>
     static readonly string[] TabHints =
     {
         "Survole une option pour voir ce qu'elle fait.",
-        "Clique sur une touche puis appuie sur la nouvelle (Échap annule).",
+        "Clique sur une touche puis appuie sur la nouvelle (Échap annule). À la manette : boutons et gâchettes.",
         "Les volumes s'appliquent tout de suite.",
         "Les réglages vidéo s'appliquent tout de suite.",
     };
@@ -62,7 +64,8 @@ public partial class OptionsMenu : Control
         ["Afficher les images par seconde"] = "Compteur d'images par seconde dans un coin de l'écran.",
         ["Taille du texte et de l'interface"] = "Agrandit tout le texte et l'interface, menus et HUD compris.",
         ["Réduire les flashs"] = "Atténue les éclairs blancs et les clignotements (impacts, KO, explosions).",
-        ["Symboles d'équipe (daltonisme)"] = "Ajoute un symbole à la couleur de chaque équipe, pour ne pas dépendre de l'orange et du bleu.",
+        ["Symboles d'équipe (daltonisme)"] = "Ajoute une forme à chaque équipe (rond orange, triangle bleu) sur les noms et au viseur, pour ne pas dépendre des couleurs.",
+        ["Sons importants à l'écran"] = "Montre autour du viseur les lancers, explosions, attrapes et touches entendus, avec leur direction (jeu sans le son).",
     };
 
     static readonly StyleBoxFlat RowIdle = RowBox(false), RowLit = RowBox(true);
@@ -151,7 +154,7 @@ public partial class OptionsMenu : Control
         bottom.AddChild(UiKit.Button("PAR DÉFAUT", UiKit.Grey, ResetTab, 24, new Vector2(260, 56)));
         var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
         bottom.AddChild(back);
-        ShowTab(0);
+        ShowTab(FirstTab);
         back.CallDeferred(Control.MethodName.GrabFocus);
         UiKit.Punch(panel, 0.9f, 0.2);
     }
@@ -204,6 +207,17 @@ public partial class OptionsMenu : Control
         {
             bool key = e is InputEventKey { Pressed: true, Echo: false };
             bool mouse = e is InputEventMouseButton { Pressed: true } mb && mb.ButtonIndex is not (MouseButton.WheelUp or MouseButton.WheelDown);
+            bool padPress = e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion { Axis: JoyAxis.TriggerLeft or JoyAxis.TriggerRight } jm && jm.AxisValue > 0.6f;
+            if (padPress)
+            {
+                // Manette : nouveau bouton ou gâchette (échangé avec l'action qui l'avait) ; Menu annule.
+                GetViewport().SetInputAsHandled();
+                if (InputSetup.RebindPad(listening, e)) Sfx.Play(this, SfxKind.UiClick);
+                else Sfx.Play(this, SfxKind.UiBack);
+                StopListening();
+                ShowTab(1);
+                return;
+            }
             if (!key && !mouse) return;
             GetViewport().SetInputAsHandled();
             if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { StopListening(); return; }
@@ -243,6 +257,7 @@ public partial class OptionsMenu : Control
             case 0:
                 Section("Partie", true);
                 Choice("Difficulté des bots", new[] { "Facile", "Normal", "Difficile" }, GameSettings.BotLevel, k => GameSettings.BotLevel = k);
+                Toggle("Aides contextuelles (premières parties)", GameSettings.ContextHints, v => GameSettings.ContextHints = v);
                 Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
@@ -256,6 +271,7 @@ public partial class OptionsMenu : Control
                 Choice("Taille du texte et de l'interface", new[] { "Petite", "Normale", "Grande", "Très grande" }, Array.IndexOf(UiScales, GameSettings.UiScale) is int u and >= 0 ? u : 1, k => { GameSettings.UiScale = UiScales[k]; GameSettings.Apply(GetViewport()); });
                 Toggle("Réduire les flashs (photosensibilité)", GameSettings.ReduceFlashes, v => GameSettings.ReduceFlashes = v);
                 Toggle("Symboles d'équipe (daltonisme)", GameSettings.TeamSymbols, v => GameSettings.TeamSymbols = v);
+                Toggle("Sons importants à l'écran", GameSettings.SoundCues, v => GameSettings.SoundCues = v);
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
@@ -285,9 +301,10 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 GameSettings.BotLevel = 1;
+                GameSettings.ContextHints = true;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
-                GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false;
+                GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
             case 2: GameSettings.MasterVolume = 0.85f; GameSettings.MusicVolume = 0.6f; GameSettings.SfxVolume = 0.9f; GameSettings.UiVolume = 0.8f; break;
@@ -390,6 +407,10 @@ public partial class OptionsMenu : Control
         string help = a.Secondary != null
             ? $"Clique puis appuie sur la nouvelle touche. {InputSetup.Describe(a.Secondary)} marche aussi (touche fixe)."
             : "Clique puis appuie sur la nouvelle touche. Échap annule.";
+        if (InputSetup.UsingPad)
+            help = InputSetup.PadRemappable(a)
+                ? "A puis le nouveau bouton ou la nouvelle gâchette : l'action qui l'avait prend l'ancien. Menu annule."
+                : "Fixe à la manette (sticks et Menu) ; la touche clavier, elle, se change.";
         var row = Row(a.Label, help);
         var b = UiKit.Button(InputSetup.KeyName(a.Name), UiKit.NavySoft, () => { }, 22, new Vector2(220, 44));
         b.Pressed += () =>
@@ -400,7 +421,7 @@ public partial class OptionsMenu : Control
             b.AddThemeStyleboxOverride("normal", UiKit.Box(UiKit.Pink, 14, -0.12f));
         };
         row.AddChild(b);
-        if (a.Secondary != null)
+        if (a.Secondary != null && !InputSetup.UsingPad)   // à la manette, la touche clavier fixe n'a rien à faire là
         {
             var alt = UiKit.Text(InputSetup.Describe(a.Secondary), 20, new Color(1, 1, 1, 0.55f), 4);
             alt.CustomMinimumSize = new Vector2(110, 0);
