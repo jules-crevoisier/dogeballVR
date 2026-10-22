@@ -124,10 +124,42 @@ public class RulesDef
 {
     /// <summary>Après une touche, la cible ne peut plus être blessée pendant ce temps (0 = pas d'invulnérabilité).</summary>
     public float InvulnerableAfterHitSeconds { get; set; }
-    /// <summary>Un cœur perdu revient après ce délai sans être touché (0 = jamais).</summary>
-    public float HeartRegenSeconds { get; set; }
+    /// <summary>VR : un cœur perdu revient après ce délai sans être touché (0 = jamais). Toutes les cartes (décision n° 5 : on ne peut pas fuir au casque).</summary>
+    public float HeartRegenSeconds { get; set; } = 10f;
+    /// <summary>Clavier-souris : régénération d'un cœur (0 = jamais, comme Knockout City).</summary>
+    public float PcHeartRegenSeconds { get; set; }
     /// <summary>KO d'équipe qui met fin à la manche (0 = valeur par défaut des règles).</summary>
     public int KoTarget { get; set; }
+
+    // Règles Knockout City (décisions n° 2 à 7 du 22/10, voir docs/CHOIX-REGLES.md). Valeurs par défaut = décision.
+
+    /// <summary>Palier à partir duquel un coup retire 2 cœurs (0 = jamais : 1 cœur par coup, comme Knockout City ; 2 = ancienne règle « palier 2 = KO »).</summary>
+    public int DoubleDamageCharge { get; set; }
+    /// <summary>VR : raccourcissement de la fenêtre d'attrape normale par palier de la balle (s, index = palier). 0,35 s devient 0,35 / 0,30 / 0,27 / 0,25.</summary>
+    public List<float> VrCatchWindowCutByCharge { get; set; } = new() { 0f, 0.05f, 0.08f, 0.10f };
+    /// <summary>VR : la fenêtre normale reste au moins la fenêtre parfaite + cet écart (s).</summary>
+    public float VrCatchWindowMinGap { get; set; } = 0.1f;
+    /// <summary>Clavier-souris : vitesse d'un lancer à pleine charge (m/s), palier 0.</summary>
+    public float PcFullChargeSpeed { get; set; } = 24f;
+    /// <summary>Clavier-souris : gain de vitesse par palier (0,15 = +15 % par palier, cumulé).</summary>
+    public float PcTierSpeedBonus { get; set; } = 0.15f;
+    /// <summary>Clavier-souris : plafond de l'hôte pour une balle à palier (m/s).</summary>
+    public float PcTierSpeedCap { get; set; } = 40f;
+    /// <summary>VR, La Fosse : paliers ajoutés au premier tir lancé du plateau haut (avant : 2, KO direct).</summary>
+    public int LiftChargeBonus { get; set; } = 1;
+    /// <summary>Une passe adverse s'intercepte par n'importe quelle attrape (+1 palier si parfaite). Faux : elle ne s'intercepte pas.</summary>
+    public bool PassInterception { get; set; } = true;
+    /// <summary>VR : blocage (s) quand la fenêtre de grip expire sans contact après une vraie tentative (0 = pas de blocage).</summary>
+    public float VrMissedCatchLockSeconds { get; set; } = 0.6f;
+    /// <summary>VR : un appui est une vraie tentative si une balle adverse lancée arrive à moins de ce délai (s).</summary>
+    public float VrMissedCatchThreatSeconds { get; set; } = 0.6f;
+    /// <summary>Attraper un tir adverse rend un cœur (ancienne règle maison). Faux par défaut, comme Knockout City.</summary>
+    public bool CatchHealsHeart { get; set; }
+    /// <summary>Échanges de plaques (VR, cartes en moulinet) : instants en secondes depuis le début de la manche. Vide = suspendus (décision n° 6).</summary>
+    public List<double> PlateSwapTimes { get; set; } = new();
+    /// <summary>Pause entre deux manches (s) : hôte en VR, hôte au clavier-souris.</summary>
+    public float VrRoundBreakSeconds { get; set; } = 20f;
+    public float PcRoundBreakSeconds { get; set; } = 12f;
 }
 
 /// <summary>Règles de balle de la map : plafond de balles en jeu, durée de vol maximale, gravité réduite pour tendre les trajectoires.</summary>

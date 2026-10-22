@@ -138,6 +138,7 @@ public partial class NetSelfTest : Node
         if (bestD < 0.5f && timer > 0.4)
         {
             timer = 0;
+            Net.RequestGrip(1);   // comme un vrai grip VR : l'hôte tient le blocage miroir (une balle au sol ne bloque jamais)
             Net.RequestCatch(best.NetId, 1);
             catches++;
         }

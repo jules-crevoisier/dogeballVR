@@ -138,6 +138,9 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
+        KcRules.Configure(map.Rules, xrActive);
+        Assist.Configure(map.BallRules);
         int localZoneId = client ? cfg.Zone : 0;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
@@ -325,7 +328,10 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
+        // Échanges de plaques suspendus (décision n° 6) : seulement si la map donne des instants (plateSwapTimes), en VR ; --swap-test les force.
+        bool swapTest = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0;
+        match.SwapTimes = KcRules.PlateSwapTimes(swapTest);
+        match.PlateSwaps = map.IsRing && match.SwapTimes.Length > 0 && (!pcProfile || swapTest);
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {

@@ -6,7 +6,9 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Balle de dodgeball. Côté hôte (autorité) : physique et touches. Côté clients : affichage.
-/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), la balle devient plus lumineuse.
+/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), une attrape parfaite +1 ; la balle devient plus lumineuse.
+/// Le palier ne change jamais les dégâts (1 cœur par coup, voir KcRules.Damage) : au casque il raccourcit la fenêtre d'attrape
+/// normale de celui qui reçoit la balle, au clavier-souris il rend le tir plus rapide (+15 % par palier).
 /// </summary>
 public partial class Ball : RigidBody3D
 {
@@ -21,7 +23,7 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
-    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Le receveur regagne une vie.</summary>
+    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Statistiques ; le cœur rendu n'existe plus que si la map le demande (catchHealsHeart).</summary>
     public static event System.Action<int, bool>? CaughtThrow;
     double flightTime;
 
@@ -74,7 +76,8 @@ public partial class Ball : RigidBody3D
     MeshInstance3D? core;
 
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
-    // Palier 0 discret, palier 1 un peu plus lumineux, palier 2 (KO) binaire et très marqué : double halo + anneau orbital (voir UpdateLook).
+    // Palier 0 discret, palier 1 un peu plus lumineux, palier 2 binaire et très marqué : double halo + anneau orbital (voir UpdateLook).
+    // Le double halo ne veut plus dire « KO » mais « attrape plus tôt » (VR : fenêtre plus courte ; PC : balle plus rapide).
     static readonly float[] HaloScale = { 1.0f, 1.12f, 1.35f, 1.5f };
     static readonly float[] HaloAlpha = { 0.22f, 0.32f, 0.6f, 0.75f };
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
@@ -150,7 +153,7 @@ public partial class Ball : RigidBody3D
             MaterialOverride = ball.haloMaterial,
         };
         ball.AddChild(ball.halo);
-        // Palier 2 (KO) : second halo plus large et anneau orbital, invisibles aux paliers 0 et 1.
+        // Palier 2 et plus (« attrape plus tôt ») : second halo plus large et anneau orbital, invisibles aux paliers 0 et 1.
         ball.halo2Material = Materials.Additive(Palette.BallCore);
         ball.halo2 = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.26f, Height = 0.52f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.halo2Material, Visible = false };
         ball.AddChild(ball.halo2);
@@ -226,7 +229,7 @@ public partial class Ball : RigidBody3D
         return charge;
     }
 
-    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (gardée +1 si parfaite).</summary>
+    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire (tir ou passe interceptée) : charge à zéro (gardée +1 si parfaite).</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);

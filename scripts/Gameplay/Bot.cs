@@ -113,7 +113,7 @@ public partial class Bot : Node3D
         foreach (var node in GetTree().GetNodesInGroup("balls"))
         {
             if (node is not Ball ball || ball.IsHeld) continue;
-            if (ball.IsPass && ball.OwnerTeam != Hurtbox.Team) continue;   // une passe adverse ne s'intercepte pas
+            if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team)) continue;   // une passe adverse s'intercepte (si la map le permet)
             if (ball.GlobalPosition.DistanceTo(GlobalPosition + Vector3.Up * 0.8f) > CatchRadius) continue;
             // Un tir ennemi rapide n'est attrapé qu'une fois sur trois : les bots ne neutralisent plus la moitié des tirs.
             if (ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f && rng.Randf() > 0.3f)
@@ -167,6 +167,7 @@ public partial class Bot : Node3D
         if (!pass && bestDist > MaxUsefulRange && waitedForRange < 3) { waitedForRange++; throwDelay = 0.5; return; }
         waitedForRange = 0;
         float speed = Gentle ? rng.RandfRange(12f, 15f) : rng.RandfRange(16f, 24f);
+        if (!Assist.VrRules) speed *= KcRules.PcTierFactor(held.Charge);   // partie au clavier : le palier rend le tir plus rapide (en VR il est plafonné à 20 m/s)
         // Anticipation : on vise là où la cible sera à l'arrivée de la balle.
         var lead = velocities.TryGetValue(target, out var v) ? v * (bestDist / speed) : Vector3.Zero;
         var aim = target.GlobalPosition + lead + new Vector3(rng.RandfRange(-0.1f, 0.1f), 1.1f, rng.RandfRange(-0.1f, 0.1f));

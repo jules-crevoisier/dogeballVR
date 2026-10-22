@@ -15,10 +15,13 @@ public sealed class MatchView
 {
     public enum Phase { Countdown, Playing, RoundOver, MatchOver }
 
-    /// <summary>Photographie de la partie. Winner : équipe gagnante de la manche (RoundOver) ou de la partie (MatchOver), -1 sinon.</summary>
+    /// <summary>
+    /// Photographie de la partie. Winner : équipe gagnante de la manche (RoundOver) ou de la partie (MatchOver), -1 sinon.
+    /// NextRoundIn : pendant la pause entre deux manches, secondes avant la suivante (0 sinon ou inconnu).
+    /// </summary>
     public readonly record struct Snapshot(
         Phase Phase, int Countdown, int Seconds, int Kos0, int Kos1, int Rounds0, int Rounds1,
-        int Round, int MaxRounds, bool Overtime, string Notice, int Winner, int KoTarget)
+        int Round, int MaxRounds, bool Overtime, string Notice, int Winner, int KoTarget, int NextRoundIn = 0)
     {
         public int Kos(int team) => team == 0 ? Kos0 : Kos1;
         public int Rounds(int team) => team == 0 ? Rounds0 : Rounds1;
@@ -131,17 +134,20 @@ public sealed class MatchView
         Phase phase = m.IsMatchOver ? Phase.MatchOver : !m.InRound ? Phase.RoundOver : m.CountdownLeft > 0 ? Phase.Countdown : Phase.Playing;
         int winner = phase == Phase.MatchOver ? m.Champion : phase == Phase.RoundOver ? m.LastRoundWinner : -1;
         return new Snapshot(phase, Mathf.CeilToInt((float)m.CountdownLeft), Mathf.Max(0, Mathf.CeilToInt((float)m.RoundTimeLeft)),
-            r.Kos[0], r.Kos[1], r.RoundsWon[0], r.RoundsWon[1], m.Round, r.MaxRounds, r.InOvertime, m.Notice, winner, r.KoTarget);
+            r.Kos[0], r.Kos[1], r.RoundsWon[0], r.RoundsWon[1], m.Round, r.MaxRounds, r.InOvertime, m.Notice, winner, r.KoTarget,
+            phase == Phase.RoundOver ? Mathf.CeilToInt((float)m.BreakLeft) : 0);
     }
 
     static readonly Regex RoundsRe = new(@"Équipe 1 : (\d+)\s+-\s+(\d+) : Équipe 2");
     static readonly Regex KoRe = new(@"KO (\d+) - (\d+)\s+\|\s+(\d+)s");
     static readonly Regex CountdownRe = new(@"^(.*) - DÉPART DANS (\d+)$");
     static readonly Regex RoundRe = new(@"MANCHE (\d+)/(\d+)");
+    static readonly Regex BreakRe = new(@"^(.*) - (?:MANCHE \d+|MANCHE DÉCISIVE) DANS (\d+)$");
 
     /// <summary>
     /// Relit le texte de <see cref="MatchController"/>.UpdateHud : ligne 1 bandeau (ou annonce de balle spéciale),
     /// ligne 2 facultative (échange de plaques), puis « Équipe 1 : a  -  b : Équipe 2 » et « KO x - y   |   Ns ».
+    /// Pendant la pause, le bandeau finit par « - MANCHE n DANS s » (compte à rebours de l'intermission).
     /// Ce qui ne se lit pas garde la valeur précédente.
     /// </summary>
     public static Snapshot FromText(string text, Snapshot prev)
@@ -158,11 +164,17 @@ public sealed class MatchView
             if (m.Success) { k0 = int.Parse(m.Groups[1].Value); k1 = int.Parse(m.Groups[2].Value); sec = int.Parse(m.Groups[3].Value); }
         }
         string notice = lines.Length >= 4 ? lines[1].Trim() : "";
-        int round = prev.Round, max = prev.MaxRounds, countdown = 0, winner = -1;
+        int round = prev.Round, max = prev.MaxRounds, countdown = 0, winner = -1, nextIn = 0;
         bool overtime = false;
         Phase phase = Phase.Playing;
         var cd = CountdownRe.Match(banner);
         if (cd.Success) { phase = Phase.Countdown; countdown = int.Parse(cd.Groups[2].Value); banner = cd.Groups[1].Value; }
+        var br = BreakRe.Match(banner);
+        if (br.Success && (br.Groups[1].Value.StartsWith("MANCHE POUR") || br.Groups[1].Value.StartsWith("MANCHE NULLE")))
+        {
+            nextIn = int.Parse(br.Groups[2].Value);
+            banner = br.Groups[1].Value;
+        }
         if (banner.StartsWith("VICTOIRE")) { phase = Phase.MatchOver; winner = banner.Contains("BLEUE") ? 1 : 0; }
         else if (banner.StartsWith("MANCHE POUR")) { phase = Phase.RoundOver; winner = banner.Contains("BLEUE") ? 1 : 0; }
         else if (banner.StartsWith("MANCHE NULLE")) phase = Phase.RoundOver;
@@ -170,6 +182,6 @@ public sealed class MatchView
         else if (banner.StartsWith("MANCHE DÉCISIVE")) round = max + 1;
         else if (RoundRe.Match(banner) is { Success: true } rm) { round = int.Parse(rm.Groups[1].Value); max = int.Parse(rm.Groups[2].Value); }
         else if (phase == Phase.Playing) { notice = banner; overtime = prev.Overtime; }   // annonce à la place du bandeau
-        return new Snapshot(phase, countdown, sec, k0, k1, r0, r1, round, max, overtime, notice, winner, prev.KoTarget);
+        return new Snapshot(phase, countdown, sec, k0, k1, r0, r1, round, max, overtime, notice, winner, prev.KoTarget, phase == Phase.RoundOver ? nextIn : 0);
     }
 }

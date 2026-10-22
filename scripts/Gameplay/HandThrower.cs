@@ -25,6 +25,7 @@ public partial class HandThrower : XRController3D
     double catchRequestedAt = -10;
     Ball? held;
     double lastGripPressTime = -10;
+    double seenLockUntil = double.NegativeInfinity;
     bool gripDown;
 
     readonly Vector3[] posHistory = new Vector3[HistorySize];
@@ -42,7 +43,11 @@ public partial class HandThrower : XRController3D
     {
         if (name != "grip_click" || Hurtbox.Eliminated) return;
         gripDown = true;
-        lastGripPressTime = Time.GetTicksMsec() / 1000.0;
+        double now = Time.GetTicksMsec() / 1000.0;
+        // Blocage après une attrape ratée (tenu par le joueur, pour les deux mains) : l'appui ne compte pas, la main reste fermée sans prendre.
+        if (!KcRules.PressGrip(Hurtbox, GlobalPosition, now)) { Pulse(0.15f, 0.05f); return; }
+        lastGripPressTime = now;
+        if (BallActions.IsClient) BallActions.Net!.RequestGrip(HandIndex);   // l'hôte tient le même blocage en miroir
     }
 
     void OnButtonReleased(string name)
@@ -53,13 +58,17 @@ public partial class HandThrower : XRController3D
     }
 
     /// <summary>Une seule balle par joueur, et pas de prise tant que l'hôte n'a pas confirmé la précédente.</summary>
-    bool CanCatch => held == null && Hurtbox.HeldHand < 0 && !Hurtbox.Eliminated;
+    bool CanCatch => held == null && Hurtbox.HeldHand < 0 && !Hurtbox.Eliminated && !Hurtbox.CatchLock.Locked(Time.GetTicksMsec() / 1000.0);
 
-    bool Catchable(Ball ball) => !ball.IsHeld && !ball.HasExploded && !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team);
+    /// <summary>Une passe adverse s'intercepte par n'importe quelle attrape (décision n° 3, réglable : passInterception).</summary>
+    bool Catchable(Ball ball) => !ball.IsHeld && !ball.HasExploded && KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team);
+
+    static bool Hostile(Ball ball, int team) => ball.OwnerTeam >= 0 && ball.OwnerTeam != team;
 
     /// <summary>
     /// Prise par balayage : la fenêtre de grip (pressé il y a moins de GripWindowSeconds, main encore fermée) ouvre la main ; une balle dont
     /// le trajet du tick passe dans le volume de prise (ou dans l'aimant si elle s'approche) est attrapée. Une main fermée en permanence n'attrape rien.
+    /// Une balle adverse à palier demande un appui plus tardif : sa fenêtre se resserre (Assist.CatchWindow, 0,35 → 0,25 s au palier 3).
     /// </summary>
     void TryCatchSweep(double now, double delta)
     {
@@ -69,6 +78,7 @@ public partial class HandThrower : XRController3D
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball ball || !Catchable(ball)) continue;
+            if (!Assist.GripValid(now, lastGripPressTime, Assist.CatchWindow(ball.Charge, Hostile(ball, Hurtbox.Team)))) continue;
             var now3 = ball.GlobalPosition;
             if (!Assist.Contact(now3 - ball.LinearVelocity * (float)delta, now3, hand)) continue;
             Catch(ball);
@@ -105,10 +115,11 @@ public partial class HandThrower : XRController3D
     void Catch(Ball ball)
     {
         double now = Time.GetTicksMsec() / 1000.0;
-        bool perfect = now - lastGripPressTime <= Assist.PerfectWindowSeconds && ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team
-            && ball.ThrowMode == 0 && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap);
+        bool perfect = now - lastGripPressTime <= Assist.PerfectWindowSeconds && Hostile(ball, Hurtbox.Team)
+            && (ball.ThrowMode == 0 || (ball.IsPass && KcRules.PerfectOnPass)) && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap);
         if (!BallActions.IsClient) held = ball;
         Hurtbox.HeldHand = HandIndex;
+        Hurtbox.CatchLock.Caught();
         catchRequestedAt = now;
         BallActions.Catch(ball, this, HandIndex, Hurtbox.PlayerId, Hurtbox.Team, perfect);
         if (perfect) GD.Print("[VR] Attrape parfaite demandée");
@@ -147,6 +158,15 @@ public partial class HandThrower : XRController3D
             held = null;
         }
         if (held == null && !BallActions.IsClient && Hurtbox.HeldHand == HandIndex) Hurtbox.HeldHand = -1;
+
+        // Fenêtre écoulée sans prise après une vraie tentative : 0,6 s de blocage, vibration « raté » sur chaque main.
+        Hurtbox.CatchLock.Update(now);
+        if (Hurtbox.CatchLock.LockedUntil != seenLockUntil && Hurtbox.CatchLock.Locked(now))
+        {
+            seenLockUntil = Hurtbox.CatchLock.LockedUntil;
+            Pulse(0.45f, 0.12f);
+            if (HandIndex == 1) GD.Print($"[VR] Attrape ratée : blocage {KcRules.Def.VrMissedCatchLockSeconds:0.##} s");
+        }
 
         TryCatchSweep(now, delta);
 

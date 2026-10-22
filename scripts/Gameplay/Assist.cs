@@ -93,13 +93,16 @@ public static class Assist
         return list;
     }
 
-    /// <summary>Lancer d'une balle tenue côté hôte (joueur hôte ou ThrowRpc) : la vitesse est planifiée en VR et mémorisée dans ball.SpeedCap.</summary>
+    /// <summary>
+    /// Lancer d'une balle tenue côté hôte (joueur hôte ou ThrowRpc) : la vitesse est planifiée en VR (plafond 20 m/s quel que soit le palier)
+    /// et mémorisée dans ball.SpeedCap. Hôte au clavier-souris : pleine charge 24 m/s, +15 % par palier, 40 m/s au plus (KcRules.PcTierVelocity).
+    /// </summary>
     public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode)
     {
-        float max = VrRules ? MaxLaunchSpeedVR : MaxLaunchSpeedOther;
         if (mode != 0) return velocity.LimitLength(24f);
-        velocity = velocity.LimitLength(max);
-        if (!VrRules || !ball.IsInsideTree()) { ball.SpeedCap = velocity.Length(); return velocity; }
+        if (!VrRules) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }
+        velocity = velocity.LimitLength(MaxLaunchSpeedVR);
+        if (!ball.IsInsideTree()) { ball.SpeedCap = velocity.Length(); return velocity; }
         var (planned, speed) = Plan(ball.GlobalPosition, velocity, EnemyPositions(ball.GetTree(), ball.OwnerTeam));
         ball.SpeedCap = speed;
         return planned;
@@ -108,7 +111,17 @@ public static class Assist
     // ------------------------------------------------------------------ attrape
 
     /// <summary>Le grip a-t-il été pressé dans la fenêtre avant le contact ? (main fermée en permanence : jamais.)</summary>
-    public static bool GripValid(double now, double gripPressedAt) => now - gripPressedAt <= GripWindowSeconds && now >= gripPressedAt;
+    public static bool GripValid(double now, double gripPressedAt) => GripValid(now, gripPressedAt, GripWindowSeconds);
+
+    /// <summary>Même test avec une fenêtre donnée (balle adverse à palier : fenêtre plus courte, voir <see cref="CatchWindow"/>).</summary>
+    public static bool GripValid(double now, double gripPressedAt, float window) => now - gripPressedAt <= window && now >= gripPressedAt;
+
+    /// <summary>
+    /// Fenêtre d'attrape normale (s) pour une balle : un tir ou une passe adverse se resserre avec son palier (0,35 / 0,30 / 0,27 / 0,25 s,
+    /// au moins parfaite + 0,1 s) ; une balle neutre, au sol ou alliée garde la fenêtre de base.
+    /// </summary>
+    public static float CatchWindow(int charge, bool hostile) =>
+        hostile ? KcRules.VrCatchWindow(charge, GripWindowSeconds, PerfectWindowSeconds) : GripWindowSeconds;
 
     /// <summary>Distance minimale entre la main et le segment parcouru par la balle pendant le tick (balayage : 0,33 m par tick à 20 m/s).</summary>
     public static float SweepDistance(Vector3 ballPrev, Vector3 ballNow, Vector3 hand)

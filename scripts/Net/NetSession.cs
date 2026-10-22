@@ -150,6 +150,25 @@ public partial class NetSession : Node
         if (Connected) Later(() => RpcId(1, MethodName.CatchRpc, ballId, hand, perfect));
     }
 
+    /// <summary>VR : appui du grip, pour que l'hôte tienne le blocage après une attrape ratée en miroir (il juge lui-même la vraie tentative).</summary>
+    public void RequestGrip(int hand)
+    {
+        if (Connected) Later(() => RpcId(1, MethodName.GripRpc, hand));
+    }
+
+    /// <summary>Marge de latence de la fenêtre miroir de l'hôte (s) : une prise légitime arrive après l'appui, avec le même retard.</summary>
+    const double GripMirrorSlack = 0.12;
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void GripRpc(int hand)
+    {
+        if (!IsHost || hand is < 0 or > 1 || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote) || remote.Hurtbox.Eliminated) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        bool wasArmed = remote.Hurtbox.CatchLock.Armed;
+        if (!KcRules.PressGrip(remote.Hurtbox, remote.HandNode(hand).GlobalPosition, now, GripMirrorSlack)) return;
+        if (!wasArmed && remote.Hurtbox.CatchLock.Armed) GD.Print($"[Net] Tentative d'attrape de la zone {remote.Hurtbox.PlayerId} (balle adverse à moins de {KcRules.Def.VrMissedCatchThreatSeconds:0.##} s)");
+    }
+
     public void RequestParry(int ballId, int hand, Vector3 normal)
     {
         if (Connected) Later(() => RpcId(1, MethodName.ParryRpc, ballId, hand, normal));
@@ -365,21 +384,27 @@ public partial class NetSession : Node
         if (!IsHost || !Remotes.TryGetValue(Multiplayer.GetRemoteSenderId(), out var remote)) return;
         double catchNow = Time.GetTicksMsec() / 1000.0;
         if (hand is < 0 or > 1 || catchNow < remote.NextCatchAt || remote.Hurtbox.Eliminated || remote.HeldBall(0) != null || remote.HeldBall(1) != null) return;   // une seule balle par joueur
+        // Miroir du blocage VR : après une vraie tentative ratée (fenêtre écoulée sans prise), l'hôte refuse toute prise pendant 0,6 s.
+        remote.Hurtbox.CatchLock.Update(catchNow);
+        if (remote.Hurtbox.CatchLock.Locked(catchNow)) { GD.Print($"[Net] Prise refusée à la zone {remote.Hurtbox.PlayerId} : blocage après une attrape ratée"); return; }
         remote.NextCatchAt = catchNow + MissedCatchCooldown;   // remis à 0 si la prise réussit
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.IsQueuedForDeletion() || ball.NetId != ballId) continue;
             // Compensation de latence simple : la balle de l'hôte a avancé depuis ce que voyait le client (~120 ms), on élargit d'autant.
             if (!Assist.HostAccepts(ball.GlobalPosition, remote.HandNode(hand).GlobalPosition, ball.LinearVelocity.Length())) return;
-            if (ball.IsPass && ball.OwnerTeam != remote.Hurtbox.Team) return;   // une passe ne s'intercepte pas (phase 2)
-            // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir adverse rapide.
+            if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, remote.Hurtbox.Team)) return;   // passe adverse : interceptable par toute attrape (passInterception)
+            // Attrape parfaite : le client la déclare (appui dans les 0,18 s avant l'arrivée) ; l'hôte n'accorde le palier que sur un tir (ou une passe) adverse rapide.
             // + la balle devait être encore hors de portée 0,3 s plus tôt (0,18 s de fenêtre + latence) et un perfect au plus toutes les 2 s.
             bool perfectOk = perfect && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed
-                && ball.ThrowMode == 0 && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap) && catchNow - remote.LastPerfectAt > 1.0
+                && (ball.ThrowMode == 0 || (ball.IsPass && KcRules.PerfectOnPass)) && Assist.PerfectAllowed(ball.LinearVelocity.Length(), ball.SpeedCap) && catchNow - remote.LastPerfectAt > 1.0
                 && ball.GlobalPosition.DistanceTo(remote.HandNode(hand).GlobalPosition) + 0.01f < (ball.GlobalPosition - ball.LinearVelocity * 0.3f).DistanceTo(remote.HandNode(hand).GlobalPosition);
             if (perfectOk) remote.LastPerfectAt = catchNow;
+            bool intercepted = ball.IsPass && ball.OwnerTeam >= 0 && ball.OwnerTeam != remote.Hurtbox.Team;
             ball.Hold(remote.HandNode(hand), remote.Hurtbox.PlayerId, remote.Hurtbox.Team, perfectOk);
+            remote.Hurtbox.CatchLock.Caught();
             remote.NextCatchAt = 0;
+            if (intercepted) GD.Print($"[Net] Passe interceptée par la zone {remote.Hurtbox.PlayerId}");
             if (perfectOk) GD.Print($"[Net] Attrape parfaite de la zone {remote.Hurtbox.PlayerId}");
             GD.Print($"[Net] Balle {ballId} attrapée par la zone {remote.Hurtbox.PlayerId}");
             return;
@@ -434,6 +459,9 @@ public partial class NetSession : Node
                 Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
             }
         }
+        // Blocage miroir des attrapes ratées (VR) : la fenêtre écoulée sans prise ouvre le blocage même si le client ne dit plus rien.
+        foreach (var remote in Remotes.Values)
+            if (remote.Hurtbox.CatchLock.Update(clock)) GD.Print($"[Net] Attrape ratée par la zone {remote.Hurtbox.PlayerId} : prises refusées {KcRules.Def.VrMissedCatchLockSeconds:0.##} s");
         // Terrasse (PC) : reprise à l'expiration ou à l'élimination même si le client ne dit plus rien.
         if (FreeRoam)
             foreach (var remote in Remotes.Values)
