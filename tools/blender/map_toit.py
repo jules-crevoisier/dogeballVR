@@ -5,7 +5,9 @@ Noms, enseignes et motifs sont originaux.
 Deux ensembles :  build_toit()  décor proche (jouable)  ·  build_ville()  skyline lointaine (sans collision).
 Axes : X = longueur (équipe orange à -X, bleue à +X), Y = largeur, Z = haut. Sol de jeu en Z = 0.
 """
+import json
 import math
+import os
 import random
 
 import bpy
@@ -116,15 +118,12 @@ def crates():
     block((6.05, 0.06, 0.3), (-1.5, -HY - 3.78, 2.0), "danger", "ConteneurBande", 0.0)
 
 
-COVERS = [  # (x, z Godot, base y, sx, sy, sz) tirés de maps/croix_neon.json
-    (0.3, -7.2, 3.2, 1.3, 0.25), (1.8, -8.5, 0.25, 1.3, 3.2), (-8.3, -7.2, 3.2, 1.3, 0.25), (-9.8, -8.5, 0.25, 1.3, 3.2),
-    (7.2, 0.3, 0.25, 1.3, 3.2), (8.5, 1.8, 3.2, 1.3, 0.25), (7.2, -8.3, 0.25, 1.3, 3.2), (8.5, -9.8, 3.2, 1.3, 0.25),
-    (-0.3, 7.2, 3.2, 1.3, 0.25), (-1.8, 8.5, 0.25, 1.3, 3.2), (8.3, 7.2, 3.2, 1.3, 0.25), (9.8, 8.5, 0.25, 1.3, 3.2),
-    (-7.2, -0.3, 0.25, 1.3, 3.2), (-8.5, -1.8, 3.2, 1.3, 0.25), (-7.2, 8.3, 0.25, 1.3, 3.2), (-8.5, 9.8, 3.2, 1.3, 0.25),
-]
-PILLARS = [(-4, -9), (9, -4), (4, 9), (-9, 4)]
-ZONES = [(-4, -8.5, "orange_equipe"), (8.5, -4, "bleu_equipe"), (4, 8.5, "orange_equipe"), (-8.5, 4, "bleu_equipe")]
-DISPENSERS = [(-1.5, -10), (10, -1.5), (1.5, 10), (-10, 1.5)]
+# Éléments de jeu lus dans maps/croix_neon.json (l'aperçu suit la carte quand elle change).
+_MAP = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "maps", "croix_neon.json"), encoding="utf-8"))
+COVERS = [(o["x"], o["z"], o["sx"], o["sy"], o["sz"]) for o in _MAP["obstacles"] if o["id"].startswith("abri_")]   # (x, z Godot, sx, sy, sz)
+PILLARS = [(o["x"], o["z"]) for o in _MAP["obstacles"] if o["id"].startswith("pilier_")]
+ZONES = [(z["x"], z["z"], "orange_equipe" if z["team"] == 0 else "bleu_equipe") for z in _MAP["zones"]]
+DISPENSERS = [(b["x"], b["z"]) for b in _MAP["ballSpawns"] if b.get("kind") == "dispenser"]
 
 
 def gameplay_preview():

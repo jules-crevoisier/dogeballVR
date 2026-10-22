@@ -149,6 +149,52 @@ public partial class AssistSelfTest : Node
         Check("Accroupi du lift relatif à la taille", LiftController.CrouchThreshold(1.15f) < 1.0f && Mathf.IsEqualApprox(LiftController.CrouchThreshold(1.6f), 1.152f)
             && LiftController.CrouchThreshold(1.85f) > 1.15f && LiftController.CrouchThreshold(2.1f) < 1.25f, $"enfant {LiftController.CrouchThreshold(1.15f):0.00} m, adulte {LiftController.CrouchThreshold(1.6f):0.00} m, grand {LiftController.CrouchThreshold(1.85f):0.00} m");
 
+        // Sécurité en salle : toute carte jouable en casque garde 1,5 m entre zones adverses et alerte dès 1,5 m du bord.
+        {
+            var unsafeMaps = new System.Collections.Generic.List<string>();
+            int vrMaps = 0;
+            foreach (var file in DirAccess.GetFilesAt("res://maps"))
+            {
+                if (!file.EndsWith(".json")) continue;
+                var m = Maps.MapData.Load($"res://maps/{file}");
+                if (!m.VrAllowed) continue;
+                vrMaps++;
+                float gap = m.MinAdversaryGap();
+                if (gap < 1.5f - 0.001f || m.EdgeWarningDistance < 1.5f) unsafeMaps.Add($"{m.Name} (écart {gap:0.0#} m, alerte {m.EdgeWarningDistance:0.0#} m)");
+            }
+            Check("Cartes VR : 1,5 m entre zones adverses", vrMaps > 0 && unsafeMaps.Count == 0, unsafeMaps.Count == 0 ? $"{vrMaps} cartes VR conformes" : string.Join(", ", unsafeMaps));
+        }
+
+        // Réglages de salle EVA : fichier de l'opérateur lu et borné (vibrations en %, durée de fin entre 5 et 120 s).
+        {
+            var previous = FileAccess.FileExists(UI.EvaSettings.FilePath) ? FileAccess.GetFileAsBytes(UI.EvaSettings.FilePath) : null;   // fichier réel d'un poste : remis après
+            var cfg = new ConfigFile();
+            cfg.SetValue("eva", "haptics", 40);
+            cfg.SetValue("eva", "volume", 150);
+            cfg.SetValue("eva", "reduce_flashes", true);
+            cfg.SetValue("eva", "end_hold", 300);
+            cfg.Save(UI.EvaSettings.FilePath);
+            UI.EvaSettings.Load();
+            bool read = Mathf.IsEqualApprox(UI.EvaSettings.Haptics, 0.4f) && Mathf.IsEqualApprox(UI.EvaSettings.Volume, 1f)
+                && UI.EvaSettings.ReduceFlashes && Mathf.IsEqualApprox(UI.EvaSettings.EndHoldSeconds, 120f);
+            Check("Réglages de salle EVA (eva.cfg)", read, $"vibrations {UI.EvaSettings.Haptics:0.00}, volume {UI.EvaSettings.Volume:0.00}, fin {UI.EvaSettings.EndHoldSeconds:0} s");
+            // Volume écrit en fraction (0.8 = 80 %) ; réglage absent : celui du joueur reste.
+            var partial = new ConfigFile();
+            partial.SetValue("eva", "volume", 0.8f);
+            partial.Save(UI.EvaSettings.FilePath);
+            float master = UI.GameSettings.MasterVolume;
+            bool flashes = UI.GameSettings.ReduceFlashes;
+            UI.GameSettings.ReduceFlashes = true;
+            UI.EvaSettings.Load();
+            UI.EvaSettings.Apply();
+            bool kept = Mathf.IsEqualApprox(UI.GameSettings.MasterVolume, 0.8f) && UI.GameSettings.ReduceFlashes;
+            Check("Réglages EVA partiels : le reste au joueur", kept, $"volume {UI.GameSettings.MasterVolume:0.00}, flashs réduits {UI.GameSettings.ReduceFlashes}");
+            UI.GameSettings.MasterVolume = master; UI.GameSettings.ReduceFlashes = flashes; UI.GameSettings.Apply(null);
+            if (previous != null) { using var f = FileAccess.Open(UI.EvaSettings.FilePath, FileAccess.ModeFlags.Write); f.StoreBuffer(previous); }
+            else DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(UI.EvaSettings.FilePath));
+            UI.EvaSettings.Haptics = 1f; UI.EvaSettings.Volume = 0.85f; UI.EvaSettings.ReduceFlashes = false; UI.EvaSettings.EndHoldSeconds = 20f;
+        }
+
         // Joueur parti (identifiant inconnu des règles) : aucune exception, rien de compté, pas de boucle.
         {
             var rules = new Rules.MatchRules();

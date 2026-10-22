@@ -135,10 +135,13 @@ public static class GameSettings
     public static void Apply(Viewport? viewport = null)
     {
         AudioBuses.Ensure();
-        AudioBuses.SetVolume("Master", MasterVolume);
-        AudioBuses.SetVolume("Music", MusicVolume);
-        AudioBuses.SetVolume("SFX", SfxVolume);
-        AudioBuses.SetVolume("UI", UiVolume);
+        // Le bus Master reste à plein : le volume général est reporté sur chaque bus, pour que l'alerte de sécurité
+        // (bus Safety, gain fixe) passe même volume coupé.
+        AudioBuses.SetVolume("Master", 1f);
+        AudioBuses.SetVolume("Music", MusicVolume * MasterVolume);
+        AudioBuses.SetVolume("SFX", SfxVolume * MasterVolume);
+        AudioBuses.SetVolume("UI", UiVolume * MasterVolume);
+        AudioBuses.SetVolume(AudioBuses.Safety, Mathf.Max(EvaSettings.SafetyFloor, SfxVolume * MasterVolume));   // jamais sous le plancher, jamais sous les effets
         if (DisplayServer.GetName() != "headless" && !LaunchedFromCommandLine)
         {
             var mode = DisplayServer.WindowGetMode();
@@ -243,9 +246,12 @@ public static class GameSettings
 /// <summary>Bus audio Master / Music / SFX / UI, créés au démarrage si le projet n'a pas de disposition de bus.</summary>
 public static class AudioBuses
 {
+    /// <summary>Alerte de bord de zone (VR) : gain fixe, ni le volume général ni celui des effets ne la coupent.</summary>
+    public const string Safety = "Safety";
+
     public static void Ensure()
     {
-        foreach (var name in new[] { "Music", "SFX", "UI" })
+        foreach (var name in new[] { "Music", "SFX", "UI", Safety })
         {
             if (AudioServer.GetBusIndex(name) >= 0) continue;
             int i = AudioServer.BusCount;

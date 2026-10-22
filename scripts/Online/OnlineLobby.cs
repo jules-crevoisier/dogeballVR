@@ -260,6 +260,7 @@ public partial class OnlineLobby : Node
         Map = MapChoices.Contains(map) ? map : Map;
         members.Clear();
         members[1] = new LobbyMember { PeerId = 1, Name = Identity.Name, Token = Identity.Token, Team = 0, Ready = true, Vr = IsVr };
+        EnsureVrMap("Hôte en casque");
         SetState(LobbyState.InRoom, "Salle ouverte : en attente de joueurs");
         BroadcastRoster();
     }
@@ -325,6 +326,7 @@ public partial class OnlineLobby : Node
     {
         if (!IsHost || State != LobbyState.InRoom || !MapChoices.Contains(map)) return;
         if (members.Count > MapZoneCount(map)) { Status = "Trop de joueurs pour cette carte"; Changed?.Invoke(); return; }
+        if (AnyVr && !MapAllowsVr(map)) { Status = "Carte réservée au PC : un joueur est en casque"; Changed?.Invoke(); return; }
         Map = map;
         BroadcastRoster();
     }
@@ -341,6 +343,7 @@ public partial class OnlineLobby : Node
         if (!IsHost || State != LobbyState.InRoom) return;
         RematchIn = 0;
         QuickStartIn = 0;
+        EnsureVrMap("Lancement");   // filet : la carte a pu être choisie avant l'arrivée du joueur en casque
         var map = LoadMap(Map);
         if (map == null) { Status = "Carte introuvable"; Changed?.Invoke(); return; }
         matchZones.Clear();
@@ -480,7 +483,7 @@ public partial class OnlineLobby : Node
         switch (State)
         {
             case LobbyState.Searching:
-                var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers).OrderByDescending(r => r.Players).FirstOrDefault();
+                var room = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && VrCanJoin(r)).OrderByDescending(r => r.Players).FirstOrDefault();
                 if (room != null) { Lan.StopListening(); GD.Print($"[Lobby] Partie trouvée : {room.Name} ({room.Address}:{room.GamePort})"); JoinAddress(room.Address, room.GamePort); }
                 else if (stateClock > searchFor)
                 {
@@ -491,7 +494,7 @@ public partial class OnlineLobby : Node
                 break;
             case LobbyState.InRoom when IsHost && quickHosted && members.Count == 1:
                 // Deux « parties rapides » simultanées ont chacune ouvert une salle : la salle seule rejoint celle d'identifiant plus petit.
-                var other = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && !r.InMatch && string.CompareOrdinal(r.Id, roomId) < 0).FirstOrDefault();
+                var other = Lan.Rooms.Values.Where(r => r.Protocol == NetSession.ProtocolVersion && r.Players < r.MaxPlayers && !r.InMatch && VrCanJoin(r) && string.CompareOrdinal(r.Id, roomId) < 0).FirstOrDefault();
                 if (other != null) { GD.Print($"[Lobby] Autre salle ouverte en même temps ({other.Address}:{other.GamePort}) : on la rejoint"); var (a, gp) = (other.Address, other.GamePort); Reset(); JoinAddress(a, gp); }
                 break;
             case LobbyState.Connecting:
@@ -634,6 +637,8 @@ public partial class OnlineLobby : Node
         if (protocol != NetSession.ProtocolVersion) refusal = $"Version différente (hôte {GameVersion}, vous {Identity.Clean(version)}) : mettez le jeu à jour";
         else if (members.Count >= MaxPlayers && !members.ContainsKey(peer)) refusal = "Partie pleine";
         else if (State == LobbyState.InMatch && NetSession.Current == null) refusal = "Partie en cours de chargement : réessayez";
+        else if (vr && State == LobbyState.InMatch && !MapAllowsVr(Map)) refusal = "Partie sur une carte réservée au PC : revenez à la fin de la partie";
+        else if (vr && !MapAllowsVr(Map) && !members.ContainsKey(peer) && members.Count >= MapZoneCount(VrFallbackMap)) refusal = "Salle trop pleine pour passer sur une carte VR";
         if (refusal != null) { Refuse(peer, refusal); return; }
         token = (token ?? "").Length > 64 ? token![..64] : token ?? "";
         var member = new LobbyMember { PeerId = peer, Name = Identity.Clean(name), Token = token, Vr = vr, Team = Mathf.Clamp(team, 0, 1) };
@@ -642,6 +647,7 @@ public partial class OnlineLobby : Node
         if (count[member.Team] > count[1 - member.Team]) member.Team = 1 - member.Team;
         members[peer] = member;
         GD.Print($"[Lobby] {member.Name} entre dans la salle (pair {peer}, équipe {member.Team + 1})");
+        if (State == LobbyState.InRoom) EnsureVrMap($"{member.Name} est en casque");
         if (QuickStartIn > 0)
         {
             // Partie rapide : on est venu jouer, donc prêt d'office ; un peu de temps pour changer d'équipe, moins si la salle est pleine.
@@ -845,6 +851,29 @@ public partial class OnlineLobby : Node
     {
         if (!zoneCounts.TryGetValue(name, out int n)) zoneCounts[name] = n = LoadMap(name)?.Zones.Count ?? 4;
         return n;
+    }
+
+    /// <summary>Carte jouable en casque (vrAllowed) : la Tour 4v4 ne l'est pas, ses zones adverses sont trop proches pour marcher.</summary>
+    static readonly Dictionary<string, bool> vrMaps = new();
+    public static bool MapAllowsVr(string name)
+    {
+        if (!MapChoices.Contains(name)) return true;   // nom venu du réseau (annonce LAN) : seules nos cartes sont chargées
+        if (!vrMaps.TryGetValue(name, out bool ok)) vrMaps[name] = ok = LoadMap(name)?.VrAllowed ?? true;
+        return ok;
+    }
+    /// <summary>Carte prise quand un joueur en casque arrive dans une salle réglée sur une carte réservée au PC.</summary>
+    public const string VrFallbackMap = "croix_neon";
+    bool AnyVr => members.Values.Any(m => m.Vr);
+    /// <summary>Partie rapide en casque : on écarte les salles qui refuseraient le casque (mêmes règles que <see cref="HandleJoinRequest"/>).</summary>
+    static bool VrCanJoin(LanDiscovery.Room r) => !IsVr || MapAllowsVr(r.Map) || !r.InMatch && r.Players < MapZoneCount(VrFallbackMap);
+
+    /// <summary>La carte est choisie ici, une seule fois pour toute la salle : chaque machine joue la même carte, avec les mêmes zones.</summary>
+    void EnsureVrMap(string why)
+    {
+        if (!AnyVr || MapAllowsVr(Map)) return;
+        GD.Print($"[Lobby] {why} : {Map} est réservée au PC, la salle passe sur {VrFallbackMap}");
+        Map = VrFallbackMap;
+        Status = "Joueur en casque : carte changée pour une carte VR";
     }
 
     /// <summary>Adresse sur le réseau local : réseaux de box (192.168, 10.) avant les autres (Docker, Hyper-V, VPN).</summary>

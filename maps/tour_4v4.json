@@ -2,6 +2,8 @@
   "name": "tour_4v4",
   "schemaVersion": 3,
   "layout": "ring",
+  "vrAllowed": false,
+  "vrNote": "PC seulement (audit du 22/10) : plaques adverses collées (0 m) et plaques de 7,5 × 8 m, alors que les zones EVA font 15 × 8 m. En casque, le jeu se replie sur neon_court tant qu'EVA n'a pas validé une disposition avec 1,5 m entre zones adverses.",
   "zoneWidth": 7.5,
   "zoneDepth": 8,
   "edgeWarningDistance": 1.5,

@@ -22,7 +22,8 @@ jobs:
         run: |
           # Toute lecture de la ligne de commande passe par scripts/Tools/DevFlags.cs (éditeur et export de debug seulement),
           # sauf les modes de lancement des fichiers ci-dessous. Une nouvelle option de test ailleurs rouvrirait l'export de sortie.
-          autorises='scripts/(Tools/DevFlags|Main|Net/NetConfig|UI/GameSettings|Online/OnlineLobby|Online/GameLaunch|Online/Steam/SteamPlatform|Online/Steam/UdpPipe)\.cs'
+          # EvaSettings : réglages de salle passés par le lanceur EVA (vibrations, volume, flashs, durée de fin), voulus en sortie.
+          autorises='scripts/(Tools/DevFlags|Main|Net/NetConfig|UI/GameSettings|UI/EvaSettings|Online/OnlineLobby|Online/GameLaunch|Online/Steam/SteamPlatform|Online/Steam/UdpPipe)\.cs'
           hors=$(grep -rlE 'GetCmdline(User)?Args|Environment\.(GetCommandLineArgs|CommandLine)' scripts | grep -vxE "$autorises" || true)
           if [ -n "$hors" ]; then echo "::error title=Option de test hors de DevFlags::${hors//$'\n'/ }"; exit 1; fi
           echo "Lectures de la ligne de commande : toutes dans DevFlags ou les modes de lancement."
@@ -193,6 +194,15 @@ jobs:
           GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
           "$GODOT" --headless --path . -- --assist-test 2>&1 | tee assist.log
           grep -q "TOUT OK" assist.log || { echo "Les aides VR ne respectent pas les critères"; exit 1; }
+
+      - name: Test fin de partie dans le casque (podium et tableau 3D, durée réglée par l'opérateur)
+        run: |
+          GODOT_VERSION=4.3-stable
+          GODOT="$PWD/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 1800 -- --map=neon_court --pc-autoplay --end-screen-test --vr-end-stage --eva-end-hold=6 2>&1 | tee vr-end.log
+          grep -q "\[EVA\] Réglages de salle : .*fin de partie 6 s" vr-end.log || { echo "Réglage de l'opérateur (--eva-end-hold) non lu"; exit 1; }
+          grep -q "\[FinVR\] Scène devant le joueur .*VICTOIRE !, podium de 2 joueur(s), MVP .*tableau 4 ligne(s), relance dans 6 s" vr-end.log || { echo "Pas de fin de partie VR complète"; exit 1; }
+          grep -qE "\[FinVR\] Scène retirée après (5\.[5-9]|6\.[0-9]|7\.[0-5]) s" vr-end.log || { echo "La partie suivante n'a pas démarré après la durée réglée"; exit 1; }
 
       - name: Test rotor du moyeu (balles tendues arrêtées par un bras, témoin sans rotor)
         run: |

@@ -112,8 +112,9 @@ public static class Sfx
     /// <summary>Chaque son joué (type, position s'il est spatialisé) : indicateurs visuels des sons (accessibilité).</summary>
     public static event System.Action<SfxKind, Vector3?>? Played;
 
-    /// <summary>Joue un son ; pitch 1 = normal (les paliers de charge montent la hauteur), volumeDb s'ajoute au gain de base du type.</summary>
-    public static void Play(Node context, SfxKind kind, Vector3? position = null, float pitch = 1f, float volumeDb = 0f)
+    /// <summary>Joue un son ; pitch 1 = normal (les paliers de charge montent la hauteur), volumeDb s'ajoute au gain de base du type ;
+    /// bus : autre bus que celui du type (alerte de sécurité).</summary>
+    public static void Play(Node context, SfxKind kind, Vector3? position = null, float pitch = 1f, float volumeDb = 0f, string? bus = null)
     {
         if (!GodotObject.IsInstanceValid(context) || !context.IsInsideTree()) return;
         var parent = Holder(context.GetTree());
@@ -130,9 +131,9 @@ public static class Sfx
         while (active.Count >= def.Voices) { FadeOut(active[0]); active.RemoveAt(0); }   // vol de voix : la plus ancienne se tait (fondu court, sans clic)
 
         float p = pitch * (1f + rng.RandfRange(-def.Jitter, def.Jitter));
-        active.Add(Spawn(parent, Pick(kind), position, p, def.Db + volumeDb, BusOf(kind), def.Unit));
+        active.Add(Spawn(parent, Pick(kind), position, p, def.Db + volumeDb, bus ?? BusOf(kind), def.Unit));
         if (def.LowDb is float low && Variants("low") is { Length: > 0 } lows)   // couche grave : le corps de l'impact
-            Spawn(parent, lows[rng.RandiRange(0, lows.Length - 1)], position, p * rng.RandfRange(0.95f, 1.05f), def.Db + volumeDb + low, BusOf(kind), def.Unit * 1.5f);
+            Spawn(parent, lows[rng.RandiRange(0, lows.Length - 1)], position, p * rng.RandfRange(0.95f, 1.05f), def.Db + volumeDb + low, bus ?? BusOf(kind), def.Unit * 1.5f);
         if (kind == SfxKind.Ko) Play(context, SfxKind.Crowd, null, 1f, -3f);   // la foule réagit au KO
     }
 
