@@ -40,7 +40,7 @@ public partial class Bot : Node3D
         rng.Randomize();
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
-        Avatar = Avatar.Create(Hurtbox.Team, bot: true);
+        Avatar = Avatar.Create(Hurtbox.Team, bot: true, Hurtbox.PlayerId);
         AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         AddChild(Hurtbox);

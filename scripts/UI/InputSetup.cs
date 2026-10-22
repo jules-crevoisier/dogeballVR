@@ -30,7 +30,7 @@ public static class InputSetup
         new("fire", "Lancer (maintenir = charger)", M(MouseButton.Left), null, Ax(JoyAxis.TriggerRight, 1f)),
         new("catch", "Attraper", M(MouseButton.Right), null, Ax(JoyAxis.TriggerLeft, 1f)),
         new("pass", "Passe à un allié", M(MouseButton.Middle), K(Key.X), J(JoyButton.X)),
-        new("lob", "Cloche", K(Key.R), null, J(JoyButton.Y)),
+        new("lob", "Tir en cloche", K(Key.R), null, J(JoyButton.Y)),
         new("feint", "Feinte", K(Key.F), null, J(JoyButton.RightShoulder)),
         new("curve", "Effet (maintenir + gauche/droite)", K(Key.E), null, J(JoyButton.LeftShoulder)),
         new("scoreboard", "Tableau des scores", K(Key.Tab), null, J(JoyButton.Back)),

@@ -68,11 +68,13 @@ def paint(obj, color_fn, ao_rays=24, ao_dist=0.35, ao_strength=0.65, seed=3, ext
                 d = -d
             if tree.ray_cast(v.co + n * 0.01, d, ao_dist)[0] is not None:
                 hit += 1
-        ao = 1.0 - ao_strength * hit / ao_rays
-        r, g, b = color_fn(v.co, n)[:3]
+        ao = 1.0 - ao_strength * hit / max(1, ao_rays)
+        c = color_fn(v.co, n)
+        r, g, b = c[:3]
+        rough = c[4] if len(c) > 4 else 0.8   # rugosité PBR rangée dans l'alpha
         # éclairage peint : dessus plus clair, dessous plus froid
         up = 0.9 + 0.2 * max(-1.0, min(1.0, n.z)) * 0.5
-        layer.data[i].color = (r * ao * up, g * ao * up, b * ao * up, 1.0)
+        layer.data[i].color = (r * ao * up, g * ao * up, b * ao * up, rough)
     bm.free()
     obj.data.materials.clear()
     obj.data.materials.append(vcol_mat())

@@ -99,6 +99,7 @@ public partial class Main : Node3D
         Online.CrashReporter.Start(GetTree());
         Online.SteamBridge.Init();   // sans effet sans Steam (CI, LAN)
         MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
+        Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
         UI.GameSettings.Load();
         UI.InputSetup.Register();

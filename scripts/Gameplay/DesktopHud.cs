@@ -9,9 +9,11 @@ namespace DogeballVR.Gameplay;
 /// <summary>
 /// HUD du joueur clavier-souris (dessiné pour 1920x1080, mis à l'échelle par le projet), dans l'esprit de Knockout City :
 /// tableau de score en haut (KO de la manche, manches gagnées, chrono), cœurs en bas à gauche, balle tenue et jauges
-/// d'attrape et de dash en bas au centre, jauge de charge en arc autour du viseur, marqueur de touche, fil des KO,
-/// vignette rouge du côté d'où vient le coup, lignes de vitesse au dash, compte à rebours et bandeaux de manche,
-/// tableau des scores (Tab), aide des touches (F1), compteur d'images.
+/// d'attrape et de dash en bas au centre (avec leurs touches), jauge de charge en arc autour du viseur, marqueur de touche,
+/// fil des KO, vignette rouge du côté d'où vient le coup, alerte « on te vise » (dégradé au bord et chevron vers la menace),
+/// lignes de vitesse au dash, annonces centrales (une seule à la fois), tableau des scores (Tab), aide des touches (F1),
+/// compteur d'images. Sous la pause, les annonces, l'alerte et l'aide se cachent ; pendant l'entraînement, le score,
+/// le chrono et les annonces de manche aussi.
 /// L'état de la partie vient de <see cref="MatchView"/> (hôte ou client). En VR, tout passe par le HUD 3D du MatchController.
 /// </summary>
 public partial class DesktopHud : CanvasLayer
@@ -19,12 +21,14 @@ public partial class DesktopHud : CanvasLayer
     // Paliers de la balle tenue (passes, attrape parfaite) et paliers de la charge du lancer.
     static readonly Color[] BallTierColors = { Colors.White, UiKit.Yellow, UiKit.Orange, UiKit.Pink };
     static readonly Color[] ChargeColors = { UiKit.Yellow, UiKit.Orange, UiKit.Pink };
-    static readonly Color Red = new("ff2d4a");
+    // Pas de rouge dans le HUD : les signaux de menace prennent la couleur de l'équipe qui menace (palette sans rouge).
+    static readonly Color Urgent = UiKit.Yellow;
 
     public DesktopPlayer Player { get; set; } = null!;
     public MatchView View { get; set; } = null!;
 
     Control root = null!;
+    Control centerLayer = null!, helpLayer = null!;   // annonces centrales ; aide et rappel F1 (cachés sous la pause)
     double age;
     MatchView.Snapshot prev;
     bool hudTest;
@@ -32,14 +36,18 @@ public partial class DesktopHud : CanvasLayer
     public override void _Ready()
     {
         Layer = 5;
+        ProcessMode = ProcessModeEnum.Always;   // tourne sous la pause (arbre gelé) pour cacher les annonces : voir _Process
         hudTest = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--hud-test") >= 0;
         root = new Control { Name = "Root", Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
 
         vignette = Add(new Vignette());
+        threat = Add(new ThreatOverlay());
         speedLines = Add(new SpeedLines { Hud = this });
         crosshair = Add(new Crosshair { Hud = this });
+        centerLayer = Add(new Control());
+        helpLayer = Add(new Control());
         BuildScoreBoard();
         BuildHearts();
         BuildBottomCenter();
@@ -53,6 +61,8 @@ public partial class DesktopHud : CanvasLayer
         root.AddChild(fps);
 
         prev = View.State;
+        // HUD créé en plein compte à rebours : on fait comme s'il commençait, pour annoncer « MANCHE N » dès le premier chiffre.
+        if (prev.Phase == MatchView.Phase.Countdown) prev = prev with { Phase = MatchView.Phase.Playing, Countdown = 0 };
         lastLives = View.Lives(View.LocalId);
         View.Hit += OnHit;
         View.Ko += OnKo;
@@ -73,10 +83,10 @@ public partial class DesktopHud : CanvasLayer
         return c;
     }
 
-    static Panel MakePanel(Color bg, float skew = 0f, int radius = 14, int border = 0, Color? borderColor = null)
+    static Panel MakePanel(Color bg, float skew = 0f, int radius = 14, int border = 0, Color? borderColor = null, int bottom = 5)
     {
         var p = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        p.AddThemeStyleboxOverride("panel", UiKit.Box(bg, radius, skew, border, borderColor, 5));
+        p.AddThemeStyleboxOverride("panel", UiKit.Box(bg, radius, skew, border, borderColor, bottom));
         return p;
     }
 
@@ -115,9 +125,9 @@ public partial class DesktopHud : CanvasLayer
             name.Position = new Vector2(team == 0 ? 26 : 18, 8);
             name.Size = new Vector2(206, 30);
             box.AddChild(name);
-            var tag = UiKit.Text(mine ? "TON ÉQUIPE" : "ADVERSES", 16, mine ? UiKit.Yellow : new Color(1, 1, 1, 0.75f), 5, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
-            tag.Position = new Vector2(team == 0 ? 22 : 22, 58);
-            tag.Size = new Vector2(206, 24);
+            var tag = UiKit.Text(mine ? "TON ÉQUIPE" : "ADVERSES", 19, Colors.White, 6, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            tag.Position = new Vector2(team == 0 ? 24 : 20, 54);
+            tag.Size = new Vector2(206, 28);
             box.AddChild(tag);
 
             var ko = UiKit.Text("0", 76, Colors.White, 12, team == 0 ? HorizontalAlignment.Right : HorizontalAlignment.Left);
@@ -149,7 +159,7 @@ public partial class DesktopHud : CanvasLayer
         timer.Size = new Vector2(176, 70);
         timer.PivotOffset = timer.Size / 2;
         timerBox.AddChild(timer);
-        roundLabel = UiKit.Text("MANCHE 1/5", 20, UiKit.Sky, 5, HorizontalAlignment.Center);
+        roundLabel = UiKit.Text("MANCHE 1/5", 21, UiKit.Sky, 5, HorizontalAlignment.Center);
         roundLabel.Position = new Vector2(0, 68);
         roundLabel.Size = new Vector2(176, 28);
         timerBox.AddChild(roundLabel);
@@ -210,8 +220,8 @@ public partial class DesktopHud : CanvasLayer
         }
         lastSecond = sec;
         float pulse = urgent ? 0.5f + 0.5f * Mathf.Sin((float)age * 10f) : 0f;
-        timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(Red, 0.6f + 0.4f * pulse) : Colors.White);
-        timerStyle.BgColor = urgent ? UiKit.Navy.Lerp(new Color("5a0d1c"), pulse) : UiKit.Navy;
+        timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(Urgent, 0.6f + 0.4f * pulse) : Colors.White);
+        timerStyle.BgColor = urgent ? UiKit.Navy.Lerp(new Color("5a3a08"), pulse) : UiKit.Navy;
         bool ot = s.Overtime && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         if (ot && !overtime.Visible) UiKit.Punch(overtime, 2f, 0.35);
         overtime.Visible = ot;
@@ -229,12 +239,13 @@ public partial class DesktopHud : CanvasLayer
 
     readonly List<Heart> hearts = new();
     int lastLives;
-    Label livesCaption = null!;
+    const float HeartSize = 40f;   // contrôle de 40 px : cœur dessiné d'environ 32 px, liseré compris
 
     sealed partial class Heart : Control
     {
         public bool Full = true;
         public float Shake;
+        public Color Fill = UiKit.Orange;
         static Vector2[]? shape;
         static Vector2[] Shape()
         {
@@ -258,31 +269,29 @@ public partial class DesktopHud : CanvasLayer
         }
         public override void _Draw()
         {
-            var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * 14f, 0);
-            float r = Size.X * 0.45f;
-            DrawColoredPolygon(At(c + new Vector2(0, 4), r + 5), new Color(0, 0, 0, 0.4f));
-            DrawColoredPolygon(At(c, r + 5), UiKit.Navy);
-            DrawColoredPolygon(At(c, r), Full ? new Color("ff3d5a") : new Color(0.25f, 0.28f, 0.4f));
+            var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * 6f, 0);
+            float r = Size.X * 0.36f;
+            DrawColoredPolygon(At(c + new Vector2(0, 2), r + 3), new Color(0, 0, 0, 0.4f));
+            DrawColoredPolygon(At(c, r + 3), UiKit.Navy);
+            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(0.25f, 0.28f, 0.4f));
             if (Full) DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.28f), new Color(1, 1, 1, 0.55f));
         }
     }
 
     void BuildHearts()
     {
+        // Pastille compacte en bas à gauche, à la Knockout City : les cœurs seuls, sans libellé.
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        holder.OffsetLeft = 36; holder.OffsetTop = -150; holder.OffsetRight = 400; holder.OffsetBottom = -30;
+        holder.OffsetLeft = 36; holder.OffsetTop = -96; holder.OffsetRight = 300; holder.OffsetBottom = -36;
         root.AddChild(holder);
-        var back = MakePanel(new Color(UiKit.Navy, 0.55f), -0.15f, 18);
-        back.Position = new Vector2(0, 30);
-        back.Size = new Vector2(70 + 92 * View.MaxLives, 90);
+        var back = MakePanel(new Color(UiKit.Navy, 0.6f), -0.15f, 12, 0, null, 3);
+        back.Position = new Vector2(0, 4);
+        back.Size = new Vector2(24 + (HeartSize + 6) * View.MaxLives, HeartSize + 12);
         holder.AddChild(back);
-        livesCaption = UiKit.Text("VIES", 22, UiKit.Sky, 6);
-        livesCaption.Position = new Vector2(18, 0);
-        holder.AddChild(livesCaption);
         for (int i = 0; i < View.MaxLives; i++)
         {
-            var h = new Heart { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(84, 84), Position = new Vector2(30 + i * 92, 32) };
+            var h = new Heart { Fill = Palette.Team(View.LocalTeam), MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(14 + i * (HeartSize + 6), 10) };
             h.PivotOffset = h.Size / 2;
             holder.AddChild(h);
             hearts.Add(h);
@@ -303,7 +312,7 @@ public partial class DesktopHud : CanvasLayer
                 {
                     // Cœur perdu : il gonfle, tremble et retombe (rebond).
                     h.Shake = 1f;
-                    h.Scale = Vector2.One * 1.7f;
+                    h.Scale = Vector2.One * 1.8f;
                     tw.TweenProperty(h, "scale", Vector2.One, 0.5).SetTrans(Tween.TransitionType.Elastic).SetEase(Tween.EaseType.Out);
                 }
                 else
@@ -413,7 +422,7 @@ public partial class DesktopHud : CanvasLayer
         }
     }
 
-    Label catchKey = null!, dashKey = null!;
+    Label catchKey = null!, dashKey = null!, fireKey = null!;
 
     void BuildBottomCenter()
     {
@@ -430,22 +439,37 @@ public partial class DesktopHud : CanvasLayer
         dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(340, 40), Size = new Vector2(110, 110) };
         dashGauge.PivotOffset = new Vector2(55, 40);
         holder.AddChild(dashGauge);
-        catchKey = KeyCap(holder, new Vector2(10, 124));
-        dashKey = KeyCap(holder, new Vector2(340, 124));
+        // Touche de chaque emplacement, centrée sous lui : attraper, lancer (la balle tenue), dash.
+        catchKey = KeyUnder(holder, 10, 110, 122);
+        fireKey = KeyUnder(holder, 170, 120, 122);
+        dashKey = KeyUnder(holder, 340, 110, 122);
     }
 
-    /// <summary>Petite touche de clavier (nom de la touche réassignable) sous une jauge.</summary>
-    Label KeyCap(Control parent, Vector2 pos)
+    Label KeyUnder(Control parent, float x, float width, float y)
     {
-        var l = UiKit.Text("", 18, UiKit.Navy, 0, HorizontalAlignment.Center);
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, y), Size = new Vector2(width, 34) };
+        parent.AddChild(center);
+        var l = KeyCap("", 19);
+        center.AddChild(l);
+        return l;
+    }
+
+    /// <summary>
+    /// Touche de clavier dessinée : cadre clair arrondi, liseré gris, tranche plus foncée en bas (relief), texte marine.
+    /// Sert sous les jauges, dans l'aide (F1) et dans le rappel « F1 : commandes ».
+    /// </summary>
+    public static Label KeyCap(string text, int size)
+    {
+        var l = UiKit.Text(text, size, UiKit.Navy, 0, HorizontalAlignment.Center);
+        l.VerticalAlignment = VerticalAlignment.Center;
         l.AddThemeStyleboxOverride("normal", new StyleBoxFlat
         {
-            BgColor = UiKit.Cream, CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6,
-            BorderWidthBottom = 4, BorderColor = new Color("b9ab92"), ContentMarginLeft = 8, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 0,
+            BgColor = new Color("f6f1e7"), AntiAliasing = true,
+            CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
+            BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 5, BorderColor = new Color("8d97ad"),
+            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 1, ContentMarginBottom = 3,
+            ShadowColor = new Color(UiKit.Navy, 0.6f), ShadowSize = 3,
         });
-        l.Position = pos;
-        l.Size = new Vector2(110, 28);
-        parent.AddChild(l);
         return l;
     }
 
@@ -492,7 +516,9 @@ public partial class DesktopHud : CanvasLayer
         dashGauge.QueueRedraw();
 
         catchKey.Text = InputSetup.KeyName("catch");
+        fireKey.Text = InputSetup.KeyName("fire");
         dashKey.Text = InputSetup.KeyName("dash");
+        fireKey.Modulate = new Color(1, 1, 1, holding ? 1f : 0.6f);   // lancer : utile balle en main seulement
     }
 
     // ------------------------------------------------------------------ viseur, charge en arc, marqueur de touche
@@ -538,7 +564,7 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = Size * 0.5f;
             var p = Hud.Player;
-            var col = p.AimingAtEnemy ? Red : new Color(1, 1, 1, 0.95f);
+            var col = p.AimingAtEnemy ? Palette.Team(1 - Hud.View.LocalTeam) : new Color(1, 1, 1, 0.95f);   // adversaire visé : couleur de son équipe
             var shadow = new Color(UiKit.Navy, 0.7f);
             float charge = Hud.chargeShown;
             float spread = 10f + charge * 18f;      // le viseur s'ouvre quand on arme un lancer
@@ -576,7 +602,7 @@ public partial class DesktopHud : CanvasLayer
             {
                 // Marqueur de touche : quatre traits en X qui s'écartent ; rouge et plus grand pour un KO.
                 float t = (float)(1 - Hud.hitMarkerLeft / 0.35);
-                var mc = Hud.hitMarkerKill ? Red : Colors.White;
+                var mc = Hud.hitMarkerKill ? UiKit.Yellow : Colors.White;
                 float grow = Hud.hitMarkerKill ? 1.5f : 1f;
                 float a0 = (16f + 8f * t) * grow, a1 = (32f + 8f * t) * grow;
                 var alpha = new Color(mc, 1f - t * t);
@@ -595,28 +621,55 @@ public partial class DesktopHud : CanvasLayer
         if (shooter != View.LocalId) return;
         if (GameSettings.HitMarkers) { hitMarkerLeft = 0.35; hitMarkerKill = kill; }
         Sfx.Play(this, kill ? SfxKind.KoConfirm : SfxKind.Click, null, kill ? 1f : 1.15f);
-        if (kill) ShowCenterPop("K.O. !", Red, 96);
+        if (kill) ShowCenterPop("K.O. !", UiKit.Yellow, 96);
     }
 
     // ------------------------------------------------------------------ fil des KO (haut droite)
 
-    VBoxContainer feed = null!;
+    // Placement à la main (pas de conteneur) : un conteneur replace ses enfants à chaque mise en page et se battait avec
+    // l'animation d'entrée, d'où des lignes qui sautaient d'une image à l'autre. Ici, chaque ligne est collée au bord droit,
+    // à 24 px du coin, et ne bouge que pour entrer (glissé) ou monter d'un cran quand la plus ancienne part.
+    const float FeedMargin = 24f, FeedGap = 8f;
+    const double FeedHold = 4.0;
+    Control feed = null!;
+    sealed class FeedEntry { public PanelContainer Panel = null!; public double Born; public float Y = -1; }
+    readonly List<FeedEntry> feedEntries = new();
 
     void BuildFeed()
     {
-        feed = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Begin };
+        feed = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         feed.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        feed.OffsetLeft = -560; feed.OffsetRight = -28; feed.OffsetTop = 24; feed.OffsetBottom = 400;
-        feed.GrowHorizontal = Control.GrowDirection.Begin;
-        feed.AddThemeConstantOverride("separation", 8);
+        feed.OffsetLeft = -FeedMargin; feed.OffsetRight = -FeedMargin; feed.OffsetTop = FeedMargin; feed.OffsetBottom = FeedMargin;
         root.AddChild(feed);
+    }
+
+    void UpdateFeed(double delta)
+    {
+        feedEntries.RemoveAll(e =>
+        {
+            if (age - e.Born < FeedHold + 0.55) return false;
+            e.Panel.QueueFree();
+            return true;
+        });
+        float y = 0;
+        foreach (var e in feedEntries)
+        {
+            var p = e.Panel;
+            p.Size = p.GetCombinedMinimumSize();
+            float t = (float)(age - e.Born);
+            float enter = Mathf.Clamp(t / 0.25f, 0f, 1f);
+            float slide = 90f * Mathf.Pow(1f - enter, 3);                       // arrive de la droite en ralentissant
+            float alpha = Mathf.Min(1f, t / 0.15f) * Mathf.Clamp((float)(FeedHold + 0.4 - t) / 0.4f, 0f, 1f);
+            e.Y = e.Y < 0 ? y : Mathf.MoveToward(e.Y, y, (float)delta * 600f);   // monte d'un cran sans à-coup
+            p.Position = new Vector2(Mathf.Round(-p.Size.X + slide), Mathf.Round(e.Y));
+            p.Modulate = new Color(1, 1, 1, alpha);
+            y += p.Size.Y + FeedGap;
+        }
     }
 
     void OnKo(int by, int victim)
     {
         bool mine = by == View.LocalId || victim == View.LocalId;
-        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
-        row.AddThemeConstantOverride("separation", 0);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 10, -0.15f, mine ? 3 : 0, UiKit.Yellow, 3);
         box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 4; box.ContentMarginBottom = 4;
@@ -631,18 +684,10 @@ public partial class DesktopHud : CanvasLayer
         }
         else line.AddChild(UiKit.Text("K.O.", 28, UiKit.Yellow, 6));
         line.AddChild(UiKit.Text(View.NameOf(victim), 28, Palette.Team(View.TeamOf(victim)).Lightened(0.1f), 6));
-        row.AddChild(panel);
-        feed.AddChild(row);
-        while (feed.GetChildCount() > 5) feed.GetChild(0).QueueFree();
-
-        // Entrée par la droite, disparition après 4 s.
-        panel.Modulate = new Color(1, 1, 1, 0);
-        var tw = panel.CreateTween();
-        tw.TweenProperty(panel, "modulate:a", 1.0, 0.15);
-        tw.TweenInterval(4.0);
-        tw.TweenProperty(panel, "modulate:a", 0.0, 0.4);
-        tw.TweenCallback(Callable.From(row.QueueFree));
-        UiKit.SlideIn(panel, 0f, 80f);
+        panel.Modulate = new Color(1, 1, 1, 0);   // UpdateFeed le place et le fait apparaître (entrée par la droite, départ après 4 s)
+        feed.AddChild(panel);
+        feedEntries.Add(new FeedEntry { Panel = panel, Born = age });
+        while (feedEntries.Count > 5) { feedEntries[0].Panel.QueueFree(); feedEntries.RemoveAt(0); }
     }
 
     /// <summary>Petite balle lancée (pictogramme du fil des KO).</summary>
@@ -662,7 +707,7 @@ public partial class DesktopHud : CanvasLayer
     Vignette vignette = null!;
     SpeedLines speedLines = null!;
 
-    /// <summary>Bords rouges : plus forts du côté d'où vient le coup (direction en repère écran, nulle = tout le bord).</summary>
+    /// <summary>Flash blanc des bords au coup reçu : plus fort du côté d'où vient le coup (direction en repère écran, nulle = tout le bord).</summary>
     sealed partial class Vignette : Control
     {
         public float Strength;
@@ -675,8 +720,8 @@ public partial class DesktopHud : CanvasLayer
             void Edge(Vector2 a, Vector2 b, Vector2 inward, Vector2 normal)
             {
                 float k = From == Vector2.Zero ? 0.75f : 0.18f + 0.95f * Mathf.Max(0, normal.Dot(From));
-                var outer = new Color(0.85f, 0.05f, 0.1f, Mathf.Min(0.85f, Strength * k));
-                var inner = new Color(0.85f, 0.05f, 0.1f, 0f);
+                var outer = new Color(1f, 1f, 1f, Mathf.Min(0.6f, Strength * k * 0.75f));
+                var inner = new Color(1f, 1f, 1f, 0f);
                 DrawPolygon(new[] { a, b, b + inward * w, a + inward * w }, new[] { outer, outer, inner, inner });
             }
             Edge(Vector2.Zero, new Vector2(s.X, 0), Vector2.Down, Vector2.Up);
@@ -684,6 +729,140 @@ public partial class DesktopHud : CanvasLayer
             Edge(Vector2.Zero, new Vector2(0, s.Y), Vector2.Right, Vector2.Left);
             Edge(new Vector2(s.X, 0), s, Vector2.Left, Vector2.Right);
         }
+    }
+
+    // ------------------------------------------------------------------ alerte « on te vise »
+
+    ThreatOverlay threat = null!;
+    CanvasLayer? threatEdges;
+    double threatEdgesSearch;
+
+    /// <summary>
+    /// Alerte de menace, à la couleur de l'équipe qui menace : dégradé sur le bord d'où elle vient et chevron autour du viseur, pointé vers elle.
+    /// Deux niveaux : verrou (un adversaire balle en main me prend pour cible : signal posé, un chevron) et tir entrant (la balle
+    /// arrive sur moi : signal fort qui bat de plus en plus vite, double chevron). Direction en repère écran vue de dessus :
+    /// x à droite, y vers le bas = derrière le joueur.
+    /// </summary>
+    sealed partial class ThreatOverlay : Control
+    {
+        public float Strength, Urgency, Clock;
+        public bool Incoming;
+        public Color Color = UiKit.Blue;
+        public Vector2 Dir = Vector2.Up;
+        public override void _Draw()
+        {
+            if (Strength <= 0.01f) return;
+            var s = Size;
+            float pulse = Incoming ? 0.7f + 0.3f * Mathf.Sin(Clock * Mathf.Lerp(14f, 32f, Urgency)) : 1f;
+            float w = Mathf.Min(s.X, s.Y) * (Incoming ? 0.34f : 0.24f);
+            var hue = Color.Lightened(0.15f);
+            void Edge(Vector2 a, Vector2 b, Vector2 inward, Vector2 normal)
+            {
+                float k = Mathf.Clamp(normal.Dot(Dir) * 1.3f, 0f, 1f);   // le bord face à la menace à fond, les voisins à moitié
+                if (k <= 0.05f) return;
+                float alpha = Mathf.Min(0.95f, Strength * pulse * k);
+                var outer = new Color(hue, alpha);
+                var inner = new Color(hue, 0f);
+                DrawPolygon(new[] { a, b, b + inward * w * k, a + inward * w * k }, new[] { outer, outer, inner, inner });
+                // Liseré vif collé au bord : le dégradé seul se perd sur un décor de la même teinte.
+                var strip = new Color(Color.Lightened(0.45f), alpha);
+                DrawPolygon(new[] { a, b, b + inward * 10f * k, a + inward * 10f * k }, new[] { strip, strip, strip, strip });
+            }
+            Edge(Vector2.Zero, new Vector2(s.X, 0), Vector2.Down, Vector2.Up);
+            Edge(new Vector2(0, s.Y), s, Vector2.Up, Vector2.Down);
+            Edge(Vector2.Zero, new Vector2(0, s.Y), Vector2.Right, Vector2.Left);
+            Edge(new Vector2(s.X, 0), s, Vector2.Left, Vector2.Right);
+
+            // Chevrons à 230 px du viseur (hors de la silhouette visée), pointés vers la menace, liserés de marine pour se détacher du décor.
+            var c = s / 2;
+            var d = Dir;
+            var n = new Vector2(-d.Y, d.X);
+            int count = Incoming ? 2 : 1;
+            for (int i = 0; i < count; i++)
+            {
+                var tip = c + d * (230f + i * 40f + (Incoming ? 12f * pulse : 0f));
+                float wing = 48f - i * 8f, depth = 36f - i * 6f, thick = 20f;
+                var pts = new[] { tip, tip - d * depth + n * wing, tip - d * (depth + thick) + n * wing, tip - d * thick, tip - d * (depth + thick) - n * wing, tip - d * depth - n * wing };
+                var col = new Color(hue, Strength * (i == 0 ? 1f : 0.65f));
+                var shadow = new Color(UiKit.Navy, 0.9f * Strength);
+                var closed = new Vector2[pts.Length + 1];
+                pts.CopyTo(closed, 0);
+                closed[^1] = pts[0];
+                DrawPolyline(closed, shadow, 10f, true);   // liseré (lissé : le polygone plein n'a pas d'anticrénelage)
+                DrawColoredPolygon(pts, col);
+                DrawPolyline(closed, col, 1.5f, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tir entrant : même calcul que l'alerte de tir (<see cref="ThreatIndicator"/>), la balle adverse libre dont l'impact prévu sur moi
+    /// tombe sous <see cref="ThreatIndicator.WarnSeconds"/>. Verrou : un adversaire tient une balle à portée (16 m, la portée utile
+    /// des bots) et je suis l'adversaire le plus proche de lui (c'est celui que les bots visent). Rien quand c'est mon équipe qui tire.
+    /// Tout se lit sur les balles et les hurtboxes déjà présentes chez l'hôte comme chez le client.
+    /// </summary>
+    bool FindThreat(out Vector3 from, out int team, out bool incoming, out float timeToImpact)
+    {
+        from = Vector3.Zero; team = -1; incoming = false; timeToImpact = float.PositiveInfinity;
+        var me = Player.Hurtbox;
+        if (me == null || me.Eliminated || me.DashInvulnerable) return false;
+        var mePos = me.GlobalPosition;
+        float lockBest = 16f;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball b || b.OwnerTeam < 0 || b.OwnerTeam == me.Team || b.IsPass || b.HasExploded) continue;
+            if (!b.IsHeld)
+            {
+                float t = ThreatIndicator.TimeToImpact(b.GlobalPosition, b.LinearVelocity, mePos);
+                if (t <= ThreatIndicator.WarnSeconds && t < timeToImpact) { timeToImpact = t; from = b.GlobalPosition; team = b.OwnerTeam; incoming = true; }
+                continue;
+            }
+            if (incoming) continue;
+            float d = b.GlobalPosition.DistanceTo(mePos);
+            if (d >= lockBest) continue;
+            bool closest = true;
+            foreach (var h in GetTree().GetNodesInGroup("hurtboxes"))
+                if (h is Hurtbox o && o != me && o.Team == me.Team && !o.Eliminated && o.GlobalPosition.DistanceTo(b.GlobalPosition) < d) { closest = false; break; }
+            if (!closest) continue;
+            lockBest = d; from = b.GlobalPosition; team = b.OwnerTeam;
+        }
+        return team >= 0;
+    }
+
+    void UpdateThreat(double delta, bool hidden)
+    {
+        // Au clavier-souris, cette alerte remplace le liseré plein écran de ThreatIndicator (couleur de ma propre équipe, montré aussi
+        // au tireur) : on cache sa couche. Le VR n'a pas ce HUD et garde son liseré.
+        if (threatEdges == null && age >= threatEdgesSearch)
+        {
+            threatEdgesSearch = age + 1.0;
+            threatEdges = GetTree().CurrentScene?.FindChild("ThreatEdges", true, false) as CanvasLayer;
+        }
+        if (threatEdges != null && IsInstanceValid(threatEdges)) threatEdges.Visible = false;
+
+        bool on = FindThreat(out var src, out int team, out bool incoming, out float t);
+        bool fake = hudTest && age >= 4.4 && age < 5.6;   // test : verrou puis tir venant de derrière à droite, équipe adverse
+        if (fake) { on = true; team = 1 - View.LocalTeam; incoming = age >= 4.9; t = incoming ? (float)(5.6 - age) / 0.7f * ThreatIndicator.WarnSeconds : t; }
+        on &= !hidden;
+        if (on)
+        {
+            threat.Incoming = incoming;
+            threat.Color = Palette.Team(team);
+            threat.Urgency = incoming ? 1f - Mathf.Clamp(t / ThreatIndicator.WarnSeconds, 0f, 1f) : 0f;
+            float target = incoming ? 0.65f + 0.35f * threat.Urgency : 0.45f;
+            threat.Strength = Mathf.MoveToward(threat.Strength, target, (float)delta * 8f);
+            var cam = GetViewport().GetCamera3D();
+            if (fake) threat.Dir = new Vector2(0.75f, 0.66f).Normalized();
+            else if (cam != null)
+            {
+                var local = cam.GlobalTransform.Basis.Inverse() * (src - cam.GlobalPosition);
+                var dir = new Vector2(local.X, local.Z);
+                if (dir.LengthSquared() > 0.0001f) threat.Dir = dir.Normalized();
+            }
+        }
+        else threat.Strength = hidden ? 0f : Mathf.MoveToward(threat.Strength, 0f, (float)delta * 6f);
+        threat.Clock = (float)age;
+        threat.QueueRedraw();
     }
 
     /// <summary>Lignes de vitesse sur les bords pendant un dash.</summary>
@@ -746,20 +925,20 @@ public partial class DesktopHud : CanvasLayer
     string lastNotice = "", lastToast = "";
     double koSince = -1;
 
-    Label CenterLabel(string text, int size, Color color, int outline, float y, float h)
+    Label CenterLabel(string text, int size, Color color, int outline, float y, float h, Control? parent = null)
     {
         var l = UiKit.Text(text, size, color, outline, HorizontalAlignment.Center);
         l.VerticalAlignment = VerticalAlignment.Center;
         l.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         l.OffsetLeft = -700; l.OffsetRight = 700; l.OffsetTop = y; l.OffsetBottom = y + h;
         l.PivotOffset = new Vector2(700, h / 2);
-        root.AddChild(l);
+        (parent ?? centerLayer).AddChild(l);
         return l;
     }
 
     void BuildCenterTexts()
     {
-        countdownRound = CenterLabel("", 54, UiKit.Sky, 12, 300, 70);
+        countdownRound = CenterLabel("", 50, UiKit.Sky, 12, 300, 70);
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 360, 260);
         notice = CenterLabel("", 34, UiKit.Yellow, 10, 190, 50);
         notice.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(UiKit.Navy, 0.8f), 12, -0.12f, 0, null, 4));
@@ -768,34 +947,89 @@ public partial class DesktopHud : CanvasLayer
         notice.OffsetLeft = -360; notice.OffsetRight = 360;
         notice.PivotOffset = new Vector2(360, 25);
         toast = CenterLabel("", 34, Colors.White, 10, 250, 50);
-        pop = CenterLabel("", 96, Red, 18, 600, 120);
-        koTitle = CenterLabel("K.O. !", 150, UiKit.Pink, 24, 330, 180);
+        pop = CenterLabel("", 96, UiKit.Yellow, 18, 600, 120);
+        koTitle = CenterLabel("K.O. !", 150, UiKit.Cream, 24, 330, 180);
         koSub = CenterLabel("", 40, Colors.White, 10, 500, 60);
-        resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60);
+        resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60, root);
         foreach (var l in new[] { countdown, countdownRound, notice, toast, pop, koTitle, koSub }) l.Visible = false;
 
-        // Bandeau de fin de manche : bande inclinée de la couleur de l'équipe, qui traverse l'écran.
+        // Bandeau de fin de manche : bande inclinée de la couleur de l'équipe gagnante, qui traverse l'écran.
+        // Assez haute pour le titre et le sous-titre (« Manches 3 – 2 ») sans que le bord de la bande les coupe.
         bannerBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         bannerBox.SetAnchorsPreset(Control.LayoutPreset.HcenterWide);
-        bannerBox.OffsetTop = -110; bannerBox.OffsetBottom = 110;
-        root.AddChild(bannerBox);
+        bannerBox.OffsetTop = -140; bannerBox.OffsetBottom = 140;
+        centerLayer.AddChild(bannerBox);
         bannerBand = MakePanel(UiKit.Orange, -0.25f, 0, 6, UiKit.Navy);
         bannerBand.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         bannerBand.OffsetLeft = -80; bannerBand.OffsetRight = 80; bannerBand.OffsetTop = 20; bannerBand.OffsetBottom = -20;
         bannerBox.AddChild(bannerBand);
-        bannerText = UiKit.Text("", 84, Colors.White, 16, HorizontalAlignment.Center);
+        bannerText = UiKit.Text("", 88, Colors.White, 16, HorizontalAlignment.Center);
         bannerText.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        bannerText.OffsetTop = 18; bannerText.OffsetBottom = -70;
+        bannerText.OffsetTop = 34; bannerText.OffsetBottom = -100;
         bannerText.VerticalAlignment = VerticalAlignment.Center;
         bannerBox.AddChild(bannerText);
-        bannerSub = UiKit.Text("", 36, UiKit.Cream, 8, HorizontalAlignment.Center);
+        bannerSub = UiKit.Text("", 38, UiKit.Cream, 9, HorizontalAlignment.Center);
         bannerSub.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        bannerSub.OffsetTop = 140; bannerSub.OffsetBottom = -24;
+        bannerSub.OffsetTop = 178; bannerSub.OffsetBottom = -46;
         bannerSub.VerticalAlignment = VerticalAlignment.Center;
         bannerBox.AddChild(bannerSub);
     }
 
-    void ShowCenterPop(string text, Color color, int size)
+    // File des annonces centrales : une seule à l'écran. Une annonce plus importante remplace la courante ; une moins importante
+    // attend son tour (et tombe si elle a trop attendu). Priorités : bandeau de manche 3, compte à rebours et GO 2, éclats 1.
+    const int PrioPop = 1, PrioCountdown = 2, PrioBanner = 3;
+    sealed record Pending(int Prio, double Duration, double Expires, System.Action Show);
+    readonly List<Pending> annQueue = new();
+    readonly List<Tween> annTweens = new();
+    int annPrio = -1;
+    double annUntil;
+
+    bool CenterBusyFor(int prio) => (age < annUntil && annPrio > prio) || (koTitle.Visible && prio < PrioBanner);
+
+    void Announce(int prio, double duration, System.Action show, double maxWait = 1.2)
+    {
+        if (CenterBusyFor(prio))
+        {
+            if (maxWait > 0) annQueue.Add(new Pending(prio, duration, age + maxWait, show));
+            return;
+        }
+        bool keepRound = prio == PrioCountdown && annPrio == PrioCountdown;   // « MANCHE N » reste entre 3, 2 et 1 (GO le retire)
+        ClearCenter(keepRound);
+        annPrio = prio;
+        annUntil = age + duration;
+        show();
+    }
+
+    void ClearCenter(bool keepRound = false)
+    {
+        foreach (var t in annTweens) if (t.IsValid()) t.Kill();
+        annTweens.Clear();
+        countdown.Visible = pop.Visible = bannerBox.Visible = false;
+        if (!keepRound) countdownRound.Visible = false;
+        annPrio = -1;
+        annUntil = 0;
+    }
+
+    Tween AnnTween(Node n)
+    {
+        var t = n.CreateTween();
+        annTweens.Add(t);
+        return t;
+    }
+
+    void PumpAnnouncements()
+    {
+        if (age < annUntil && annPrio >= 0) return;
+        annQueue.RemoveAll(p => p.Expires < age);
+        if (annQueue.Count == 0) return;
+        var next = annQueue[0];
+        foreach (var p in annQueue) if (p.Prio > next.Prio) next = p;
+        if (CenterBusyFor(next.Prio)) return;
+        annQueue.Remove(next);
+        Announce(next.Prio, next.Duration, next.Show, 0);
+    }
+
+    void ShowCenterPop(string text, Color color, int size) => Announce(PrioPop, 0.95, () =>
     {
         pop.Text = text;
         pop.AddThemeColorOverride("font_color", color);
@@ -803,51 +1037,66 @@ public partial class DesktopHud : CanvasLayer
         pop.Visible = true;
         pop.Modulate = Colors.White;
         UiKit.Punch(pop, 2.2f, 0.3);
-        var tw = pop.CreateTween();
+        var tw = AnnTween(pop);
         tw.TweenInterval(0.6);
         tw.TweenProperty(pop, "modulate:a", 0.0, 0.3);
-    }
+    });
 
-    void ShowCountdown(string text, bool go)
+    /// <summary>« 3, 2, 1 » sous « MANCHE N » (première valeur : le titre glisse), puis « GO ! » seul : le titre s'efface aussitôt.</summary>
+    void ShowCountdown(string text, bool go, string roundTitle = "")
     {
-        countdown.Text = text;
-        countdown.Visible = true;
-        countdown.Modulate = Colors.White;
-        countdown.AddThemeColorOverride("font_color", go ? UiKit.Green : UiKit.Yellow);
-        UiKit.Punch(countdown, go ? 2.6f : 2.1f, 0.32);
-        var tw = countdown.CreateTween();
-        tw.TweenInterval(go ? 0.5 : 0.62);
-        tw.TweenProperty(countdown, "modulate:a", 0.0, go ? 0.35 : 0.25);
+        if (Tutorial.Running) return;   // l'entraînement n'a ni manches ni départ
         Sfx.Play(this, go ? SfxKind.Go : SfxKind.Countdown);
-        if (go)
+        Announce(PrioCountdown, go ? 0.85 : 1.05, () =>
         {
-            var tw2 = countdownRound.CreateTween();
-            tw2.TweenInterval(0.4);
-            tw2.TweenProperty(countdownRound, "modulate:a", 0.0, 0.3);
-            tw2.TweenCallback(Callable.From(() => countdownRound.Visible = false));
-        }
+            if (roundTitle != "")
+            {
+                countdownRound.Text = roundTitle;
+                countdownRound.Visible = true;
+                countdownRound.Modulate = Colors.White;
+                UiKit.SlideIn(countdownRound, 0f, -120f);
+            }
+            if (go) countdownRound.Visible = false;
+            countdown.Text = text;
+            countdown.Visible = true;
+            countdown.Modulate = Colors.White;
+            countdown.AddThemeColorOverride("font_color", go ? UiKit.Green : UiKit.Yellow);
+            UiKit.Punch(countdown, go ? 2.6f : 2.1f, 0.32);
+            var tw = AnnTween(countdown);
+            tw.TweenInterval(go ? 0.5 : 0.62);
+            tw.TweenProperty(countdown, "modulate:a", 0.0, go ? 0.35 : 0.25);
+        }, 0);
     }
 
     void ShowBanner(MatchView.Snapshot s, bool matchOver)
     {
-        int w = s.Winner;
-        if (matchOver) bannerText.Text = w == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE";
-        else bannerText.Text = w < 0 ? "MANCHE NULLE" : $"MANCHE POUR L'ÉQUIPE {MatchController.TeamName(w)}";
-        bannerSub.Text = $"Manches   {s.Rounds0}  -  {s.Rounds1}";
-        var color = w < 0 ? UiKit.Grey : w == 0 ? UiKit.Orange : UiKit.Blue;
-        bannerBand.AddThemeStyleboxOverride("panel", UiKit.Box(color, 0, -0.25f, 6, UiKit.Navy, 6));
-        bannerBox.Visible = true;
-        bannerBox.Modulate = Colors.White;
-        // Entrée : la bande glisse de la gauche, le texte tape ; sortie en fondu.
-        bannerBand.Position = bannerBand.Position with { X = -2400 };
-        var tw = bannerBox.CreateTween();
-        tw.TweenProperty(bannerBand, "position:x", -80.0, 0.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
-        tw.TweenInterval(matchOver ? 1.4 : 2.2);
-        tw.TweenProperty(bannerBox, "modulate:a", 0.0, 0.35);
-        tw.TweenCallback(Callable.From(() => bannerBox.Visible = false));
-        bannerText.PivotOffset = new Vector2(GetViewport().GetVisibleRect().Size.X / 2, 50);
-        UiKit.Punch(bannerText, 1.8f, 0.35);
+        if (Tutorial.Running) return;
         Sfx.Play(this, SfxKind.Whistle);
+        int w = s.Winner;
+        // Formulé pour le joueur local (le texte de MatchController, « MANCHE POUR L'ÉQUIPE … », reste celui du réseau et du VR).
+        string title = matchOver ? (w == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE")
+            : w < 0 ? "MANCHE NULLE" : w == View.LocalTeam ? "MANCHE GAGNÉE !" : "MANCHE PERDUE";
+        int mine = s.Rounds(View.LocalTeam), theirs = s.Rounds(1 - View.LocalTeam);
+        string sub = $"Manches   {mine}  –  {theirs}";
+        var color = w < 0 ? UiKit.Grey : w == 0 ? UiKit.Orange : UiKit.Blue;
+        double hold = matchOver ? 1.4 : 2.2;
+        Announce(PrioBanner, 0.3 + hold + 0.35, () =>
+        {
+            bannerText.Text = title;
+            bannerSub.Text = sub;
+            bannerBand.AddThemeStyleboxOverride("panel", UiKit.Box(color, 0, -0.25f, 6, UiKit.Navy, 6));
+            bannerBox.Visible = true;
+            bannerBox.Modulate = Colors.White;
+            // Entrée : la bande glisse de la gauche, le texte tape ; sortie en fondu.
+            bannerBand.Position = bannerBand.Position with { X = -2400 };
+            var tw = AnnTween(bannerBox);
+            tw.TweenProperty(bannerBand, "position:x", -80.0, 0.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+            tw.TweenInterval(hold);
+            tw.TweenProperty(bannerBox, "modulate:a", 0.0, 0.35);
+            tw.TweenCallback(Callable.From(() => bannerBox.Visible = false));
+            bannerText.PivotOffset = new Vector2(GetViewport().GetVisibleRect().Size.X / 2, 50);
+            UiKit.Punch(bannerText, 1.8f, 0.35);
+        });
     }
 
     void UpdateCenter(MatchView.Snapshot s, int lives)
@@ -855,19 +1104,16 @@ public partial class DesktopHud : CanvasLayer
         // Compte à rebours de début de manche : « 3, 2, 1 », puis « GO ! » au passage en jeu.
         if (s.Phase == MatchView.Phase.Countdown && (prev.Phase != MatchView.Phase.Countdown || s.Countdown != prev.Countdown) && s.Countdown > 0)
         {
-            if (prev.Phase != MatchView.Phase.Countdown)
-            {
-                countdownRound.Text = s.Overtime ? "PROLONGATION" : s.Round > s.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {s.Round}";
-                countdownRound.Visible = true;
-                countdownRound.Modulate = Colors.White;
-                UiKit.SlideIn(countdownRound, 0f, -120f);
-            }
-            ShowCountdown(s.Countdown.ToString(), false);
+            // Chaque manche est annoncée avec son objectif : « MANCHE 2 · Premier à 3 KO ».
+            string goal = s.KoTarget > 0 ? $"  ·  Premier à {s.KoTarget} KO" : "";
+            string title = prev.Phase != MatchView.Phase.Countdown ? (s.Overtime ? "PROLONGATION" : (s.Round > s.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {s.Round}") + goal) : "";
+            ShowCountdown(s.Countdown.ToString(), false, title);
         }
         if (prev.Phase == MatchView.Phase.Countdown && s.Phase == MatchView.Phase.Playing) ShowCountdown("GO !", true);
         if (s.Phase == MatchView.Phase.RoundOver && prev.Phase != MatchView.Phase.RoundOver) ShowBanner(s, false);
         if (s.Phase == MatchView.Phase.MatchOver && prev.Phase != MatchView.Phase.MatchOver) ShowBanner(s, true);
         if (s.Overtime && !prev.Overtime && s.Phase == MatchView.Phase.Playing) { ShowCenterPop("MORT SUBITE !", UiKit.Yellow, 90); Sfx.Play(this, SfxKind.Whistle, null, 0.8f); }
+        if (Tutorial.Running && (countdown.Visible || countdownRound.Visible || bannerBox.Visible) && annPrio >= PrioCountdown) ClearCenter();
 
         // Annonces (balle spéciale, échange de plaques) et messages du joueur.
         if (s.Notice != lastNotice)
@@ -887,9 +1133,15 @@ public partial class DesktopHud : CanvasLayer
             if (toast.Visible) UiKit.Punch(toast, 1.4f, 0.25);
         }
 
-        // Joueur KO : grand titre et retour dans n secondes (l'écran est grisé par Feedback).
+        // Joueur KO : grand titre et retour dans n secondes (l'écran est grisé par Feedback). Il occupe le centre : un éclat
+        // « K.O. ! » en cours s'efface, ceux qui suivent attendent.
         bool ko = lives <= 0 && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
-        if (ko && koSince < 0) { koSince = age; UiKit.Punch(koTitle, 2.4f, 0.35); }
+        if (ko && koSince < 0)
+        {
+            koSince = age;
+            if (annPrio == PrioPop) ClearCenter();
+            UiKit.Punch(koTitle, 2.4f, 0.35);
+        }
         if (!ko) koSince = -1;
         koTitle.Visible = koSub.Visible = ko;
         if (ko)
@@ -897,6 +1149,7 @@ public partial class DesktopHud : CanvasLayer
             int left = Mathf.CeilToInt(3f - (float)(age - koSince));
             koSub.Text = left > 0 ? $"Retour dans {left}" : "Retour imminent…";
         }
+        PumpAnnouncements();
 
         resume.Visible = Input.MouseMode != Input.MouseModeEnum.Captured && !Player.Autoplay && !PauseMenu.IsOpen && !EndScreen.IsOpen;
     }
@@ -904,41 +1157,61 @@ public partial class DesktopHud : CanvasLayer
     // ------------------------------------------------------------------ aide des touches (F1, bas droite)
 
     PanelContainer help = null!;
-    bool helpShown = true;
-    double helpHideAt = 8;
+    Control helpHint = null!;
+    bool helpShown;
+    const double HintSeconds = 5.0;
 
     void BuildHelp()
     {
-        help = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.72f), 14, 0f, 0, null, 4);
-        box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 10; box.ContentMarginBottom = 10;
+        help = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
+        var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 14, 0f, 0, null, 4);
+        box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 12; box.ContentMarginBottom = 14;
         help.AddThemeStyleboxOverride("panel", box);
         help.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         help.GrowHorizontal = Control.GrowDirection.Begin;
         help.GrowVertical = Control.GrowDirection.Begin;
         help.OffsetRight = -28; help.OffsetBottom = -28; help.OffsetLeft = -28; help.OffsetTop = -28;
-        root.AddChild(help);
+        helpLayer.AddChild(help);
         var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        col.AddThemeConstantOverride("separation", 2);
+        col.AddThemeConstantOverride("separation", 8);
         help.AddChild(col);
-        col.AddChild(UiKit.Text($"COMMANDES   ({InputSetup.KeyName("help")})", 20, UiKit.Yellow, 6));
+        col.AddChild(UiKit.Text("COMMANDES", 24, UiKit.Yellow, 6));
         var grid = new GridContainer { Columns = 2, MouseFilter = Control.MouseFilterEnum.Ignore };
-        grid.AddThemeConstantOverride("h_separation", 16);
-        grid.AddThemeConstantOverride("v_separation", 0);
+        grid.AddThemeConstantOverride("h_separation", 14);
+        grid.AddThemeConstantOverride("v_separation", 6);
         col.AddChild(grid);
         string move = InputSetup.KeyName("move_forward") + InputSetup.KeyName("move_left") + InputSetup.KeyName("move_back") + InputSetup.KeyName("move_right");
         void Row(string key, string label)
         {
-            grid.AddChild(UiKit.Text(key, 18, UiKit.Yellow, 5, HorizontalAlignment.Right));
-            grid.AddChild(UiKit.Text(label, 18, Colors.White, 5));
+            var cell = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
+            cell.AddChild(KeyCap(key, 19));
+            grid.AddChild(cell);
+            var text = UiKit.Text(label, 20, Colors.White, 5);
+            text.VerticalAlignment = VerticalAlignment.Center;
+            text.SizeFlagsVertical = Control.SizeFlags.Fill;
+            grid.AddChild(text);
         }
         Row(move, "Se déplacer");
         foreach (var a in InputSetup.Actions)
         {
-            if (a.Name.StartsWith("move_") || a.Name == "help") continue;
+            if (a.Name.StartsWith("move_")) continue;
             if (!Player.FreeRoam && a.Name is "pass" or "lob" or "feint" or "curve") continue;   // coups du jeu libre seulement
-            Row(InputSetup.KeyName(a.Name), a.Label);
+            Row(InputSetup.KeyName(a.Name), a.Name == "help" ? "Fermer cette aide" : a.Label);
         }
+
+        // Rappel discret des premières secondes : « [F1] commandes ».
+        var hint = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
+        hint.AddThemeConstantOverride("separation", 10);
+        hint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        hint.GrowHorizontal = Control.GrowDirection.Begin;
+        hint.GrowVertical = Control.GrowDirection.Begin;
+        hint.OffsetRight = -36; hint.OffsetBottom = -40; hint.OffsetLeft = -36; hint.OffsetTop = -40;
+        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 19));
+        var words = UiKit.Text("commandes", 22, new Color(1, 1, 1, 0.9f), 6);
+        words.VerticalAlignment = VerticalAlignment.Center;
+        hint.AddChild(words);
+        helpLayer.AddChild(hint);
+        helpHint = hint;
     }
 
     void SetHelp(bool show)
@@ -947,15 +1220,27 @@ public partial class DesktopHud : CanvasLayer
         helpShown = show;
         var tw = help.CreateTween();
         tw.SetParallel();
-        tw.TweenProperty(help, "modulate:a", show ? 1.0 : 0.0, 0.25);
+        tw.TweenProperty(help, "modulate:a", show ? 1.0 : 0.0, 0.2);
         help.Scale = Vector2.One * (show ? 0.9f : 1f);
         help.PivotOffset = help.Size;
         tw.TweenProperty(help, "scale", Vector2.One, 0.25).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
     }
 
+    bool helpWanted;
+
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e.IsActionPressed("help")) helpHideAt = helpShown ? 0 : age + 1e9;
+        if (PauseMenu.IsOpen || EndScreen.IsOpen) return;
+        if (e.IsActionPressed("help")) helpWanted = !helpWanted;
+    }
+
+    void UpdateHelp()
+    {
+        SetHelp(helpWanted && !EndScreen.IsOpen);
+        // Le rappel s'efface en fin de délai, ou dès que l'aide est ouverte.
+        float hintAlpha = helpWanted ? 0f : Mathf.Clamp((float)(HintSeconds - age) / 0.5f, 0f, 1f);
+        helpHint.Modulate = new Color(1, 1, 1, hintAlpha);
+        helpHint.Visible = hintAlpha > 0.01f;
     }
 
     // ------------------------------------------------------------------ tableau des scores (Tab)
@@ -971,7 +1256,7 @@ public partial class DesktopHud : CanvasLayer
         table.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(table);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.9f), 22, 0f, 0, null, 8);
+        var box = UiKit.Box(UiKit.Navy, 22, 0f, 0, null, 8);
         box.ContentMarginLeft = 36; box.ContentMarginRight = 36; box.ContentMarginTop = 24; box.ContentMarginBottom = 28;
         panel.AddThemeStyleboxOverride("panel", box);
         table.AddChild(panel);
@@ -988,7 +1273,7 @@ public partial class DesktopHud : CanvasLayer
         tableRows.AddChild(UiKit.Text($"Manches  {s.Rounds0} - {s.Rounds1}      KO de la manche  {s.Kos0} - {s.Kos1}", 24, UiKit.Sky, 6, HorizontalAlignment.Center));
         tableRows.AddChild(UiKit.Spacer(6));
         tableRows.AddChild(StatRow(null, "JOUEUR", new[] { "VIES", "KO", "TOUCHES", "ATTRAPES", "LANCERS" }, true));
-        for (int team = 0; team < 2; team++)
+        foreach (int team in new[] { View.LocalTeam, 1 - View.LocalTeam })   // mon équipe d'abord
             foreach (var p in View.Players)
             {
                 if (p.Team != team) continue;
@@ -1002,7 +1287,9 @@ public partial class DesktopHud : CanvasLayer
     Control StatRow(MatchView.PlayerInfo? p, string name, string[] cells, bool header)
     {
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var bg = header ? new Color(0, 0, 0, 0) : new Color(Palette.Team(p!.Team), p.Id == View.LocalId ? 0.55f : 0.28f);
+        // Couleurs d'équipe pleines et vives (comme l'écran de fin) ; ma ligne plus claire et cerclée de jaune.
+        bool me = p != null && p.Id == View.LocalId;
+        var bg = header ? new Color(0, 0, 0, 0) : p!.Team == 0 ? new Color(me ? "ff7a1f" : "d9520c") : new Color(me ? "2f8fff" : "1f63c9");
         var box = UiKit.Box(bg, 8, -0.1f, p != null && p.Id == View.LocalId ? 3 : 0, UiKit.Yellow, 0);
         box.ContentMarginTop = 2; box.ContentMarginBottom = 2; box.ContentMarginLeft = 18; box.ContentMarginRight = 18;
         row.AddThemeStyleboxOverride("panel", box);
@@ -1024,7 +1311,7 @@ public partial class DesktopHud : CanvasLayer
 
     void UpdateScoreTable(double delta)
     {
-        bool want = (Input.IsActionPressed("scoreboard") && !PauseMenu.IsOpen && !EndScreen.IsOpen) || (hudTest && age > 6 && age < 9);
+        bool want = (Input.IsActionPressed("scoreboard") && !PauseMenu.IsOpen && !EndScreen.IsOpen && !Tutorial.Running) || (hudTest && age > 6 && age < 9);
         if (want && !tableShown)
         {
             FillScoreTable();
@@ -1044,7 +1331,8 @@ public partial class DesktopHud : CanvasLayer
 
     /// <summary>
     /// Test de capture (--hud-test) : faux événements pour voir chaque élément sans attendre le hasard du jeu :
-    /// fil des KO à 2 s, marqueurs de touche à 2,5 et 3 s, cœur perdu côté gauche à 4 s, tableau des scores de 6 à 9 s.
+    /// fil des KO à 2 s, marqueurs de touche à 2,5 et 3 s (le « K.O. ! » attend la fin du « GO ! »), cœur perdu côté gauche à 4 s,
+    /// verrou adverse à 4,4 s puis tir entrant de 4,9 à 5,6 s, tableau des scores de 6 à 9 s, aide (F1) de 9,6 à 11 s.
     /// </summary>
     int HudTest(double delta, int lives)
     {
@@ -1058,6 +1346,7 @@ public partial class DesktopHud : CanvasLayer
         if (At(2.0)) { OnKo(View.LocalId, foe); OnKo(foe, mate); }
         if (At(2.5)) OnHit(View.LocalId, foe, false);
         if (At(3.0)) OnHit(View.LocalId, foe, true);
+        if (At(9.6) || At(11.0)) helpWanted = !helpWanted;
         if (age >= 4.0 && age < 12.0)
         {
             lives = Mathf.Min(lives, View.MaxLives - 1);
@@ -1072,6 +1361,15 @@ public partial class DesktopHud : CanvasLayer
 
     public override void _Process(double delta)
     {
+        // Ce qui se cache sous la pause (annonces, compte à rebours, alerte, aide) et pendant l'entraînement (score, chrono).
+        bool paused = PauseMenu.IsOpen;
+        centerLayer.Visible = !paused;
+        helpLayer.Visible = !paused;
+        board.Visible = !Tutorial.Running;
+        if (paused) threat.Strength = 0f;
+        // Arbre gelé (pause hors ligne) : le HUD tourne quand même pour se cacher, mais n'avance rien d'autre.
+        if (GetTree().Paused) { threat.QueueRedraw(); return; }
+
         age += delta;
         View.Update();
         var s = View.State;
@@ -1085,13 +1383,14 @@ public partial class DesktopHud : CanvasLayer
         if (s.Phase != prev.Phase)
             GD.Print($"[HUD] {s.Phase} : manche {s.Round}/{s.MaxRounds}, manches {s.Rounds0}-{s.Rounds1}, KO {s.Kos0}-{s.Kos1}, gagnant {s.Winner}{(View.HasStats ? "" : " (client)")}");
 
-        // Touché : vignette rouge du côté du coup.
+        // Touché : flash blanc du côté du coup.
         if (n < lastLives && n >= 0) { HurtFrom(); if (hudTest) vignette.From = Vector2.Left; vignette.Strength = 1f; }
         lastLives = n;
         vignette.Strength = Mathf.Max(0, vignette.Strength - (float)delta * 1.6f);
         vignette.QueueRedraw();
         speedLines.Strength = Player.Dashing ? 1f : Mathf.Max(0, speedLines.Strength - (float)delta * 5f);
         speedLines.QueueRedraw();
+        UpdateThreat(delta, paused || EndScreen.IsOpen || s.Phase is MatchView.Phase.RoundOver or MatchView.Phase.MatchOver);
 
         float charge = hudTest && age > 9.5 && age < 11.5 ? Mathf.Clamp((float)(age - 9.5) / 1.2f, 0f, 1f) : Player.ThrowCharge01;   // test : charge simulée
         chargeShown = Mathf.Lerp(chargeShown, charge, Mathf.Min(1f, (float)delta * 25f));
@@ -1102,9 +1401,10 @@ public partial class DesktopHud : CanvasLayer
         UpdateScoreBoard(s);
         UpdateHearts(n, delta);
         UpdateBottomCenter();
+        UpdateFeed(delta);
         UpdateCenter(s, n);
         UpdateScoreTable(delta);
-        SetHelp(age < helpHideAt && !EndScreen.IsOpen);
+        UpdateHelp();
 
         fps.Visible = GameSettings.ShowFps;
         if (fps.Visible) fps.Text = $"{Engine.GetFramesPerSecond():0} IPS";

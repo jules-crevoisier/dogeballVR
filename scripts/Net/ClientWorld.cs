@@ -62,7 +62,7 @@ public partial class ClientWorld : Node3D
             if (!avatars.TryGetValue(p.Id, out var avatar))
             {
                 int team = Map.Zones.Find(z => z.Id == p.Id)?.Team ?? 0;
-                avatar = Avatar.Create(team, p.Bot);
+                avatar = Avatar.Create(team, p.Bot, p.Id);
                 AddChild(avatar);
                 avatars[p.Id] = avatar;
                 poseTargets[p.Id] = p.Pose;

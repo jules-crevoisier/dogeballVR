@@ -22,6 +22,7 @@ public static class Juice
         };
         context.GetTree().CurrentScene.AddChild(p);
         p.GlobalPosition = pos;
+        p.Restart();   // Godot 4.3 : « Emitting = true » posé avant l'entrée dans l'arbre ne déclenche rien
         p.GetTree().CreateTimer(1.0).Timeout += p.QueueFree;
     }
 
@@ -75,6 +76,7 @@ public static class Juice
         p.ScaleAmountCurve.AddPoint(new Vector2(1, 0f));
         context.GetTree().CurrentScene.AddChild(p);
         p.GlobalPosition = pos + Vector3.Up * 0.08f;
+        p.Restart();
         p.GetTree().CreateTimer(0.8).Timeout += p.QueueFree;
     }
 

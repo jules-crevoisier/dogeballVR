@@ -184,10 +184,31 @@ public static class UiKit
     public static Control Spacer(float h) => new() { CustomMinimumSize = new Vector2(0, h), MouseFilter = Control.MouseFilterEnum.Ignore };
 
     /// <summary>Fond plein écran semi-opaque qui bloque les clics (menus par-dessus le jeu).</summary>
+    /// <summary>Voile plein écran derrière un menu : le jeu flouté puis teinté bleu nuit (alpha = force de la teinte).</summary>
     public static ColorRect Dim(float alpha = 0.6f)
     {
-        var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop };
+        var r = new ColorRect { Color = new Color(Navy, alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = blurMaterial ??= BlurMaterial() };
         r.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         return r;
     }
+
+    static ShaderMaterial? blurMaterial;
+    static ShaderMaterial BlurMaterial() => new()
+    {
+        Shader = new Shader
+        {
+            Code = @"shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+void fragment() {
+    vec2 px = SCREEN_PIXEL_SIZE * 3.0;
+    vec3 b = textureLod(screen_tex, SCREEN_UV, 3.0).rgb * 0.4;
+    b += textureLod(screen_tex, SCREEN_UV + vec2(px.x, px.y), 3.0).rgb * 0.15;
+    b += textureLod(screen_tex, SCREEN_UV + vec2(-px.x, px.y), 3.0).rgb * 0.15;
+    b += textureLod(screen_tex, SCREEN_UV + vec2(px.x, -px.y), 3.0).rgb * 0.15;
+    b += textureLod(screen_tex, SCREEN_UV + vec2(-px.x, -px.y), 3.0).rgb * 0.15;
+    float a = COLOR.a;
+    COLOR = vec4(mix(b, COLOR.rgb, a), min(1.0, a * 1.6));
+}",
+        },
+    };
 }

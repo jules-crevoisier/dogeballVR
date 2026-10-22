@@ -56,6 +56,8 @@ public class NetConfig
             else if (a.StartsWith("--name=")) cfg.PlayerName = a["--name=".Length..];
             else if (a == "--net-selftest") cfg.SelfTest = true;
         }
+        // L'entraînement se joue sur la vraie carte du jeu, pas sur l'arène de test.
+        if (args.Contains("--tutorial") && !args.Exists(a => a.StartsWith("--map="))) cfg.Map = "croix_neon";
         return cfg;
     }
 }

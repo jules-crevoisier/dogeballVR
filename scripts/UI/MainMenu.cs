@@ -54,7 +54,7 @@ public partial class MainMenu : CanvasLayer
         column.AddThemeConstantOverride("separation", 14);
         root.AddChild(column);
 
-        var version = UiKit.Text("Version de démonstration · clavier-souris et VR (EVA)", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
+        var version = UiKit.Text($"v{ProjectSettings.GetSetting("application/config/version", "0.1").AsString()}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
         root.AddChild(version);

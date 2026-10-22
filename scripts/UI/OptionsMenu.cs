@@ -25,12 +25,12 @@ public partial class OptionsMenu : Control
         Theme = UiKit.Theme;
         ProcessMode = ProcessModeEnum.Always;
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        AddChild(UiKit.Dim(0.55f));
+        AddChild(UiKit.Dim(0.82f));
 
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
         center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         AddChild(center);
-        var panel = new PanelContainer { CustomMinimumSize = new Vector2(980, 640) };
+        var panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 760) };
         center.AddChild(panel);
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 14);
@@ -47,11 +47,16 @@ public partial class OptionsMenu : Control
             tabRow.AddChild(tabs[i]);
         }
 
-        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(920, 420), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
+        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(1060, 520), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
         col.AddChild(scroll);
+        // Marge à droite : les valeurs et les boutons ne touchent pas la barre de défilement.
+        var margin = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        margin.AddThemeConstantOverride("margin_right", 32);
+        margin.AddThemeConstantOverride("margin_left", 8);
+        scroll.AddChild(margin);
         list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         list.AddThemeConstantOverride("separation", 10);
-        scroll.AddChild(list);
+        margin.AddChild(list);
 
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
@@ -110,7 +115,7 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 Section("Souris");
-                Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v:0.00}x");
+                Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Caméra et visée");
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
@@ -180,9 +185,9 @@ public partial class OptionsMenu : Control
     void Slider(string label, float value, float min, float max, float step, Action<float> set, Func<float, string> show, bool apply = false)
     {
         var row = Row(label);
-        var s = new HSlider { MinValue = min, MaxValue = max, Step = step, Value = value, CustomMinimumSize = new Vector2(320, 30), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        var s = new HSlider { MinValue = min, MaxValue = max, Step = step, Value = value, CustomMinimumSize = new Vector2(320, 30), SizeFlagsVertical = SizeFlags.ShrinkCenter, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.1f };
         var v = UiKit.Text(show(value), 22, UiKit.Yellow, 6);
-        v.CustomMinimumSize = new Vector2(140, 0);
+        v.CustomMinimumSize = new Vector2(150, 0);
         v.HorizontalAlignment = HorizontalAlignment.Right;
         v.VerticalAlignment = VerticalAlignment.Center;
         s.ValueChanged += x =>
