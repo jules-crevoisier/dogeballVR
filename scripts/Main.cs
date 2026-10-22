@@ -260,7 +260,7 @@ public partial class Main : Node3D
                 var grip = new Xr.GripGlove { Name = leftHand ? "LeftGlove" : "RightGlove", Tracker = tracker };
                 var glove = Visual.Avatar.Glove();
                 if (leftHand) glove.Scale = new Vector3(-1, 1, 1);   // main gauche : gant en miroir (pouce côté droit)
-                glove.RotationDegrees = new Vector3(0, 0, leftHand ? GloveRollDegrees : -GloveRollDegrees);
+                glove.RotationDegrees = new Vector3(GlovePitchDegrees, 0, leftHand ? GloveRollDegrees : -GloveRollDegrees);
                 grip.AddChild(glove);
                 origin.AddChild(grip);
             }
@@ -601,6 +601,8 @@ public partial class Main : Node3D
 
     /// <summary>Roulis du gant sur la pose grip (paume du modèle vers le bas → paume vers le côté). À régler au casque.</summary>
     const float GloveRollDegrees = 90f;
+    /// <summary>Tangage du gant : l'axe -Z de la pose grip suit le poing fermé (les jointures) ; à régler au casque si les doigts piquent.</summary>
+    const float GlovePitchDegrees = 0f;
 
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
@@ -617,6 +619,7 @@ public partial class Main : Node3D
             var hearts = Visual.HeartsDisplay.Create(() => lives(localZone.Id), maxLives, Visual.Palette.Team(localZone.Team), 0.0007f, false);
             hearts.Position = new Vector3(0, 0.14f, 0.04f);   // au-dessus du gant (paume vers 0,09-0,11 m)
             hearts.RotationDegrees = new Vector3(-90, 0, 0);
+            if (left.Scale.X < 0f) hearts.Scale = new Vector3(-1, 1, 1);   // annule le miroir du gant gauche (ordre des cœurs)
             left.AddChild(hearts);
         }
     }
