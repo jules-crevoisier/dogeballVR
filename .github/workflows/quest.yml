@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   apk-quest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       GODOT_VERSION: 4.3-stable
@@ -39,7 +39,7 @@ jobs:
       - name: SDK Android (versions du modèle Gradle de Godot 4.3)
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;23.2.8568313" "cmake;3.10.2.4988404" > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;23.2.8568313" > /dev/null
 
       - name: Cache Godot, modèles d'export et Gradle
         uses: actions/cache@v4
@@ -78,6 +78,7 @@ jobs:
           # (La Fosse, départ sur le pad du lift face au terrain adverse : --essai-maison, lu seulement dans un export de debug).
           "$GODOT" --headless --path . --install-android-build-template --export-debug "Meta Quest" build/quest/DogeballVR-quest.apk 2>&1 | tee export.log
           "$GODOT" --headless --path . --export-debug "Meta Quest Essai maison" build/quest/DogeballVR-quest-essai.apk 2>&1 | tee export-essai.log
+          if grep -h "ERROR: Project export for preset" export.log export-essai.log; then exit 1; fi
           test -f build/quest/DogeballVR-quest.apk && test -f build/quest/DogeballVR-quest-essai.apk || { echo "APK manquant"; exit 1; }
 
       - name: Vérifier les APK (arm64, chargeur OpenXR, application VR Meta, signature)
@@ -94,9 +95,11 @@ jobs:
             grep -q "com.oculus.intent.category.VR" manifest.txt || { echo "Pas déclarée comme application VR Meta"; exit 1; }
             grep -q "android.permission.INTERNET" manifest.txt || { echo "Permission réseau absente (LAN)"; exit 1; }
             "$AAPT2" dump badging "$APK" | grep -E "^package:|sdkVersion|targetSdkVersion|application-label:"
-            "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" | head -2
+            "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > signature.txt
+            grep "Signer #1 certificate" signature.txt
           done
-          unzip -p build/quest/DogeballVR-quest-essai.apk assets/_cl_ | strings | grep -q -- "--essai-maison" || { echo "L'APK d'essai n'a pas ses options de lancement"; exit 1; }
+          unzip -p build/quest/DogeballVR-quest-essai.apk assets/_cl_ > cl.bin
+          grep -a -q -- "--essai-maison" cl.bin || { echo "L'APK d'essai n'a pas ses options de lancement"; exit 1; }
 
       - name: Empaqueter
         run: |

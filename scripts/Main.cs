@@ -427,6 +427,7 @@ public partial class Main : Node3D
         Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
+        if (Tools.DevFlags.Has("--essai-maison")) Bot.Level = 0;   // essai maison : bots faciles, le lift et le bord s'essaient sans être éliminé
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
@@ -607,13 +608,15 @@ public partial class Main : Node3D
 
     /// <summary>
     /// Essai au casque dans une pièce (APK « Essai maison », <c>--essai-maison</c>, export de debug seulement) : le joueur
-    /// démarre sur le pad du lift de sa zone (à 5 m du centre de la zone sur La Fosse), à 2,9 m du bord intérieur, et
-    /// regarde vers le terrain adverse. Lift, voile du garde-corps et vibration du bord s'essaient alors en 2 m de recul.
+    /// démarre sur le pad du lift de sa zone (à 5 m du centre de la zone sur La Fosse), face au terrain adverse, et le jeu
+    /// est recalé sur sa tête (<see cref="Xr.HomeTestRecenter"/>). Le bord arrière est à 2,1 m : la vibration du bord
+    /// commence après 0,6 m de marche à reculons, le lift et le voile du garde-corps s'essaient sans bouger.
     /// </summary>
-    static void PlaceForHomeTest(XROrigin3D origin, ZoneDef zone)
+    void PlaceForHomeTest(XROrigin3D origin, ZoneDef zone)
     {
         origin.RotationDegrees = new Vector3(0, zone.FacingDegrees, 0);
         if (zone.Lift != null) origin.Position = new Vector3(zone.Lift.Pad.X, zone.Y, zone.Lift.Pad.Z);
+        origin.AddChild(new Xr.HomeTestRecenter { Name = "HomeTestRecenter" });
         GD.Print($"[Essai maison] Départ en ({origin.Position.X:0.0}, {origin.Position.Z:0.0}), face au terrain adverse ({zone.FacingDegrees:0}°)");
     }
 

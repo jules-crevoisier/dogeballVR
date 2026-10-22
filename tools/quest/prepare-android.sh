@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prépare le dépôt pour l'export « Meta Quest » (APK Android, OpenXR, rendu Vulkan mobile).
-# Utilisé par la CI (.github/workflows/quest.yml) et utilisable à la main sous Linux, macOS ou Git Bash.
+# Utilisé par la CI (.github/workflows/quest.yml) et utilisable à la main sous Linux ou Git Bash (Windows).
 #
 #   GODOT=/chemin/vers/godot-mono ANDROID_HOME=... JAVA_HOME=... tools/quest/prepare-android.sh
 #
@@ -17,7 +17,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 : "${ANDROID_HOME:?Indiquer ANDROID_HOME (SDK Android avec build-tools 34, platform 34, NDK 23.2.8568313)}"
 : "${JAVA_HOME:?Indiquer JAVA_HOME (JDK 17)}"
 
-# 1. Plugin OpenXR Vendors : seuls Meta (Android) et les bibliothèques de l'éditeur sont gardés (l'archive complète fait 200 Mo).
+# 1. Plugin OpenXR Vendors : seuls Meta (Android) et les bibliothèques de l'éditeur Windows et Linux sont gardés
+#    (l'archive complète fait 200 Mo).
 ADDON="$ROOT/addons/godotopenxrvendors"
 if [ ! -f "$ADDON/plugin.gdextension" ]; then
   TMP="$(mktemp -d)"
@@ -27,6 +28,7 @@ if [ ! -f "$ADDON/plugin.gdextension" ]; then
   rm -rf "$SRC/.bin/macos" "$SRC/magicleap" "$SRC/pico" "$SRC/khronos"
   find "$SRC/.bin/android" -name "*.aar" ! -name "godotopenxr-meta-*" -delete
   mkdir -p "$ROOT/addons"
+  rm -rf "$ADDON"   # un dossier incomplet laissé par un essai précédent
   mv "$SRC" "$ADDON"
   rm -rf "$TMP"
   echo "Plugin OpenXR Vendors ${VENDORS_VERSION} installé (Meta seulement)."
@@ -43,9 +45,10 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 
 # 3. Réglages de l'éditeur Godot 4.3 : SDK Android et JDK (un fichier existant n'est pas écrasé).
+# Sous Git Bash, les chemins sont écrits pour Windows (C:/Users/…) : Godot ne lit ni /c/Users/… ni les \ (échappements).
+native() { if command -v cygpath > /dev/null; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 case "$(uname -s)" in
-  Darwin) CONF="$HOME/Library/Application Support/Godot" ;;
-  MINGW*|MSYS*|CYGWIN*) CONF="$APPDATA/Godot" ;;
+  MINGW*|MSYS*|CYGWIN*) CONF="$(cygpath -u "$APPDATA")/Godot" ;;
   *) CONF="${XDG_CONFIG_HOME:-$HOME/.config}/godot" ;;
 esac
 SETTINGS="$CONF/editor_settings-4.3.tres"
@@ -55,18 +58,17 @@ if [ ! -f "$SETTINGS" ]; then
 [gd_resource type="EditorSettings" format=3]
 
 [resource]
-export/android/android_sdk_path = "$ANDROID_HOME"
-export/android/java_sdk_path = "$JAVA_HOME"
-export/android/debug_keystore = "$KEYSTORE"
+export/android/android_sdk_path = "$(native "$ANDROID_HOME")"
+export/android/java_sdk_path = "$(native "$JAVA_HOME")"
+export/android/debug_keystore = "$(native "$KEYSTORE")"
 export/android/debug_keystore_user = "androiddebugkey"
 export/android/debug_keystore_pass = "android"
 TRES
   echo "Réglages de l'éditeur écrits : $SETTINGS"
-elif ! grep -q "export/android/android_sdk_path" "$SETTINGS"; then
-  echo "Attention : $SETTINGS existe sans chemin du SDK Android. Le régler dans Éditeur > Paramètres de l'éditeur > Export > Android."
+else
+  # Réglages déjà présents (éditeur déjà ouvert) : on ne les touche pas. Sans ce keystore, l'APK construit ici serait signé
+  # par une autre clé et ne s'installerait pas par-dessus celui de la CI (INSTALL_FAILED_UPDATE_INCOMPATIBLE).
+  echo "Réglages de l'éditeur déjà présents ($SETTINGS), non modifiés. À vérifier dans Éditeur > Paramètres de l'éditeur > Export > Android :"
+  echo "  SDK Android = $(native "$ANDROID_HOME") ; JDK = $(native "$JAVA_HOME")"
+  echo "  Debug Keystore = $(native "$KEYSTORE") ; utilisateur androiddebugkey ; mot de passe android"
 fi
-
-# Le keystore passe aussi par l'environnement : il prime sur les réglages de l'éditeur.
-echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE"
-echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey"
-echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android"
