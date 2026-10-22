@@ -809,24 +809,42 @@ public partial class MatchController : Node3D
             to = c;
             if (!blocked) break;
         }
-        const float flight = 1.6f;
-        float g = 9.8f * Ball.GravityFactor;
-        var d = to - from;
         var ball = SpawnBallAt(from);
         ball.Kind = kind;
-        ball.LinearVelocity = new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
+        ball.LinearVelocity = LobVelocity(from, to);
         if (ballsCached >= 0) ballsCached++;
         return true;
     }
 
-    /// <summary>Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité).</summary>
+    /// <summary>Lob lent de 1,6 s de vol de <paramref name="from"/> vers <paramref name="to"/> : on le voit arriver et on l'attrape.</summary>
+    static Vector3 LobVelocity(Vector3 from, Vector3 to)
+    {
+        const float flight = 1.6f;
+        float g = 9.8f * Ball.GravityFactor;
+        var d = to - from;
+        return new Vector3(d.X / flight * 1.1f, d.Y / flight + 0.5f * g * flight, d.Z / flight * 1.1f);   // +10 % : l'amortissement de la balle la ferait retomber court
+    }
+
+    int neutralZoneTurn;
+
+    /// <summary>
+    /// Balle neutre au centre : lob vers l'équipe qui perd (alterné à égalité), au centre d'une de ses zones à tour de rôle.
+    /// Sécurité VR : jamais sur la jonction entre deux zones physiques, où deux coéquipiers iraient la chercher en même temps.
+    /// </summary>
     void DropNeutral(BallSpawnDef def)
     {
         int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
-        // Équipe 0 côté z négatif, équipe 1 côté z positif (repère des maps).
-        float dirZ = trailing == 0 ? -1f : 1f;
-        var ball = SpawnBallAt(new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z));
-        ball.LinearVelocity = new Vector3(0, 2f, dirZ * 3f);
+        var from = new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z);
+        var targets = planZones.FindAll(z => z.Team == trailing);
+        var ball = SpawnBallAt(from);
+        if (targets.Count == 0)
+        {
+            // Équipe 0 côté z négatif, équipe 1 côté z positif (repère des maps).
+            ball.LinearVelocity = new Vector3(0, 2f, (trailing == 0 ? -1f : 1f) * 3f);
+            return;
+        }
+        var zone = targets[neutralZoneTurn++ % targets.Count];
+        ball.LinearVelocity = LobVelocity(from, new Vector3(zone.X, zone.Y + 0.6f, zone.Z));
     }
 
     /// <summary>Entraînement : une balle spéciale lâchée à 1,5 m de haut, elle retombe à cet endroit.</summary>

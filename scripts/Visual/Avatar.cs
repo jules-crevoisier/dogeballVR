@@ -140,6 +140,9 @@ public partial class Avatar : Node3D
 
     const string RecoilName = "Recul";
 
+    /// <summary>Gant seul (modèle <c>main</c>, sphère blanche à défaut), doigts vers -Z : mains du joueur VR local.</summary>
+    public static Node3D Glove() => MakeGlove(Materials.Flat(Palette.Lines), ModelLibrary.Instance("main"));
+
     static Node3D MakeGlove(Material white, Node3D? model)
     {
         var glove = new Node3D { Name = "Glove" };

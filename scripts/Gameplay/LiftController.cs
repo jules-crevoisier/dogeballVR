@@ -35,7 +35,18 @@ public partial class LiftController : Node
 
     public bool IsHigh => state is State.High or State.FadingDown;
 
-    const float CrouchHeight = 1.15f;
+    /// <summary>Hauteur de tête debout supposée avant la première mesure (adulte moyen) : seuil d'accroupi 1,15 m.</summary>
+    const float DefaultStanding = 1.6f;
+
+    /// <summary>
+    /// Seuil d'accroupi relatif à la taille du joueur (72 % de sa hauteur de tête debout, entre 0,6 et 1,2 m) : avec un seuil fixe
+    /// de 1,15 m, un enfant déclenchait le lift debout et un grand joueur devait s'accroupir très bas. Plafond 1,2 m : l'hôte
+    /// refuse un accroupi au-dessus de 1,25 m (NetSession).
+    /// </summary>
+    public static float CrouchThreshold(float standingHeadHeight) => Mathf.Clamp(0.72f * standingHeadHeight, 0.6f, 1.2f);
+
+    float standing = DefaultStanding;
+    bool measured;
     State state = State.Low;
     double holdTimer, stateTimer, cooldown;
     bool applied;
@@ -48,7 +59,10 @@ public partial class LiftController : Node
             case State.Low:
                 cooldown -= dt;
                 bool onPad = new Vector2(HeadPosition().X - Lift.Pad.X, HeadPosition().Z - Lift.Pad.Z).Length() < Lift.Pad.Radius;
-                bool ready = cooldown <= 0 && onPad && HeadHeight() < CrouchHeight && !Locked() && !Eliminated();
+                float head = HeadHeight();
+                // Hauteur debout = la plus haute tête vue (la première mesure remplace la valeur par défaut).
+                if (head > 0.5f && (!measured || head > standing)) { standing = Mathf.Min(head, 2.1f); measured = true; }
+                bool ready = cooldown <= 0 && onPad && head < CrouchThreshold(standing) && !Locked() && !Eliminated();
                 holdTimer = ready ? holdTimer + dt : 0;
                 if (holdTimer >= Rules.HoldCrouchSeconds) StartMove(State.FadingUp);
                 break;

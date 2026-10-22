@@ -187,11 +187,12 @@ public partial class Main : Node3D
         zones = new ZoneManager { Name = "ZoneManager" };
         AddChild(zones);
         zones.Setup(map, localZone.Id);
-        double lastEdgeLog = -10;
+        double lastEdgeLog = -10, lastEdgePulse = -10, lastEdgeSound = -10;
         zones.EdgeWarning += d =>
         {
             double now = Time.GetTicksMsec() / 1000.0;
             if (map.IsRing && xrOrigin == null) return;   // jeu libre au clavier : pas de bord de zone
+            if (xrOrigin != null) WarnEdgeVr(d, now, ref lastEdgePulse, ref lastEdgeSound);
             if (now - lastEdgeLog < 2.0) return;   // pas un message par image contre le bord
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
@@ -216,6 +217,26 @@ public partial class Main : Node3D
         else BuildHost(localZone);
     }
 
+    /// <summary>
+    /// Sécurité VR : près du bord de la zone physique, les deux manettes vibrent (plus fort et plus souvent à mesure qu'on
+    /// approche) et un son court part toutes les 1,5 s. Le mur de limite ne se voit que si l'on regarde devant soi ;
+    /// la vibration prévient aussi en reculant ou en tournant le dos au bord.
+    /// </summary>
+    void WarnEdgeVr(float distance, double now, ref double lastPulse, ref double lastSound)
+    {
+        float closeness = 1f - Mathf.Clamp(distance / Mathf.Max(map.EdgeWarningDistance, 0.01f), 0f, 1f);
+        if (now - lastPulse >= Mathf.Lerp(0.5f, 0.15f, closeness))
+        {
+            lastPulse = now;
+            foreach (var c in xrOrigin!.GetChildren()) if (c is HandThrower h) h.Pulse(Mathf.Lerp(0.3f, 0.9f, closeness), 0.08f);
+        }
+        if (now - lastSound >= 1.5)
+        {
+            lastSound = now;
+            Audio.Sfx.Play(this, Audio.SfxKind.UiBack, volumeDb: -4f);
+        }
+    }
+
     // ------------------------------------------------------------------ joueur local
 
     void BuildLocalPlayer(bool xrActive, ZoneDef localZone)
@@ -226,6 +247,9 @@ public partial class Main : Node3D
             var camera = new XRCamera3D { Name = "XRCamera3D" };
             var left = new HandThrower { Name = "LeftHand", Tracker = "left_hand", Hurtbox = localHurtbox };
             var right = new HandThrower { Name = "RightHand", Tracker = "right_hand", Hurtbox = localHurtbox };
+            // Le joueur voit ses mains : sans elles, on ne sait pas où est la main par rapport à la balle à attraper.
+            left.AddChild(Visual.Avatar.Glove());
+            right.AddChild(Visual.Avatar.Glove());
             origin.AddChild(camera);
             origin.AddChild(left);
             origin.AddChild(right);
@@ -370,7 +394,10 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || Tools.DevFlags.Has("--swap-test"));
+        // Échange de plaques coupé en VR (sécurité, audit du 22/10) : le joueur ne bouge pas dans la salle, mais son monde
+        // tourne vers une autre plaque ; le voisin réel s'affiche alors du mauvais côté, et sur Tour 4v4 les plaques échangées
+        // se touchent. À rouvrir après un essai au casque avec le plan de la salle EVA. --swap-test le garde pour la CI.
+        match.PlateSwaps = map.IsRing && Tools.DevFlags.Has("--swap-test");
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
