@@ -98,6 +98,7 @@ public partial class HandThrower : XRController3D
             nextParry = now + 1.5;
             BallActions.Parry(ball, HandIndex, (pos - hand).Normalized());
             Pulse(0.8f, 0.1f);
+            Audio.Sfx.Play(this, Audio.SfxKind.Parry, pos);   // la parade était muette
             return;
         }
     }

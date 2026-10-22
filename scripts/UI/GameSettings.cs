@@ -22,6 +22,7 @@ public static class GameSettings
     public static bool ToggleCrouch;
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
+    public static float Haptics = 1f;                        // vibrations des manettes VR, 0 à 1
     public static bool HitStop = true;
     public static bool HitMarkers = true;
     public static bool ShowFps;
@@ -51,6 +52,7 @@ public static class GameSettings
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
+        Haptics = Mathf.Clamp(F(cfg, "controls", "haptics", Haptics), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
         ShowFps = B(cfg, "video", "show_fps", ShowFps);
@@ -78,6 +80,7 @@ public static class GameSettings
         cfg.SetValue("controls", "aim_assist", AimAssist);
         cfg.SetValue("controls", "toggle_crouch", ToggleCrouch);
         cfg.SetValue("controls", "screen_shake", ScreenShake);
+        cfg.SetValue("controls", "haptics", Haptics);
         cfg.SetValue("controls", "hit_stop", HitStop);
         cfg.SetValue("controls", "hit_markers", HitMarkers);
         cfg.SetValue("audio", "master", MasterVolume);

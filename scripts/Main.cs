@@ -483,7 +483,20 @@ public partial class Main : Node3D
         var hands = new List<HandThrower>();
         if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
-        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
+        // VR : main 0 gauche, 1 droite, -1 les deux (attrape, lancer, palier, touche, frôlé, départ de manche).
+        System.Action<int, float, float>? haptic = hands.Count == 0 ? null : (hand, a, d) =>
+        {
+            foreach (var h in hands) if (hand < 0 || (hand == 0) == (h.Tracker == "left_hand")) h.Pulse(a * UI.GameSettings.Haptics, d);
+        };
+        // --feel-log sans casque : les vibrations sont écrites dans la sortie (mêmes appels qu'en VR).
+        if (haptic == null && Audio.Sfx.FeelLog) haptic = (hand, a, d) => GD.Print($"[Feel] vibration main {(hand < 0 ? "les deux" : hand == 0 ? "gauche" : "droite")} {a:0.00} pendant {d:0.00} s");
+        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null, Haptic = haptic });
+        if (xrOrigin != null)
+        {
+            // Pas de HUD dans le casque : bips de départ, « GO ! », sifflets et jingle de fin par le son (et « GO ! » dans les mains).
+            AddChild(new Audio.MatchCues { Name = "MatchCues", View = MatchView.ForClient(score, lives, map, localZone.Id, localZone.Team), Haptic = haptic });
+            if (xrOrigin.GetNodeOrNull<Node3D>("XRCamera3D") is { } xrCam) Visual.VrVignette.Attach(xrCam);
+        }
         if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
         var left = hands.Find(h => h.Tracker == "left_hand");
