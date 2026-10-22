@@ -16,6 +16,7 @@ public partial class MatchController : Node3D
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
     const float RoundBreakSeconds = 3f;
     const float MatchEndSeconds = 8f;
+    const float CountdownSeconds = 3f;    // « 3, 2, 1, GO ! » au début de chaque manche : chrono figé, touches ignorées
 
     public MatchRules Rules { get; } = new();
     readonly Dictionary<int, Hurtbox> hurtboxes = new();
@@ -30,10 +31,54 @@ public partial class MatchController : Node3D
     bool inRound;
     string banner = "";
 
-    /// <summary>Texte du tableau de score (envoyé aux clients).</summary>
+    /// <summary>Texte du tableau de score (envoyé aux clients, qui le relisent avec <see cref="MatchView"/>).</summary>
     public string HudText => hud.Text;
+
+    /// <summary>Statistiques d'un joueur sur la partie (tenues par l'hôte, remises à zéro à chaque partie).</summary>
+    public sealed class PlayerStats
+    {
+        public int Kos, Hits, Catches, Throws, PerfectCatches;
+        /// <summary>Note du MVP : un KO pèse plus qu'une touche, une attrape compte double (une touche évitée et une balle volée).</summary>
+        public int Score => Kos * 3 + Hits + Catches * 2 + PerfectCatches * 2;
+    }
+    readonly Dictionary<int, PlayerStats> stats = new();
+    public IReadOnlyDictionary<int, PlayerStats> Stats => stats;
+    PlayerStats StatsOf(int playerId) => stats.TryGetValue(playerId, out var st) ? st : stats[playerId] = new PlayerStats();
+
+    // État lisible de la partie (HUD du joueur PC hôte, écran de fin).
+    public bool InRound => inRound;
+    /// <summary>Secondes restantes du compte à rebours de début de manche (0 une fois le GO donné).</summary>
+    public double CountdownLeft => inRound ? countdownLeft : 0;
+    public double RoundTimeLeft => inRound ? roundTimeLeft : 0;
+    /// <summary>Numéro de la manche en cours (ou de la dernière jouée pendant la pause entre deux manches).</summary>
+    public int Round => inRound ? round : round - 1;
+    public bool IsMatchOver => !inRound && MatchOver();
+    /// <summary>Équipe gagnante de la dernière manche (-1 : nulle).</summary>
+    public int LastRoundWinner { get; private set; } = -1;
+    /// <summary>Équipe championne quand la partie est finie.</summary>
+    public int Champion => Rules.RoundsWon[0] > Rules.RoundsWon[1] ? 0 : 1;
+    /// <summary>Annonce en cours (balle spéciale, échange de plaques), vide sinon.</summary>
+    public string Notice => specialNotice != "" ? specialNotice : swapNotice;
+
+    /// <summary>
+    /// Vrai : la partie suivante démarre seule 8 s après la fin (headless, joueur automatique, VR). Faux quand un vrai
+    /// joueur PC est à l'écran : on attend son choix sur l'écran de fin (REJOUER appelle <see cref="StartMatch"/>).
+    /// </summary>
+    public bool AutoRestart { get; set; } = true;
+    public static string TeamName(int team) => team == 0 ? "ORANGE" : "BLEUE";
+    double countdownLeft;
+    double matchClock;
+    int endTestStep;
     /// <summary>Le tableau flottant est caché pour le joueur PC, qui a son propre score à l'écran.</summary>
     public bool FloatingHudVisible { set => hud.Visible = value; }
+
+    /// <summary>
+    /// Horloge de jeu (s) : somme des pas de physique. Contrairement à Time.GetTicksMsec, elle s'arrête quand l'arbre est en pause
+    /// (menu pause hors ligne) et ralentit avec l'arrêt sur image (Engine.TimeScale) : réapparition, invulnérabilité, régénération,
+    /// tacle et délais de fosse se comptent dessus. Mêmes durées qu'avant en jeu normal (hôte réseau et VR compris).
+    /// </summary>
+    double gameClock;
+    public override void _PhysicsProcess(double delta) => gameClock += delta;
     int nextBallId;
 
     sealed class Dispenser
@@ -77,8 +122,8 @@ public partial class MatchController : Node3D
 
     void OnTackle(int tacklerId, int victimId, Vector2 dir)
     {
-        if (!inRound || !hurtboxes.TryGetValue(tacklerId, out var a) || !hurtboxes.TryGetValue(victimId, out var v)) return;
-        double now = Time.GetTicksMsec() / 1000.0;
+        if (!inRound || countdownLeft > 0 || !hurtboxes.TryGetValue(tacklerId, out var a) || !hurtboxes.TryGetValue(victimId, out var v)) return;
+        double now = gameClock;
         if (a.Team == v.Team || a.Eliminated || v.Eliminated || v.DashInvulnerable || !dir.IsFinite() || dir.LengthSquared() < 0.01f) return;
         if (v.Vulnerable != null && !v.Vulnerable()) return;   // invulnérable (après une touche, un retour de KO) : le tacle ne fait rien
         if (tackleReadyAt.TryGetValue(tacklerId, out double ready) && now < ready) return;
@@ -112,6 +157,7 @@ public partial class MatchController : Node3D
             if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team)
             {
                 while (Rules.LivesOf(id) > 0) Rules.RegisterHit(push.by, id);
+                StatsOf(push.by).Kos++;
                 HitScored?.Invoke(push.by, id, true);
                 GD.Print($"[Match] Ring-out : le joueur {id} est poussé dans la fosse par le joueur {push.by}");
             }
@@ -132,11 +178,14 @@ public partial class MatchController : Node3D
     }
 
     /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
-    void OnCaughtThrow(int catcherId)
+    void OnCaughtThrow(int catcherId, bool perfect)
     {
         if (!inRound || !hurtboxes.ContainsKey(catcherId)) return;
+        var st = StatsOf(catcherId);
+        st.Catches++;
+        if (perfect) st.PerfectCatches++;
         Rules.RegisterPerfectCatch(catcherId);
-        lastDamageAt[catcherId] = Time.GetTicksMsec() / 1000.0;   // le cœur rendu repousse aussi la régénération
+        lastDamageAt[catcherId] = gameClock;   // le cœur rendu repousse aussi la régénération
     }
     /// <summary>Altitude actuelle du plateau d'une zone (lift) : le distributeur monte avec elle.</summary>
     public System.Func<int, float> ZoneElevation { get; set; } = _ => 0f;
@@ -201,14 +250,15 @@ public partial class MatchController : Node3D
     public void Register(Hurtbox hurtbox)
     {
         hurtboxes[hurtbox.PlayerId] = hurtbox;
+        StatsOf(hurtbox.PlayerId);
         Rules.AddPlayer(hurtbox.PlayerId, hurtbox.Team);
         hurtbox.Hit += OnHit;
-        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && Time.GetTicksMsec() / 1000.0 - t < invulnerableSeconds);
+        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && gameClock - t < invulnerableSeconds);
         // Un joueur KO remplacé (départ, arrivée) reste KO jusqu'à son retour : pas d'invulnérabilité à 0 vie.
         if (Rules.LivesOf(hurtbox.PlayerId) <= 0)
         {
             hurtbox.Eliminated = true;
-            if (!respawnAt.ContainsKey(hurtbox.PlayerId)) respawnAt[hurtbox.PlayerId] = Time.GetTicksMsec() / 1000.0 + Rules.RespawnSeconds;
+            if (!respawnAt.ContainsKey(hurtbox.PlayerId)) respawnAt[hurtbox.PlayerId] = gameClock + Rules.RespawnSeconds;
         }
     }
 
@@ -238,6 +288,9 @@ public partial class MatchController : Node3D
     {
         Rules.ResetMatch();
         round = 1;
+        matchClock = 0;
+        foreach (var st in stats.Values) { st.Kos = st.Hits = st.Catches = st.Throws = st.PerfectCatches = 0; }
+        MatchStarted?.Invoke();
         specialKind = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--special-test") >= 0 ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
@@ -253,7 +306,7 @@ public partial class MatchController : Node3D
         overPitSince.Clear();
         tackleReadyAt.Clear();
         highSince.Clear();
-        foreach (var rid in hurtboxes.Keys) ringGraceUntil[rid] = Time.GetTicksMsec() / 1000.0 + 1.5;
+        foreach (var rid in hurtboxes.Keys) ringGraceUntil[rid] = gameClock + 1.5;
         ClearBalls();
         pendingReturns.Clear();
         neutralTimer = 0;
@@ -266,9 +319,18 @@ public partial class MatchController : Node3D
         ResetPlates();
         specialLaunched = 0;
         ballTimer = 0;
-        banner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
+        roundBanner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
+        countdownLeft = CountdownSeconds;
+        banner = $"{roundBanner} - DÉPART DANS {Mathf.CeilToInt(CountdownSeconds)}";
         inRound = true;
     }
+
+    string roundBanner = "";
+
+    /// <summary>Une nouvelle partie commence (manches remises à zéro) : l'écran de fin se ferme.</summary>
+    public event System.Action? MatchStarted;
+    /// <summary>La partie est finie (équipe championne) : l'écran de fin s'ouvre.</summary>
+    public event System.Action<int>? MatchEnded;
 
     // Mesure de portée : lancers et touches par tranche de distance au plus proche adversaire.
     static readonly float[] RangeEdges = { 6f, 12f, 18f };
@@ -285,12 +347,13 @@ public partial class MatchController : Node3D
         if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
         {
             if (!terraceBonus) { ball.AddCharge(); ball.AddCharge(); }   // lift VR : charge 2, dégâts doubles dès le premier tir
-            else if (ball.Charge == 0 && highSince.TryGetValue(thrower, out double since) && Time.GetTicksMsec() / 1000.0 - since <= 3.0) ball.AddCharge();   // terrasse PC : +1 palier dans les 3 s après l'arrivée
+            else if (ball.Charge == 0 && highSince.TryGetValue(thrower, out double since) && gameClock - since <= 3.0) ball.AddCharge();   // terrasse PC : +1 palier dans les 3 s après l'arrivée
         }
         float best = float.MaxValue;
         foreach (var h in hurtboxes.Values)
             if (h.Team != ball.OwnerTeam && !h.Eliminated && IsInstanceValid(h)) best = Mathf.Min(best, ball.GlobalPosition.DistanceTo(h.GlobalPosition));
         if (best == float.MaxValue || ball.OwnerTeam < 0 || ball.LinearVelocity.Length() < Ball.HitMinSpeed) return;   // lâcher mou (KO, départ) : pas un tir
+        if (inRound && !ball.IsPass && thrower >= 0) StatsOf(thrower).Throws++;
         ball.ThrowDistance = best;
         throwsByRange[RangeBucket(best)]++;
     }
@@ -309,23 +372,31 @@ public partial class MatchController : Node3D
 
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
-        if (!inRound) return;
-        double clock = Time.GetTicksMsec() / 1000.0;
+        if (!inRound || countdownLeft > 0) return;   // pas de touche pendant le compte à rebours
+        double clock = gameClock;
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
         lastHitAt[targetId] = clock;
         lastDamageAt[targetId] = clock;
         if (throwDistance >= 0f) hitsByRange[RangeBucket(throwDistance)]++;
         // Une balle chargée fait plus mal : charge 2 ou plus = 2 vies, sinon 1.
+        int livesBefore = Rules.LivesOf(targetId);
         Rules.RegisterHit(shooterId, targetId);
         if (charge >= 2 && Rules.LivesOf(targetId) > 0) Rules.RegisterHit(shooterId, targetId);
-        HitScored?.Invoke(shooterId, targetId, Rules.LivesOf(targetId) <= 0);
+        bool kill = Rules.LivesOf(targetId) <= 0;
+        if (Rules.LivesOf(targetId) < livesBefore)   // tir allié ou cible déjà KO : rien à compter
+        {
+            var st = StatsOf(shooterId);
+            st.Hits++;
+            if (kill) st.Kos++;
+        }
+        HitScored?.Invoke(shooterId, targetId, kill);
     }
 
     void OnEliminated(int playerId)
     {
         hurtboxes[playerId].Eliminated = true;
-        respawnAt[playerId] = Time.GetTicksMsec() / 1000.0 + Rules.RespawnSeconds;
+        respawnAt[playerId] = gameClock + Rules.RespawnSeconds;
     }
 
     public override void _Process(double delta)
@@ -333,15 +404,26 @@ public partial class MatchController : Node3D
         // Le tableau flottant garde une taille apparente raisonnable : énorme quand on passe dessous, lisible de loin.
         var cam = GetViewport().GetCamera3D();
         if (cam != null) hud.PixelSize = 0.004f * Mathf.Clamp(cam.GlobalPosition.DistanceTo(hud.GlobalPosition) / 12f, 0.35f, 1.5f);
+        matchClock += delta;
+        EndScreenTest();
         if (!inRound)
         {
             breakLeft -= delta;
-            if (breakLeft <= 0 && hurtboxes.Count > 0) { if (MatchOver()) StartMatch(); else StartRound(); }
+            bool over = MatchOver();
+            // Fin de partie avec un vrai joueur PC : on attend REJOUER (ou le menu) au lieu de relancer seul.
+            if (breakLeft <= 0 && hurtboxes.Count > 0 && (!over || AutoRestart)) { if (over) StartMatch(); else StartRound(); }
             UpdateHud();
             return;
         }
+        if (countdownLeft > 0)
+        {
+            // Compte à rebours : le chrono ne descend pas ; balles et bots vivent déjà (on court vers les balles).
+            countdownLeft -= delta;
+            banner = countdownLeft > 0 ? $"{roundBanner} - DÉPART DANS {Mathf.CeilToInt((float)countdownLeft)}" : roundBanner;
+            if (countdownLeft <= 0) GD.Print($"[Match] GO ! ({roundBanner})");
+        }
 
-        double now = Time.GetTicksMsec() / 1000.0;
+        double now = gameClock;
         foreach (var id in new List<int>(respawnAt.Keys))
         {
             if (now < respawnAt[id]) continue;
@@ -384,7 +466,7 @@ public partial class MatchController : Node3D
 
         UpdatePlateSwaps(delta);   // avant les balles spéciales : le lancer vise la plaque telle qu'elle est occupée après l'échange
         UpdateSpecialBalls(delta);
-        roundTimeLeft -= delta;
+        if (countdownLeft <= 0) roundTimeLeft -= delta;
         int winner = Rules.KoTargetReached();
         if (winner >= 0) FinishRound(winner);
         else if (roundTimeLeft <= 0)
@@ -491,11 +573,8 @@ public partial class MatchController : Node3D
         }
         if (swapIndex >= SwapTimes.Length) return;
         double due = SwapTimes[swapIndex];
-        if (!swapWarned && swapClock >= due - SwapWarnSeconds)
-        {
-            swapWarned = true;
-            swapNotice = $"ÉCHANGE DE PLAQUES DANS {SwapWarnSeconds:0} s";
-        }
+        if (!swapWarned && swapClock >= due - SwapWarnSeconds) swapWarned = true;
+        if (swapWarned && swapClock < due) swapNotice = $"ÉCHANGE DE PLAQUES DANS {Mathf.Max(1, Mathf.CeilToInt((float)(due - swapClock)))} s";   // décompte seconde par seconde
         if (swapClock < due) return;
         swapNotice = ""; swapWarned = false;
         int pairs = plateOf.Length / 2;
@@ -534,9 +613,11 @@ public partial class MatchController : Node3D
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
             specialAnnounced = true;
-            specialNotice = $"BALLE SPÉCIALE : {SpecialName(specialKind).ToUpper()} DANS {SpecialAnnounceSeconds:0} s";
             GD.Print($"[Match] Balle spéciale annoncée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
+        // L'annonce décompte : « DANS 5 s », « DANS 4 s »… jusqu'au lancer (le texte change une fois par seconde).
+        if (specialAnnounced && specialClock < due)
+            specialNotice = $"BALLE SPÉCIALE : {SpecialName(specialKind).ToUpper()} DANS {Mathf.Max(1, Mathf.CeilToInt((float)(due - specialClock)))} s";
         if (specialAnnounced && specialClock >= due)
         {
             specialAnnounced = false;
@@ -570,7 +651,7 @@ public partial class MatchController : Node3D
         Rules.InOvertime = true;
         swapNotice = "";
         roundTimeLeft = Rules.OvertimeSeconds;
-        banner = "PROLONGATION : PREMIER KO";
+        banner = roundBanner = "PROLONGATION : PREMIER KO";
         if (!UsesDispensers)
             for (int i = GetTree().GetNodesInGroup("balls").Count; i < BallsOnField; i++) SpawnBall();
     }
@@ -581,18 +662,39 @@ public partial class MatchController : Node3D
     {
         inRound = false;
         swapNotice = ""; specialNotice = ""; specialAnnounced = false;
+        countdownLeft = 0;
         Rules.EndRound(winnerTeam);
+        LastRoundWinner = winnerTeam;
         round++;
         bool over = MatchOver();
-        banner = winnerTeam < 0 ? "MANCHE NULLE" : $"MANCHE POUR L'ÉQUIPE {winnerTeam + 1}";
-        if (over)
-        {
-            int champion = Rules.RoundsWon[0] > Rules.RoundsWon[1] ? 0 : 1;
-            banner = $"VICTOIRE ÉQUIPE {champion + 1} !";
-        }
+        banner = winnerTeam < 0 ? "MANCHE NULLE" : $"MANCHE POUR L'ÉQUIPE {TeamName(winnerTeam)}";
+        if (over) banner = $"VICTOIRE ÉQUIPE {TeamName(Champion)} !";
         GD.Print($"[Portée] touches/lancers par distance : {RangeReport()}");
         GD.Print($"[Match] {banner} | manches {Rules.RoundsWon[0]}-{Rules.RoundsWon[1]} | KO {Rules.Kos[0]}-{Rules.Kos[1]}");
         breakLeft = over ? MatchEndSeconds : RoundBreakSeconds;
+        if (over) MatchEnded?.Invoke(Champion);
+    }
+
+    /// <summary>
+    /// Test de capture (--end-screen-test, ou --end-screen-test=defaite) : une manche gagnée d'office à 5 s (bandeau),
+    /// puis la partie finie à 14 s (3-2 pour l'équipe orange, ou pour la bleue avec « defaite ») : écran de fin.
+    /// </summary>
+    void EndScreenTest()
+    {
+        if (endTestStep >= 2) return;
+        int team = -1;
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a.StartsWith("--end-screen-test")) team = a.EndsWith("defaite") ? 1 : 0;
+        if (team < 0) { endTestStep = 2; return; }
+        if (endTestStep == 0 && matchClock >= 5 && inRound) { endTestStep = 1; GD.Print("[Match] Test de fin : manche gagnée d'office"); FinishRound(team); }
+        else if (endTestStep == 1 && matchClock >= 14 && inRound)
+        {
+            endTestStep = 2;
+            GD.Print("[Match] Test de fin : partie terminée d'office");
+            Rules.RoundsWon[team] = 2; Rules.RoundsWon[1 - team] = 2;
+            round = Rules.MaxRounds;
+            FinishRound(team);
+        }
     }
 
     /// <summary>Centres des zones : les balles tombent à tour de rôle dans chaque zone, chacun a toujours de quoi jouer.</summary>

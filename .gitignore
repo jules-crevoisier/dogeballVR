@@ -10,3 +10,4 @@ obj/
 .idea/
 build/
 __pycache__/
+.claude/
