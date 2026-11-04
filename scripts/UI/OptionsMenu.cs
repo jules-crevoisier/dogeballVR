@@ -263,6 +263,7 @@ public partial class OptionsMenu : Control
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Caméra et visée");
+                Choice("Vue", new[] { "Épaule (3e personne)", "Première personne" }, GameSettings.FirstPerson ? 1 : 0, k => GameSettings.FirstPerson = k == 1);
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
                 Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : $"{v * 100:0} %");
                 Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
@@ -307,7 +308,7 @@ public partial class OptionsMenu : Control
                 GameSettings.ContextHints = true;
                 GameSettings.Upnp = false;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
-                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false;
+                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false; GameSettings.FirstPerson = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
