@@ -175,7 +175,7 @@ public partial class VrEndStage : Node3D
         var board = new Node3D { Name = "Tableau", Position = new Vector3(1.65f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(12), 0) };
         stage!.AddChild(board);
         int rows = Mathf.Max(1, View.Players.Count);
-        float top = 2.22f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
+        float top = 2.12f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
         AddPlate(board, new Vector3(0, top - height / 2 + 0.2f, 0.05f), new Vector2(2.9f, height), UiKit.Cream);
         void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52)
         {

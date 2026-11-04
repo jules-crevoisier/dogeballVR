@@ -115,7 +115,7 @@ public partial class PauseMenu : CanvasLayer
         if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }, 38, new Vector2(500, 72)));
         if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }, 38, new Vector2(500, 72)));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 28, new Vector2(500, 60), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 28, new Vector2(500, 60), UiKit.Cream));   // secondaire : crème, plus petit que les autres
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };

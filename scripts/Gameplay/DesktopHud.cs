@@ -910,6 +910,7 @@ public partial class DesktopHud : CanvasLayer
     {
         koBannerWord.Text = word;
         koBannerWord.AddThemeFontSizeOverride("font_size", size);
+        koBanner.Scale = Vector2.One * (word == "KO !" ? 1f : 0.78f);   // « TOUCHÉ ! » est une info secondaire : bandeau réduit
         koBannerName.Text = name;
         koBand.AddThemeStyleboxOverride("panel", BannerBox(band));
         koBannerTween?.Kill();
@@ -996,7 +997,7 @@ public partial class DesktopHud : CanvasLayer
         panel.Modulate = new Color(1, 1, 1, 0);   // UpdateFeed le place et le fait apparaître (entrée par la droite, départ après 4 s)
         feed.AddChild(panel);
         feedEntries.Add(new FeedEntry { Panel = panel, Born = age });
-        while (feedEntries.Count > 5) { feedEntries[0].Panel.QueueFree(); feedEntries.RemoveAt(0); }
+        while (feedEntries.Count > 3) { feedEntries[0].Panel.QueueFree(); feedEntries.RemoveAt(0); }
     }
 
     /// <summary>Nom dans le fil des KO : italique grasse à la couleur de l'équipe (éclaircie pour l'encre), jaune pour « KO ».</summary>

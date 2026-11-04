@@ -175,12 +175,12 @@ public partial class MainMenu : CanvasLayer
         if (UiKit.Italic is Font it2) name.AddThemeFontOverride("font", it2);
         name.Position = new Vector2(118, 12); name.Size = new Vector2(330, 36);
         plate.AddChild(name);
-        var title = UiKit.Text(DogeballVR.Online.Progression.TitleOf(level), 20, UiKit.Lavender, 0);
-        if (UiKit.Body is Font b) title.AddThemeFontOverride("font", b);
-        title.Position = new Vector2(118, 44); title.Size = new Vector2(200, 26);
+        var title = UiKit.Text(DogeballVR.Online.Progression.TitleOf(level).ToUpperInvariant(), 22, UiKit.Cream, 0);
+        if (UiKit.Italic is Font b) title.AddThemeFontOverride("font", b);
+        title.Position = new Vector2(118, 42); title.Size = new Vector2(200, 28);
         plate.AddChild(title);
-        var xp = UiKit.Text(need > 0 ? $"{into} / {need} XP" : "NIVEAU MAX", 18, UiKit.Teal, 0, HorizontalAlignment.Right);
-        xp.Position = new Vector2(250, 46); xp.Size = new Vector2(196, 24);
+        var xp = UiKit.Text(need > 0 ? $"{into} / {need} XP" : "NIVEAU MAX", 22, UiKit.Teal, 0, HorizontalAlignment.Right);
+        xp.Position = new Vector2(246, 42); xp.Size = new Vector2(200, 28);
         plate.AddChild(xp);
         var rail = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(114, 72), Size = new Vector2(330, 8) };
         rail.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(1, 1, 1, 0.14f), Bottom = new Color(1, 1, 1, 0.14f), Slant = 3, ShadowColor = new Color(0, 0, 0, 0) });
@@ -519,7 +519,7 @@ public partial class MainMenu : CanvasLayer
         // Plan de la carte vu de dessus, tracé depuis son JSON (zones, couverts, fosse, points de balle).
         var plan = new MapPlan { CustomMinimumSize = new Vector2(450, 330), MouseFilter = Control.MouseFilterEnum.Ignore };
         info.AddChild(plan);
-        var legend = UiKit.Text("VERT : BALLES   ·   CRÈME : COUVERTS   ·   JAUNE : MOYEU, FOSSE", 20, new Color(UiKit.Cream, 0.8f), 0, HorizontalAlignment.Center);
+        var legend = UiKit.Text("VERT : BALLES   ·   CRÈME : COUVERTS   ·   JAUNE : MOYEU, FOSSE", 22, UiKit.Cream, 0, HorizontalAlignment.Center);
         if (UiKit.Italic is Font lf) legend.AddThemeFontOverride("font", lf);
         info.AddChild(legend);
         var plans = new System.Collections.Generic.Dictionary<string, Maps.MapData?>();

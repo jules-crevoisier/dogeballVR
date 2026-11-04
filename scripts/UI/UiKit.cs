@@ -24,9 +24,9 @@ public static class UiKit
     public static readonly Color Grey = new("55607f");
     public static readonly Color Green = new("4fdc7a");
     // Couleurs du bandeau du menu principal.
-    public static readonly Color VioletTop = new("2b2540");
-    public static readonly Color VioletMid = new("211c31");
-    public static readonly Color NavyLow = new("15121f");
+    public static readonly Color VioletTop = new("352a5c");
+    public static readonly Color VioletMid = new("271f45");
+    public static readonly Color NavyLow = new("171330");
     public static readonly Color Violet = new("5a1a8a");
     /// <summary>Turquoise des menus de KC : bandes en retrait derrière les panneaux, accents interactifs (menus 2D du PC seulement).</summary>
     public static readonly Color Teal = new("2fd6c3");
