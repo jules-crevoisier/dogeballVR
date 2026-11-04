@@ -18,8 +18,8 @@ public partial class MainMenu : CanvasLayer
     /// <summary>Partie solo contre les bots sur la carte choisie (nom du fichier de maps/).</summary>
     public event Action<string>? SoloChosen;
 
-    /// <summary>Cartes proposées en solo, dans l'ordre du sélecteur.</summary>
-    static readonly (string Map, string Name, string Players, bool FirstPerson, string Info)[] SoloMaps =
+    /// <summary>Cartes proposées en solo, dans l'ordre du sélecteur. Zones : terrain en zones face à face (comme la salle VR), sinon arène ouverte.</summary>
+    static readonly (string Map, string Name, string Players, bool Zones, string Info)[] SoloMaps =
     {
         ("croix_neon", "CROIX NÉON", "2 CONTRE 2", false, "Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
         ("fosse_croisee", "FOSSE CROISÉE", "2 CONTRE 2", false, "Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
@@ -226,7 +226,7 @@ public partial class MainMenu : CanvasLayer
         var tags = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(38, 86) };
         tags.AddThemeConstantOverride("separation", 10);
         tags.AddChild(Tag(m.Players, UiKit.Teal));
-        tags.AddChild(Tag(m.FirstPerson ? "VUE 1RE PERSONNE" : "VUE 3E PERSONNE", UiKit.Cream));
+        tags.AddChild(Tag(m.Zones ? "EN ZONES" : "ARÈNE OUVERTE", UiKit.Cream));
         card.AddChild(tags);
         var plan = new MapPlan { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(36, 134), Size = new Vector2(428, 200) };
         try { plan.Map = Maps.MapData.Load($"res://maps/{m.Map}.json"); } catch (Exception) { plan.Map = null; }
@@ -540,7 +540,7 @@ public partial class MainMenu : CanvasLayer
                 plan.Map = data;
                 foreach (var t in tags.GetChildren()) t.QueueFree();
                 tags.AddChild(Tag(m.Players, UiKit.Teal));
-                tags.AddChild(Tag(m.FirstPerson ? "VUE 1RE PERSONNE" : "VUE 3E PERSONNE", UiKit.Cream));
+                tags.AddChild(Tag(m.Zones ? "EN ZONES" : "ARÈNE OUVERTE", UiKit.Cream));
             };
             list.AddChild(b);
             first ??= b;
