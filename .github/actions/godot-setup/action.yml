@@ -43,6 +43,15 @@ runs:
     - name: Compiler le C# et importer les ressources
       shell: bash
       run: |
-        "$GODOT" --headless --path . --build-solutions --quit
+        # Godot 4.3 .NET plante parfois en se fermant (134, 139 ; voir tools/ci/godot-fg.sh) : ce plantage est toléré
+        # si la compilation a bien produit l'assembly (checkout neuf : elle n'existe que si la compilation a réussi).
+        rc=0; "$GODOT" --headless --path . --build-solutions --quit || rc=$?
+        if [ $rc -ne 0 ]; then
+          if { [ $rc -eq 134 ] || [ $rc -eq 139 ]; } && ls .godot/mono/temp/bin/*/DogeballVR.dll > /dev/null 2>&1; then
+            echo "::warning::Godot s'est arrêté avec le code $rc après la compilation C#, assembly présente : ignoré"
+          else
+            exit $rc
+          fi
+        fi
         # Importe les modèles glb (assets/models) avant les parties : sans cela ils ne sont pas chargés et le jeu retombe sur les formes du code.
         "$GODOT" --headless --path . --import --quit || true

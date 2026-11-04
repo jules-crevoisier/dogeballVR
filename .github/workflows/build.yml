@@ -40,8 +40,9 @@ jobs:
           # En cas de doute (API en panne), on teste.
           # Ancien nom compris (un fichier déplacé vers docs/ compte aussi par l'endroit d'où il vient).
           files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          # Hors documentation : tout fichier ailleurs, et tout fichier de code ou de ressource même sous docs/ (le csproj compile tous les .cs du dépôt).
-          autres=$(printf '%s\n' "$files" | grep -E '\.(cs|csproj|sln|gd|gdshader|tscn|tres|godot|import|json|cfg|glb|sh|yml|yaml)$' || true)
+          # Hors documentation : tout fichier ailleurs, et tout fichier de code ou de ressource même sous docs/ (le csproj compile tous les .cs du dépôt,
+          # Godot importe les images, sons et polices de design/ et studio-tests/, qui n'ont pas de .gdignore).
+          autres=$(printf '%s\n' "$files" | grep -E '\.(cs|csproj|sln|gd|gdshader|gdshaderinc|tscn|tres|godot|import|json|cfg|glb|gltf|png|jpg|svg|ttf|otf|wav|ogg|sh|yml|yaml)$|(^|/)\.gdignore$' || true)
           autres="$autres$(printf '%s\n' "$files" | grep -vE '^(docs|design|production|\.claude|studio-tests)/|\.md$' || true)"
           if [ -n "$files" ] && [ -z "$autres" ]; then
             echo "Documentation seule : tests sautés."
@@ -168,7 +169,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -239,7 +240,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -297,7 +298,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -374,7 +375,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -441,7 +442,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -490,7 +491,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -599,7 +600,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
@@ -649,7 +650,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-${{ github.job }}
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
           path: |
             *.log
             *.log.run
