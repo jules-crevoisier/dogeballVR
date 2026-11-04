@@ -58,6 +58,13 @@ public partial class DesktopPlayer : Node3D
     public ZoneManager Zones { get; set; } = null!;
     /// <summary>Map en moulinet : le joueur circule sur toute l'arène, caméra à la 3e personne, dash au lieu du sprint.</summary>
     public bool FreeRoam { get; set; }
+    /// <summary>
+    /// Caméra d'épaule (3e personne) ou vue subjective : un réglage du joueur (Options → Caméra et visée), le même sur toutes les cartes,
+    /// en zones comme en jeu libre, en solo comme en ligne. Lu à chaque image : le changer en pause s'applique tout de suite.
+    /// Le test de caméra (--cam-test) mesure toujours la caméra d'épaule.
+    /// </summary>
+    public bool ThirdPerson => camTest || !(GameSettings.FirstPerson || forceEyeView);
+    bool forceEyeView;   // --first-person : vue subjective forcée (captures, tests), sans toucher aux réglages enregistrés
     public Hurtbox Hurtbox { get; set; } = null!;
 
     /// <summary>Charge du lancer en cours (0 à 1), pour la jauge du HUD.</summary>
@@ -92,7 +99,7 @@ public partial class DesktopPlayer : Node3D
     public double Time01 => time;
 
     Camera3D camera = null!;
-    Node3D head = null!;             // la tête du joueur ; en vue à la 1re personne c'est la caméra elle-même
+    Node3D head = null!;             // la tête du joueur : la caméra (posée dans le monde) se cale dessus en vue subjective, derrière l'épaule sinon
     Visual.Avatar? selfAvatar;
     Node3D holdPoint = null!;
     ZoneDef zone = null!;
@@ -210,23 +217,18 @@ public partial class DesktopPlayer : Node3D
     public override void _Ready()
     {
         MatchController.HitScored += OnHitScored;
+        forceEyeView = Tools.DevFlags.Has("--first-person");
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
-        if (FreeRoam)
-        {
-            head = new Node3D { Name = "Head", Position = new Vector3(0, EyeHeight, 0) };
-            AddChild(head);
-            camera.TopLevel = true;                    // 3e personne : la caméra est posée dans le monde, derrière l'épaule
-            AddChild(camera);
-        }
-        else
-        {
-            head = camera;
-            AddChild(camera);
-        }
+        // Tête et caméra séparées sur toutes les cartes : la caméra est posée dans le monde à chaque image (PlaceCamera),
+        // derrière l'épaule ou à la place des yeux selon le réglage de vue.
+        head = new Node3D { Name = "Head", Position = new Vector3(0, EyeHeight, 0) };
+        AddChild(head);
+        camera.TopLevel = true;
+        AddChild(camera);
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.45f };   // balle tenue réduite : elle ne masque ni l'écran ni le HUD
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f) };
         head.AddChild(holdPoint);
-        if (FreeRoam) holdPoint.Scale = Vector3.One;   // à la 3e personne la balle garde sa taille
+        holdPoint.Scale = HoldScale();
 
         Hurtbox.Head = head;
         AddChild(Hurtbox);
@@ -238,11 +240,12 @@ public partial class DesktopPlayer : Node3D
             var spawn = Zones.Map.Pc?.Spawns.Find(sp => sp.Zone == zone.Id);
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
-            selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
-            selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
-            selfAvatar.TopLevel = true;
-            AddChild(selfAvatar);
         }
+        // Son propre personnage, vu de dos en caméra d'épaule (caché en vue subjective), sur toutes les cartes.
+        selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
+        selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
+        selfAvatar.TopLevel = true;
+        AddChild(selfAvatar);
         dashCharges = MaxCharges;
         autoplay = Tools.DevFlags.Has("--pc-autoplay");   // option de test : ignorée par l'export de sortie
         if (Tools.DevFlags.Has("--cam-test")) StartCamTest();
@@ -332,7 +335,8 @@ public partial class DesktopPlayer : Node3D
         // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
         var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
-        if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        if (ThirdPerson) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        else PlaceEyeCamera(fx.rotation, fx.offset);
         if (camTest) CamTestMeasure();
         camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
         FadeBallsNearCamera();
@@ -872,6 +876,7 @@ public partial class DesktopPlayer : Node3D
         }
         else { charging = false; chargeTime = 0; }
         holdPoint.Position = HoldLocalPosition();
+        holdPoint.Scale = HoldScale();
         // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
         if (charging && chargeTime >= MaxChargeTime * 0.99)
             holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
@@ -932,14 +937,17 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>Direction de visée sans les secousses de caméra (une secousse ne doit jamais dévier un tir).</summary>
-    Vector3 AimFwd => FreeRoam ? -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z : -camera.GlobalTransform.Basis.Z;
+    Vector3 AimFwd => -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z;
+
+    /// <summary>Balle tenue réduite en vue subjective (elle ne masque ni l'écran ni le HUD) ; taille réelle en caméra d'épaule.</summary>
+    Vector3 HoldScale() => ThirdPerson ? Vector3.One : Vector3.One * 0.45f;
 
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
         // Vue subjective : balle à droite, au-dessus du bloc d'actions du HUD (bas centre) et à l'écart du viseur ;
         // en vue d'épaule, devant la poitrine du personnage, comme avant.
-        var rest = FreeRoam
+        var rest = ThirdPerson
             ? new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch))
             : new Vector3(0.62f, Mathf.Lerp(-0.2f, -0.3f, crouch), Mathf.Lerp(-0.9f, -0.75f, crouch));
         rest.Z += ThrowCharge01 * 0.15f;       // la balle se recule en armant le lancer
@@ -1018,6 +1026,7 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     void PlaceCamera(float dt, Vector3 fxRot, Vector3 fxOffset, float realDt)
     {
+        if (eyeView) { eyeView = false; camDist = 0.5f; }   // retour de la vue subjective : le bras se déplie en douceur depuis la tête
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
         var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
@@ -1090,6 +1099,25 @@ public partial class DesktopPlayer : Node3D
         // Pas pour le buste : derrière un muret bas, on doit le voir opaque (c'est lui qui protège).
         CoversOnSight(pos, from, bnd);
         GhostCovers();
+    }
+
+    bool eyeView;   // la dernière image était en vue subjective
+
+    /// <summary>Vue subjective : la caméra à la place des yeux, orientée comme la tête, avec les secousses (sans roulis de course ni bras d'épaule).</summary>
+    void PlaceEyeCamera(Vector3 fxRot, Vector3 fxOffset)
+    {
+        var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
+        var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z)));
+        camera.GlobalTransform = new Transform3D(shaken, head.GlobalPosition + basis * fxOffset);
+        if (eyeView) return;
+        // Passage de la caméra d'épaule à la vue subjective : couverts translucides et décor caché rétablis, épaule droite par défaut.
+        eyeView = true;
+        lean = 0f; raise = 0f; sideTarget = 1; sideT = 1f; overTarget = false; overT = 0f;
+        coversThrough.Clear();
+        rotorGhostUntil = -1;
+        GhostCovers();
+        foreach (var g in hiddenDecor) if (IsInstanceValid(g)) g.Visible = true;
+        hiddenDecor.Clear();
     }
 
     /// <summary>
@@ -1452,7 +1480,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
+            selfAvatar.Visible = ThirdPerson && !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right, pose.Elevation);
             selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
