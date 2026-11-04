@@ -6,7 +6,7 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Balle de dodgeball. Côté hôte (autorité) : physique et touches. Côté clients : affichage.
-/// Charge de passe (0 à 3) : chaque passe d'un allié ajoute une charge, la balle devient plus lumineuse.
+/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), la balle devient plus lumineuse.
 /// </summary>
 public partial class Ball : RigidBody3D
 {
@@ -21,8 +21,8 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
-    /// <summary>Un adversaire attrape une balle lancée vite : (balle, id du receveur). Le receveur regagne une vie.</summary>
-    public static event System.Action<int>? CaughtThrow;
+    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Le receveur regagne une vie.</summary>
+    public static event System.Action<int, bool>? CaughtThrow;
     double flightTime;
 
     /// <summary>Balle spéciale (une famille par match, voir specialBalls dans les maps) : 0 normale, 1 bombe, 2 rebond.</summary>
@@ -47,17 +47,22 @@ public partial class Ball : RigidBody3D
             UpdateLook();
         }
     }
-    /// <summary>Bandes, mèche et anneaux des modèles Blender (assets/models), un jeu par type de balle ; le cœur reste procédural pour garder la teinte par type.</summary>
+    /// <summary>Modèles Blender (tools/blender/ball_kit.py), un par type de balle : coque en caoutchouc peinte et couture « Rainure »
+    /// lumineuse, teintée ici à la couleur de l'équipe qui lance (ou du type quand la balle est neutre).</summary>
     readonly Node3D?[] decor = new Node3D?[3];
+    StandardMaterial3D seamMaterial = null!;
+    bool modeled;
 
     void AddDecor()
     {
+        seamMaterial = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true, EmissionEnergyMultiplier = 1.6f };
         string[] names = { "balle_normale", "balle_bombe", "balle_rebond" };
         for (int i = 0; i < names.Length; i++)
         {
             var model = Visual.ModelLibrary.Instance(names[i]);
             if (model == null) continue;
-            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // le cœur est déjà dans la balle
+            model.GetNodeOrNull<Node3D>("Balle")?.QueueFree();   // ancien modèle : le cœur procédural suffit
+            if (model.FindChild("Rainure", true, false) is MeshInstance3D seam) { seam.MaterialOverride = seamMaterial; modeled = true; }
             model.Visible = i == kind || (kind > KindBounce && i == 0);
             decor[i] = model;
             AddChild(model);
@@ -80,7 +85,11 @@ public partial class Ball : RigidBody3D
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
     /// <summary>Vitesse de lancer retenue par l'hôte (m/s) : l'attrape parfaite exige encore 80 % de cette vitesse. 0 = inconnue.</summary>
     public float SpeedCap { get; set; }
-    const int TrailPoints = 10;
+    // Traînée échantillonnée au temps (et non par image) : même longueur à 20, 60 ou 144 images/s.
+    const double TrailStep = 0.015;                            // un point toutes les 15 ms
+    const double TrailSeconds = 0.18;                          // durée couverte par le ruban
+    const float TrailWidthMin = 0.12f, TrailWidthMax = 0.25f;  // largeur à la balle (m), selon la vitesse
+    const float TrailWideSpeed = 22f;                          // vitesse donnant la largeur maximale (m/s)
     const float TrailMinSpeed = HitMinSpeed;                   // = seuil de blessure
 
     /// <summary>Identifiant réseau, attribué par l'hôte.</summary>
@@ -115,6 +124,11 @@ public partial class Ball : RigidBody3D
     MeshInstance3D halo = null!;
     MeshInstance3D halo2 = null!;
     MeshInstance3D orbit = null!;
+    StandardMaterial3D outlineMaterial = null!;
+    MeshInstance3D outline = null!;
+    StandardMaterial3D flightMaterial = null!;
+    MeshInstance3D flightHalo = null!;
+    float flightLit;   // 0 → 1 : balle lancée en vol (liseré et halo à la couleur du lanceur)
     MeshInstance3D? alertMarker;
     MeshInstance3D? bombRing;
     bool alert;
@@ -122,7 +136,7 @@ public partial class Ball : RigidBody3D
     MeshInstance3D shadow = null!;
     MeshInstance3D trail = null!;
     ImmediateMesh trailMesh = null!;
-    readonly List<Vector3> trailPoints = new();
+    readonly List<(Vector3 Pos, double Time)> trailPoints = new();
     double visualTime;
 
     /// <summary>Effet de courbe : vitesse angulaire du poignet au lâcher (rad/s, axe vertical).</summary>
@@ -140,9 +154,19 @@ public partial class Ball : RigidBody3D
         };
         ball.AddChild(ball.core);
         ball.AddDecor();
+        ball.core.Visible = !ball.modeled;   // la coque du modèle remplace la sphère procédurale
         var outline = Materials.Flat(Palette.Panel);
         outline.CullMode = BaseMaterial3D.CullModeEnum.Front;   // coque inversée : seul le bord dépasse
-        ball.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline });
+        outline.EmissionEnabled = true;                         // éteint au repos ; en vol le liseré prend la couleur de l'équipe du lanceur (voir UpdateFlightLook)
+        outline.Emission = Colors.Black;
+        ball.outlineMaterial = outline;
+        ball.outline = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.168f, Height = 0.336f, RadialSegments = 24, Rings = 12 }, MaterialOverride = outline };
+        ball.AddChild(ball.outline);
+        // Halo de vol : coque additive large à la couleur de l'équipe, invisible au sol et tenue.
+        ball.flightMaterial = Materials.Additive(new Color(Palette.BallCore, 0f));
+        ball.flightHalo = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.25f, Height = 0.5f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.flightMaterial, Visible = false };
+        ball.AddChild(ball.flightHalo);
+        ball.outline.Visible = !ball.modeled || KcShaders.Look == KcShaders.LookKind.Toon;   // ballon modélisé en PBR : pas de coque d'encre (le halo de vol porte la couleur)
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {
@@ -190,6 +214,14 @@ public partial class Ball : RigidBody3D
         bool first = netTarget == Vector3.Zero;
         netTarget = position;
         if (first || GlobalPosition.DistanceTo(position) > 3f) GlobalPosition = position;
+        // Client : Hold et Release ne tournent que chez l'hôte, les effets de prise et de lancer partent des changements d'état.
+        if (!first && held && !IsHeld)
+        {
+            bool steal = OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed;
+            bool fromAlly = !steal && OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != ownerId && LinearVelocity.Length() > 1f;
+            Visual.BallFx.Caught(this, GlobalPosition, LinearVelocity, team, steal ? Visual.BallFx.Catch.Steal : fromAlly ? Visual.BallFx.Catch.Pass : Visual.BallFx.Catch.Pickup, false);
+        }
+        else if (!first && !held && IsHeld) Visual.BallFx.Thrown(this, position, velocity, team, charge, ThrowMode);
         LinearVelocity = velocity;
         OwnerTeam = team;
         OwnerPlayerId = ownerId;
@@ -201,6 +233,7 @@ public partial class Ball : RigidBody3D
     public override void _Ready()
     {
         AddToGroup("balls");
+        AddChild(new Visual.BallChargeFx { Ball = this });   // anneaux et étincelles des paliers de charge
         Mass = 0.6f;
         GravityScale = GravityFactor; // un peu flottante, plus lisible en VR
         ContinuousCd = true;
@@ -215,12 +248,25 @@ public partial class Ball : RigidBody3D
         }
     }
 
-    /// <summary>Un joueur attrape la balle. Passe d'un allié : +1 charge. Balle volée à l'adversaire : charge à zéro.</summary>
+    /// <summary>
+    /// Palier après une prise. Balle reçue d'un allié : palier 1 au plus, comme Knockout City (sinon deux passes donnent un KO
+    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite.
+    /// </summary>
+    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect)
+    {
+        if (fromAlly) return Mathf.Max(charge, 1);
+        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, MaxCharge) : 0;   // attrape parfaite : la balle garde sa charge, +1
+        return charge;
+    }
+
+    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (gardée +1 si parfaite).</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
-        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId);
-        if (OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId) AddCharge();
-        else if (OwnerTeam != team) { ResetCharge(); if (perfect) AddCharge(); }   // attrape parfaite : la balle volée repart avec un palier
+        if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
+        bool fromAlly = OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId;
+        CatchFx(team, playerId, perfect);
+        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect);
+        if (next != Charge) { ResetCharge(); for (int i = 0; i < next; i++) AddCharge(); }
         EndArc();
         SpeedCap = 0;
         OwnerPlayerId = playerId;
@@ -255,6 +301,17 @@ public partial class Ball : RigidBody3D
         GravityScale = mode == 0 ? GravityFactor : 1f;   // cloche : gravité pleine (9,8 m/s², voir ArcGravity)
         if (kind == KindBomb && velocity.Length() < LobHitMinSpeed) Spent();   // lâchée sans élan (tacle, KO) : bombe neutre, pas d'explosion aux pieds
         Released?.Invoke(this);
+        Visual.BallFx.Thrown(this, GlobalPosition, velocity, OwnerTeam, Charge, mode);   // lâcher sans élan (KO, bot) : rien
+    }
+
+    /// <summary>Effet de prise (BallFx), avant que la balle ne passe dans la main : tir adverse, passe d'un allié ou ramassage.</summary>
+    void CatchFx(int team, int playerId, bool perfect)
+    {
+        if (!IsInsideTree()) return;
+        bool steal = OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed;
+        bool pass = !steal && OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId && LinearVelocity.Length() > 1f;
+        var how = steal ? Visual.BallFx.Catch.Steal : pass ? Visual.BallFx.Catch.Pass : Visual.BallFx.Catch.Pickup;
+        Visual.BallFx.Caught(this, GlobalPosition, LinearVelocity, team, how, perfect);
     }
 
     /// <summary>La balle a touché : elle devient neutre (plus personne n'est blessé tant qu'elle n'est pas reprise).</summary>
@@ -276,8 +333,16 @@ public partial class Ball : RigidBody3D
         UpdateLook();
     }
 
+    ulong lastBounceMs;
+
     void OnContact(Node body)
     {
+        // son de rebond au contact du décor (hôte seulement : les clients n'ont pas la physique) ; aucune incidence sur la trajectoire
+        if (!IsHeld && kind != KindBomb && body is not Ball && body is not Hurtbox && LinearVelocity.Length() is float v && v > 1.5f && Time.GetTicksMsec() - lastBounceMs > 110)
+        {
+            lastBounceMs = Time.GetTicksMsec();
+            Audio.Sfx.Play(this, Audio.SfxKind.Bounce, GlobalPosition, 1.05f - Mathf.Min(v, 20f) * 0.008f, Mathf.Clamp(-16f + v * 1.1f, -16f, 0f));
+        }
         if (exploded || kind != KindBomb || IsHeld || body is Ball || body is Hurtbox || OwnerTeam < 0 || IsPass) return;
         if (sinceRelease < 0.12) return;   // pas dans la main qui la lâche
         Explode(-1, OwnerTeam, OwnerPlayerId);
@@ -324,7 +389,13 @@ public partial class Ball : RigidBody3D
     {
         if (PhysicsMaterialOverride != null) PhysicsMaterialOverride.Bounce = kind == KindBounce && OwnerTeam >= 0 ? 0.95f : 0.55f;   // rebond seulement une fois lancée : neutre, elle reste sur la plaque
         var c = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);
-        c.A = HaloAlpha[Charge];
+        if (seamMaterial != null)
+        {
+            seamMaterial.AlbedoColor = c;
+            seamMaterial.Emission = c;
+            seamMaterial.EmissionEnergyMultiplier = 1.6f + 0.9f * Charge;   // couture plus vive à chaque palier
+        }
+        c.A = HaloAlpha[Charge] * (modeled && Charge < 2 ? 0.45f : 1f);   // modèle : la couture porte la couleur, halo discret aux bas paliers
         haloMaterial.AlbedoColor = c;
         var c2 = c; c2.A = 0.3f;
         halo2Material.AlbedoColor = c2;
@@ -359,6 +430,7 @@ public partial class Ball : RigidBody3D
             orbit.Rotation = new Vector3(Mathf.Pi / 2 + 0.5f * Mathf.Sin((float)visualTime), (float)visualTime * 3f, 0);   // anneau qui tourne : lisible de loin
         }
         UpdateAlertAndRing();
+        UpdateFlightLook((float)delta);
 
         var p = GlobalPosition;
         shadow.GlobalTransform = new Transform3D(Basis.Identity, new Vector3(p.X, 0.03f, p.Z));
@@ -366,9 +438,42 @@ public partial class Ball : RigidBody3D
         shadow.Scale = new Vector3(h, 1f, h);
 
         UpdateTrail(p);
+        SpinDecor((float)delta);
     }
 
-    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local) : éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
+    /// <summary>Roulis visuel en vol : la couture tourne autour de l'axe perpendiculaire à la trajectoire (la physique, elle, amortit la rotation).</summary>
+    void SpinDecor(float dt)
+    {
+        if (!modeled || IsHeld) return;
+        var v = LinearVelocity;
+        float speed = v.Length();
+        if (speed < 1f) return;
+        var axis = v.Cross(Vector3.Up);
+        if (axis.LengthSquared() < 1e-4f) axis = Vector3.Right;
+        float rate = Mathf.Min(speed / 0.15f, 40f) * 0.6f * dt;
+        foreach (var d in decor) if (d != null && d.Visible) d.GlobalRotate(axis.Normalized(), -rate);
+    }
+
+    /// <summary>
+    /// Balle lancée (en vol, avec un lanceur) : le contour sombre devient un liseré épais et lumineux à la couleur de l'équipe,
+    /// doublé d'un halo additif, pour lire d'un coup d'œil qui a tiré. Le noyau jaune reste l'identité de la balle.
+    /// S'allume vite au lâcher, s'éteint en douceur quand la balle ralentit, retombe ou est rattrapée.
+    /// </summary>
+    void UpdateFlightLook(float dt)
+    {
+        bool flying = !IsHeld && OwnerTeam >= 0 && kind != KindExploded && LinearVelocity.Length() > 3f;
+        float target = flying ? 1f : 0f;
+        flightLit = Mathf.MoveToward(flightLit, target, dt * (flying ? 12f : 4f));
+        var team = Palette.Team(OwnerTeam);
+        outlineMaterial.AlbedoColor = Palette.Panel.Lerp(team, flightLit);
+        outlineMaterial.Emission = team;
+        outlineMaterial.EmissionEnergyMultiplier = 1.2f * flightLit;   // assez pour briller, pas au point de blanchir la couleur d'équipe
+        outline.Scale = Vector3.One * (1f + 0.14f * flightLit);   // liseré de 1,8 cm au repos, ~4 cm en vol
+        flightHalo.Visible = flightLit > 0.01f;
+        if (flightHalo.Visible) flightMaterial.AlbedoColor = new Color(team, 0.4f * flightLit);
+    }
+
+    /// <summary>Marque d'alerte sur la balle (menace imminente pour le joueur local): éclat pulsant à 2,5 Hz, dans la couleur de l'équipe lanceuse.</summary>
     public void SetAlert(bool on, Color color)
     {
         alert = on;
@@ -419,34 +524,44 @@ public partial class Ball : RigidBody3D
         return true;
     }
 
-    /// <summary>Traînée en ruban : longueur proportionnelle à la vitesse, aucune sous le seuil de blessure.</summary>
+    /// <summary>Traînée en ruban continu : points datés (toutes les 15 ms, sur 0,18 s), largeur 12 à 25 cm selon la vitesse,
+    /// opaque près de la balle, effilée et transparente en queue. Aucune sous le seuil de blessure.</summary>
     void UpdateTrail(Vector3 p)
     {
-        bool fast = !IsHeld && LinearVelocity.Length() >= TrailMinSpeed;
-        if (fast) trailPoints.Add(p);
-        if (trailPoints.Count > TrailPoints || (!fast && trailPoints.Count > 0)) trailPoints.RemoveAt(0);
+        float speed = LinearVelocity.Length();
+        bool fast = !IsHeld && speed >= TrailMinSpeed;
+        if (IsHeld) trailPoints.Clear();
+        else if (fast && (trailPoints.Count == 0 || visualTime - trailPoints[^1].Time >= TrailStep)) trailPoints.Add((p, visualTime));
+        // Les points vieillissent seuls : la queue se résorbe en 0,18 s quand la balle ralentit, sans coupure nette.
+        while (trailPoints.Count > 0 && visualTime - trailPoints[0].Time > TrailSeconds) trailPoints.RemoveAt(0);
         bool hadTrail = trailMesh.GetSurfaceCount() > 0;
-        if (!fast && !hadTrail && trailPoints.Count == 0) return;
+        if (!hadTrail && trailPoints.Count == 0) return;
         trailMesh.ClearSurfaces();
         var cam = GetViewport().GetCamera3D();
-        if (trailPoints.Count < 2 || cam == null) return;
-        var color = Palette.Team(OwnerTeam);
+        if (trailPoints.Count == 0 || cam == null) return;
+        // La tête du ruban suit la balle à chaque image (pas de saut entre deux échantillons).
+        var pts = new List<(Vector3 Pos, double Time)>(trailPoints);
+        if (pts[^1].Pos.DistanceSquaredTo(p) > 1e-6f) pts.Add((p, visualTime));
+        if (pts.Count < 2) return;
+        float width = Mathf.Lerp(TrailWidthMin, TrailWidthMax, Mathf.Clamp((speed - TrailMinSpeed) / (TrailWideSpeed - TrailMinSpeed), 0f, 1f));
+        var color = OwnerTeam < 0 && KindColor() is Color kc ? kc : Palette.Team(OwnerTeam);   // balles spéciales : leur couleur
         trailMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip);
-        for (int i = 0; i < trailPoints.Count; i++)
+        for (int i = 0; i < pts.Count; i++)
         {
-            float t = (float)i / (trailPoints.Count - 1);   // 0 = queue, 1 = balle
-            var a = trailPoints[i];
-            var next = trailPoints[Mathf.Min(i + 1, trailPoints.Count - 1)];
-            var prev = trailPoints[Mathf.Max(i - 1, 0)];
+            // t = fraîcheur du point : 1 à la balle, 0 en bout de queue (au temps, pas à l'indice).
+            float t = Mathf.Clamp(1f - (float)((visualTime - pts[i].Time) / TrailSeconds), 0f, 1f);
+            var a = pts[i].Pos;
+            var next = pts[Mathf.Min(i + 1, pts.Count - 1)].Pos;
+            var prev = pts[Mathf.Max(i - 1, 0)].Pos;
             var dir = (next - prev).Normalized();
             // Près de la caméra le ruban s'efface : sinon il barre l'écran quand une balle passe à côté de la tête.
             float nearCam = Mathf.Clamp((cam.GlobalPosition.DistanceTo(a) - 0.8f) / 1.5f, 0f, 1f);
-            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.07f * t * nearCam;
-            var vc = new Color(color, 0.6f * t * nearCam);
+            float taper = Mathf.Sqrt(t);   // s'effile vers la queue, reste large près de la balle
+            var side = dir.Cross((cam.GlobalPosition - a).Normalized()).Normalized() * 0.5f * width * taper * nearCam;
+            var vc = new Color(color, 0.75f * t * t * nearCam);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a + side);
             trailMesh.SurfaceSetColor(vc); trailMesh.SurfaceAddVertex(a - side);
         }
-        trailMesh.SurfaceEnd();
     }
 
     public override void _PhysicsProcess(double delta)

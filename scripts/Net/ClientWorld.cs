@@ -23,6 +23,13 @@ public partial class ClientWorld : Node3D
     // Cibles passives (groupe « hurtboxes ») : l'aide à la visée et le viseur du joueur PC en ont besoin côté client.
     readonly Dictionary<int, Hurtbox> aimTargets = new();
     readonly Dictionary<int, PoseData> poseTargets = new();
+    // Interpolation : on affiche les autres joueurs avec un léger retard (≈ 2 snapshots + gigue), entre deux poses reçues,
+    // au lieu de courir après la dernière : mouvement régulier malgré la gigue et les paquets perdus.
+    readonly Dictionary<int, List<(double t, PoseData pose)>> history = new();
+    double clockOffset, jitter, lastHostRaw = -1, hostWraps;
+    bool clockKnown;
+    /// <summary>Retard d'affichage des autres joueurs (s), adapté à la gigue mesurée.</summary>
+    public double InterpDelay => Mathf.Clamp(1.5 / 30.0 + 2.0 * jitter, 0.06, 0.25);
     readonly Dictionary<int, int> lives = new();
 
     readonly Dictionary<int, float> elevations = new();
@@ -44,6 +51,7 @@ public partial class ClientWorld : Node3D
     void OnSnapshot(float[] data)
     {
         var (players, snapBalls) = NetSession.Decode(data);
+        double hostTime = UnwrapHostTime(NetSession.HostTimeOf(data));
         float rotorAngle = NetSession.RotorAngleOf(data);
         if (rotorAngle >= 0f && Maps.Rotor.Current is { } rotor) { rotor.Authority = false; rotor.SetRemoteAngle(rotorAngle); }
         foreach (var p in players)
@@ -64,6 +72,12 @@ public partial class ClientWorld : Node3D
                 aimTargets[p.Id] = marker;
             }
             poseTargets[p.Id] = p.Pose;
+            if (hostTime >= 0)
+            {
+                if (!history.TryGetValue(p.Id, out var h)) history[p.Id] = h = new();
+                if (h.Count == 0 || hostTime > h[^1].t) h.Add((hostTime, p.Pose));
+                if (h.Count > 24) h.RemoveAt(0);
+            }
             if (aimTargets.TryGetValue(p.Id, out var aim))
             {
                 aim.GlobalPosition = p.Pose.Head + new Vector3(0, -0.4f, 0);
@@ -97,13 +111,53 @@ public partial class ClientWorld : Node3D
         }
     }
 
+    /// <summary>Horloge de l'hôte rendue continue (elle repart à 0 tous les 1000 s) et calage de l'horloge locale dessus.</summary>
+    double UnwrapHostTime(float raw)
+    {
+        if (raw < 0) return -1;
+        if (lastHostRaw >= 0 && raw < lastHostRaw - NetSession.HostClockWrap / 2) hostWraps += NetSession.HostClockWrap;
+        lastHostRaw = raw;
+        double hostTime = raw + hostWraps;
+        double sample = hostTime - Time.GetTicksMsec() / 1000.0;
+        if (!clockKnown) { clockOffset = sample; clockKnown = true; }
+        else
+        {
+            // Un snapshot en retard ne recule pas l'horloge ; un snapshot en avance la rattrape vite.
+            double err = sample - clockOffset;
+            clockOffset += err > 0 ? err * 0.3 : err * 0.02;
+            jitter += (System.Math.Abs(err) - jitter) * 0.05;
+        }
+        return hostTime;
+    }
+
+    /// <summary>Pose interpolée d'un joueur à l'instant hôte <paramref name="renderTime"/> (null si l'historique ne suffit pas).</summary>
+    PoseData? Sample(int id, double renderTime)
+    {
+        if (!history.TryGetValue(id, out var h) || h.Count == 0) return null;
+        if (renderTime <= h[0].t) return h[0].pose;
+        for (int i = h.Count - 1; i > 0; i--)
+        {
+            if (h[i - 1].t > renderTime) continue;
+            var (t0, a) = h[i - 1];
+            var (t1, b) = h[i];
+            float k = (float)((renderTime - t0) / System.Math.Max(1e-4, t1 - t0));
+            // Téléportation (retour de KO, échange de plaques) : pas de glissement à travers l'arène.
+            if (a.Head.DistanceTo(b.Head) > 3f) return k < 0.5f ? a : b;
+            return a.Lerp(b, Mathf.Clamp(k, 0f, 1f));
+        }
+        return h[^1].pose;   // au-delà de la dernière pose reçue (paquets perdus) : on la tient
+    }
+
     public override void _Process(double delta)
     {
         float t = 1f - Mathf.Exp(-25f * (float)delta);
+        float tFine = 1f - Mathf.Exp(-60f * (float)delta);
+        double renderTime = Time.GetTicksMsec() / 1000.0 + clockOffset - InterpDelay;
         foreach (var (id, avatar) in avatars)
         {
             var cur = new PoseData(avatar.Head.Position, avatar.Head.Rotation.Y, avatar.LeftHand.Position, avatar.RightHand.Position);
-            var next = cur.Lerp(poseTargets[id], t);
+            var sampled = clockKnown ? Sample(id, renderTime) : null;
+            var next = sampled is { } s ? cur.Lerp(s, tFine) : cur.Lerp(poseTargets[id], t);
             avatar.Pose(next.Head, next.Yaw, next.Left, next.Right);
         }
     }

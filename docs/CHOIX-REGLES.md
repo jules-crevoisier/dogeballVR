@@ -70,7 +70,7 @@ Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/map
 
 ## Croix Néon : coups spéciaux (phase 2 de la refonte Knockout City)
 
-- **Passe** (molette ou X) : cloche vers l'allié le mieux aligné (35°, sinon le plus proche), gravité pleine, sommet à 4,2 m, sans frottement pour tomber là où on a visé. La passe ne blesse personne et ne s'intercepte pas (bots compris). L'allié la prend tout seul (1,3 m) et elle gagne +1 palier ; 2 paliers = KO direct (déjà le cas : 2 cœurs, dégâts doubles).
+- **Passe** (molette ou X) : cloche vers l'allié le mieux aligné (35°, sinon le plus proche), gravité pleine, sommet à 4,2 m, sans frottement pour tomber là où on a visé. La passe ne blesse personne et ne s'intercepte pas (bots compris). L'allié la prend tout seul (1,3 m) et elle passe au palier 1, pas plus (comme Knockout City : sinon deux passes donnent un KO en un coup sans risque). Le palier 2 (KO direct, dégâts doubles) vient des bonus de terrain (lift VR).
 - **Cloche** (R) : lob blessant vers l'adversaire visé ou le point visé, sommet 2,2 m au-dessus des deux extrémités.
 - **Effet** (E maintenu + gauche/droite au lâcher) : balle qui dévie de 3 à 4 m sur 20 m (spin 6 rad/s, force de Magnus existante).
 - **Feinte** (F) : le bras part sans lâcher (visible des autres via la pose), charge annulée, il faut relâcher le clic pour réarmer.
@@ -142,3 +142,12 @@ Tout est réglable dans `ballRules.throwAssist` de chaque map (valeurs par défa
 - **Non faits** : charge au corps (10, optionnelle hors v1), main levée = demande de passe (12), maquette flottante du spectateur KO (13, seul un écran grisé existe au clavier-souris), pastilles de manches sur le panneau (6). Non vérifiables sans casque : axe de la paume, intensité des vibrations, lisibilité des tailles de texte à la distance voulue.
 
 Suites de la revue (phase 5) : coup différé de 0,1 s côté hôte sur un joueur distant en VR pour un tir ≥ 10 m/s (une prise valide arrivée entre-temps l'annule) ; les bots passent par `Assist.PlanFor` ; panneau de score tourné vers la zone et à 0,9 m derrière le bord ; bip d'alerte spatialisé ; parade validée par l'hôte (balle adverse, assez rapide, qui approche). Limites connues : le liseré d'alerte n'existe pas en VR (marque, bip et vibration seulement) ; l'anneau de recharge des plots est temporisé et non lié au distributeur ; l'hôte accepte une prise jusqu'à 1,2 m + marge de latence sans contrôler l'instant du grip ; le perfect hôte est admis dès 5 m/s au clavier aussi (le client clavier en exige 10) ; modes mixtes VR + clavier non traités (`VrRules` suit l'hôte).
+
+## HUD du joueur PC et boucle de partie
+
+- **Début de manche** : compte à rebours de 3 s (« 3, 2, 1, GO ! ») ; pendant ce temps le chrono est figé, les touches, souffles de bombe et tacles ne comptent pas, mais on peut déjà courir vers les balles. Le bandeau envoyé aux clients devient « MANCHE 2/5 - DÉPART DANS 3 ».
+- **Équipes nommées par leur couleur** : « MANCHE POUR L'ÉQUIPE ORANGE », « VICTOIRE ÉQUIPE BLEUE ! » (équipe 1 = orange, équipe 2 = bleue).
+- **Statistiques par joueur** (hôte) : KO (ring-out compris), touches (coups qui retirent un cœur), attrapes d'un tir adverse rapide, attrapes parfaites, lancers (hors passes). MVP = 3 × KO + touches + 2 × attrapes + 2 × parfaites, départagé aux KO.
+- **Fin de partie** : écran VICTOIRE / DÉFAITE avec MVP et tableau ; un vrai joueur PC choisit REJOUER ou MENU PRINCIPAL (la partie ne repart plus seule). En headless, avec `--pc-autoplay` et en VR, relance automatique après 8 s comme avant.
+- **Client réseau** : il ne reçoit que le texte du tableau de score ; `MatchView` le relit (phase, chrono, KO, manches). Pas de statistiques par joueur ni de marqueur de touche côté client ; son fil des KO ne connaît pas le tireur ; il ne peut pas relancer (« En attente de l'hôte… »).
+- **Tests de capture** : `--end-screen-test` (manche gagnée à 5 s, partie finie 3-2 à 14 s ; `=defaite` pour l'équipe bleue) et `--hud-test` (faux KO, touches, cœur perdu, tableau Tab, charge).

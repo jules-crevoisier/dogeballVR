@@ -38,6 +38,11 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 ## Format de partie (nerveux)
 Partie de 5 min minimum, visée autour de 10 min : 5 manches de 2 min, toutes jouées ; une manche s'arrête dès qu'une équipe atteint 3 KO. 2 vies par joueur, un joueur à 0 vie est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge (plus lumineuse, 2 charges ou plus = 2 vies de dégâts). Paramètres dans `scripts/Rules/MatchRules.cs`.
 
+## Sortie Steam
+- Checklist complète : `docs/steam/CHECKLIST-SORTIE-STEAM.md` ; actions de jules (compte, frais, page) : `docs/steam/ACTIONS-JULES.md` ; textes du store : `docs/steam/PAGE-STORE.md`.
+- Envoi des builds : `tools/steam/README.md` et le workflow manuel « Envoi Steam » (`.github/workflows/steam-upload.yml`).
+- Le zip de test contient `steam_api64.dll` et `steam_appid.txt` (480, Spacewar) pour essayer les fonctions Steam sans compte Steamworks.
+
 ## État
 - Le projet compile (`dotnet build`) et une partie complète tourne en simulation avec les bots (Godot 4.3 .NET, mode headless, sans casque) : manches, KO, prolongation.
 - Un workflow GitHub Actions (`.github/workflows/build.yml`) fait ce build et cette simulation à chaque PR.

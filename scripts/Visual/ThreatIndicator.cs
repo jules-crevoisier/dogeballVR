@@ -20,6 +20,8 @@ public partial class ThreatIndicator : Node
     public Hurtbox Local { get; set; } = null!;
     /// <summary>Vibration d'une main (amplitude 0..1, durée s) ; absent hors VR.</summary>
     public Action<float, float>? Haptic { get; set; }
+    /// <summary>Temps avant impact (s) du tir adverse le plus proche sur le joueur local, +inf sans menace (aides contextuelles).</summary>
+    public static float LocalTimeToImpact { get; private set; } = float.PositiveInfinity;
 
     readonly HashSet<Ball> alerted = new();
     ColorRect[] edges = null!;
@@ -60,9 +62,10 @@ public partial class ThreatIndicator : Node
             if (n is Hurtbox { Eliminated: false } h && !h.DashInvulnerable) targets.Add(h);
 
         Vector3? alertPos = null;
-        float localT = float.PositiveInfinity, shooterT = float.PositiveInfinity;
-        int shooterTarget = -1;
+        float localT = float.PositiveInfinity;
+        int threatTeam = -1;
         var current = new HashSet<Ball>();
+        // Marque et liseré à la couleur de l'équipe qui menace (comme Knockout City).
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball { IsHeld: false } ball || ball.OwnerTeam < 0 || ball.IsPass || ball.HasExploded) continue;
@@ -73,17 +76,17 @@ public partial class ThreatIndicator : Node
                 if (h.Team == ball.OwnerTeam) continue;
                 float t = TimeToImpact(ball.GlobalPosition, ball.LinearVelocity, h.GlobalPosition);
                 if (t < best) { best = t; targetTeam = h.Team; }
-                if (h == Local && t < localT) { localT = t; alertPos = ball.GlobalPosition; }
+                if (h == Local && t < localT) { localT = t; alertPos = ball.GlobalPosition; threatTeam = ball.OwnerTeam; }
             }
             if (best > WarnSeconds) continue;
             current.Add(ball);
-            if (alerted.Add(ball)) { ball.SetAlert(true, Palette.Team(targetTeam)); GD.Print($"[Alerte] tir de l'équipe {ball.OwnerTeam} sur l'équipe {targetTeam} : impact dans {best:0.00} s"); }
-            if (ball.OwnerTeam == Local.Team && best < shooterT) { shooterT = best; shooterTarget = targetTeam; }
+            if (alerted.Add(ball)) { ball.SetAlert(true, Palette.Team(ball.OwnerTeam)); GD.Print($"[Alerte] tir de l'équipe {ball.OwnerTeam} sur l'équipe {targetTeam} : impact dans {best:0.00} s"); }
         }
         foreach (var b in alerted)
             if (!current.Contains(b) && IsInstanceValid(b)) b.SetAlert(false, Colors.White);
         alerted.RemoveWhere(b => !current.Contains(b));
 
+        LocalTimeToImpact = localT;
         if (localT <= WarnSeconds)
         {
             float urgency = 1f - Mathf.Clamp(localT / WarnSeconds, 0f, 1f);   // 0 au début de l'alerte, 1 à l'impact
@@ -93,11 +96,12 @@ public partial class ThreatIndicator : Node
                 Sfx.Play(this, SfxKind.Alert, alertPos, Mathf.Lerp(0.9f, 1.5f, urgency));
                 Haptic?.Invoke(Mathf.Lerp(0.25f, 1f, urgency), 0.08f);
             }
-            Show(Palette.Team(Local.Team), now);
+            Show(Palette.Team(threatTeam), now);   // le tireur, lui, n'a pas de liseré : seul celui qui est visé est alerté
         }
-        else if (shooterT <= WarnSeconds && shooterTarget >= 0) Show(Palette.Team(shooterTarget), now);
         UpdateEdges(now);
     }
+
+    public override void _ExitTree() => LocalTimeToImpact = float.PositiveInfinity;
 
     void Show(Color color, double now) { edgeColor = color; edgeUntil = now + 0.12; }
 

@@ -71,6 +71,9 @@ public partial class Hurtbox : Area3D
     }
 
     readonly System.Collections.Generic.HashSet<Ball> graceBalls = new();
+    /// <summary>Dernière balle qui a touché ce joueur, et quand (journal des prises arrivées trop tard).</summary>
+    public Ball? LastHitBall { get; private set; }
+    public double LastHitAt { get; private set; } = -100;
 
     void Apply(Ball ball)
     {
@@ -81,6 +84,8 @@ public partial class Hurtbox : Area3D
         float distance = ball.ThrowDistance;
         bool bomb = ball.Kind == Ball.KindBomb;
         int shooterTeam = ball.OwnerTeam;
+        LastHitBall = ball;
+        LastHitAt = Time.GetTicksMsec() / 1000.0;
         ball.Spent();
         EmitSignal(SignalName.Hit, PlayerId, shooter, charge, distance);
         if (bomb) ball.Explode(PlayerId, shooterTeam, shooter);

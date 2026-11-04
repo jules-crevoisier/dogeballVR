@@ -2,6 +2,9 @@ using Godot;
 using DogeballVR.Net;
 using DogeballVR.Maps;
 using DogeballVR.Zones;
+using DogeballVR.Audio;
+using DogeballVR.UI;
+using DogeballVR.Visual;
 
 namespace DogeballVR.Gameplay;
 
@@ -31,7 +34,7 @@ public partial class DesktopPlayer : Node3D
     const float VoidMargin = 0.8f;        // le dash s'arrête à 0,8 m du vide
     const float PushSpeed = 8f, PushTime = 0.25f;   // poussée de tacle : 2 m en 0,25 s
     const float TackleRadius = 1.1f;      // un dash qui passe à moins de 1,1 m d'un adversaire le tacle
-    const float CameraDistance = 3.0f;   // 3e personne : distance de la caméra derrière la tête
+    const float CameraDistance = 3.8f;   // 3e personne : distance de la caméra derrière la tête (assez loin pour voir autour de soi)
     const float EyeHeight = 1.6f;
     const float CrouchHeight = 0.9f;
     const float EyeSpeed = 3.5f;         // m/s : l'hôte plafonne la vitesse verticale à 4 m/s
@@ -66,11 +69,23 @@ public partial class DesktopPlayer : Node3D
 
     /// <summary>Un adversaire est sous le viseur (le HUD passe le viseur en rouge).</summary>
     public bool AimingAtEnemy { get; private set; }
+    /// <summary>Adversaire sur lequel le lancer sera corrigé (balle en main), ou null.</summary>
+    public Hurtbox? LockTarget { get; private set; }
     /// <summary>Attrape : 0 prête, 1 fenêtre ouverte, 2 recharge.</summary>
     public int CatchState => catchWindowLeft > 0 ? 1 : catchCooldownLeft > 0 ? 2 : 0;
     public float CatchCooldown01 => CatchState == 2 ? (float)(1 - catchCooldownLeft / CatchRecovery) : 1f;
     public bool Autoplay => autoplay;
-    public float Sensitivity => sensitivity;
+    /// <summary>Compte à rebours de manche (posé par le HUD) : on peut ramasser et armer, mais rien ne part avant le « GO ! ».</summary>
+    public bool ThrowLocked { get; set; }
+    public float Sensitivity => GameSettings.Sensitivity;
+    /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
+    public bool Dashing => dodgeLeft > 0 && FreeRoam;
+    /// <summary>Compteurs d'actions du joueur (tutoriel, statistiques locales).</summary>
+    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups;
+    /// <summary>Rotation cumulée de la vue (radians) et distance parcourue (m) : tutoriel.</summary>
+    public float LookTravel, WalkTravel;
+    /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
+    public float GroundSpeed => velocity.Length();
     /// <summary>Message bref à afficher (changement de sensibilité…).</summary>
     public string Toast { get; private set; } = "";
     public double ToastUntil { get; private set; }
@@ -94,7 +109,6 @@ public partial class DesktopPlayer : Node3D
     float yaw, pitch;
     float eyeY = EyeHeight;
     float jumpY, jumpVel;
-    float sensitivity = 0.0022f;
     double chargeTime;
     bool charging;
     double catchWindowLeft, catchCooldownLeft;
@@ -104,7 +118,26 @@ public partial class DesktopPlayer : Node3D
     double pickupBlockedUntil;
     Vector2 spawnPos;
     bool wasEliminated;
-    float camFraction = 1f;          // part de la distance caméra libre de décor
+    float camDist = CameraDistance;  // distance caméra libre de décor, lissée (rapproche vite, recule doucement)
+    float raise;                     // 0 → 1 : caméra montée par-dessus un couvert bas derrière le joueur
+    const float ShoulderOffset = 1.0f;   // décalage à droite : le personnage occupe le tiers gauche, le viseur reste dégagé
+    // Bascule d'épaule façon Knockout City : épaule bouchée (panneau, pylône) → la caméra passe en douceur sur l'autre épaule.
+    int sideTarget = 1;                  // +1 épaule droite (côté normal), -1 épaule gauche
+    float sideT = 1f;                    // 0 → 1 : position lissée de la bascule (gauche → droite)
+    double sideSince = -10;              // instant de la dernière bascule (hystérésis)
+    bool overTarget;                     // les deux épaules bouchées : caméra rapprochée au-dessus de la tête
+    float overT;                         // 0 → 1 : position lissée de cette vue haute
+    double overSince = -10;
+    const float SideBlockedArm = 1.4f;   // bras de caméra libre plus court que ça : l'épaule est bouchée
+    const float SideSwapTime = 0.25f;    // durée de la bascule (s)
+    const double SideHold = 1.0;         // on garde un côté au moins ce temps-là avant de rebasculer
+    const float ViewProbe = 4f;          // portée du test de vue devant la caméra (m)
+    const float CamRadius = 0.25f;       // sphère de la caméra : l'objectif ne frôle plus un mur (plan proche dans le décor = écran blanc)
+    const float CamMinDistance = 1.2f;   // plus près que ça d'un couvert, la caméra préfère passer par-dessus
+    const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
+    const float RaiseHeight = 0.9f;      // hauteur du passage par-dessus un couvert bas
+    const float AvatarHideDistance = 1.6f;   // caméra plus proche de la tête : le joueur est caché pour ne pas boucher l'écran
+    readonly SphereShape3D camShape = new() { Radius = CamRadius };
     int dashCharges;
     double dashRechargeLeft, dashStartedAt = -10;
     int dashCount;                   // compteur envoyé à l'hôte : chaque dash le fait avancer d'un cran
@@ -120,10 +153,17 @@ public partial class DesktopPlayer : Node3D
     public int DashCharges => dashCharges;
     public int DashMax => MaxCharges;
     public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
-    bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint;
+    bool padActive;
+    bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint, prevCrouch, crouchToggled;
     double catchOpenedAt = -10, feintUntil, perfectClaimAt = -10;
     bool ignoreClicksUntilRelease, fireLatch;
-    float fov = 100f;   // champ horizontal (Knockout City : large) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
+    float fov = 100f;   // champ horizontal (Knockout City : large, réglable) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
+    float lean;         // roulis de la caméra en pas chassé (degrés)
+    double jumpPressedAt = -10, groundedAt = -10;   // tampon d'appui et « coyote time » du saut
+    bool wasAirborne;
+    float airVel;
+    int chargeTicks;
+    double lastGhostAt;    // paliers sonores de la charge du lancer (1/3, 2/3, plein)
     double time;
 
     // Mode test : le joueur se pilote seul avec la même chaîne d'actions que le clavier-souris.
@@ -137,8 +177,39 @@ public partial class DesktopPlayer : Node3D
 
     struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, Feint, Curve; }
 
+    int killerId = -1;
+    float killCamBlend;   // 0 → 1 : la caméra recule et se tourne vers celui qui nous a mis KO
+
+    void OnHitScored(int shooterId, int targetId, bool kill)
+    {
+        if (targetId == Hurtbox.PlayerId && kill && shooterId != Hurtbox.PlayerId) killerId = shooterId;
+    }
+
+    public override void _ExitTree() => MatchController.HitScored -= OnHitScored;
+
+    /// <summary>KO : la caméra se tourne doucement vers le tireur (façon « kill cam »), puis reprend la main au retour.</summary>
+    void KillCam(float dt)
+    {
+        bool active = Hurtbox.Eliminated && killerId >= 0 && FreeRoam && !autoplay;
+        killCamBlend = Mathf.MoveToward(killCamBlend, active ? 1f : 0f, dt * 2.5f);
+        if (!Hurtbox.Eliminated) killerId = -1;
+        if (!active) return;
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (n is not Hurtbox h || h.PlayerId != killerId) continue;
+            var to = h.GlobalPosition - head.GlobalPosition;
+            float wantYaw = Mathf.Atan2(-to.X, -to.Z);
+            float wantPitch = Mathf.Clamp(Mathf.Atan2(to.Y - 0.6f, new Vector2(to.X, to.Z).Length()), -0.5f, 0.3f);
+            float k = 1f - Mathf.Exp(-3f * dt);
+            yaw = Mathf.LerpAngle(yaw, wantYaw, k);
+            pitch = Mathf.Lerp(pitch, wantPitch, k);
+            break;
+        }
+    }
+
     public override void _Ready()
     {
+        MatchController.HitScored += OnHitScored;
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
         if (FreeRoam)
         {
@@ -153,7 +224,7 @@ public partial class DesktopPlayer : Node3D
             AddChild(camera);
         }
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.55f };   // balle tenue réduite : elle ne masque pas l'écran
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.45f };   // balle tenue réduite : elle ne masque ni l'écran ni le HUD
         head.AddChild(holdPoint);
         if (FreeRoam) holdPoint.Scale = Vector3.One;   // à la 3e personne la balle garde sa taille
 
@@ -173,6 +244,7 @@ public partial class DesktopPlayer : Node3D
         }
         dashCharges = MaxCharges;
         autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-test") >= 0) StartCamTest();
         rng.Seed = 4242;
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -184,40 +256,59 @@ public partial class DesktopPlayer : Node3D
     void HideVrLimitWall()
     {
         foreach (var n in GetTree().GetNodesInGroup("limit_wall")) ((MeshInstance3D)n).Visible = false;
+        // Nom d'équipe peint au sol des zones : vu de loin et en rasant, ce n'est qu'un trait bleu écrasé (le HUD dit déjà qui est qui).
+        foreach (var n in GetTree().GetNodesInGroup("zone_label")) ((Node3D)n).Visible = false;
     }
 
     void LoadSettings()
     {
-        var cfg = new ConfigFile();
-        if (cfg.Load("user://settings.cfg") == Error.Ok)
-            sensitivity = Mathf.Clamp((float)cfg.GetValue("pc", "sensitivity", sensitivity).AsDouble(), 0.0005f, 0.01f);
-    }
-
-    void SaveSettings()
-    {
-        var cfg = new ConfigFile();
-        cfg.Load("user://settings.cfg");
-        cfg.SetValue("pc", "sensitivity", sensitivity);
-        cfg.Save("user://settings.cfg");
+        GameSettings.Load();
+        InputSetup.Register();
+        fov = GameSettings.Fov;
+        CameraFx.Reset();
     }
 
     void ShowToast(string text) { Toast = text; ToastUntil = time + 1.5; }
+    /// <summary>Geste du joueur (feinte, tacle, poussée) : petit autocollant, même langage que « PRISE ! » ou « PASSE ! » ; message du HUD s'il n'y a pas de Feedback.</summary>
+    void ShowSticker(string text) { if (!Feedback.LocalSticker(text)) ShowToast(text); }
+
+    public override void _Input(InputEvent e)
+    {
+        // Dernier périphérique utilisé : la manette joue même quand la souris n'est pas capturée.
+        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.4f) padActive = true;
+        else if (e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 4f || e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }) padActive = false;
+    }
+
+    /// <summary>Visée au stick droit : courbe cubique (précision au centre), un peu de friction sur un adversaire (aide manette uniquement).</summary>
+    void PadLook(float dt)
+    {
+        var look = Input.GetVector("look_left", "look_right", "look_up", "look_down");
+        if (look == Vector2.Zero) return;
+        float mag = look.Length();
+        look = look / mag * (mag * mag * mag);
+        float speed = Mathf.DegToRad(260f) * GameSettings.Sensitivity / GameSettings.DefaultSensitivity;   // degrés par seconde à fond
+        if (AimingAtEnemy && held != null) speed *= Mathf.Lerp(1f, 0.55f, GameSettings.AimAssist);
+        yaw -= look.X * speed * dt;
+        pitch = Mathf.Clamp(pitch - look.Y * speed * 0.7f * dt * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);
+        LookTravel += Mathf.Abs(look.X * speed * dt) + Mathf.Abs(look.Y * speed * dt);
+    }
 
     public override void _UnhandledInput(InputEvent e)
     {
         if (autoplay) return;
         if (e is InputEventMouseMotion motion && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            yaw -= motion.Relative.X * sensitivity;
-            pitch = Mathf.Clamp(pitch - motion.Relative.Y * sensitivity, -1.45f, 1.45f);
+            float sens = GameSettings.Sensitivity;
+            yaw -= motion.Relative.X * sens;
+            LookTravel += Mathf.Abs(motion.Relative.X * sens) + Mathf.Abs(motion.Relative.Y * sens);
+            pitch = Mathf.Clamp(pitch - motion.Relative.Y * sens * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);
         }
         else if (e is InputEventKey { Pressed: true, Echo: false } key)
         {
-            if (key.Keycode == Key.Escape) Input.MouseMode = Input.MouseModeEnum.Visible;
-            else if (key.Keycode is Key.Pageup or Key.KpAdd) ChangeSensitivity(1.15f);
+            if (key.Keycode is Key.Pageup or Key.KpAdd) ChangeSensitivity(1.15f);
             else if (key.Keycode is Key.Pagedown or Key.KpSubtract) ChangeSensitivity(1f / 1.15f);
         }
-        else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
+        else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured && !PauseMenu.IsOpen)
         {
             Input.MouseMode = Input.MouseModeEnum.Captured;   // le premier clic reprend la souris et ne lance pas
             ignoreClicksUntilRelease = true;
@@ -227,23 +318,73 @@ public partial class DesktopPlayer : Node3D
 
     void ChangeSensitivity(float factor)
     {
-        sensitivity = Mathf.Clamp(sensitivity * factor, 0.0005f, 0.01f);
-        SaveSettings();
-        ShowToast($"Sensibilité : {sensitivity / 0.0022f:0.00}x");
+        GameSettings.Sensitivity = Mathf.Clamp(GameSettings.Sensitivity * factor, 0.0005f, 0.01f);
+        GameSettings.Save();
+        ShowToast($"Sensibilité : {GameSettings.Sensitivity / GameSettings.DefaultSensitivity:0.00}x");
     }
 
     public override void _Process(double delta)
     {
+        if (!autoplay && !PauseMenu.IsOpen) PadLook((float)delta);
+        KillCam((float)delta);
         head.Rotation = new Vector3(pitch, yaw, 0);   // la vue suit la souris à chaque image (pas seulement à 60 Hz)
-        if (FreeRoam) PlaceCamera((float)delta);
+        // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
+        float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
+        var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
+        if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        if (camTest) CamTestMeasure();
+        camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
+        FadeBallsNearCamera();
+    }
+
+    readonly System.Collections.Generic.Dictionary<Ball, GeometryInstance3D[]> ballMeshes = new();
+
+    const uint NearBallLayer = 1u << 19;   // calque de rendu exclu de la caméra PC : balle collée à l'objectif
+    const float NearBallFadeFrom = 2.0f, NearBallHide = 1.2f;   // début de l'effacement, seuil de disparition (m)
+
+    /// <summary>
+    /// Balle qui frôle la caméra (tir reçu en vue d'épaule, balle qui passe devant l'objectif) : elle disparaît sous 1,2 m de l'objectif
+    /// (calque exclu de la caméra : marche dans tous les rendus, Compatibilité comprise), au lieu d'un disque géant qui couvre le HUD.
+    /// Dès 2 m, ses halos additifs (le grand disque lumineux) disparaissent de la même façon, et le reste s'efface là où la transparence
+    /// des maillages existe (Mobile et Forward+ ; en Compatibilité le cœur reste opaque jusqu'au seuil). Rendu seulement : la balle, sa visibilité et sa physique ne changent pas. Toutes les balles sont
+    /// concernées (libres ou tenues par d'autres), sauf celle que tient le joueur.
+    /// </summary>
+    void FadeBallsNearCamera()
+    {
+        camera.CullMask &= ~NearBallLayer;
+        var eye = camera.GlobalPosition;
+        foreach (var n in GetTree().GetNodesInGroup("balls"))
+        {
+            if (n is not Ball ball || ball.IsQueuedForDeletion()) continue;
+            float d = ball.GlobalPosition.DistanceTo(eye);
+            float fade = ball == held ? 0f : Mathf.Clamp((NearBallFadeFrom - d) / (NearBallFadeFrom - NearBallHide), 0f, 1f);
+            if (!ballMeshes.TryGetValue(ball, out var meshes))
+            {
+                if (fade <= 0f) continue;
+                var found = new System.Collections.Generic.List<GeometryInstance3D>();
+                foreach (var g in ball.FindChildren("*", "GeometryInstance3D", true, false)) if (g is GeometryInstance3D gi) found.Add(gi);
+                ballMeshes[ball] = meshes = found.ToArray();
+            }
+            foreach (var g in meshes)
+            {
+                if (!IsInstanceValid(g)) continue;
+                g.Transparency = fade;
+                // Sous 1,2 m (sous 2 m pour les halos) : calque 1 (le calque par défaut des balles) remplacé par le calque exclu ; rétabli au-delà.
+                bool halo = g is MeshInstance3D { MaterialOverride: BaseMaterial3D { BlendMode: BaseMaterial3D.BlendModeEnum.Add } };
+                bool hide = fade >= 1f || (halo && fade > 0f);
+                g.Layers = hide ? (g.Layers | NearBallLayer) & ~1u : (g.Layers & ~NearBallLayer) | 1u;
+            }
+            if (fade <= 0f) ballMeshes.Remove(ball);
+        }
+        foreach (var gone in new System.Collections.Generic.List<Ball>(ballMeshes.Keys)) if (!IsInstanceValid(gone)) ballMeshes.Remove(gone);
     }
 
     public override void _PhysicsProcess(double delta)
     {
         time += delta;
         float dt = (float)delta;
-        var input = autoplay ? AutoplayInput(delta) : ReadInput();
-        if (!autoplay && Input.MouseMode != Input.MouseModeEnum.Captured)
+        var input = camTest ? CamTestInput() : autoplay ? AutoplayInput(delta) : ReadInput();
+        if (!autoplay && (PauseMenu.IsOpen || Input.MouseMode != Input.MouseModeEnum.Captured && !padActive))
         {
             input = default;                                   // souris libérée : plus de réaction aux clics
             charging = false; chargeTime = 0;                  // Échap en pleine charge annule le lancer au lieu de le déclencher
@@ -261,7 +402,7 @@ public partial class DesktopPlayer : Node3D
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
             if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
             if (held != null) held.LocalHoldOverride = holdPoint;
-            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; ShowToast("Attrape parfaite !"); }
+            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « PRISE PARFAITE ! » (Feedback)
         }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
@@ -276,28 +417,28 @@ public partial class DesktopPlayer : Node3D
 
     PcInput ReadInput()
     {
-        var m = Vector2.Zero;
-        if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Up)) m.Y -= 1;
-        if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) m.Y += 1;
-        if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.Left)) m.X -= 1;
-        if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) m.X += 1;
-        bool jump = Input.IsKeyPressed(Key.Space), dash = Input.IsKeyPressed(FreeRoam ? Key.Shift : Key.E), catchDown = Input.IsMouseButtonPressed(MouseButton.Right);
-        bool pass = Input.IsMouseButtonPressed(MouseButton.Middle) || Input.IsKeyPressed(Key.X), lob = Input.IsKeyPressed(Key.R), feint = Input.IsKeyPressed(Key.F);
+        // Actions de l'InputMap (touches physiques réassignables, voir UI.InputSetup) : ZQSD sur AZERTY, WASD sur QWERTY.
+        static bool A(string action) => Input.IsActionPressed(action);
+        var m = Input.GetVector("move_left", "move_right", "move_forward", "move_back");   // stick analogique ou touches
+        bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
+        bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
+        if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }
+        else crouchToggled = false;
         var input = new PcInput
         {
             Move = m.LimitLength(1f),
-            Crouch = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.C),
+            Crouch = GameSettings.ToggleCrouch ? crouchToggled : crouchKey,
             Jump = jump && !prevJump,
             Dodge = dash && !prevDodge,
-            Sprint = !FreeRoam && Input.IsKeyPressed(Key.Shift),
+            Sprint = !FreeRoam && A("dash"),
             Catch = catchDown && !prevCatch,
-            Fire = Input.IsMouseButtonPressed(MouseButton.Left),
+            Fire = A("fire"),
             Pass = FreeRoam && pass && !prevPass,
             Lob = FreeRoam && lob && !prevLob,
             Feint = FreeRoam && feint && !prevFeint,
-            Curve = FreeRoam && Input.IsKeyPressed(Key.E),
+            Curve = FreeRoam && A("curve"),
         };
-        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint;
+        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
         return input;
     }
 
@@ -323,8 +464,16 @@ public partial class DesktopPlayer : Node3D
             dashCharges--;
             dashStartedAt = time;
             dashCount++;
+            Dashes++;
+            if (FreeRoam) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
+            if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
         }
         Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
+        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.05)   // ~3 silhouettes par dash
+        {
+            lastGhostAt = time;
+            Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
+        }
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
         float top = charging ? ChargeSpeed : FreeRoam || (input.Sprint && input.Move.Y < -0.1f && !crouched) ? RunSpeed : WalkSpeed;
@@ -385,6 +534,7 @@ public partial class DesktopPlayer : Node3D
                 else if (Elevation + jumpY < 0.3f) TryTackle();
             }
             worldPos += step;
+            WalkTravel += step.Length();
             var b = Zones.Map.Bounds;
             var c = new Vector2(Mathf.Clamp(worldPos.X, b.MinX + 0.5f, b.MaxX - 0.5f), Mathf.Clamp(worldPos.Y, b.MinZ + 0.5f, b.MaxZ - 0.5f));
             if (c != worldPos) velocity = Vector2.Zero;
@@ -436,11 +586,28 @@ public partial class DesktopPlayer : Node3D
         var terrace = map.TerraceAt(worldPos.X, worldPos.Y);
         float ground = terrace != null && feet >= terrace.Sy - 0.25f ? terrace.Sy : map.OverPit(worldPos.X, worldPos.Y, -0.05f) ? float.NegativeInfinity : 0f;
         bool grounded = jumpVel <= 0f && ground > float.NegativeInfinity && feet <= ground + 0.03f;
+        if (input.Jump) jumpPressedAt = time;
+        // Tampon de 0,12 s (appui juste avant de toucher le sol) et « coyote time » de 0,1 s (appui juste après avoir quitté une terrasse).
+        bool wantJump = time - jumpPressedAt <= 0.12 && !crouched && !Hurtbox.Eliminated && time >= evictUntil;
         if (grounded)
         {
+            groundedAt = time;
+            if (wasAirborne)
+            {
+                // Réception : la vue plonge un peu, plus fort après une grande chute ; son de pas lourd.
+                float impact = Mathf.Clamp(-airVel / 9f, 0f, 1f);
+                if (impact > 0.15f) { CameraFx.Kick(new Vector2(0, -2.5f * impact)); Sfx.Play(this, SfxKind.Land, null, 1f, -8f + 6f * impact); }
+                if (impact > 0.35f) Juice.Dust(this, new Vector3(worldPos.X, ground, worldPos.Y), 8 + (int)(10 * impact), 1.2f + impact);
+            }
+            wasAirborne = false;
             feet = ground; jumpVel = 0f; padFlight = false;
-            if (input.Jump && !crouched && !Hurtbox.Eliminated && time >= evictUntil) jumpVel = FreeJumpSpeed;
+            if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; Jumps++; Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
             else if (!Hurtbox.Eliminated) TryPad();
+        }
+        else if (wantJump && !padFlight && jumpVel <= 0f && jumpVel > -3f && time - groundedAt <= 0.1 && ground > float.NegativeInfinity)
+        {
+            jumpVel = FreeJumpSpeed; jumpPressedAt = -10;
+            Sfx.Play(this, SfxKind.Jump, null, 1f, -6f);
         }
         if (!grounded || jumpVel > 0f)
         {
@@ -449,6 +616,7 @@ public partial class DesktopPlayer : Node3D
             feet += jumpVel * dt;
             if (jumpVel < 0f && ground > float.NegativeInfinity && prev >= ground && feet <= ground) { feet = ground; jumpVel = 0f; padFlight = false; }
             if (feet < -6f) { feet = -6f; jumpVel = 0f; }   // fond de la fosse : l'hôte a déjà jugé la chute depuis longtemps
+            if (jumpVel != 0f) { wasAirborne = true; airVel = jumpVel; }
         }
         float elevation = terrace != null && feet >= terrace.Sy - 0.05f ? terrace.Sy : 0f;
         if (elevation != Elevation)
@@ -491,7 +659,7 @@ public partial class DesktopPlayer : Node3D
             tackledDash = dashCount;
             BallActions.Tackle(Hurtbox.PlayerId, h.PlayerId, dodgeDir);
             GD.Print($"[PC] Tacle sur le joueur {h.PlayerId}");
-            ShowToast("Tacle !");
+            ShowSticker("TACLE !");
             dodgeLeft = 0;
             velocity = dodgeDir * RunSpeed * 0.4f;   // le tacleur ralentit net
             return;
@@ -507,7 +675,7 @@ public partial class DesktopPlayer : Node3D
         dodgeLeft = 0; charging = false; chargeTime = 0; padFlight = false;
         if (Elevation > 0f) { evictDir = pushDir; evictUntil = time + 1.0; }
         GD.Print("[PC] Poussé par un tacle");
-        ShowToast("Poussé !");
+        ShowSticker("POUSSÉ !");
     }
 
     /// <summary>Quand les pieds sont sous le bord de la fosse, on tombe droit : le mur de la fosse nous garde à l'intérieur.</summary>
@@ -624,9 +792,19 @@ public partial class DesktopPlayer : Node3D
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
-                if (perfect && !BallActions.IsClient) { ShowToast("Attrape parfaite !"); GD.Print("[PC] Attrape parfaite"); }
+                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « PRISE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
+                if (viaCatch && !ally)
+                {
+                    // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
+                    CameraFx.Kick(new Vector2(0, -1.4f));
+                    CameraFx.Shake(perfect ? 0.3f : 0.14f);
+                    CameraFx.FovPunch(perfect ? -6f : -3f);
+                    if (perfect) Juice.HitStop(this, 0.1f, 0.1f);
+                }
                 else if (perfect) perfectClaimAt = time;   // client : on annonce quand l'hôte a confirmé (balle tenue avec un palier)
                 if (ally) { GD.Print("[PC] Passe reçue"); pickupBlockedUntil = time + 0.3; }
+                if (viaCatch && !ally && hostileFast) { Catches++; if (perfect) PerfectCatches++; }
+                else if (!viaCatch) Pickups++;
                 if (viaCatch) { catchWindowLeft = 0; catchCooldownLeft = 0; }   // attrape réussie : pas de recharge
                 if (BallActions.IsClient) pickupBlockedUntil = time + 0.3;
                 break;
@@ -634,18 +812,28 @@ public partial class DesktopPlayer : Node3D
         }
 
         AimingAtEnemy = BestEnemy(3.5f) != null;
+        // Cible verrouillée (affichée par UI.LockOnMarker) : l'adversaire que l'aide à la visée corrigera si on lance maintenant.
+        LockTarget = held != null && GameSettings.AimAssist > 0.01f ? BestEnemy(AssistCone * Mathf.Lerp(0.6f, 1f, GameSettings.AimAssist)) : null;
         if (!input.Fire) fireLatch = false;
         else if (held == null) fireLatch = true;          // clic déjà enfoncé au ramassage : il faut relâcher avant d'armer un lancer
         bool fire = input.Fire && !fireLatch;
 
-        if (held != null)
+        if (held != null && ThrowLocked)
+        {
+            // Avant le « GO ! » : la charge monte si on tient le clic, mais la balle reste en main (lâcher le clic annule la charge).
+            // Pas de message : le gros chiffre du compte à rebours occupe déjà le centre.
+            if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            else { charging = false; chargeTime = 0; }
+        }
+        else if (held != null)
         {
             if (input.Feint)
             {
                 // Feinte : le bras part comme pour un tir, sans lâcher. Le clic doit être relâché avant de réarmer.
                 charging = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
-                ShowToast("Feinte !");
+                Feints++;
+                ShowSticker("FEINTE !");
             }
             else if (input.Pass)
             {
@@ -656,12 +844,22 @@ public partial class DesktopPlayer : Node3D
             else if (input.Lob)
             {
                 var enemy = BestEnemy(AssistCone * 2f);
-                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition - camera.GlobalTransform.Basis.Z * AimDistance();
+                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
                 var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
                 if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }   // au-delà, la vitesse maximale ne suffit plus
                 Launch(ArcVelocity(holdPoint.GlobalPosition, to, 3.0f), 0f, Ball.ModeLob);
             }
-            else if (fire) { charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime); }
+            else if (fire)
+            {
+                if (!charging) chargeTicks = 0;
+                charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                int tick = Mathf.FloorToInt((float)(chargeTime / MaxChargeTime) * 3f + 0.001f);
+                if (tick > chargeTicks)
+                {
+                    chargeTicks = tick;
+                    Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
+                }
+            }
             else if (charging)
             {
                 float t = (float)(chargeTime / MaxChargeTime);
@@ -672,10 +870,16 @@ public partial class DesktopPlayer : Node3D
         }
         else { charging = false; chargeTime = 0; }
         holdPoint.Position = HoldLocalPosition();
+        // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
+        if (charging && chargeTime >= MaxChargeTime * 0.99)
+            holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
     }
 
     void Launch(Vector3 velocity, float spin, int mode)
     {
+        if (mode == Ball.ModePass) Passes++;
+        else if (mode == Ball.ModeLob) Lobs++;
+        else { Throws++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
         BallActions.Throw(held!, 1, velocity, spin, mode);
         if (spin != 0) apCurvePending = false; else if (mode == 0) apCurvePending = true;
         GD.Print($"[PC] Lancer {(mode == Ball.ModePass ? "passe" : mode == Ball.ModeLob ? "cloche" : spin != 0 ? "effet" : "tendu")} à {velocity.Length():0.0} m/s");
@@ -686,11 +890,15 @@ public partial class DesktopPlayer : Node3D
         chargeTime = 0;
         pickupBlockedUntil = time + 0.5;      // ne pas ramasser sa propre balle qui part
         catchWindowLeft = 0;                  // une fenêtre encore ouverte ne doit pas reprendre la balle lancée
-        fov = Mathf.Min(fov + 5f, 108f);      // petit coup de FOV : le lancer se sent
+        // Le lancer se sent : recul de la vue vers le haut et coup de champ, proportionnels à la vitesse ; secousse au lancer plein.
+        float power = Mathf.Clamp((velocity.Length() - MinThrow) / (MaxThrow - MinThrow), 0f, 1f);
+        CameraFx.Kick(new Vector2(0, 0.6f + 1.6f * power));
+        CameraFx.FovPunch(3f + 5f * power);
+        if (power > 0.95f) CameraFx.Shake(0.15f);
     }
 
     /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
-    static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
+    public static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
     {
         float g = Ball.ArcGravity;
         float top = Mathf.Max(from.Y, to.Y);
@@ -706,7 +914,7 @@ public partial class DesktopPlayer : Node3D
     Hurtbox? BestAlly()
     {
         var from = camera.GlobalPosition;
-        var fwd = -camera.GlobalTransform.Basis.Z;
+        var fwd = AimFwd;
         Hurtbox? best = null, nearest = null;
         float bestAngle = 35f, nearestDist = 33f;   // au-delà de 33 m la passe (24 m/s au plus) retomberait courte
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
@@ -721,10 +929,17 @@ public partial class DesktopPlayer : Node3D
         return best ?? nearest;
     }
 
+    /// <summary>Direction de visée sans les secousses de caméra (une secousse ne doit jamais dévier un tir).</summary>
+    Vector3 AimFwd => FreeRoam ? -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z : -camera.GlobalTransform.Basis.Z;
+
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
-        var rest = new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch));
+        // Vue subjective : balle à droite, au-dessus du bloc d'actions du HUD (bas centre) et à l'écart du viseur ;
+        // en vue d'épaule, devant la poitrine du personnage, comme avant.
+        var rest = FreeRoam
+            ? new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch))
+            : new Vector3(0.62f, Mathf.Lerp(-0.2f, -0.3f, crouch), Mathf.Lerp(-0.9f, -0.75f, crouch));
         rest.Z += ThrowCharge01 * 0.15f;       // la balle se recule en armant le lancer
         return rest;
     }
@@ -733,7 +948,7 @@ public partial class DesktopPlayer : Node3D
     Hurtbox? BestEnemy(float coneDegrees)
     {
         var from = camera.GlobalPosition;
-        var fwd = -camera.GlobalTransform.Basis.Z;
+        var fwd = AimFwd;
         Hurtbox? best = null;
         float bestAngle = coneDegrees;
         foreach (var node in GetTree().GetNodesInGroup("hurtboxes"))
@@ -751,7 +966,7 @@ public partial class DesktopPlayer : Node3D
     float AimDistance()
     {
         var from = camera.GlobalPosition;
-        var to = from + (-camera.GlobalTransform.Basis.Z) * 30f;
+        var to = from + AimFwd * 30f;
         var space = GetWorld3D().DirectSpaceState;
         var exclude = new Godot.Collections.Array<Rid>();
         for (int i = 0; i < 4; i++)
@@ -771,14 +986,14 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     Vector3 ThrowVelocity(float speed)
     {
-        var fwd = (-camera.GlobalTransform.Basis.Z).Normalized();
-        var enemy = BestEnemy(AssistCone);
+        var fwd = AimFwd.Normalized();
+        var enemy = GameSettings.AimAssist > 0.01f ? BestEnemy(AssistCone * Mathf.Lerp(0.6f, 1f, GameSettings.AimAssist)) : null;
         float dist = AimDistance();
         if (enemy != null)
         {
             var to = enemy.GlobalPosition - camera.GlobalPosition;
             dist = to.Length();
-            fwd = fwd.Lerp(to / dist, AssistStrength).Normalized();   // petit angle : mélange linéaire (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
+            fwd = fwd.Lerp(to / dist, AssistStrength * GameSettings.AimAssist).Normalized();   // petit angle : mélange linéaire (Slerp lève une exception si l'axe n'est pas parfaitement normalisé)
         }
         var aimPoint = camera.GlobalPosition + fwd * dist;
         float t = dist / speed;
@@ -790,40 +1005,401 @@ public partial class DesktopPlayer : Node3D
 
     void UpdateCamera(float dt)
     {
-        float target = charging ? 94f : 100f;
+        float target = charging ? GameSettings.Fov - 6f : GameSettings.Fov;   // on resserre en armant : la cible se rapproche
         fov = Mathf.Lerp(fov, target, 1f - Mathf.Exp(-10f * dt));
-        camera.Fov = fov;
     }
 
-    /// <summary>3e personne : la caméra flotte derrière l'épaule droite, orientée comme la tête, et reste dans l'arène.</summary>
-    void PlaceCamera(float dt)
+    /// <summary>
+    /// 3e personne : la caméra flotte derrière l'épaule droite (la gauche si la droite est bouchée, voir ChooseShoulder), orientée comme la tête, et reste dans l'arène.
+    /// Le bras de caméra est testé avec une sphère de 0,25 m (et non un rayon) : longer un muret ne fait plus entrer l'objectif dedans.
+    /// Elle se rapproche aussitôt qu'un décor l'exige et ne recule qu'en douceur ; elle ne descend pas sous la ligne des yeux.
+    /// </summary>
+    void PlaceCamera(float dt, Vector3 fxRot, Vector3 fxOffset, float realDt)
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
+        // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
+        var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
+        float strafe = velocity.Dot(right2);
+        lean = Mathf.Lerp(lean, -strafe * 0.28f, 1f - Mathf.Exp(-8f * realDt));
         var from = head.GlobalPosition;
-        var ideal = from + basis * new Vector3(0.75f, 0.25f, CameraDistance);
         var bnd = Zones.Map.Bounds;
-        ideal.Y = Mathf.Max(ideal.Y, Elevation + 0.3f);
-        // Le décor plein (couverts, pylône) ne doit pas passer devant : on rapproche la caméra du joueur, vite en entrant, doucement en sortant.
-        float full = from.DistanceTo(ideal);
-        float allowed = full;
-        var space = GetWorld3D().DirectSpaceState;
-        var exclude = new Godot.Collections.Array<Rid>();
-        for (int i = 0; i < 4; i++)
+        // Bras de caméra façon jeu d'épaule : d'abord le point d'épaule (à droite de la tête), puis le recul derrière ce point.
+        // Si un mur rapproche la caméra, le personnage reste à gauche de l'écran au lieu de boucher le viseur.
+        float lift = 0.35f + 0.8f * killCamBlend;
+        float len = CameraDistance + 2.2f * killCamBlend;
+        // Jamais sous la ligne des yeux, ni sous celle d'un joueur debout quand on est accroupi : la caméra reste au-dessus des épaules.
+        float minCamY = Mathf.Max(from.Y + CamMinAboveEyes, Elevation + EyeHeight - 0.1f);
+        ChooseShoulder(dt, basis, from, lift, minCamY, len, bnd);
+        // Côté lissé (-1 → +1) et vue haute : épaule plus proche du centre, pivot plus haut, bras plus court.
+        float side = Mathf.Lerp(-1f, 1f, Mathf.SmoothStep(0f, 1f, sideT));
+        float over = Mathf.SmoothStep(0f, 1f, overT);
+        lift += 0.55f * over;
+        len *= 1f - 0.35f * over;
+        var toShoulder = basis * new Vector3(ShoulderOffset * side * (1f - 0.8f * over), lift, 0f);
+        var shoulder = from + toShoulder * (CamFree(from, from + toShoulder, bnd) / toShoulder.Length());
+        float free = CamFree(shoulder, shoulder + Boom(basis, shoulder, minCamY, len), bnd);
+        // Couvert derrière soi qui collerait la caméra au dos : elle passe par-dessus, si la vue y est nettement plus dégagée.
+        bool high = false;
+        if (free < Mathf.Max(CamMinDistance + 0.3f, 0.75f * len) && CamFree(shoulder, shoulder + Vector3.Up * RaiseHeight, bnd) > RaiseHeight - 0.01f)
         {
-            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, ideal, 0xFFFFFFFF, exclude));
-            if (hit.Count == 0) break;
-            var hp = hit["position"].AsVector3();
-            bool arenaWall = hp.X < bnd.MinX + 0.6f || hp.X > bnd.MaxX - 0.6f || hp.Z < bnd.MinZ + 0.6f || hp.Z > bnd.MaxZ - 0.6f || hp.Y > bnd.CeilingHeight - 0.5f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor && !arenaWall) { allowed = Mathf.Min(full, Mathf.Max(0.2f, from.DistanceTo(hp) - 0.25f)); break; }
-            exclude.Add(hit["rid"].AsRid());
+            var top = shoulder + Vector3.Up * RaiseHeight;
+            high = CamFree(top, top + Boom(basis, top, minCamY, len), bnd) > free + 0.6f;
         }
-        float f = allowed / full;
-        camFraction = f < camFraction ? f : Mathf.Lerp(camFraction, f, 1f - Mathf.Exp(-9f * dt));
-        var pos = from.Lerp(ideal, camFraction);
+        raise = Mathf.Lerp(raise, high ? 1f : 0f, 1f - Mathf.Exp(-(high ? 8f : 4f) * dt));
+        var pivot = shoulder;
+        if (raise > 0.01f) pivot += Vector3.Up * CamFree(shoulder, shoulder + Vector3.Up * (RaiseHeight * raise), bnd);
+        // Le bras réel est testé à chaque image depuis le pivot réel : aucune position intermédiaire du lissage n'entre dans le décor.
+        var boom = Boom(basis, pivot, minCamY, len);
+        free = CamFree(pivot, pivot + boom, bnd);
+        // Dos à un grand couvert (pylône, pilier) : la caméra serait collée au joueur, caché. Elle passe alors derrière le couvert,
+        // qui devient translucide tant qu'il est entre elle et le joueur (voir GhostCovers). Jamais à travers les murs d'enceinte.
+        coversThrough.Clear();
+        if (free < AvatarHideDistance + 0.4f && killCamBlend < 0.01f)
+        {
+            float past = CamFree(pivot, pivot + boom, bnd, coversThrough);
+            if (past > len - 0.01f && CamInsideSolid(pivot + boom, bnd))
+            {
+                // Le bras finit dans le couvert (pylône épais) : on le prolonge jusqu'à en sortir, de 1,5 m au plus.
+                float reach = CamFree(pivot, pivot + boom * ((len + 1.5f) / len), bnd, coversThrough);
+                past = 0f;
+                for (float d = len + 0.2f; d <= reach + 0.001f; d += 0.2f)
+                    if (!CamInsideSolid(pivot + boom * (d / len), bnd)) { past = d; break; }
+            }
+            if (past > free + 1f && !CamInsideSolid(pivot + boom * (past / len), bnd)) free = past;
+            else coversThrough.Clear();
+        }
+        camDist = free < camDist ? free : Mathf.Lerp(camDist, free, 1f - Mathf.Exp(-(coversThrough.Count > 0 ? 10f : 2.5f) * dt));   // rapproche tout de suite, recule doucement (vite quand elle passe derrière un couvert : le joueur est caché tant qu'elle est collée)
+        var pos = pivot + boom * (camDist / len);
+        // Filet de sécurité : un modèle plus gros que sa collision (abri, conteneur) ne doit jamais avaler l'objectif.
+        float inside = OutsideDecorFraction(pivot, pos);
+        if (inside < 1f) { camDist *= inside; pos = pivot + boom * (camDist / len); }
+        pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
         pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
-        camera.GlobalTransform = new Transform3D(basis, pos);
+        var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
+        camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
+        HideDecorInFront(pos, from);
+        // Rotor du moyeu (barre rayée de 8 m qui tourne) : la caméra l'ignore pour ne pas sauter à chaque passage,
+        // mais il devient translucide dès qu'il passe entre elle et le joueur ou frôle l'objectif.
+        var chest = from + Vector3.Down * 0.7f;
+        if (RotorCrosses(pos, from, 0.1f) || RotorCrosses(pos, chest, 0.1f) || RotorCrosses(pos, pos, 0.6f)) rotorGhostUntil = time + 0.25;
+        // Un couvert qui cache la tête (bras d'épaule libre, mais ligne de vue coupée par un coin) est aussi translucide.
+        // Pas pour le buste : derrière un muret bas, on doit le voir opaque (c'est lui qui protège).
+        CoversOnSight(pos, from, bnd);
+        GhostCovers();
+    }
+
+    /// <summary>
+    /// Choisit l'épaule de la caméra. Chaque côté est sondé à pleine épaule : bras d'épaule, bras de caméra libre, puis vue devant l'objectif.
+    /// Côté courant bouché (bras sous ~1,4 m, épaule contre le décor ou panneau juste devant l'objectif) et autre côté nettement plus dégagé :
+    /// bascule, gardée au moins 1 s. Retour à l'épaule droite seulement quand elle est clairement libre. Les deux bouchés : vue haute.
+    /// L'orientation de la caméra ne change pas : le viseur (centre de l'écran) et la direction de tir restent les mêmes.
+    /// </summary>
+    void ChooseShoulder(float dt, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
+    {
+        var (curArm, curOpen, curBlocked) = ProbeSide(sideTarget, basis, from, lift, minCamY, len, bnd);
+        var (othArm, othOpen, othBlocked) = ProbeSide(-sideTarget, basis, from, lift, minCamY, len, bnd);
+        if (time - sideSince >= SideHold && killCamBlend < 0.01f)
+        {
+            bool swap = curBlocked && !othBlocked && othOpen > curOpen + 1f;
+            // Retour à l'épaule droite (côté normal) quand elle est clairement libre.
+            if (sideTarget < 0 && !othBlocked && othArm > 0.65f * len && othOpen > curOpen - 0.5f) swap = true;
+            if (swap) { sideTarget = -sideTarget; sideSince = time; (curBlocked, othBlocked) = (othBlocked, curBlocked); }
+        }
+        // Vue haute seulement si les deux bras sont courts (un panneau devant soi ne se contourne pas par le haut).
+        bool both = curBlocked && othBlocked && Mathf.Max(curArm, othArm) < SideBlockedArm && killCamBlend < 0.01f;
+        if (both != overTarget && (both || time - overSince >= 0.5)) { overTarget = both; overSince = time; }
+        sideT = Mathf.MoveToward(sideT, sideTarget > 0 ? 1f : 0f, dt / SideSwapTime);
+        overT = Mathf.MoveToward(overT, overTarget ? 1f : 0f, dt / 0.3f);
+    }
+
+    /// <summary>Sonde un côté à pleine épaule : bras de caméra libre (m), note d'ouverture, et s'il est bouché.</summary>
+    (float arm, float open, bool blocked) ProbeSide(int s, Basis basis, Vector3 from, float lift, float minCamY, float len, Maps.BoundsDef bnd)
+    {
+        var toShoulder = basis * new Vector3(ShoulderOffset * s, lift, 0f);
+        float reach = CamFree(from, from + toShoulder, bnd) / toShoulder.Length();   // 0 → 1
+        var shoulder = from + toShoulder * reach;
+        var boom = Boom(basis, shoulder, minCamY, len);
+        float arm = CamFree(shoulder, shoulder + boom, bnd);
+        var cam = shoulder + boom * (arm / len);
+        float view = CamFree(cam, cam - basis.Z * ViewProbe, bnd);   // panneau collé devant l'objectif
+        float open = arm + 0.5f * view + 1.5f * reach;
+        bool blocked = arm < SideBlockedArm || reach < 0.5f || view < 1.2f;
+        return (arm, open, blocked);
+    }
+
+    /// <summary>Bras de caméra de longueur fixe derrière le pivot ; il ne descend pas sous minCamY (plus de caméra au ras du sol en regardant en l'air ou accroupi).</summary>
+    Vector3 Boom(Basis basis, Vector3 pivot, float minCamY, float len)
+    {
+        var arm = basis * new Vector3(0f, 0f, len);
+        float minY = minCamY - pivot.Y;
+        if (arm.Y >= minY) return arm;
+        float y = Mathf.Clamp(minY, -0.95f * len, 0.95f * len);
+        var back = new Basis(Vector3.Up, yaw) * Vector3.Back;   // on garde toute la distance, à l'horizontale derrière soi
+        return back * Mathf.Sqrt(len * len - y * y) + Vector3.Up * y;
+    }
+
+    /// <summary>
+    /// Distance libre (m) que la sphère de caméra peut parcourir de a vers b sans entrer dans un décor plein.
+    /// Le plafond, le rotor, les balles et les joueurs sont ignorés ; les accessoires fins (lampadaires, poteaux…)
+    /// aussi : la caméra ne saute pas en les frôlant, ils sont cachés s'ils passent devant (voir HideDecorInFront).
+    /// </summary>
+    float CamFree(Vector3 a, Vector3 b, Maps.BoundsDef bnd, System.Collections.Generic.HashSet<StaticBody3D>? throughCovers = null)
+    {
+        var motion = b - a;
+        float full = motion.Length();
+        if (full < 0.01f) return full;
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        float free = full;
+        for (int i = 0; i < 6; i++)
+        {
+            var q = new PhysicsShapeQueryParameters3D { Shape = camShape, Transform = new Transform3D(Basis.Identity, a), Motion = motion, Exclude = exclude };
+            var r = space.CastMotion(q);
+            if (r.Length < 2 || r[1] >= 1f) break;
+            // Qu'a-t-on touché ? La sphère posée au point de contact le dit.
+            q.Transform = new Transform3D(Basis.Identity, a + motion * r[1]);
+            q.Motion = Vector3.Zero;
+            var hits = space.IntersectShape(q, 8);
+            bool blocked = hits.Count == 0;   // contact sans collider trouvé : prudence, on s'arrête là
+            foreach (var h in hits)
+            {
+                var col = h["collider"].AsGodotObject();
+                if (!BlocksCamera(col, h["shape"].AsInt32(), bnd)) exclude.Add(h["rid"].AsRid());
+                else if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) { throughCovers.Add(sb); exclude.Add(h["rid"].AsRid()); }
+                else blocked = true;
+            }
+            if (blocked) { free = full * r[0]; break; }
+        }
+        // Rayon en complément : la sphère ignore un mur qu'elle touche déjà au départ (dos collé au mur), le rayon non.
+        var rayExclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 6; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, rayExclude));
+            if (hit.Count == 0) break;
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
+            {
+                if (throughCovers != null && col is StaticBody3D sb && IsCover(sb)) throughCovers.Add(sb);
+                else
+                {
+                    free = Mathf.Min(free, a.DistanceTo(hit["position"].AsVector3()) - CamRadius);
+                    break;
+                }
+            }
+            rayExclude.Add(hit["rid"].AsRid());
+        }
+        return Mathf.Clamp(free, 0f, full);
+    }
+
+    /// <summary>Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.</summary>
+    static bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
+    {
+        if (collider is not StaticBody3D body || body is Maps.Rotor) return false;
+        var p = body.GlobalPosition;
+        if (p.Y > bnd.CeilingHeight - 0.5f) return false;
+        return !(body.ShapeOwnerGetOwner(body.ShapeFindOwner(shape)) is CollisionShape3D cs && IsThin(cs));
+    }
+
+    readonly System.Collections.Generic.HashSet<StaticBody3D> coversThrough = new();
+    readonly System.Collections.Generic.Dictionary<ulong, bool> coverCache = new();
+    readonly System.Collections.Generic.Dictionary<MeshInstance3D, Material?> ghosted = new();
+    static StandardMaterial3D? ghostMat;
+
+    /// <summary>Couvert qu'on peut voir en transparence : emprise au sol de moins de 4,5 m (pylône, piliers, abris, gros accessoires), pas un mur d'enceinte.</summary>
+    bool IsCover(StaticBody3D body)
+    {
+        if (coverCache.TryGetValue(body.GetInstanceId(), out bool c)) return c;
+        c = false;
+        foreach (var n in body.GetChildren())
+        {
+            if (n is not CollisionShape3D { Shape: { } shape } cs) continue;
+            var sc = cs.GlobalTransform.Basis.Scale;
+            float size = shape switch
+            {
+                BoxShape3D box => Mathf.Max(box.Size.X * sc.X, box.Size.Z * sc.Z),
+                CylinderShape3D cyl => 2f * cyl.Radius * Mathf.Max(sc.X, sc.Z),
+                CapsuleShape3D cap => 2f * cap.Radius * Mathf.Max(sc.X, sc.Z),
+                _ => 99f,
+            };
+            if (size > 4.5f) { c = false; break; }
+            c = true;
+        }
+        return coverCache[body.GetInstanceId()] = c;
+    }
+
+    /// <summary>Maillages des couverts (boîte locale grossie de 0,2 m, transformée inverse) pour OutsideDecorFraction.</summary>
+    System.Collections.Generic.List<(MeshInstance3D mesh, Transform3D toLocal, Aabb box)>? coverMeshes;
+
+    /// <summary>
+    /// Part du segment pivot → cam (0 → 1) que l'objectif peut parcourir sans entrer dans le maillage d'un couvert (boîte orientée du
+    /// maillage). 1 si la caméra est dehors. Les couverts rendus translucides (GhostCovers) ne comptent pas.
+    /// </summary>
+    float OutsideDecorFraction(Vector3 pivot, Vector3 cam)
+    {
+        if (coverMeshes == null)
+        {
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return 1f;
+            coverMeshes = new();
+            foreach (var n in arena.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi) continue;
+                StaticBody3D? body = null;
+                for (var p = mi.GetParent(); p != null && p != arena; p = p.GetParent())
+                    if (p is StaticBody3D sb) { body = sb; break; }
+                if (body == null || body is Maps.Rotor || !IsCover(body)) continue;
+                var box = mi.GetAabb();
+                if (box.Size.LengthSquared() < 1e-4f) continue;
+                coverMeshes.Add((mi, mi.GlobalTransform.AffineInverse(), box.Grow(0.2f)));
+            }
+        }
+        bool Inside(Vector3 p)
+        {
+            foreach (var (mi, toLocal, box) in coverMeshes!)
+            {
+                if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
+                if (box.HasPoint(toLocal * p)) return true;
+            }
+            return false;
+        }
+        if (!Inside(cam) || Inside(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
+        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
+        for (int i = 0; i < 10; i++)
+        {
+            float mid = 0.5f * (lo + hi);
+            if (Inside(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
+    /// <summary>Vrai si la sphère de caméra posée en p est dans un décor plein.</summary>
+    bool CamInsideSolid(Vector3 p, Maps.BoundsDef bnd)
+    {
+        var q = new PhysicsShapeQueryParameters3D { Shape = camShape, Transform = new Transform3D(Basis.Identity, p) };
+        foreach (var h in GetWorld3D().DirectSpaceState.IntersectShape(q, 8))
+            if (BlocksCamera(h["collider"].AsGodotObject(), h["shape"].AsInt32(), bnd)) return true;
+        return false;
+    }
+
+    double rotorGhostUntil = -1;
+
+    /// <summary>Ajoute à coversThrough les couverts coupés par le segment a → b (rayon).</summary>
+    void CoversOnSight(Vector3 a, Vector3 b, Maps.BoundsDef bnd)
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var exclude = new Godot.Collections.Array<Rid>();
+        for (int i = 0; i < 6; i++)
+        {
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(a, b, 0xFFFFFFFF, exclude));
+            if (hit.Count == 0) return;
+            var col = hit["collider"].AsGodotObject();
+            if (BlocksCamera(col, hit["shape"].AsInt32(), bnd))
+            {
+                if (col is StaticBody3D sb && IsCover(sb)) coversThrough.Add(sb);
+                else return;   // mur d'enceinte : rien à faire
+            }
+            exclude.Add(hit["rid"].AsRid());
+        }
+    }
+
+    /// <summary>Le segment a → b passe dans la barre ou le tambour du rotor (boîtes grossies de grow), ou a y est déjà.</summary>
+    bool RotorCrosses(Vector3 a, Vector3 b, float grow)
+    {
+        if (Maps.Rotor.Current is not { } r || !IsInstanceValid(r) || !r.IsInsideTree()) return false;
+        var inv = r.GlobalTransform.AffineInverse();
+        Vector3 la = inv * a, lb = inv * b;
+        float h = r.YMax - r.YMin;
+        var bar = new Aabb(new Vector3(-r.ArmLength, -h / 2f, -r.Thickness / 2f), new Vector3(2f * r.ArmLength, h, r.Thickness)).Grow(grow);
+        var drum = new Aabb(new Vector3(-0.6f, -h / 2f - 0.1f, -0.6f), new Vector3(1.2f, h + 0.2f, 1.2f)).Grow(grow);
+        return bar.HasPoint(la) || drum.HasPoint(la) || bar.IntersectsSegment(la, lb) || drum.IntersectsSegment(la, lb);
+    }
+
+    /// <summary>Couverts entre la caméra et le joueur (coversThrough) et rotor gênant : matériau translucide ; rétablis dès qu'ils ne gênent plus.</summary>
+    void GhostCovers()
+    {
+        ghostMat ??= new StandardMaterial3D
+        {
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0.78f, 0.84f, 0.95f, 0.12f), CullMode = BaseMaterial3D.CullModeEnum.Back,
+        };
+        var keep = new System.Collections.Generic.HashSet<MeshInstance3D>();
+        var roots = new System.Collections.Generic.List<Node3D>(coversThrough);
+        if (time < rotorGhostUntil && Maps.Rotor.Current is { } rotor && IsInstanceValid(rotor)) roots.Add(rotor);
+        foreach (var body in roots)
+        {
+            if (!IsInstanceValid(body)) continue;
+            foreach (var n in body.FindChildren("*", "MeshInstance3D", true, false))
+            {
+                if (n is not MeshInstance3D mi || !mi.Visible) continue;
+                keep.Add(mi);
+                if (ghosted.ContainsKey(mi)) continue;
+                ghosted[mi] = mi.MaterialOverride;
+                mi.MaterialOverride = ghostMat;
+            }
+        }
+        if (ghosted.Count == keep.Count) return;
+        foreach (var mi in new System.Collections.Generic.List<MeshInstance3D>(ghosted.Keys))
+        {
+            if (keep.Contains(mi)) continue;
+            if (IsInstanceValid(mi)) mi.MaterialOverride = ghosted[mi];
+            ghosted.Remove(mi);
+        }
+    }
+
+    /// <summary>Accessoire fin : emprise au sol de moins de 0,8 m dans les deux sens (lampadaire, poteau, borne, piédestal).</summary>
+    static bool IsThin(CollisionShape3D cs)
+    {
+        var sc = cs.GlobalTransform.Basis.Scale;
+        float s = Mathf.Max(sc.X, sc.Z);
+        return cs.Shape switch
+        {
+            BoxShape3D box => Mathf.Max(box.Size.X, box.Size.Z) * s < 0.8f,
+            CylinderShape3D cyl => cyl.Radius * s < 0.4f,
+            CapsuleShape3D cap => cap.Radius * s < 0.4f,
+            _ => false,
+        };
+    }
+
+    /// <summary>Décors cachables : accessoires sans collision (guirlandes, lampadaires décoratifs…) ou fins, avec leur boîte dans le monde.</summary>
+    System.Collections.Generic.List<(GeometryInstance3D mesh, Aabb box)>? thinDecor;
+    readonly System.Collections.Generic.HashSet<GeometryInstance3D> hiddenDecor = new();
+
+    /// <summary>
+    /// Comme MenuBackdrop.ClearShot, mais à chaque image : un accessoire fin entre la caméra et le joueur est caché, puis réaffiché dès qu'il ne gêne plus.
+    /// Les gros décors (couverts, immeubles) ne sont jamais cachés : la caméra s'arrête devant eux.
+    /// </summary>
+    void HideDecorInFront(Vector3 cam, Vector3 headPos)
+    {
+        if (thinDecor == null)
+        {
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return;
+            thinDecor = new();
+            foreach (var n in arena.FindChildren("*", "GeometryInstance3D", true, false))
+            {
+                if (n is not GeometryInstance3D g) continue;
+                StaticBody3D? body = null;
+                for (var p = g.GetParent(); p != null && p != arena; p = p.GetParent())
+                    if (p is StaticBody3D sb) { body = sb; break; }
+                if (body == null || body is Maps.Rotor) continue;
+                bool hideable = true, solid = false;
+                foreach (var c in body.GetChildren())
+                    if (c is CollisionShape3D cs) { solid = true; if (!IsThin(cs)) { hideable = false; break; } }
+                if (!hideable) continue;
+                var box = g.GlobalTransform * g.GetAabb();
+                if (box.Size.Length() > (solid ? 8f : 30f)) continue;   // jamais les grands décors (une guirlande traversable peut être longue)
+                thinDecor.Add((g, box.Grow(0.15f)));
+            }
+        }
+        var chest = headPos + Vector3.Down * 0.7f;
+        foreach (var (g, box) in thinDecor)
+        {
+            if (!IsInstanceValid(g)) continue;
+            // Devant le joueur, ou collé à l'objectif (un poteau à 30 cm de la caméra mange un quart de l'écran).
+            bool front = box.IntersectsSegment(cam, headPos) || box.IntersectsSegment(cam, chest) || box.Grow(0.45f).HasPoint(cam);
+            if (front && g.Visible && hiddenDecor.Add(g)) g.Visible = false;
+            else if (!front && hiddenDecor.Remove(g)) g.Visible = true;
+        }
     }
 
     /// <summary>Échange de plaques : le joueur se retrouve au même endroit relatif de la plaque d'arrivée (jeu libre) ou y est simplement posé (zones).</summary>
@@ -874,12 +1450,16 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camFraction > 0.4f;   // caméra collée au joueur : on le fond pour ne pas masquer le viseur
+            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
+            selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
     }
 
     // ---------------------------------------------------------------- mode test
+
+    /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
+    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
 
     PcInput AutoplayInput(double delta)
     {
@@ -930,11 +1510,14 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() < 10f) continue;
                 var rel = head.GlobalPosition - b.GlobalPosition;
-                if (rel.Length() < 6f && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
+                // --bande-annonce : appui au dernier moment, dans la fenêtre d'attrape parfaite (la balle gagne un palier à chaque échange)
+                float reach = TrailerTakes ? b.LinearVelocity.Length() * (float)PerfectCatchWindow * 0.8f + 0.6f : 6f;
+                if (rel.Length() < reach && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
             }
 
-        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche.
-        if (held != null && enemy != null)
+        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche. Pas avant le « GO ! » : un lancer relâché
+        // pendant le décompte serait annulé et le joueur automatique, déjà relâché, ne tirerait plus jamais cette balle.
+        if (held != null && enemy != null && !ThrowLocked)
         {
             float err = Mathf.RadToDeg((-head.GlobalTransform.Basis.Z).AngleTo(enemy.GlobalPosition - head.GlobalPosition));
             if (apFireStart < 0 && err < 6f) apFireStart = time + rng.RandfRange(0.0f, 0.7f);
