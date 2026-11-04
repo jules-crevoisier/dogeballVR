@@ -1094,6 +1094,13 @@ public partial class DesktopPlayer : Node3D
         float m = FreeRoam ? -0.2f : ZoneCamOutside;   // cartes en zones : la caméra peut sortir de l'enceinte (voir BlocksCamera)
         pos.X = Mathf.Clamp(pos.X, b.MinX - m, b.MaxX + m);
         pos.Z = Mathf.Clamp(pos.Z, b.MinZ - m, b.MaxZ + m);
+        if (!FreeRoam)
+        {
+            // Hors de l'enceinte, le décor qui borde le terrain (parapets, caisses) n'a pas de collision : la caméra reste à hauteur
+            // d'une vue debout, même accroupi, pour passer au-dessus au lieu de le voir de dos en gros plan.
+            float outside = Mathf.Max(Mathf.Max(b.MinX - pos.X, pos.X - b.MaxX), Mathf.Max(b.MinZ - pos.Z, pos.Z - b.MaxZ));
+            if (outside > 0f) pos.Y = Mathf.Max(pos.Y, Mathf.Lerp(pos.Y, Elevation + EyeHeight + 0.7f, Mathf.Clamp(outside / 0.8f, 0f, 1f)));
+        }
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
         HideDecorInFront(pos, from);
@@ -1114,7 +1121,12 @@ public partial class DesktopPlayer : Node3D
     {
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z)));
-        camera.GlobalTransform = new Transform3D(shaken, head.GlobalPosition + basis * fxOffset);
+        // Collé à un couvert dont le modèle déborde de sa collision (conteneur, abri) : l'œil reculerait dans le maillage
+        // et l'écran deviendrait d'une seule couleur. On recule l'objectif à l'horizontale (0,8 m au plus) jusqu'à en sortir.
+        var eye = head.GlobalPosition;
+        var back = new Basis(Vector3.Up, yaw) * Vector3.Back;
+        for (int i = 0; i < 8 && InCoverMesh(eye); i++) eye += back * 0.1f;
+        camera.GlobalTransform = new Transform3D(shaken, eye + basis * fxOffset);
         if (eyeView) return;
         // Passage de la caméra d'épaule à la vue subjective : couverts translucides et décor caché rétablis, épaule droite par défaut.
         eyeView = true;
@@ -1279,39 +1291,41 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     float OutsideDecorFraction(Vector3 pivot, Vector3 cam)
     {
+        if (!InCoverMesh(cam) || InCoverMesh(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
+        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
+        for (int i = 0; i < 10; i++)
+        {
+            float mid = 0.5f * (lo + hi);
+            if (InCoverMesh(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
+    /// <summary>Vrai si p est dans le maillage (boîte orientée grossie de 0,2 m) d'un couvert opaque.</summary>
+    bool InCoverMesh(Vector3 p)
+    {
         if (coverMeshes == null)
         {
-            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return 1f;
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return false;
             coverMeshes = new();
             foreach (var n in arena.FindChildren("*", "MeshInstance3D", true, false))
             {
                 if (n is not MeshInstance3D mi) continue;
                 StaticBody3D? body = null;
-                for (var p = mi.GetParent(); p != null && p != arena; p = p.GetParent())
-                    if (p is StaticBody3D sb) { body = sb; break; }
+                for (var par = mi.GetParent(); par != null && par != arena; par = par.GetParent())
+                    if (par is StaticBody3D sb) { body = sb; break; }
                 if (body == null || body is Maps.Rotor || !IsCover(body)) continue;
                 var box = mi.GetAabb();
                 if (box.Size.LengthSquared() < 1e-4f) continue;
                 coverMeshes.Add((mi, mi.GlobalTransform.AffineInverse(), box.Grow(0.2f)));
             }
         }
-        bool Inside(Vector3 p)
+        foreach (var (mi, toLocal, box) in coverMeshes)
         {
-            foreach (var (mi, toLocal, box) in coverMeshes!)
-            {
-                if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
-                if (box.HasPoint(toLocal * p)) return true;
-            }
-            return false;
+            if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
+            if (box.HasPoint(toLocal * p)) return true;
         }
-        if (!Inside(cam) || Inside(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
-        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
-        for (int i = 0; i < 10; i++)
-        {
-            float mid = 0.5f * (lo + hi);
-            if (Inside(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
-        }
-        return lo;
+        return false;
     }
 
     /// <summary>Vrai si la sphère de caméra posée en p est dans un décor plein.</summary>
