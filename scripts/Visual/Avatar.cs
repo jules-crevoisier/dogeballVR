@@ -118,6 +118,7 @@ public partial class Avatar : Node3D
     static float RestHeadHeight(Node3D model, Skeleton3D skel)
     {
         int bone = skel.FindBone("Tete");
+        if (bone < 0) bone = skel.FindBone("Head");   // mannequin type Unreal (tools/blender/mannequin.py), même repère : base du crâne
         if (bone < 0) return DefaultHeadHeight;
         var toModel = skel.Transform;
         for (var n = skel.GetParent(); n != null && n != model; n = n.GetParent())
