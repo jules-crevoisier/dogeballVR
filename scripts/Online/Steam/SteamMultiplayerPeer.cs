@@ -75,8 +75,7 @@ public partial class SteamMultiplayerPeer : MultiplayerPeerExtension
     }
 
     /// <summary>Vrai si la ligne de commande demande le transport de test <c>--transport=udp-p2p</c> (au lieu d'ENet).</summary>
-    public static bool UdpTransportRequested =>
-        Array.IndexOf(OS.GetCmdlineUserArgs(), "--transport=udp-p2p") >= 0 || Array.IndexOf(OS.GetCmdlineArgs(), "--transport=udp-p2p") >= 0;
+    public static bool UdpTransportRequested => Tools.DevFlags.Has("--transport=udp-p2p");
 
     /// <summary>Hôte de test : peer Steam sur UDP local, port d'écoute <paramref name="port"/>.</summary>
     public static Error CreateUdpServer(int port, out MultiplayerPeer peer)

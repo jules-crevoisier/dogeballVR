@@ -38,7 +38,7 @@ public partial class DesktopHud : CanvasLayer
     {
         Layer = 5;
         ProcessMode = ProcessModeEnum.Always;   // tourne sous la pause (arbre gelé) pour cacher les annonces : voir _Process
-        hudTest = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--hud-test") >= 0;
+        hudTest = Tools.DevFlags.Has("--hud-test");
         root = new Control { Name = "Root", Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);

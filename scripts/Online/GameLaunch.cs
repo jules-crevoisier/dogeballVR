@@ -129,8 +129,7 @@ public static class ReconnectSecret
     {
         get
         {
-            foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--token=") && a.Length > 8) return "secret_" + a[8..];
-            return "secret";
+            return Tools.DevFlags.Value("--token=") is { Length: > 0 } token ? "secret_" + token : "secret";
         }
     }
 

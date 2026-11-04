@@ -119,7 +119,7 @@ public partial class OnlineLobby : Node
         Multiplayer.ConnectedToServer += OnConnectedToServer;
         Multiplayer.ConnectionFailed += OnConnectionFailed;
         Multiplayer.ServerDisconnected += OnServerDisconnected;
-        var args = OS.GetCmdlineUserArgs();
+        var args = Tools.DevFlags.Args;   // --auto-ready, --autostart= : tests CI
         autoReady = Array.IndexOf(args, "--auto-ready") >= 0 || IsVr;   // pas d'écran de salle dans le casque : un joueur VR est prêt d'office
         NetHandshake.Install(Multiplayer);
         NetHandshake.Rejected += reason => { if (!IsHost) Fail(reason); };
@@ -157,8 +157,9 @@ public partial class OnlineLobby : Node
         NetHandshake.Release();
     }
 
-    /// <summary>Options de test de la ligne de commande (CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
-    /// avec <c>--auto-ready</c> et <c>--autostart=N</c> (l'hôte lance dès que N joueurs sont prêts). Vrai si une option a été trouvée.</summary>
+    /// <summary>Modes de lancement de la salle (aussi utilisés par la CI) : <c>--lobby-host</c>, <c>--lobby-join=ADRESSE</c>, <c>--lobby-quick</c>,
+    /// lisibles dans l'export de sortie ; <c>--auto-ready</c> et <c>--autostart=N</c> (l'hôte lance dès que N joueurs sont prêts) sont des
+    /// options de test, lues par <see cref="Tools.DevFlags"/>. Vrai si un mode a été trouvé.</summary>
     public static bool RunCommandLine(SceneTree tree)
     {
         var cfg = NetConfig.Parse();
@@ -464,7 +465,7 @@ public partial class OnlineLobby : Node
     // ------------------------------------------------------------------ boucle
 
     // Test (CI) : `--quit-file=CHEMIN` ferme proprement le jeu dès que ce fichier existe (fin des clients du test).
-    static readonly string? quitFile = System.Array.Find(OS.GetCmdlineUserArgs(), a => a.StartsWith("--quit-file="))?["--quit-file=".Length..];
+    static readonly string? quitFile = Tools.DevFlags.Value("--quit-file=");
     double quitCheck;
 
     public override void _Process(double delta)

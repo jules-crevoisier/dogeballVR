@@ -68,25 +68,44 @@ public class MatchRules
         if (!lives.ContainsKey(playerId)) lives[playerId] = LivesPerPlayer;
     }
 
-    public int LivesOf(int playerId) => lives[playerId];
+    /// <summary>Vrai si le joueur est inscrit à la manche (un pair parti ou un identifiant inconnu ne l'est pas).</summary>
+    public bool HasPlayer(int playerId) => teamOf.ContainsKey(playerId) && lives.ContainsKey(playerId);
+
+    /// <summary>Vies restantes ; 0 pour un joueur inconnu (départ réseau pendant une élimination) au lieu d'une exception chez l'hôte.</summary>
+    public int LivesOf(int playerId) => lives.TryGetValue(playerId, out int n) ? n : 0;
 
     /// <summary>Appelée par le serveur quand une balle touche une cible adverse.</summary>
     public void RegisterHit(int shooterId, int targetId)
     {
-        if (teamOf[shooterId] == teamOf[targetId]) return; // pas de tir allié
+        if (!teamOf.TryGetValue(shooterId, out int shooterTeam) || !HasPlayer(targetId)) return;   // joueur parti ou inconnu
+        if (shooterTeam == teamOf[targetId]) return; // pas de tir allié
         if (lives[targetId] <= 0) return;
         lives[targetId]--;
         if (lives[targetId] == 0)
         {
-            Kos[teamOf[shooterId]]++;
+            Kos[shooterTeam]++;
             PlayerEliminated?.Invoke(targetId);
         }
+    }
+
+    /// <summary>
+    /// Ring-out : le joueur poussé dans la fosse perd toutes ses vies d'un coup, KO crédité à l'équipe du pousseur.
+    /// Rien si les deux sont alliés, inconnus ou si la cible est déjà éliminée. Vrai si le KO est compté.
+    /// </summary>
+    public bool Eliminate(int byId, int targetId)
+    {
+        if (!teamOf.TryGetValue(byId, out int byTeam) || !HasPlayer(targetId)) return false;
+        if (byTeam == teamOf[targetId] || lives[targetId] <= 0) return false;
+        lives[targetId] = 0;
+        Kos[byTeam]++;
+        PlayerEliminated?.Invoke(targetId);
+        return true;
     }
 
     /// <summary>Chute dans la fosse sans pousseur : un cœur en moins ; à 0 c'est un KO crédité à l'équipe adverse.</summary>
     public void RegisterFall(int playerId)
     {
-        if (lives[playerId] <= 0) return;
+        if (!HasPlayer(playerId) || lives[playerId] <= 0) return;
         lives[playerId]--;
         if (lives[playerId] == 0)
         {
@@ -98,14 +117,14 @@ public class MatchRules
     /// <summary>Attrapé parfait : le receveur gagne une vie (plafonnée).</summary>
     public void RegisterPerfectCatch(int catcherId)
     {
-        if (lives[catcherId] > 0 && lives[catcherId] < LivesPerPlayer) lives[catcherId]++;
+        if (lives.TryGetValue(catcherId, out int n) && n > 0 && n < LivesPerPlayer) lives[catcherId] = n + 1;
     }
 
     public int TeamLives(int team)
     {
         int total = 0;
         foreach (var (id, t) in teamOf)
-            if (t == team) total += lives[id];
+            if (t == team) total += LivesOf(id);
         return total;
     }
 
@@ -132,7 +151,7 @@ public class MatchRules
     }
 
     /// <summary>Un KO revient en jeu avec toutes ses vies.</summary>
-    public void Respawn(int playerId) => lives[playerId] = LivesPerPlayer;
+    public void Respawn(int playerId) { if (lives.ContainsKey(playerId)) lives[playerId] = LivesPerPlayer; }
 
     /// <summary>Nouvelle manche : vies et KO remis à zéro.</summary>
     public void StartRound()

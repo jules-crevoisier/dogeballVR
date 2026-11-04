@@ -59,6 +59,7 @@ public sealed class UdpPipe : IP2PPipe
 
     static float LossFromCommandLine()
     {
+        if (!Tools.DevFlags.Allowed) return 0f;
         var args = new List<string>(OS.GetCmdlineArgs());
         args.AddRange(OS.GetCmdlineUserArgs());
         foreach (var a in args)

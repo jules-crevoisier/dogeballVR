@@ -23,7 +23,7 @@ public partial class ContextHints : CanvasLayer
     /// <summary>Au-delà de ce nombre de parties terminées, plus aucune aide.</summary>
     public const int MatchesWithHints = 8;
     // Captures : `--hints-test` montre les aides au joueur automatique, comme à un débutant.
-    static readonly bool test = Array.IndexOf(OS.GetCmdlineUserArgs(), "--hints-test") >= 0;
+    static readonly bool test = Tools.DevFlags.Has("--hints-test");
 
     /// <summary>Une aide : <c>Wanted</c> dit si elle sert maintenant, <c>Learned</c> si le joueur n'en a plus besoin.
     /// <c>PerMatch</c> limite les rappels d'une même partie, <c>Cooldown</c> espace deux affichages.</summary>

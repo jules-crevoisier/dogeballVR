@@ -22,11 +22,11 @@ public partial class PerfProbe : Node
     ulong reportAt = Time.GetTicksMsec();
     int gc0 = System.GC.CollectionCount(0), gc2 = System.GC.CollectionCount(2);
 
-    static readonly bool memGc = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--mem-gc") >= 0;
+    static readonly bool memGc = DevFlags.Has("--mem-gc");
 
     public static void AttachIfAsked(Node parent)
     {
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf-log") >= 0) parent.AddChild(new PerfProbe { Name = "PerfProbe" });
+        if (DevFlags.Has("--perf-log")) parent.AddChild(new PerfProbe { Name = "PerfProbe" });
     }
 
     public override void _Ready()

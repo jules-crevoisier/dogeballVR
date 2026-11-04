@@ -243,8 +243,8 @@ public partial class DesktopPlayer : Node3D
             AddChild(selfAvatar);
         }
         dashCharges = MaxCharges;
-        autoplay = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--pc-autoplay") >= 0;
-        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-test") >= 0) StartCamTest();
+        autoplay = Tools.DevFlags.Has("--pc-autoplay");   // option de test : ignorée par l'export de sortie
+        if (Tools.DevFlags.Has("--cam-test")) StartCamTest();
         rng.Seed = 4242;
         LoadSettings();
         if (!autoplay) Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -1460,7 +1460,7 @@ public partial class DesktopPlayer : Node3D
     // ---------------------------------------------------------------- mode test
 
     /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
-    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
+    static readonly bool TrailerTakes = System.Array.IndexOf(Tools.DevFlags.Args, "--bande-annonce") >= 0;
 
     PcInput AutoplayInput(double delta)
     {
