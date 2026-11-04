@@ -39,9 +39,25 @@ public partial class Rotor : AnimatableBody3D
         var size = new Vector3(r.ArmLength * 2f, r.YMax - r.YMin, r.Thickness);
         if (kc)
         {
-            var body = KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f);
+            // bras en tôle bleu acier ; rayures de danger seulement aux extrémités (lisibles sans saturer l'écran de près)
+            var body = KcShaders.Toon(new Color("3A5A7A"), new Color("2C4662"), 6);
             body.NextPass = KcShaders.Outline(0.03f);
             rotor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = body });
+            const float stripe = 1.1f;
+            foreach (float side in new[] { -1f, 1f })
+                rotor.AddChild(new MeshInstance3D
+                {
+                    Mesh = new BoxMesh { Size = new Vector3(stripe, size.Y + 0.02f, size.Z + 0.02f) },
+                    Position = new Vector3(side * (r.ArmLength - 0.18f - stripe / 2f), 0, 0),
+                    MaterialOverride = KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f),
+                });
+            foreach (float y in new[] { -1f, 1f })   // liserés cyan le long des arêtes haute et basse
+                rotor.AddChild(new MeshInstance3D
+                {
+                    Mesh = new BoxMesh { Size = new Vector3(size.X - 0.4f, 0.05f, size.Z + 0.03f) },
+                    Position = new Vector3(0, y * (size.Y / 2f - 0.12f), 0),
+                    MaterialOverride = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.0f),
+                });
             // arbre central sombre et pointes lumineuses : on lit le sens de rotation de loin
             var hubMat = KcShaders.Toon(new Color("2B3658"), null, 0);
             hubMat.NextPass = KcShaders.Outline(0.03f);

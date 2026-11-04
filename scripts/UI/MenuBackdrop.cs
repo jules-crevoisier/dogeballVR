@@ -70,9 +70,9 @@ public partial class MenuBackdrop : Node3D
         // Au fond, plus personne au repos (le « Repos » du modèle est presque une pose en A, figée de loin) : chacun enchaîne
         // des gestes calés sur la balle. Le coéquipier lance quand elle part, le rival attrape quand elle arrive, et entre deux,
         // ils restent fléchis, prêts (milieu de l'esquive, tenu). Le troisième esquive puis attrape à contretemps.
-        Choreograph(mate, (Cycle - ThrowRelease, "Lancer", 0.6), (1.0, "Esquive", 0.36));
-        Choreograph(rival, (Flight - CatchAt, "Attrape", 0.4), (0.5, "Esquive", 0.36));
-        Choreograph(other, (0.6, "Esquive", 0.4), (2.0, "Attrape", 0.3));
+        Choreograph(mate, (Cycle - ThrowRelease, "Lancer", 0.26), (1.0, "Esquive", 0.22));
+        Choreograph(rival, (Flight - CatchAt, "Attrape", 0.24), (0.5, "Esquive", 0.22));
+        Choreograph(other, (0.6, "Esquive", 0.22), (2.0, "Attrape", 0.24));
 
         camera = new Camera3D { Fov = 62f, Current = true, Near = 0.05f };
         AddChild(camera);
@@ -80,7 +80,7 @@ public partial class MenuBackdrop : Node3D
     }
 
     const double Cycle = 3.2, Flight = 2.4;          // un tir toutes les 3,2 s, 2,4 s de vol
-    const double ThrowRelease = 0.48, CatchAt = 0.35;  // instant du lâcher dans « Lancer », de la prise dans « Attrape »
+    const double ThrowRelease = 0.07, CatchAt = 0.07;  // instant du lâcher dans « Lancer », de la prise dans « Attrape » (tenus au plus fort du suivi, de l'esquive et de l'amorti)
 
     readonly System.Collections.Generic.List<(AnimationPlayer ap, (double at, string anim, double hold)[] cues)> loops = new();
 

@@ -34,6 +34,7 @@ public static class ImpactFx
         Sparks(context, pos, shooterColor, 16, 9f, 0.32f, k);
         Flash(context, pos, 0.9f * k, 0.11f);
         Ring(context, pos, shooterColor, 1.6f * k, 0.28f);
+        ImpactExtras.Hit(context, pos, shooterColor);   // étoile d'impact et traits de vitesse (fil Assets)
     }
 
     public static void Ko(Node context, Vector3 pos, Color shooterColor)
@@ -46,6 +47,7 @@ public static class ImpactFx
         Ring(context, pos, Colors.White, 1.8f * k, 0.3f);
         Stars(context, pos, k);
         Confetti(context, pos, shooterColor, k);
+        ImpactExtras.Ko(context, pos, shooterColor);   // étoile, onde au sol, poussière, colonne de lumière (fil Assets)
     }
 
     /// <summary>Au-delà de 9 m, l'effet grossit avec la distance (jusqu'à ×2,6) : une touche lointaine reste lisible à l'écran.</summary>
