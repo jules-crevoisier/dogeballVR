@@ -14,6 +14,31 @@ import lib
 from kc import NEON, arch_cap, block, dome, kmat, tube
 
 HX, HY = 18.0, 15.0   # demi-dimensions de l'aire de jeu (arenaBounds de croix_neon.json ; Blender Y = -Z Godot)
+PIT = None            # fosse (demi-largeurs en X et en Y Blender), ou None
+HUB = True            # moyeu central (anneau au sol) : cartes en anneau seulement
+
+AMBIANCE = "jour"     # props signature du quartier (signatures.py) ; jour = Croix Néon (tuyaux et enseigne FIZZ)
+
+# Variantes du toit pour les autres cartes : (demi-largeur X, demi-largeur Y, fosse (sx, sz) ou None, moyeu, ambiance)
+# L'ambiance doit être la même que le champ « ambiance » de la carte (ciel et soleil côté Godot, ArenaBuilder.Moods).
+VARIANTS = {
+    "toit": (18.0, 15.0, None, True, "jour"),             # croix_neon : plein jour
+    "toit_fosse": (18.0, 15.0, (9, 9), True, "chantier"),   # fosse_croisee : chantier, fin d'après-midi
+    "toit_tour": (19.0, 15.0, (16, 10), True, "coucher"),   # tour_4v4 : gratte-ciel au coucher du soleil
+    "toit_court": (16.0, 10.0, None, False, "nuit"),      # neon_court : marché de nuit
+    "toit_long": (16.0, 10.5, (32, 3), False, "brume"),    # la_fosse : port, matin brumeux ; fosse en bande sur toute la longueur
+}
+
+
+def configure(name):
+    """Règle les dimensions globales sur une variante de VARIANTS."""
+    global HX, HY, PIT, HUB, AMBIANCE
+    HX, HY, pit, HUB, AMBIANCE = VARIANTS[name]
+    PIT = None if pit is None else (pit[0] / 2, pit[1] / 2)
+
+
+def in_pit(x, y, margin=0.4):
+    return PIT is not None and abs(x) < PIT[0] + margin and abs(y) < PIT[1] + margin
 
 
 def hazard_frame(z=0.011):
@@ -21,6 +46,12 @@ def hazard_frame(z=0.011):
     w = 0.7
     block((2 * HX + 2 * w, w, 0.02), (0, HY - w / 2, z), "danger", "BandeN", 0.0)
     block((2 * HX + 2 * w, w, 0.02), (0, -HY + w / 2, z), "danger", "BandeS", 0.0)
+    if PIT is not None and PIT[0] >= HX - 0.01:   # fosse en bande : les bandes des bouts s'arrêtent au bord du trou
+        L = HY - PIT[1]
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                block((w, L, 0.02), (sx * (HX - w / 2), sy * (PIT[1] + L / 2), z), "danger", f"Bande{sx}{sy}", 0.0)
+        return
     block((w, 2 * HY, 0.02), (HX - w / 2, 0, z), "danger", "BandeE", 0.0)
     block((w, 2 * HY, 0.02), (-HX + w / 2, 0, z), "danger", "BandeO", 0.0)
 
@@ -37,30 +68,69 @@ def street_markings():
                 d = sgn * (6.6 + i * 3.6)
                 size = (2.0, 0.14, 0.02) if ax == 0 else (0.14, 2.0, 0.02)
                 loc = (d, 0, z) if ax == 0 else (0, d, z)
-                block(size, loc, "danger_ligne", f"Tiret{ax}{sgn}{i}", 0.0)
-    for r, kind, w in ((5.6, "danger_ligne", 0.22), (5.1, "peinture_blanche", 0.1)):   # anneau du moyeu
-        tube(r + w, 0.016, (0, 0, z - 0.004), kind, f"AnneauExt{r}", 48)
-        tube(r - w, 0.02, (0, 0, z - 0.002), "asphalte", f"AnneauInt{r}", 48)
+                if not in_pit(loc[0], loc[1], 1.2):
+                    block(size, loc, "danger_ligne", f"Tiret{ax}{sgn}{i}", 0.0)
+    if HUB and (PIT is None or max(PIT) < 4.4):
+        for r, kind, w in ((5.6, "danger_ligne", 0.22), (5.1, "peinture_blanche", 0.1)):   # anneau du moyeu
+            tube(r + w, 0.016, (0, 0, z - 0.004), kind, f"AnneauExt{r}", 48)
+            if PIT is None:
+                tube(r - w, 0.02, (0, 0, z - 0.002), "asphalte", f"AnneauInt{r}", 48)
     for sgn in (-1, 1):   # passages piétons au bout de chaque branche
         for ax in (0, 1):
             for j in range(-3, 4):
                 if ax == 0:
-                    block((2.6, 0.45, 0.02), (sgn * (HX - 3.2), j * 0.9, z), "peinture_blanche", f"Zebre{ax}{sgn}{j}", 0.0)
+                    if not in_pit(sgn * (HX - 3.2), j * 0.9):
+                        block((2.6, 0.45, 0.02), (sgn * (HX - 3.2), j * 0.9, z), "peinture_blanche", f"Zebre{ax}{sgn}{j}", 0.0)
                 else:
                     block((0.45, 2.6, 0.02), (j * 0.9, sgn * (HY - 3.2), z), "peinture_blanche", f"Zebre{ax}{sgn}{j}", 0.0)
     for i, (x, y) in enumerate([(-12, 6), (12, -6), (-6, -11), (6, 11), (13, 9), (-13, -9)]):   # plaques d'égout
+        x, y = x * HX / 18, y * HY / 15
+        if in_pit(x, y, 1.0):
+            continue
         tube(0.62, 0.022, (x, y, z), "metal_sombre", f"Egout{i}", 20)
         tube(0.45, 0.026, (x, y, z), "capuchon", f"EgoutCentre{i}", 20)
     for i, (x, y) in enumerate([(-3, 12.5), (3, -12.5), (-14.5, 0.0), (14.5, 0.0)]):   # grilles d'évacuation
+        x, y = x * HX / 18, y * HY / 15
+        if in_pit(x, y, 1.0):
+            continue
         block((1.6, 0.7, 0.02), (x, y, z), "metal_sombre", f"Grille{i}", 0.0)
         for s in range(5):
             block((0.08, 0.6, 0.026), (x - 0.6 + s * 0.3, y, z), "capuchon", f"GrilleBarre{i}{s}", 0.0)
 
 
 def roof():
-    block((2 * HX + 14, 2 * HY + 12, 1.2), (0, 0, -0.6), "asphalte", "Dalle", 0.06)
+    W, D = 2 * HX + 14, 2 * HY + 12
+    if PIT is None:
+        block((W, D, 1.2), (0, 0, -0.6), "asphalte", "Dalle", 0.06)
+    else:
+        pit_shaft(W, D)
     hazard_frame()
     street_markings()
+
+
+def pit_shaft(W, D, depth=7.0):
+    """Toit percé : dalle en quatre morceaux autour de la fosse, puits en briques sombres, fond noir et néons d'alerte.
+    Une fosse aussi longue que l'aire de jeu traverse tout le toit (la_fosse)."""
+    px, py = PIT
+    if px >= HX - 0.01:
+        px = W / 2
+    block((W, D / 2 - py, 1.2), (0, (D / 2 + py) / 2, -0.6), "asphalte", "DalleN", 0.06)
+    block((W, D / 2 - py, 1.2), (0, -(D / 2 + py) / 2, -0.6), "asphalte", "DalleS", 0.06)
+    if px < W / 2:
+        block((W / 2 - px, 2 * py, 1.2), ((W / 2 + px) / 2, 0, -0.6), "asphalte", "DalleE", 0.06)
+        block((W / 2 - px, 2 * py, 1.2), (-(W / 2 + px) / 2, 0, -0.6), "asphalte", "DalleO", 0.06)
+    t = 0.5
+    for sy in (-1, 1):   # parois du puits
+        block((2 * px + 2 * t, t, depth), (0, sy * (py + t / 2), -depth / 2), "brique", f"PuitsL{sy}", 0.04)
+        block((2 * px, 0.08, 0.14), (0, sy * (py - 0.04), -0.5), "neon_orange", f"PuitsNeonL{sy}", 0.0)
+        for k in range(int(2 * px / 2.4)):   # bandes de danger sur la paroi
+            block((1.0, 0.04, 0.5), (-px + 1.2 + k * 2.4, sy * (py - 0.02), -1.1), "danger", f"PuitsBande{sy}_{k}", 0.0)
+    for sx in (-1, 1):
+        block((t, 2 * py, depth), (sx * (px + t / 2), 0, -depth / 2), "brique", f"PuitsP{sx}", 0.04)
+        block((0.08, 2 * py, 0.14), (sx * (px - 0.04), 0, -0.5), "neon_orange", f"PuitsNeonP{sx}", 0.0)
+    block((2 * px, 2 * py, 0.3), (0, 0, -depth), "metal_sombre", "PuitsFond", 0.0)
+    for k in range(-2, 3):   # tuyaux et lueur au fond
+        block((2 * px, 0.25, 0.25), (0, k * py * 0.35, -depth + 0.3), "tuyau", f"PuitsTuyau{k}", 0.05)
 
 
 def parapets():
@@ -186,7 +256,7 @@ def sign_fizz(x, y, z, face=-1):
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z + 1.2), "neon_orange", "EnseigneLiserePlus", 0.0)
     block((6.5, 0.22, 0.12), (x, y + face * 0.32, z - 1.2), "neon_orange", "EnseigneLiseréMoins", 0.0)
     dome(1.0, (x - 2.2, y + face * 0.45, z), "neon_rose", "EnseigneBille")
-    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face < 0 else 0))
+    bpy.ops.object.text_add(location=(x + 0.8, y + face * 0.45, z - 0.35), rotation=(math.pi / 2, 0, math.pi if face > 0 else 0))
     t = bpy.context.active_object
     t.data.body, t.data.size, t.data.extrude, t.data.align_x = "FIZZ", 1.6, 0.05, "CENTER"
     bpy.ops.object.convert(target="MESH")
@@ -202,8 +272,12 @@ def build_toit(preview=False):
     towers()
     crates()
     clutter()
-    pipes()
-    sign_fizz(4, HY + 14, 10)
+    if AMBIANCE == "jour":
+        pipes()
+        sign_fizz(4, HY + 14, 10)
+    else:
+        import signatures
+        signatures.SIGNATURES[AMBIANCE](HX, HY)
     if preview:
         gameplay_preview()
 
@@ -214,7 +288,12 @@ def build_ville(seed=3):
     kinds = ["fenetres", "fenetres", "fenetres", "brique", "brique_jaune", "beton"]
     neons = list(NEON)
     n = 0
-    for ring, (dist, count) in enumerate([(28, 16), (46, 20), (72, 22), (105, 22)]):
+    import city_kit
+    # premiers anneaux : immeubles détaillés (façades en volume, enseignes, châteaux d'eau) ; Quest : le premier seulement
+    near = ((30, 14),) if city_kit.QUEST else ((30, 14), (48, 18))
+    city_kit.place_ring(rings=near)
+    far = [(72, 22), (105, 22)] if not city_kit.QUEST else [(48, 18), (72, 22), (105, 14)]
+    for ring, (dist, count) in enumerate(far, start=len(near)):
         for i in range(count):
             a = i / count * math.tau + rnd.uniform(-0.1, 0.1)
             d = dist + rnd.uniform(-3, 5)

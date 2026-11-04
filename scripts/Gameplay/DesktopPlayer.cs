@@ -41,7 +41,7 @@ public partial class DesktopPlayer : Node3D
 
     // Lancer et attrape
     const float MinThrow = 14f;          // un tap part déjà vite : le lancer ne doit pas être mou
-    const float MaxThrow = 30f;
+    static float MaxThrow => KcRules.PcFullChargeSpeed;   // pleine charge : 24 m/s, le palier ajoute +15 % (KcRules.PcTierFactor)
     const float MaxChargeTime = 0.7f;
     const float AssistCone = 7f;         // degrés : l'aide à la visée ne corrige que les presque-touches
     const float AssistStrength = 0.5f;
@@ -402,7 +402,7 @@ public partial class DesktopPlayer : Node3D
             held = Time.GetTicksMsec() / 1000.0 < ignoreHeldUntil ? null : BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
             if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
             if (held != null) held.LocalHoldOverride = holdPoint;
-            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « PRISE PARFAITE ! » (Feedback)
+            if (before == null && held != null && time - perfectClaimAt < 1.0 && held.Charge > 0) { perfectClaimAt = -10; Feedback.NotePerfectCatch(Hurtbox.PlayerId); }   // « ATTRAPE PARFAITE ! » (Feedback)
         }
         if (held != null && !IsInstanceValid(held)) { held = null; charging = false; chargeTime = 0; }
         if (Hurtbox.Eliminated)
@@ -769,6 +769,7 @@ public partial class DesktopPlayer : Node3D
             catchWindowLeft = CatchWindow;
             catchCooldownLeft = CatchRecovery;
             catchOpenedAt = time;
+            Sfx.Play(this, SfxKind.Dash, null, 1.7f, -13f);   // main qui s'ouvre : l'appui est entendu tout de suite, attrape ou pas
         }
 
         // Prend une balle : attrape (main tendue) ou ramassage automatique des balles lentes près des pieds.
@@ -779,12 +780,12 @@ public partial class DesktopPlayer : Node3D
             foreach (var node in GetTree().GetNodesInGroup("balls"))
             {
                 if (node is not Ball { IsHeld: false } ball) continue;
-                if (ball.IsPass && ball.OwnerTeam != Hurtbox.Team) continue;   // une passe adverse ne s'intercepte pas
+                if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team)) continue;   // passe adverse : interceptable par l'attrape (clic droit), réglable
                 // Un ballon d'allié (passe) qui arrive est pris tout seul ; les tirs adverses demandent l'appui clic droit.
                 bool ally = FreeRoam && time > pickupBlockedUntil && ball.IsPass && ball.OwnerTeam == Hurtbox.Team && ball.OwnerPlayerId != Hurtbox.PlayerId && ball.GlobalPosition.DistanceTo(head.GlobalPosition + Vector3.Down * 0.3f) <= 1.3f;
                 bool viaCatch = ally || (catchWindowLeft > 0 && ball.GlobalPosition.DistanceTo(hand) <= CatchReach);
                 bool hostileFast = ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed;
-                bool fastShot = hostileFast && ball.ThrowMode != Ball.ModeLob && ball.LinearVelocity.Length() >= PerfectMinSpeed;
+                bool fastShot = hostileFast && ((ball.ThrowMode == 0 && ball.LinearVelocity.Length() >= PerfectMinSpeed) || (ball.IsPass && KcRules.PerfectOnPass));   // passe interceptée parfaite : +1 palier
                 bool perfect = FreeRoam && !ally && viaCatch && fastShot && time - catchOpenedAt <= PerfectCatchWindow;
                 bool slow = ball.LinearVelocity.Length() < PickupSlowSpeed && time > pickupBlockedUntil;
                 float scoopDist = ball.GlobalPosition.DistanceTo(scoop);
@@ -792,7 +793,7 @@ public partial class DesktopPlayer : Node3D
                 if (!viaCatch && !(slow && scoopDist <= PickupRadius)) continue;
                 if (!BallActions.IsClient) held = ball;
                 BallActions.Catch(ball, holdPoint, 1, Hurtbox.PlayerId, Hurtbox.Team, perfect);
-                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « PRISE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
+                if (perfect && !BallActions.IsClient) GD.Print("[PC] Attrape parfaite");   // autocollant « ATTRAPE PARFAITE ! » posé par Feedback (Ball.CaughtThrow)
                 if (viaCatch && !ally)
                 {
                     // Attrape d'un tir : la vue encaisse le choc ; l'attrape parfaite fige un instant le monde.
@@ -863,7 +864,7 @@ public partial class DesktopPlayer : Node3D
             else if (charging)
             {
                 float t = (float)(chargeTime / MaxChargeTime);
-                float speed = Mathf.Lerp(MinThrow, MaxThrow, t);
+                float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);   // palier = vitesse ; un hôte VR plafonne quand même à 20 m/s
                 float spin = input.Curve && Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) * CurveSpin : 0f;   // effet : E maintenu + gauche/droite
                 Launch(ThrowVelocity(speed), spin, 0);
             }
@@ -1452,10 +1453,14 @@ public partial class DesktopPlayer : Node3D
             var pose = Pose;
             selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
+            selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
     }
 
     // ---------------------------------------------------------------- mode test
+
+    /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
+    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
 
     PcInput AutoplayInput(double delta)
     {
@@ -1506,7 +1511,9 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() < 10f) continue;
                 var rel = head.GlobalPosition - b.GlobalPosition;
-                if (rel.Length() < 6f && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
+                // --bande-annonce : appui au dernier moment, dans la fenêtre d'attrape parfaite (la balle gagne un palier à chaque échange)
+                float reach = TrailerTakes ? b.LinearVelocity.Length() * (float)PerfectCatchWindow * 0.8f + 0.6f : 6f;
+                if (rel.Length() < reach && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
             }
 
         // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche. Pas avant le « GO ! » : un lancer relâché

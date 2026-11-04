@@ -25,7 +25,8 @@ public partial class EndScreen : CanvasLayer
     public bool Autoplay { get; set; }
     /// <summary>Partie lancée depuis une salle en ligne : à la fin, tout le monde y retourne (compte à rebours au lieu de REJOUER).</summary>
     public bool BackToRoom { get; set; }
-    public const double BackToRoomSeconds = 7.0;
+    // Podium (1,8 + 3,2 s) puis tableau : environ 8 s pour lire les stats et voir la barre d'XP se remplir. L'hôte peut abréger (Entrée).
+    public const double BackToRoomSeconds = 14.0;
 
     const double OpenDelay = 1.8;
     const double AutoRestartSeconds = 8.0;   // MatchController.MatchEndSeconds
@@ -183,6 +184,7 @@ public partial class EndScreen : CanvasLayer
         middle.AddThemeConstantOverride("separation", 34);
         col.AddChild(middle);
         Control? mvpCard = null;
+        GD.Print($"[Fin] Tableau : {(View.HasStats ? $"{View.Stats!.Count} joueurs" : "sans statistiques")}");
         if (View.HasStats)
         {
             mvpCard = MvpCard();
@@ -202,6 +204,9 @@ public partial class EndScreen : CanvasLayer
             autoLabel.CustomMinimumSize = new Vector2(440, 70);
             autoLabel.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(autoLabel);
+            // Hôte de la salle : tout le monde a lu, on y retourne sans attendre la fin du compte à rebours.
+            if (BackToRoom && View.CanRestart)
+                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76)));
         }
         else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76)));
         else
@@ -252,8 +257,15 @@ public partial class EndScreen : CanvasLayer
         tw.TweenProperty(c, "scale", Vector2.One, 0.35).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
     }
 
+    void BackNow()
+    {
+        GD.Print("[Fin] Retour à la salle demandé par l'hôte");
+        Online.OnlineLobby.Instance?.ReturnToLobby();
+    }
+
     void Replay()
     {
+        if (BackToRoom) { BackNow(); return; }
         GD.Print("[Fin] Rejouer");
         Close(true);
         View.Restart();
@@ -370,7 +382,7 @@ public partial class EndScreen : CanvasLayer
     {
         if (real == null || Array.FindIndex(Tools.DevFlags.Args, a => a.StartsWith("--end-screen-test")) < 0) return real;
         foreach (var st in real.Values) if (st.Kos > 0) return real;
-        // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, arrêts parfaits, lancers.
+        // Par équipe, du meilleur au moins bon : KO, touches, balles attrapées, attrapes parfaites, lancers.
         int[][] winners = { new[] { 5, 8, 4, 2, 17 }, new[] { 3, 6, 2, 0, 14 }, new[] { 2, 4, 1, 1, 11 } };
         int[][] losers = { new[] { 4, 7, 3, 1, 16 }, new[] { 2, 5, 1, 0, 12 }, new[] { 1, 3, 2, 0, 10 } };
         var fake = new Dictionary<int, MatchController.PlayerStats>();
@@ -408,7 +420,7 @@ public partial class EndScreen : CanvasLayer
         col.AddChild(UiKit.Spacer(6));
         col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
-        col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "arrêt parfait", "arrêts parfaits"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "attrape parfaite", "attrapes parfaites"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }
