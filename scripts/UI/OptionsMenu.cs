@@ -429,7 +429,7 @@ public partial class OptionsMenu : Control
         row.AddChild(b);
         if (a.Secondary != null && !InputSetup.UsingPad)   // à la manette, la touche clavier fixe n'a rien à faire là
         {
-            var alt = UiKit.Text(InputSetup.Describe(a.Secondary), 20, new Color(1, 1, 1, 0.55f), 4);
+            var alt = UiKit.Text(InputSetup.Describe(a.Secondary), 22, new Color(UiKit.Cream, 0.85f), 4);
             alt.CustomMinimumSize = new Vector2(110, 0);
             alt.VerticalAlignment = VerticalAlignment.Center;
             row.AddChild(alt);

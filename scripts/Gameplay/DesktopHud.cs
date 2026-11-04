@@ -206,8 +206,8 @@ public partial class DesktopHud : CanvasLayer
             float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, k = h * 0.3f;
             Vector2[] Quad(float g, Vector2 o) => new[] { o + new Vector2(k + g * 0.3f, y + g), o + new Vector2(w - g, y + g), o + new Vector2(w - k - g * 0.3f, y + h - g), o + new Vector2(g, y + h - g) };
             DrawColoredPolygon(Quad(0, new Vector2(0, 2)), new Color(0, 0, 0, 0.3f));
-            DrawColoredPolygon(Quad(0, Vector2.Zero), On ? UiKit.Cream : new Color(ChronoInk, 0.75f));
-            DrawColoredPolygon(Quad(3f, Vector2.Zero), On ? Color : new Color(1, 1, 1, 0.12f));
+            DrawColoredPolygon(Quad(0, Vector2.Zero), On ? UiKit.Cream : new Color(UiKit.Cream, 0.6f));   // case vide : contour crème, lisible sur le ciel
+            DrawColoredPolygon(Quad(3f, Vector2.Zero), On ? Color : new Color(ChronoInk, 0.8f));
         }
     }
 
@@ -302,8 +302,8 @@ public partial class DesktopHud : CanvasLayer
             var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * Size.X * 0.12f, 0);
             float r = Size.X * 0.36f;
             DrawColoredPolygon(At(c + new Vector2(0, 3), r + 5), new Color(0, 0, 0, 0.4f));
-            DrawColoredPolygon(At(c, r + 5), Full ? ChronoInk : new Color(ChronoInk, 0.8f));
-            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(1, 1, 1, 0.12f));
+            DrawColoredPolygon(At(c, r + 5), Full ? ChronoInk : new Color(UiKit.Cream, 0.55f));   // cœur perdu : contour crème
+            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(ChronoInk, 0.85f));
             if (Full) DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.28f), new Color(1, 1, 1, 0.55f));
         }
     }
@@ -501,8 +501,9 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = Size / 2;
             float r = 46f;
-            DrawCircle(c + new Vector2(0, 4), r + 6, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 6, new Color(UiKit.Navy, 0.8f));
+            DrawCircle(c + new Vector2(0, 4), r + 8, new Color(0, 0, 0, 0.35f));
+            DrawCircle(c, r + 8, new Color(UiKit.Cream, Holding ? 1f : 0.45f));
+            DrawCircle(c, r + 4, new Color(ChronoInk, 0.92f));
             if (!Holding)
             {
                 for (int i = 0; i < 16; i++)
@@ -542,9 +543,10 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = new Vector2(Size.X / 2, 40);
             float r = 34f;
-            DrawCircle(c + new Vector2(0, 3), r + 5, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 5, UiKit.Navy);
-            DrawCircle(c, r, new Color(0.18f, 0.22f, 0.36f));
+            DrawCircle(c + new Vector2(0, 3), r + 7, new Color(0, 0, 0, 0.35f));
+            DrawCircle(c, r + 7, new Color(UiKit.Cream, Fill >= 1f ? 1f : 0.45f));   // anneau crème : la jauge se détache du sol clair
+            DrawCircle(c, r + 3, ChronoInk);
+            DrawCircle(c, r, new Color("2a2440"));
             if (Fill > 0.001f)
             {
                 var pts = new List<Vector2> { c };
@@ -552,8 +554,8 @@ public partial class DesktopHud : CanvasLayer
                 for (int i = 0; i <= n; i++) pts.Add(c + Vector2.FromAngle(-Mathf.Pi / 2 + Mathf.Tau * Fill * i / n) * r);
                 DrawColoredPolygon(pts.ToArray(), new Color(Color, Fill >= 1f ? 1f : 0.55f));
             }
-            if (Glow > 0) DrawArc(c, r + 9, 0, Mathf.Tau, 40, new Color(Color, Glow), 5f, true);
-            var ink = UiKit.Navy;
+            if (Glow > 0) DrawArc(c, r + 11, 0, Mathf.Tau, 40, new Color(Color, Glow), 5f, true);
+            var ink = Fill >= 1f ? UiKit.Navy : UiKit.Cream;   // icône encre sur la jauge pleine, crème tant qu'elle se recharge
             if (Dash)
             {
                 for (int k = 0; k < 2; k++)   // deux chevrons : élan
@@ -596,6 +598,10 @@ public partial class DesktopHud : CanvasLayer
         holder.OffsetRight = -30; holder.OffsetLeft = -30 - ActionsWidth; holder.OffsetBottom = -84; holder.OffsetTop = -84 - ActionsHeight;
         root.AddChild(holder);
         bottomHolder = holder;
+        // Plaque encre penchée sous le bloc : icônes, noms et touches lisibles sur un sol clair (revue de la refonte).
+        var plate = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(-22, -12), Size = new Vector2(ActionsWidth + 40, ActionsHeight + 14) };
+        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(ChronoInk, 0.78f), Bottom = new Color(ChronoInk, 0.86f), Slant = 18, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.3f) });
+        holder.AddChild(plate);
         var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
         holder.AddChild(icons);
         catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(10, 30), Size = new Vector2(110, 110) };
@@ -1722,11 +1728,11 @@ public partial class DesktopHud : CanvasLayer
         }
 
         // Compte à rebours de la manche suivante, en bas, et la balle spéciale qu'elle lancera.
-        var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 790), Size = new Vector2(1920, 250) };
+        var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 760), Size = new Vector2(1920, 250) };
         c.AddChild(bottom);
         var nextPanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         var nextBox = new KcBox { Top = new Color(ChronoInk, 0.95f), Bottom = new Color("0f0820", 0.97f), Slant = 22, BorderWidth = 5, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) };
-        nextBox.ContentMarginLeft = 64; nextBox.ContentMarginRight = 64; nextBox.ContentMarginTop = 0; nextBox.ContentMarginBottom = 24;
+        nextBox.ContentMarginLeft = 60; nextBox.ContentMarginRight = 40; nextBox.ContentMarginTop = 18; nextBox.ContentMarginBottom = 20;
         nextPanel.AddThemeStyleboxOverride("panel", nextBox);
         bottom.AddChild(nextPanel);
         interNextRow = nextPanel;
@@ -1739,10 +1745,16 @@ public partial class DesktopHud : CanvasLayer
         interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 64, UiKit.Yellow, 14));
         interNextTitle.VerticalAlignment = VerticalAlignment.Center;
         next.AddChild(interNextTitle);
-        interNext = Italic(UiKit.Text("12", 128, UiKit.Yellow, 22, HorizontalAlignment.Center));
-        interNext.CustomMinimumSize = new Vector2(150, 0);
+        // Décompte dans un carré jaune, chiffre encre : il se lit d'un coup d'œil (revue de la refonte).
+        interNext = Italic(UiKit.Text("12", 96, ChronoInk, 0, HorizontalAlignment.Center));
+        interNext.VerticalAlignment = VerticalAlignment.Center;
+        interNext.CustomMinimumSize = new Vector2(128, 116);
+        var square = new KcBox { Top = UiKit.Yellow, Bottom = UiKit.Gold, Slant = 14, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.4f) };
+        square.ContentMarginLeft = square.ContentMarginRight = 8; square.ContentMarginTop = 0; square.ContentMarginBottom = 4;
+        interNext.AddThemeStyleboxOverride("normal", square);
         next.AddChild(interNext);
         interSpecial = Italic(UiKit.Text("", 28, UiKit.Cream, 0, HorizontalAlignment.Center));
+        nextCol.AddThemeConstantOverride("separation", 8);
         nextCol.AddChild(interSpecial);
     }
 
@@ -1883,7 +1895,7 @@ public partial class DesktopHud : CanvasLayer
             UiKit.Punch(interNext, s.NextRoundIn <= 3 ? 1.6f : 1.25f, 0.25);
             if (s.NextRoundIn <= 3) Sfx.Play(this, SfxKind.ChargeTick, null, 1.1f, -4f);
         }
-        interNext.AddThemeColorOverride("font_color", s.NextRoundIn <= 3 ? Colors.White : UiKit.Yellow);
+        interNext.AddThemeColorOverride("font_color", ChronoInk);   // carré jaune : chiffre encre (le punch marque les 3 dernières)
     }
 
     static T Put<T>(Control parent, T child) where T : Control
@@ -1943,9 +1955,12 @@ public partial class DesktopHud : CanvasLayer
         hint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         hint.GrowHorizontal = Control.GrowDirection.Begin;
         hint.GrowVertical = Control.GrowDirection.Begin;
-        hint.OffsetRight = -36; hint.OffsetBottom = -40; hint.OffsetLeft = -36; hint.OffsetTop = -40;
-        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 19));
-        var words = UiKit.Text("COMMANDES", 20, new Color(1, 1, 1, 0.9f), 4);
+        hint.OffsetRight = -36; hint.OffsetBottom = -34; hint.OffsetLeft = -36; hint.OffsetTop = -34;
+        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 20));
+        var words = UiKit.Text("COMMANDES", 22, Colors.White, 0);
+        var pill = new KcBox { Top = new Color(ChronoInk, 0.8f), Bottom = new Color(ChronoInk, 0.8f), Slant = 8 };
+        pill.ContentMarginLeft = pill.ContentMarginRight = 12; pill.ContentMarginTop = 0; pill.ContentMarginBottom = 2;
+        words.AddThemeStyleboxOverride("normal", pill);
         if (UiKit.Italic is Font cit) words.AddThemeFontOverride("font", cit);
         words.VerticalAlignment = VerticalAlignment.Center;
         hint.AddChild(words);

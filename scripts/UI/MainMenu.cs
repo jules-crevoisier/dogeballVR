@@ -107,7 +107,7 @@ public partial class MainMenu : CanvasLayer
 
         // Plaque du joueur en bas du bandeau, comme le niveau de KC en bas à gauche du menu : badge du niveau, pseudo, titre
         // et barre d'XP vers le niveau suivant.
-        if (!compact) { root.AddChild(ProfilePlate()); root.AddChild(MapOfTheDay()); }
+        if (!compact) { root.AddChild(profilePlate = ProfilePlate()); root.AddChild(dayCard = MapOfTheDay()); }
 
         // Barre jaune de sélection, sous les items (elle suit le focus dans _Process).
         bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
@@ -517,8 +517,11 @@ public partial class MainMenu : CanvasLayer
         desc.CustomMinimumSize = new Vector2(450, 70);
         info.AddChild(desc);
         // Plan de la carte vu de dessus, tracé depuis son JSON (zones, couverts, fosse, points de balle).
-        var plan = new MapPlan { CustomMinimumSize = new Vector2(450, 260), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var plan = new MapPlan { CustomMinimumSize = new Vector2(450, 330), MouseFilter = Control.MouseFilterEnum.Ignore };
         info.AddChild(plan);
+        var legend = UiKit.Text("VERT : BALLES   ·   CRÈME : COUVERTS   ·   JAUNE : MOYEU, FOSSE", 20, new Color(UiKit.Cream, 0.8f), 0, HorizontalAlignment.Center);
+        if (UiKit.Italic is Font lf) legend.AddThemeFontOverride("font", lf);
+        info.AddChild(legend);
         var plans = new System.Collections.Generic.Dictionary<string, Maps.MapData?>();
 
         Button? first = null;
@@ -605,12 +608,22 @@ public partial class MainMenu : CanvasLayer
         return holder;
     }
 
+    /// <summary>Plaque de profil et carte du jour : cachées sous une fenêtre (elles dépasseraient du flou, revue de la refonte).</summary>
+    Control? profilePlate, dayCard;
+
+    void SetBackdropCards(bool on)
+    {
+        if (profilePlate != null) profilePlate.Visible = on;
+        if (dayCard != null) dayCard.Visible = on;
+    }
+
     void OpenOverlay(Control c)
     {
         CloseOverlay();
         column.Visible = false;
+        SetBackdropCards(false);
         overlay = c;
-        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; ShowMain(); };
+        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; SetBackdropCards(true); ShowMain(); };
         root.AddChild(c);
         root.MoveChild(fade, -1);
     }
@@ -621,6 +634,7 @@ public partial class MainMenu : CanvasLayer
         overlay?.QueueFree();
         overlay = null;
         column.Visible = true;
+        SetBackdropCards(true);
     }
 
     public override void _UnhandledInput(InputEvent e)

@@ -109,13 +109,13 @@ public partial class PauseMenu : CanvasLayer
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
         // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
-        var resume = UiKit.ListButton("REPRENDRE", Close);
+        var resume = UiKit.ListButton("REPRENDRE", Close, 38, new Vector2(500, 72));   // items plus gros (revue de la refonte)
         col.AddChild(resume);
-        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
-        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
-        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 38, new Vector2(500, 72)));
+        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }, 38, new Vector2(500, 72)));
+        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }, 38, new Vector2(500, 72)));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 28, new Vector2(500, 60), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -128,7 +128,7 @@ public partial class PauseMenu : CanvasLayer
         var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         list.AddThemeConstantOverride("separation", 14);
         card.AddChild(list);
-        list.AddChild(UiKit.Title("COMMANDES", 38, HorizontalAlignment.Left));
+        list.AddChild(UiKit.Header("COMMANDES", 40));
         list.AddChild(CommandGrid(24, 12));
         var hint = UiKit.KeyHint(InputSetup.KeyName("help"), "Aide complète", 22);
         hint.Modulate = new Color(1, 1, 1, 0.8f);

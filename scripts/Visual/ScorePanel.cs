@@ -135,8 +135,9 @@ public partial class ScorePanel : Node3D
                 DrawColoredPolygon(Slanted(new Rect2(plate.Position + new Vector2(0, 8), plate.Size), 34), new Color(0, 0, 0, 0.4f));
                 DrawPolygon(Slanted(plate, 34), new[] { color.Lightened(0.05f), color.Lightened(0.05f), color.Darkened(0.15f), color.Darkened(0.15f) });
                 string name = team == 0 ? "ORANGE" : "BLEUE";
-                Text(name, plate.Position + new Vector2(k == 0 ? 40 : 30, 8), plate.Size.X - 80, 46, Colors.White, UiKit.Italic, k == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right, 5);
-                Text(s.Kos(team).ToString(), plate.Position + new Vector2(0, 28), plate.Size.X, 150, Colors.White, UiKit.Display, HorizontalAlignment.Center, 10);
+                // Nom d'équipe en grand côté extérieur, chiffre des KO côté chrono (comme le HUD du PC).
+                Text(name, plate.Position + new Vector2(k == 0 ? 30 : 160, 66), 192, 56, Colors.White, UiKit.Display, k == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right, 6);
+                Text(s.Kos(team).ToString(), plate.Position + new Vector2(k == 0 ? 222 : 18, 14), 140, 160, Colors.White, UiKit.Display, HorizontalAlignment.Center, 10);
                 // Pastilles de manche sous la plaque.
                 int pips = Mathf.Clamp(s.MaxRounds, 1, 5);
                 for (int i = 0; i < pips; i++)
@@ -144,8 +145,8 @@ public partial class ScorePanel : Node3D
                     float x = k == 0 ? plate.Position.X + 40 + i * 66 : plate.End.X - 40 - 50 - i * 66;
                     var pr = new Rect2(x, plate.End.Y + 26, 50, 30);
                     bool on = i < s.Rounds(team);
-                    DrawColoredPolygon(Slanted(pr, 10), on ? UiKit.Cream : new Color(1, 1, 1, 0.12f));
-                    if (on) DrawColoredPolygon(Slanted(pr.Grow(-5), 8), color);
+                    DrawColoredPolygon(Slanted(pr, 10), on ? UiKit.Cream : new Color(UiKit.Cream, 0.5f));
+                    DrawColoredPolygon(Slanted(pr.Grow(-5), 8), on ? color : Ink);
                 }
                 // Barre de progression vers l'objectif de KO.
                 var rail = new Rect2(plate.Position.X + 20, plate.End.Y + 80, plate.Size.X - 40, 22);
@@ -171,6 +172,8 @@ public partial class ScorePanel : Node3D
                 Text("LE PROCHAIN KO GAGNE", new Vector2(mid.Position.X - 40, ot.End.Y + 10), mid.Size.X + 80, 34, UiKit.Yellow, UiKit.Italic);
             }
             else Text(s.KoTarget > 0 ? $"PREMIER À {s.KoTarget} KO" : "", new Vector2(mid.Position.X - 40, mid.End.Y + 18), mid.Size.X + 80, 46, UiKit.Cream, UiKit.Italic);
+            // Marque de l'arène au centre, comme le logo d'un écran géant de stade.
+            Text("DOGEBALL", new Vector2(mid.Position.X - 40, 452), mid.Size.X + 80, 72, new Color(UiKit.Orange, 0.9f), UiKit.Display, HorizontalAlignment.Center, 6);
 
             // Ligne d'événement en bas : bande penchée à la couleur de l'équipe concernée (neutre sinon).
             string line = ""; Color band = new(1, 1, 1, 0.14f); Color ink = Colors.White;
@@ -223,8 +226,8 @@ public partial class ScorePanel : Node3D
         {
             var src = Gameplay.DesktopHud.Heart.Shape();
             Vector2[] At(Vector2 o, float rr) { var p = new Vector2[src.Length]; for (int i = 0; i < src.Length; i++) p[i] = o + src[i] * rr; return p; }
-            DrawColoredPolygon(At(c, r + 4), Ink);
-            DrawColoredPolygon(At(c, r), fill ?? new Color(1, 1, 1, 0.12f));
+            DrawColoredPolygon(At(c, r + 4), fill != null ? Ink : new Color(UiKit.Cream, 0.5f));
+            DrawColoredPolygon(At(c, r), fill ?? Ink);
             if (fill != null) DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.28f), new Color(1, 1, 1, 0.5f));
         }
     }

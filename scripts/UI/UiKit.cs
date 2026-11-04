@@ -228,8 +228,9 @@ public static class UiKit
         t.SetColor("font_hover_color", "PopupMenu", Navy);
         t.SetFontSize("font_size", "PopupMenu", 22);
 
-        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.12f), ContentMarginLeft = 4, ContentMarginRight = 4 };
-        var grab = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.5f) };
+        // Barre de défilement visible (revue de la refonte) : rail clair de 8 px, curseur jaune.
+        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.14f), ContentMarginLeft = 4, ContentMarginRight = 4 };
+        var grab = new StyleBoxFlat { BgColor = Yellow };
         t.SetStylebox("scroll", "VScrollBar", scroll);
         t.SetStylebox("grabber", "VScrollBar", grab);
         t.SetStylebox("grabber_highlight", "VScrollBar", grab);

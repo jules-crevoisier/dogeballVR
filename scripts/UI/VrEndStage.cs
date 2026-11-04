@@ -55,7 +55,7 @@ public partial class VrEndStage : Node3D
         if (stage != null && footer != null)
         {
             double left = HoldSeconds - (clock - shownAt);
-            footer.Text = HoldSeconds > 0 ? $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)left))} s" : "En attente de l'opérateur";
+            footer.Text = HoldSeconds > 0 ? $"NOUVELLE PARTIE DANS {Mathf.Max(0, Mathf.CeilToInt((float)left))} S" : "EN ATTENTE DE L'OPÉRATEUR";
         }
     }
 
@@ -73,9 +73,11 @@ public partial class VrEndStage : Node3D
         int mvp = Mvp(winner, stats);
         Color teamColor = winner >= 0 ? Palette.Team(winner) : Palette.Lines;
         string title = winner < 0 ? "ÉGALITÉ" : winner == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE";
-        AddText(title, new Vector3(0, 3.3f, 0), 0.012f, 120, teamColor);
+        // Titre et sous-titre sur un même panneau encre à liseré crème (revue de la refonte) : plus de texte posé sur les façades.
+        AddPlate(stage, new Vector3(0, 3.22f, 0.08f), new Vector2(6.4f, 1.4f), teamColor);
+        AddText(title, new Vector3(0, 3.45f, 0), 0.011f, 120, teamColor);
         string teamName = winner == 0 ? "ÉQUIPE ORANGE" : winner == 1 ? "ÉQUIPE BLEUE" : "PERSONNE";
-        AddText($"{teamName} GAGNE  {View.State.Rounds(0)} - {View.State.Rounds(1)}", new Vector3(0, 2.7f, 0), 0.006f, 64, Palette.Lines);
+        AddText($"{teamName} GAGNE  {View.State.Rounds(0)} – {View.State.Rounds(1)}", new Vector3(0, 2.8f, 0), 0.0055f, 64, UiKit.Cream);
 
         // Podium : l'équipe gagnante (sans vainqueur, l'équipe du joueur), le MVP au centre sur le socle haut.
         int shown = winner >= 0 ? winner : View.LocalTeam;
@@ -91,7 +93,7 @@ public partial class VrEndStage : Node3D
             int rank = (i + 1) / 2;
             float side = i % 2 == 1 ? -1f : 1f;
             float h = i == 0 ? 0.35f : 0.18f;
-            var pos = i == 0 ? new Vector3(0, 0, 0) : new Vector3(side * 1.05f * rank, 0, 0.35f * rank);
+            var pos = i == 0 ? new Vector3(0, 0, 0) : new Vector3(side * 1.25f * rank, 0, 0.35f * rank);
             podium.AddChild(new MeshInstance3D
             {
                 Mesh = new CylinderMesh { TopRadius = 0.42f, BottomRadius = 0.48f, Height = h, RadialSegments = 32 },
@@ -111,7 +113,7 @@ public partial class VrEndStage : Node3D
             tw.TweenInterval(i == 0 ? 0.5 : 0.15 + 0.12 * i);
             tw.TweenProperty(hero, "scale", Vector3.One, 0.35).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
             string star = ids[i] == mvp ? "★ MVP  " : "";
-            var tag = AddText(star + View.NameOf(ids[i]), pos + new Vector3(0, h + 2.0f, -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium);
+            var tag = AddText(star + View.NameOf(ids[i]).ToUpperInvariant(), pos + new Vector3(0, h + (i == 0 ? 2.0f : 1.85f), -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium);
             tag.Billboard = BaseMaterial3D.BillboardModeEnum.FixedY;
         }
 
@@ -169,27 +171,19 @@ public partial class VrEndStage : Node3D
         var board = new Node3D { Name = "Tableau", Position = new Vector3(1.9f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(20), 0) };
         stage!.AddChild(board);
         int rows = Mathf.Max(1, View.Players.Count);
-        float top = 2.45f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
-        board.AddChild(new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(2.9f, height, 0.04f) }, Position = new Vector3(0, top - height / 2 + 0.2f, 0.05f),
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(new Color("17151f"), 0.9f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
-            },
-        });
+        float top = 2.22f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
+        AddPlate(board, new Vector3(0, top - height / 2 + 0.2f, 0.05f), new Vector2(2.9f, height), UiKit.Cream);
         void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52)
         {
             var l = AddText(text, new Vector3(x, y, 0), 0.0032f, size, c, board);
             l.HorizontalAlignment = align;
         }
-        Cell("JOUEUR", ColumnName, top, UiKit.Lavender, HorizontalAlignment.Left, 40);
-        Cell("KO", ColumnKo, top, UiKit.Lavender, size: 40);
-        Cell("TOUCHES", ColumnHits, top, UiKit.Lavender, size: 40);
-        Cell("ATTRAPES", ColumnCatches, top, UiKit.Lavender, size: 40);
+        Cell("JOUEUR", ColumnName, top, UiKit.Cream, HorizontalAlignment.Left, 40);
+        Cell("KO", ColumnKo, top, UiKit.Cream, size: 40);
+        Cell("TOUCHES", ColumnHits, top, UiKit.Cream, size: 40);
+        Cell("ATTRAPES", ColumnCatches, top, UiKit.Cream, size: 40);
         // Décompte sous le tableau.
-        footer = AddText("", new Vector3(0, top - height - 0.1f, 0), 0.0042f, 56, Palette.Lines, board);
+        footer = AddText("", new Vector3(0, top - height - 0.1f, 0), 0.0042f, 56, UiKit.Yellow, board);
         if (stats == null)
         {
             Cell("Statistiques en attente de l'hôte", 0, top - step * 1.5f, Palette.Lines);
@@ -219,13 +213,28 @@ public partial class VrEndStage : Node3D
         var l = new Label3D
         {
             Text = text, Position = pos, PixelSize = pixel, FontSize = size, Modulate = color, OutlineModulate = UiKit.InkText, OutlineSize = Mathf.Max(4, size / 9),
-            Rotation = new Vector3(0, Mathf.Pi, 0), Shaded = false, DoubleSided = false, RenderPriority = 2,   // au-dessus du panneau ; la scène est déjà ramenée devant les couverts
+            Rotation = new Vector3(0, Mathf.Pi, 0), Shaded = false, DoubleSided = false, RenderPriority = 2,   // au-dessus du panneau
+            NoDepthTest = true,   // jamais coupé par un muret ou une façade : la scène se lit comme un hologramme devant le décor
         };
         // DA v2 : titres en Black Italic, chiffres et noms en ExtraBold Italic (plus lisibles de loin que la Bold droite).
         var f = size >= 96 ? UiKit.Display : UiKit.Italic;
         if (f != null) l.Font = f;
         (parent ?? stage!).AddChild(l);
         return l;
+    }
+
+    /// <summary>Panneau encre opaque à 90 % à liseré (4 cm), dessiné par-dessus le décor et sous les textes.</summary>
+    static void AddPlate(Node3D parent, Vector3 center, Vector2 size, Color border)
+    {
+        StandardMaterial3D Mat(Color c, int priority) => new()
+        {
+            AlbedoColor = c, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            NoDepthTest = true, RenderPriority = priority,
+        };
+        parent.AddChild(new MeshInstance3D { Mesh = new QuadMesh { Size = size + new Vector2(0.08f, 0.08f) }, Position = center + new Vector3(0, 0, 0.01f), Rotation = new Vector3(0, Mathf.Pi, 0),
+            MaterialOverride = Mat(border, 0), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        parent.AddChild(new MeshInstance3D { Mesh = new QuadMesh { Size = size }, Position = center, Rotation = new Vector3(0, Mathf.Pi, 0),
+            MaterialOverride = Mat(new Color(new Color("17151f"), 0.92f), 1), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
     }
 
     void HideStage()
