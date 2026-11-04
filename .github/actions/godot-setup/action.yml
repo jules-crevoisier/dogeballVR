@@ -1,6 +1,8 @@
 name: Préparer Godot .NET
 description: >
-  .NET 8, Godot 4.3 mono (mis en cache), compilation C# et import des ressources (dossier .godot/imported mis en cache).
+  .NET 8, Godot 4.3 mono (mis en cache), compilation C# et import des ressources.
+  Pas de cache de .godot/imported : après un checkout neuf, Godot 4.3 réimporte tout de toute façon
+  (pas de filesystem_cache8, dates des .import changées ; editor_file_system.cpp, contournement GH-94416).
   Exporte GODOT (chemin de l'exécutable) dans l'environnement du job.
 
 inputs:
@@ -27,16 +29,6 @@ runs:
       with:
         path: ~/godot-dl
         key: godot-${{ inputs.godot-version }}-mono-linux-v1
-
-    # Godot compare l'empreinte de chaque source à celle notée dans .godot/imported : un fichier modifié est réimporté,
-    # les autres sont repris tels quels. La clé change avec les .import et les assets pour enregistrer un cache à jour ;
-    # restore-keys reprend le dernier sinon (un cache de main sert à toutes les PR).
-    - name: Cache des ressources importées
-      uses: actions/cache@v4
-      with:
-        path: .godot/imported
-        key: godot-imported-${{ inputs.godot-version }}-${{ hashFiles('**/*.import', 'assets/**', 'project.godot') }}
-        restore-keys: godot-imported-${{ inputs.godot-version }}-
 
     - name: Installer Godot
       shell: bash

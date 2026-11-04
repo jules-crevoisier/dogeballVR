@@ -10,10 +10,11 @@ on:
 permissions:
   contents: write
 
-# Deux fusions rapprochées : seul l'export du dernier commit de main va au bout et remplace la release build-latest.
+# Deux fusions rapprochées : un export à la fois, sans couper une publication en cours ;
+# GitHub ne garde en attente que le plus récent, qui remplace ensuite la release build-latest.
 concurrency:
   group: export-windows-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   export-windows:

@@ -38,8 +38,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           # En cas de doute (API en panne), on teste.
-          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          autres=$(printf '%s\n' "$files" | grep -vE '^(docs|design|production|\.claude|studio-tests)/|\.md$' || true)
+          # Ancien nom compris (un fichier déplacé vers docs/ compte aussi par l'endroit d'où il vient).
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)') || { echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          # Hors documentation : tout fichier ailleurs, et tout fichier de code ou de ressource même sous docs/ (le csproj compile tous les .cs du dépôt).
+          autres=$(printf '%s\n' "$files" | grep -E '\.(cs|csproj|sln|gd|gdshader|tscn|tres|godot|import|json|cfg|glb|sh|yml|yaml)$' || true)
+          autres="$autres$(printf '%s\n' "$files" | grep -vE '^(docs|design|production|\.claude|studio-tests)/|\.md$' || true)"
           if [ -n "$files" ] && [ -z "$autres" ]; then
             echo "Documentation seule : tests sautés."
             echo "code=false" >> "$GITHUB_OUTPUT"
@@ -162,7 +165,7 @@ jobs:
           fi
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -233,7 +236,7 @@ jobs:
           fi
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -291,7 +294,7 @@ jobs:
           grep -E "balles=[1-9]" bad-client.log > /dev/null || { echo "Le client ne voit pas les balles"; exit 1; }
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -368,7 +371,7 @@ jobs:
           echo "Balles spéciales : annonce, lancer ou souffle manquant"; exit 1
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -435,7 +438,7 @@ jobs:
           done
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -484,7 +487,7 @@ jobs:
           done
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -593,7 +596,7 @@ jobs:
           exit $FAIL
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -643,7 +646,7 @@ jobs:
           exit $FAIL
 
       - name: Journaux en cas d'échec
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: journaux-${{ github.job }}
@@ -664,8 +667,13 @@ jobs:
       - name: Résultat des jobs
         env:
           RESULTATS: ${{ toJSON(needs) }}
+          CODE: ${{ needs.changes.outputs.code }}
         run: |
           echo "$RESULTATS" | jq -r 'to_entries[] | "\(.key) : \(.value.result)"'
-          if echo "$RESULTATS" | jq -e '[.[].result] | any(. == "failure" or . == "cancelled")' > /dev/null; then
-            echo "::error::Au moins un job a échoué ou a été annulé"; exit 1
+          # Tests demandés : tous les jobs doivent réussir (un job sauté par erreur ne passe pas).
+          # Documentation seule : « changes » réussit et les autres sont sautés.
+          if [ "$CODE" = "false" ]; then attendu='.changes.result == "success" and ([del(.changes)[].result] | all(. == "skipped"))'
+          else attendu='[.[].result] | all(. == "success")'; fi
+          if ! echo "$RESULTATS" | jq -e "$attendu" > /dev/null; then
+            echo "::error::Au moins un job n'a pas réussi"; exit 1
           fi
