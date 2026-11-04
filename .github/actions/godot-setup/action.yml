@@ -1,0 +1,57 @@
+name: Préparer Godot .NET
+description: >
+  .NET 8, Godot 4.3 mono (mis en cache), compilation C# et import des ressources.
+  Pas de cache de .godot/imported : après un checkout neuf, Godot 4.3 réimporte tout de toute façon
+  (pas de filesystem_cache8, dates des .import changées ; editor_file_system.cpp, contournement GH-94416).
+  Exporte GODOT (chemin de l'exécutable) dans l'environnement du job.
+
+inputs:
+  godot-version:
+    description: Version de Godot (même valeur que GODOT_VERSION dans les workflows)
+    default: 4.3-stable
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Cache NuGet
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('*.csproj') }}
+        restore-keys: nuget-${{ runner.os }}-
+
+    - name: Cache Godot
+      uses: actions/cache@v4
+      with:
+        path: ~/godot-dl
+        key: godot-${{ inputs.godot-version }}-mono-linux-v1
+
+    - name: Installer Godot
+      shell: bash
+      env:
+        GODOT_VERSION: ${{ inputs.godot-version }}
+      run: |
+        mkdir -p ~/godot-dl
+        [ -f ~/godot-dl/godot.zip ] || curl -sSfL -o ~/godot-dl/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+        unzip -q -o ~/godot-dl/godot.zip -d "$RUNNER_TEMP"
+        echo "GODOT=$RUNNER_TEMP/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64" >> "$GITHUB_ENV"
+
+    - name: Compiler le C# et importer les ressources
+      shell: bash
+      run: |
+        # Godot 4.3 .NET plante parfois en se fermant (134, 139 ; voir tools/ci/godot-fg.sh) : ce plantage est toléré
+        # si la compilation a bien produit l'assembly (checkout neuf : elle n'existe que si la compilation a réussi).
+        rc=0; "$GODOT" --headless --path . --build-solutions --quit || rc=$?
+        if [ $rc -ne 0 ]; then
+          if { [ $rc -eq 134 ] || [ $rc -eq 139 ]; } && ls .godot/mono/temp/bin/*/DogeballVR.dll > /dev/null 2>&1; then
+            echo "::warning::Godot s'est arrêté avec le code $rc après la compilation C#, assembly présente : ignoré"
+          else
+            exit $rc
+          fi
+        fi
+        # Importe les modèles glb (assets/models) avant les parties : sans cela ils ne sont pas chargés et le jeu retombe sur les formes du code.
+        "$GODOT" --headless --path . --import --quit || true
