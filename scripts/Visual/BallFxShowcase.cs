@@ -18,7 +18,7 @@ public partial class BallFxShowcase : Node3D
 
     public override void _Ready()
     {
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in Tools.DevFlags.Args)
         {
             if (a.StartsWith("--out=")) outPrefix = a.Substring(6);
             if (a.StartsWith("--vitrine=")) which = a.Substring(10);

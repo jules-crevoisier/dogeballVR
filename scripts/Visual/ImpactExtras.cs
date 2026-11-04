@@ -11,7 +11,7 @@ namespace DogeballVR.Visual;
 /// </summary>
 public static class ImpactExtras
 {
-    static readonly bool Off = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--sans-impact-bd") >= 0;
+    static readonly bool Off = System.Array.IndexOf(Tools.DevFlags.Args, "--sans-impact-bd") >= 0;
     static ArrayMesh? burstMesh, streakMesh;
     static GradientTexture2D? dustTex, pillarTex;
 
