@@ -175,7 +175,7 @@ public partial class VrEndStage : Node3D
             Mesh = new BoxMesh { Size = new Vector3(2.9f, height, 0.04f) }, Position = new Vector3(0, top - height / 2 + 0.2f, 0.05f),
             MaterialOverride = new StandardMaterial3D
             {
-                AlbedoColor = new Color(UiKit.Navy, 0.85f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                AlbedoColor = new Color(new Color("17151f"), 0.9f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
                 RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
             },
         });
@@ -218,10 +218,12 @@ public partial class VrEndStage : Node3D
     {
         var l = new Label3D
         {
-            Text = text, Position = pos, PixelSize = pixel, FontSize = size, Modulate = color, OutlineModulate = UiKit.Navy, OutlineSize = size / 5,
+            Text = text, Position = pos, PixelSize = pixel, FontSize = size, Modulate = color, OutlineModulate = UiKit.InkText, OutlineSize = Mathf.Max(4, size / 9),
             Rotation = new Vector3(0, Mathf.Pi, 0), Shaded = false, DoubleSided = false, RenderPriority = 2,   // au-dessus du panneau ; la scène est déjà ramenée devant les couverts
         };
-        if (UiKit.Font != null) l.Font = UiKit.Font;
+        // DA v2 : titres en Black Italic, chiffres et noms en ExtraBold Italic (plus lisibles de loin que la Bold droite).
+        var f = size >= 96 ? UiKit.Display : UiKit.Italic;
+        if (f != null) l.Font = f;
         (parent ?? stage!).AddChild(l);
         return l;
     }

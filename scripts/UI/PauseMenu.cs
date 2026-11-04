@@ -230,7 +230,7 @@ public partial class PauseMenu : CanvasLayer
             var col = new VBoxContainer();
             col.AddThemeConstantOverride("separation", 16);
             panel.AddChild(col);
-            col.AddChild(UiKit.Title("COMMANDES", 52));
+            col.AddChild(UiKit.Header("COMMANDES", 52));
             col.AddChild(CommandGrid(26, 10));
             if (Text != "") col.AddChild(UiKit.Text(Text, 20, UiKit.Sky, 5));
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));

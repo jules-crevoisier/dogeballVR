@@ -192,10 +192,15 @@ public partial class EndPodium : Control
     void BuildTitle()
     {
         bool win = Winner == View.LocalTeam;
-        title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", 150, win ? UiKit.Yellow : new Color("9fb4d8"), 28, HorizontalAlignment.Center);
+        title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", 170, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
         AddChild(title);
         var s = View.State;
-        sub = UiKit.Text($"MANCHES  {s.Rounds(Winner)} - {s.Rounds(1 - Winner)}", 34, UiKit.Cream, 10, HorizontalAlignment.Center);
+        // Score des manches dans une pastille crème sous le titre (même pastille que le bandeau de fin de manche).
+        sub = UiKit.Text($"MANCHES  {s.Rounds(Winner)} – {s.Rounds(1 - Winner)}", 38, UiKit.InkText, 0, HorizontalAlignment.Center);
+        if (UiKit.Italic is Font si) sub.AddThemeFontOverride("font", si);
+        var pill = new KcBox { Top = UiKit.Cream, Bottom = UiKit.Cream.Darkened(0.06f), Slant = 14, ShadowOffset = new Vector2(5, 6), ShadowColor = new Color(0, 0, 0, 0.35f) };
+        pill.ContentMarginLeft = pill.ContentMarginRight = 36; pill.ContentMarginTop = 2; pill.ContentMarginBottom = 4;
+        sub.AddThemeStyleboxOverride("normal", pill);
         AddChild(sub);
         title.Scale = Vector2.One * 2.2f;
         title.Modulate = new Color(1, 1, 1, 0);
@@ -209,8 +214,8 @@ public partial class EndPodium : Control
     /// <summary>Bandeau de l'équipe gagnante en haut à droite, penché, comme « Blue Team » chez Knockout City.</summary>
     void BuildTeamBanner()
     {
-        teamLabel = UiKit.Text(TeamLabel, 50, Colors.White, 10, HorizontalAlignment.Right);
-        if (UiKit.Italic is Font it) teamLabel.AddThemeFontOverride("font", it);
+        teamLabel = UiKit.Text(TeamLabel, 54, Colors.White, 6, HorizontalAlignment.Right);
+        if (UiKit.Display is Font it) teamLabel.AddThemeFontOverride("font", it);
         AddChild(teamLabel);
         teamLabel.Modulate = new Color(1, 1, 1, 0);
         teamLabel.CreateTween().TweenProperty(teamLabel, "modulate:a", 1.0, 0.25).SetDelay(0.15);
@@ -275,7 +280,7 @@ public partial class EndPodium : Control
     {
         title.Position = new Vector2((Size.X - title.Size.X) / 2, 10);
         title.PivotOffset = title.Size / 2;
-        sub.Position = new Vector2((Size.X - sub.Size.X) / 2, 176);
+        sub.Position = new Vector2((Size.X - sub.Size.X) / 2, 10 + title.Size.Y + 2);   // sous la ligne du titre, sans la toucher
         teamLabel.Position = new Vector2(Size.X - teamLabel.Size.X - 36, 22);
         hint.Position = new Vector2(Size.X - hint.Size.X - 28, Size.Y - CardsBand - hint.Size.Y - 18);
         if (world.Size.X <= 0 || view.Size.X <= 0) return;

@@ -723,7 +723,11 @@ public partial class Main : Node3D
             AddChild(new Audio.MatchCues { Name = "MatchCues", View = MatchView.ForClient(score, lives, map, localZone.Id, localZone.Team), Haptic = haptic });
             if (xrOrigin.GetNodeOrNull<Node3D>("XRCamera3D") is { } xrCam) Visual.VrVignette.Attach(xrCam);
         }
-        if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
+        if (xrOrigin != null || Tools.DevFlags.Has("--vr-panels"))   // au clavier-souris, le score est dans le HUD : pas de panneaux dans le décor
+        {
+            var names = MatchView.ForClient(score, lives, map, localZone.Id, localZone.Team);
+            foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score, lives, maxLives, names.NameOf));
+        }   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet. Accrochés au gant (pose grip,
         // repère du modèle : dos de la main vers +Y), pas à la manette (pointe), pour rester sur la main.
         Node3D? left = xrOrigin?.GetNodeOrNull<Node3D>("LeftGlove/Glove") ?? hands.Find(h => h.Tracker == "left_hand");

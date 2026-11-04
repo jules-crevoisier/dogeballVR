@@ -103,7 +103,7 @@ public partial class OptionsMenu : Control
         col.AddThemeConstantOverride("separation", 12);
         panel.AddChild(col);
 
-        col.AddChild(UiKit.Title("OPTIONS", 56));
+        col.AddChild(UiKit.Header("OPTIONS", 56));
         var tabRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         tabRow.AddThemeConstantOverride("separation", 10);
         col.AddChild(tabRow);

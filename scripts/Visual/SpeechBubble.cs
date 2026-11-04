@@ -41,7 +41,7 @@ public partial class SpeechBubble : Node3D
         foreach (var old in active.ToArray())
             if (GodotObject.IsInstanceValid(old)) { old.Visible = false; old.QueueFree(); }
         active.Clear();
-        font ??= GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
+        font ??= UI.UiKit.Display ?? GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
         var b = new SpeechBubble
         {
             Name = "Sticker", TopLevel = true, follow = follow,
