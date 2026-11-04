@@ -989,7 +989,7 @@ public partial class DesktopPlayer : Node3D
             var query = PhysicsRayQueryParameters3D.Create(from, to, 0xFFFFFFFF, exclude);
             var hit = space.IntersectRay(query);
             if (hit.Count == 0) return 30f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(camera.GlobalPosition.DistanceTo(hit["position"].AsVector3()), 3f, 30f);
+            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(camera.GlobalPosition.DistanceTo(hit["position"].AsVector3()), Mathf.Max(3f, skip + 1.5f), 30f);   // au moins 1,5 m devant la tête : un mur collé ne fait pas viser derrière la main
             exclude.Add(hit["rid"].AsRid());   // balle, hurtbox : on regarde derrière
         }
         return 30f;
@@ -1125,7 +1125,13 @@ public partial class DesktopPlayer : Node3D
         // et l'écran deviendrait d'une seule couleur. On recule l'objectif à l'horizontale (0,8 m au plus) jusqu'à en sortir.
         var eye = head.GlobalPosition;
         var back = new Basis(Vector3.Up, yaw) * Vector3.Back;
-        for (int i = 0; i < 8 && InCoverMesh(eye); i++) eye += back * 0.1f;
+        var bnd = Zones.Map.Bounds;
+        for (int i = 0; i < 8 && InCoverMesh(eye); i++)
+        {
+            var next = eye + back * 0.1f;
+            if (next.X < bnd.MinX || next.X > bnd.MaxX || next.Z < bnd.MinZ || next.Z > bnd.MaxZ) break;   // jamais hors de l'arène
+            eye = next;
+        }
         camera.GlobalTransform = new Transform3D(shaken, eye + basis * fxOffset);
         if (eyeView) return;
         // Passage de la caméra d'épaule à la vue subjective : couverts translucides et décor caché rétablis, épaule droite par défaut.

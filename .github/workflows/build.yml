@@ -130,11 +130,13 @@ jobs:
           echo "Rotor : balles arrêtées $STOPPED, témoin sans rotor $CONTROL"
           if [ "${STOPPED:-0}" -lt 10 ] || [ "${CONTROL:-99}" -gt 8 ]; then echo "Le rotor n'arrête pas les balles (ou le témoin en arrête déjà trop)"; exit 1; fi
 
-      - name: Test caméra d'épaule (couverts, pylône, rotor, 9 poses fixes)
+      - name: Test caméra d'épaule (couverts, pylône, rotor, 9 poses fixes ; cartes en zones, 6 poses chacune)
         run: |
-          "$GODOT" --headless --path . --fixed-fps 20 --quit-after 500 -- --map=croix_neon --cam-test 2>&1 | tee cam.log
-          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" cam.log; then echo "Erreur à l'exécution (caméra)"; exit 1; fi
-          grep -q "\[CamTest\] TOUT OK" cam.log || { echo "Caméra d'épaule : joueur caché, objectif dans un décor ou écran bouché"; exit 1; }
+          for m in croix_neon neon_court la_fosse; do
+            "$GODOT" --headless --path . --fixed-fps 20 --quit-after 500 -- --map=$m --cam-test 2>&1 | tee cam-$m.log
+            if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" cam-$m.log; then echo "Erreur à l'exécution (caméra, $m)"; exit 1; fi
+            grep -q "\[CamTest\] TOUT OK" cam-$m.log || { echo "Caméra d'épaule ($m) : joueur caché, objectif dans un décor ou écran bouché"; exit 1; }
+          done
 
       - name: Test IK des avatars (bras VR sur les mains, armé, accroupi au sol) et témoin sans IK
         run: |
