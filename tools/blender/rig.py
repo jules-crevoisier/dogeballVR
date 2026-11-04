@@ -187,10 +187,14 @@ def animate(rig, arm_rest=6):
     A = "AvantBras"
     R, R2 = arm_rest, arm_rest + 3   # écart des bras au repos (degrés, en plus de la pose en A du squelette)
     arms0 = {"Bras.G": (0, R, 0), "Bras.D": (0, -R, 0), f"{A}.G": (12, 0, 0), f"{A}.D": (12, 0, 0)}
+    # repos : garde prête plutôt que pose en A (bras rapprochés et coudes fléchis, genoux souples, buste un peu en avant), respiration
+    Rr = R - 14
+    leg = lambda k: {"Cuisse.G": (10 + 2 * k, 0, 0), "Cuisse.D": (8 + 2 * k, 0, 0), "Tibia.G": (-18 - 4 * k, 0, 0), "Tibia.D": (-15 - 4 * k, 0, 0)}  # noqa: E731
     _action(rig, "Repos", {
-        1: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Tete": (0, 0, 0), **arms0},
-        31: {"Hanches": ("loc", 0, 0, -0.012), "Dos": (3, 0, 0), "Tete": (-3, 0, 0), "Bras.G": (0, R2, 0), "Bras.D": (0, -R2, 0),
-             f"{A}.G": (16, 0, 0), f"{A}.D": (16, 0, 0)},
+        1: {"Hanches": ("loc", 0, 0, -0.03), "Dos": (-4, 0, 0), "Tete": (2, 0, 0), "Bras.G": (6, Rr, 0), "Bras.D": (6, -Rr, 0),
+            f"{A}.G": (28, 0, 0), f"{A}.D": (28, 0, 0), **leg(0)},
+        31: {"Hanches": ("loc", 0, 0, -0.045), "Dos": (-2, 0, 0), "Tete": (0, 0, 0), "Bras.G": (8, Rr - 2, 0), "Bras.D": (8, -Rr + 2, 0),
+             f"{A}.G": (32, 0, 0), f"{A}.D": (32, 0, 0), **leg(1)},
     }, 61)
     run = {}
     for i, f in enumerate((1, 6, 11, 16)):
@@ -204,40 +208,88 @@ def animate(rig, arm_rest=6):
         }
     _action(rig, "Course", run, 21)
     D = {"Dos": (0, 0, 0), "Bras.D": (0, -R, 0), f"{A}.D": (12, 0, 0), "Bras.G": (0, R, 0), f"{A}.G": (12, 0, 0), "Tete": (0, 0, 0)}
-    _action(rig, "Lancer", {
-        1: dict(D),
-        8: {"Dos": (10, 0, 40), "Bras.D": (-30, -95, 0), f"{A}.D": (0, -60, 0), "Bras.G": (60, 30, 0), f"{A}.G": (20, 0, 0), "Tete": (0, 0, -30)},
-        12: {"Dos": (-22, 0, -30), "Bras.D": (130, -20, 0), f"{A}.D": (20, 0, 0), "Bras.G": (-30, 20, 0), f"{A}.G": (40, 0, 0), "Tete": (5, 0, 20)},
-        20: {"Dos": (-12, 0, -15), "Bras.D": (70, 10, 0), f"{A}.D": (30, 0, 0), "Bras.G": (-10, 10, 0), f"{A}.G": (30, 0, 0), "Tete": (0, 0, 8)},
-        28: dict(D),
-    }, 28, loop=False)
-    _action(rig, "Attrape", {
-        1: dict(D),
-        5: {"Dos": (6, 0, 0), "Bras.G": (85, 25, 0), "Bras.D": (85, -25, 0), f"{A}.G": (95, 0, 0), f"{A}.D": (95, 0, 0), "Tete": (-6, 0, 0)},
-        11: {"Dos": (-10, 0, 0), "Bras.G": (55, 10, 0), "Bras.D": (55, -10, 0), f"{A}.G": (120, -30, 0), f"{A}.D": (120, 30, 0), "Tete": (6, 0, 0)},
-        20: dict(D),
-    }, 20, loop=False)
-    crouch = {"Hanches": ("loc", 0, 0, -0.2), "Dos": (-15, 28, 0), "Cuisse.G": (55, 0, 0), "Cuisse.D": (55, 0, 0),
-              "Tibia.G": (-95, 0, 0), "Tibia.D": (-95, 0, 0), "Bras.G": (40, 35, 0), "Bras.D": (30, -50, 0)}
-    stand = {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0),
-             "Tibia.G": (0, 0, 0), "Tibia.D": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0)}
-    _action(rig, "Esquive", {1: dict(stand), 5: dict(crouch), 12: dict(crouch), 18: dict(stand)}, 18, loop=False)
-    _action(rig, "Touche", {
-        1: {"Dos": (0, 0, 0), "Tete": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0), "Hanches": ("loc", 0, 0, 0)},
-        3: {"Dos": (28, 0, 10), "Tete": (30, 0, 0), "Bras.G": (-20, 60, 0), "Bras.D": (-20, -60, 0), "Hanches": ("loc", 0, -0.08, 0)},
-        14: {"Dos": (0, 0, 0), "Tete": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0), "Hanches": ("loc", 0, 0, 0)},
-    }, 14, loop=False)
-    ko0 = {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Tete": (0, 0, 0), "Bras.G": (0, R, 0), "Bras.D": (0, -R, 0),
-           "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0), "Tibia.D": (0, 0, 0)}
-    _action(rig, "KO", {
-        1: ko0,
-        7: {"Hanches": ("loc", 0, -0.25, -0.25), "Dos": (35, 0, 0), "Tete": (30, 0, 0), "Bras.G": (-10, 120, 0), "Bras.D": (-10, -120, 0),
-            "Cuisse.G": (60, 0, 0), "Cuisse.D": (40, 0, 0), "Tibia.G": (-60, 0, 0), "Tibia.D": (-30, 0, 0)},
-        16: {"Hanches": ("loc", 0, -0.55, -0.62), "Dos": (75, 0, 0), "Tete": (15, 0, 15), "Bras.G": (20, 150, 0), "Bras.D": (20, -150, 0),
-             "Cuisse.G": (85, 0, -10), "Cuisse.D": (70, 0, 10), "Tibia.G": (-40, 0, 0), "Tibia.D": (-10, 0, 0)},
-        24: {"Hanches": ("loc", 0, -0.6, -0.68), "Dos": (85, 0, 0), "Tete": (10, 0, 20), "Bras.G": (25, 160, 0), "Bras.D": (25, -160, 0),
-             "Cuisse.G": (90, 0, -10), "Cuisse.D": (80, 0, 10), "Tibia.G": (-30, 0, 0), "Tibia.D": (-5, 0, 0)},
-    }, 24, loop=False)
+    legs0 = {"Hanches": ("loc", 0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0), "Tibia.D": (0, 0, 0)}
+    rest = {**D, **legs0}
+
+    def full(keys):
+        """Complète chaque clé avec la pose de repos pour les os cités ailleurs (règle : un os cité l'est à toutes les clés)."""
+        used = {b for k in keys.values() for b in k}
+        return {f: {b: k.get(b, rest[b]) for b in used} for f, k in keys.items()}
+
+    # lancer : joué au lâcher de la balle. Départ armé (buste vrillé, bras en arrière, poids sur la jambe arrière),
+    # fouet du bras en 2 images, puis long suivi : bras qui croise le corps, poids transféré sur la jambe avant, talon arrière levé.
+    _action(rig, "Lancer", full({
+        1: {"Hanches": ("loc", 0, -0.05, -0.05), "Dos": (14, 0, 48), "Bras.D": (-40, -100, 0), f"{A}.D": (0, -75, 0),
+            "Bras.G": (75, 35, 0), f"{A}.G": (20, 0, 0), "Tete": (0, 0, -38),
+            "Cuisse.G": (28, 0, 0), "Tibia.G": (-25, 0, 0), "Cuisse.D": (-12, 0, 0), "Tibia.D": (-28, 0, 0)},
+        3: {"Hanches": ("loc", 0, 0.08, -0.08), "Dos": (-20, 0, -22), "Bras.D": (125, -30, 0), f"{A}.D": (8, 0, 0),
+            "Bras.G": (-28, 28, 0), f"{A}.G": (50, 0, 0), "Tete": (4, 0, 12),
+            "Cuisse.G": (38, 0, 0), "Tibia.G": (-28, 0, 0), "Cuisse.D": (-28, 0, 0), "Tibia.D": (-38, 0, 0)},
+        7: {"Hanches": ("loc", 0, 0.15, -0.13), "Dos": (-36, 0, -44), "Bras.D": (82, 28, 0), f"{A}.D": (38, 0, 0),
+            "Bras.G": (-42, 32, 0), f"{A}.G": (62, 0, 0), "Tete": (12, 0, 24),
+            "Cuisse.G": (48, 0, 0), "Tibia.G": (-42, 0, 0), "Cuisse.D": (-36, 0, 0), "Tibia.D": (-75, 0, 0)},
+        13: {"Hanches": ("loc", 0, 0.09, -0.07), "Dos": (-16, 0, -20), "Bras.D": (50, 0, 0), f"{A}.D": (30, 0, 0),
+             "Bras.G": (-10, R, 0), f"{A}.G": (25, 0, 0), "Tete": (3, 0, 9),
+             "Cuisse.G": (22, 0, 0), "Tibia.G": (-22, 0, 0), "Cuisse.D": (-12, 0, 0), "Tibia.D": (-32, 0, 0)},
+        22: dict(rest),
+    }), 22, loop=False)
+    # attrape : bras tendus vers la balle, impact encaissé par les genoux et le buste (recul), balle serrée contre la poitrine
+    _action(rig, "Attrape", full({
+        1: {"Hanches": ("loc", 0, 0.03, -0.02), "Dos": (-10, 0, 0), "Bras.G": (95, 20, 0), "Bras.D": (95, -20, 0),
+            f"{A}.G": (28, 0, 0), f"{A}.D": (28, 0, 0), "Tete": (-8, 0, 0)},
+        3: {"Hanches": ("loc", 0, -0.1, -0.12), "Dos": (14, 0, 0), "Bras.G": (62, 12, 0), "Bras.D": (62, -12, 0),
+            f"{A}.G": (112, -30, 0), f"{A}.D": (112, 30, 0), "Tete": (12, 0, 0),
+            "Cuisse.G": (36, 0, 0), "Cuisse.D": (32, 0, 0), "Tibia.G": (-58, 0, 0), "Tibia.D": (-52, 0, 0)},
+        7: {"Hanches": ("loc", 0, -0.13, -0.17), "Dos": (4, 0, 0), "Bras.G": (50, 8, 0), "Bras.D": (50, -8, 0),
+            f"{A}.G": (125, -36, 0), f"{A}.D": (125, 36, 0), "Tete": (4, 0, 0),
+            "Cuisse.G": (48, 0, 0), "Cuisse.D": (44, 0, 0), "Tibia.G": (-74, 0, 0), "Tibia.D": (-68, 0, 0)},
+        12: {"Hanches": ("loc", 0, -0.04, -0.05), "Dos": (-4, 0, 0), "Bras.G": (40, 10, 0), "Bras.D": (40, -10, 0),
+             f"{A}.G": (110, -26, 0), f"{A}.D": (110, 26, 0), "Tete": (-2, 0, 0),
+             "Cuisse.G": (16, 0, 0), "Cuisse.D": (14, 0, 0), "Tibia.G": (-26, 0, 0), "Tibia.D": (-24, 0, 0)},
+        20: dict(rest),
+    }), 20, loop=False)
+    # esquive (dash) : chute rapide en 2 images, buste penché et bras jetés pour l'équilibre, petit dépassement, remontée
+    _action(rig, "Esquive", full({
+        1: dict(rest),
+        3: {"Hanches": ("loc", 0, 0, -0.22), "Dos": (-24, 30, 0), "Cuisse.G": (58, 0, 0), "Cuisse.D": (40, 0, 0),
+            "Tibia.G": (-96, 0, 0), "Tibia.D": (-70, 0, 0), "Bras.G": (35, 55, 0), "Bras.D": (-25, -62, 0), "Tete": (-10, 0, 0)},
+        7: {"Hanches": ("loc", 0, 0, -0.27), "Dos": (-30, 36, 8), "Cuisse.G": (64, 0, 0), "Cuisse.D": (46, 0, 0),
+            "Tibia.G": (-104, 0, 0), "Tibia.D": (-80, 0, 0), "Bras.G": (45, 62, 0), "Bras.D": (-32, -70, 0), "Tete": (-14, 0, 6)},
+        11: {"Hanches": ("loc", 0, 0, -0.09), "Dos": (-12, 12, 0), "Cuisse.G": (24, 0, 0), "Cuisse.D": (18, 0, 0),
+             "Tibia.G": (-40, 0, 0), "Tibia.D": (-30, 0, 0), "Bras.G": (10, 28, 0), "Bras.D": (0, -30, 0), "Tete": (-4, 0, 0)},
+        16: dict(rest),
+    }), 16, loop=False)
+    # touché : choc net (buste et tête projetés, bras qui partent), genou qui plie sous l'impact, retour en garde
+    _action(rig, "Touche", full({
+        1: dict(rest),
+        3: {"Dos": (38, 0, 14), "Tete": (40, 0, 8), "Bras.G": (-35, 75, 0), "Bras.D": (-30, -70, 0), "Hanches": ("loc", 0, -0.16, -0.04),
+            "Cuisse.G": (24, 0, 0), "Tibia.G": (-30, 0, 0), "Cuisse.D": (-8, 0, 0)},
+        7: {"Dos": (16, 0, 6), "Tete": (12, 0, 0), "Bras.G": (-10, 40, 0), "Bras.D": (-8, -40, 0), "Hanches": ("loc", 0, -0.12, -0.1),
+            "Cuisse.G": (30, 0, 0), "Tibia.G": (-48, 0, 0), "Cuisse.D": (10, 0, 0)},
+        16: dict(rest),
+    }), 16, loop=False)
+    # armer : tenu tant que le joueur charge son tir (même pose que le départ du lancer, légère vibration de tension)
+    cock = {"Hanches": ("loc", 0, -0.05, -0.05), "Dos": (14, 0, 48), "Bras.D": (-40, -100, 0), f"{A}.D": (0, -75, 0),
+            "Bras.G": (75, 35, 0), f"{A}.G": (20, 0, 0), "Tete": (0, 0, -38),
+            "Cuisse.G": (28, 0, 0), "Tibia.G": (-25, 0, 0), "Cuisse.D": (-12, 0, 0), "Tibia.D": (-28, 0, 0)}
+    cock2 = dict(cock, **{"Dos": (16, 0, 52), "Bras.D": (-46, -102, 0), "Hanches": ("loc", 0, -0.06, -0.06)})
+    _action(rig, "Armer", {1: cock, 8: cock2}, 15)
+    # KO : tête projetée en arrière à l'impact, corps soulevé, chute lourde, rebond au sol puis corps qui se relâche
+    _action(rig, "KO", full({
+        1: dict(rest),
+        3: {"Hanches": ("loc", 0, -0.12, 0.03), "Dos": (30, 0, 8), "Tete": (42, 0, 0), "Bras.G": (45, 70, 0), "Bras.D": (45, -70, 0),
+            "Cuisse.G": (30, 0, 0), "Cuisse.D": (10, 0, 0), "Tibia.G": (-22, 0, 0), "Tibia.D": (-10, 0, 0)},
+        8: {"Hanches": ("loc", 0, -0.42, -0.14), "Dos": (56, 0, 10), "Tete": (26, 0, 10), "Bras.G": (10, 130, 0), "Bras.D": (10, -130, 0),
+            "Cuisse.G": (72, 0, -10), "Cuisse.D": (46, 0, 10), "Tibia.G": (-62, 0, 0), "Tibia.D": (-30, 0, 0)},
+        13: {"Hanches": ("loc", 0, -0.62, -0.7), "Dos": (88, 0, 0), "Tete": (4, 0, 14), "Bras.G": (25, 160, 0), "Bras.D": (25, -160, 0),
+             "Cuisse.G": (92, 0, -10), "Cuisse.D": (82, 0, 10), "Tibia.G": (-28, 0, 0), "Tibia.D": (-4, 0, 0)},
+        17: {"Hanches": ("loc", 0, -0.64, -0.6), "Dos": (78, 0, 0), "Tete": (22, 0, 22), "Bras.G": (36, 145, 0), "Bras.D": (36, -145, 0),
+             "Cuisse.G": (80, 0, -12), "Cuisse.D": (70, 0, 12), "Tibia.G": (-48, 0, 0), "Tibia.D": (-22, 0, 0)},
+        23: {"Hanches": ("loc", 0, -0.66, -0.69), "Dos": (87, 0, 0), "Tete": (8, 0, 25), "Bras.G": (25, 165, 0), "Bras.D": (25, -165, 0),
+             "Cuisse.G": (88, 0, -12), "Cuisse.D": (78, 0, 12), "Tibia.G": (-26, 0, 0), "Tibia.D": (-8, 0, 0)},
+        36: {"Hanches": ("loc", 0, -0.66, -0.7), "Dos": (89, 0, 0), "Tete": (6, 0, 30), "Bras.G": (28, 168, 0), "Bras.D": (22, -162, 0),
+             "Cuisse.G": (90, 0, -14), "Cuisse.D": (80, 0, 14), "Tibia.G": (-30, 0, 0), "Tibia.D": (-10, 0, 0)},
+    }), 36, loop=False)
     # saut : appel accroupi, extension bras en l'air, genoux repliés en l'air, réception
     _action(rig, "Saut", {
         1: {"Hanches": ("loc", 0, 0, 0), "Dos": (0, 0, 0), "Cuisse.G": (0, 0, 0), "Cuisse.D": (0, 0, 0), "Tibia.G": (0, 0, 0),
@@ -274,6 +326,20 @@ def animate(rig, arm_rest=6):
         cel[f] = {"Hanches": ("loc", 0, 0, 0.06 * up), "Dos": (-6, 0, 0), "Tete": (-12, 0, 0), "Bras.G": (150 - 20 * up, 30, 0),
                   "Bras.D": (150 - 20 * up, -30, 0), f"{A}.G": (20 + 30 * up, 0, 0), f"{A}.D": (20 + 30 * up, 0, 0)}
     _action(rig, "Celebration", cel, 17)
+    # podium : victoire tenue (poing droit levé, bras gauche relâché, torse bombé) et défaite (épaules basses, tête baissée),
+    # boucles lentes de respiration pour qu'ils ne soient jamais figés
+    vic = {}
+    for f, k in ((1, 0.0), (31, 1.0)):
+        vic[f] = {"Hanches": ("loc", 0, 0, -0.01 * k), "Dos": (8 + 3 * k, 0, -6), "Tete": (-10 - 3 * k, 0, 8),
+                  "Bras.D": (172 - 6 * k, -6, 0), f"{A}.D": (35 + 12 * k, 0, 0), "Bras.G": (-6, R + 8, 0), f"{A}.G": (30 + 6 * k, 0, 0),
+                  "Cuisse.G": (0, 8, 0), "Cuisse.D": (0, -8, 0)}
+    _action(rig, "Victoire", vic, 61)
+    dft = {}
+    for f, k in ((1, 0.0), (36, 1.0)):
+        dft[f] = {"Hanches": ("loc", 0, 0, -0.03 - 0.01 * k), "Dos": (-16 - 3 * k, 0, 0), "Tete": (-26 - 4 * k, 0, 4),
+                  "Bras.G": (6, R - 4, 0), "Bras.D": (6, -R + 4, 0), f"{A}.G": (8, 0, 0), f"{A}.D": (8, 0, 0),
+                  "Cuisse.G": (4, 0, 0), "Cuisse.D": (4, 0, 0), "Tibia.G": (-8, 0, 0), "Tibia.D": (-8, 0, 0)}
+    _action(rig, "Defaite", dft, 71)
 
 
 def rig_character(objs, bones=BONES, arm_rest=6):

@@ -23,3 +23,9 @@ production/.ccgs-stage-*
 .claude/agent-memory/
 .claude/worktrees/
 docs/consistency-failures.md
+
+# Natifs Steam (tools/steam/fetch-steam-natives.sh)
+addons/steam_natives/
+*.log
+*.log.run
+*.log.exit

@@ -1,0 +1,26 @@
+// Script de build SteamPipe de DogeballVR (modèle).
+// Rendu par .github/workflows/steam-upload.yml, ou à la main (voir tools/steam/README.md) :
+//   __APPID__            AppID du jeu (Steamworks > Tous les produits)
+//   __DEPOTID_WINDOWS__  depot Windows (en général AppID + 1)
+//   __DEPOTID_LINUX__    depot Linux (facultatif : supprimer la ligne entière s'il n'existe pas)
+//   __DESC__             description du build, visible seulement dans Steamworks
+//   __SETLIVE__          branche beta à activer après l'envoi ("" = aucune ; "default" est refusée par Steam)
+//   __PREVIEW__          "1" = aperçu (journaux et manifeste seulement, rien n'est envoyé), "0" = envoi réel
+// Arborescence attendue, relative à ce fichier :
+//   ../content/windows/  DogeballVR.exe, steam_api64.dll, data_DogeballVR_windows_x86_64/
+//   ../content/linux/    DogeballVR.x86_64, libsteam_api.so, data_DogeballVR_linuxbsd_x86_64/
+//   ../output/           journaux et caches de steamcmd
+"AppBuild"
+{
+	"AppID" "__APPID__"
+	"Desc" "__DESC__"
+	"Preview" "__PREVIEW__"
+	"SetLive" "__SETLIVE__"
+	"ContentRoot" "../content/"
+	"BuildOutput" "../output/"
+	"Depots"
+	{
+		"__DEPOTID_WINDOWS__" "depot_build_windows.vdf"
+		"__DEPOTID_LINUX__" "depot_build_linux.vdf"
+	}
+}

@@ -14,11 +14,35 @@ namespace DogeballVR.Rules;
 public class MatchRules
 {
     public int LivesPerPlayer { get; init; } = 2;
-    public float RespawnSeconds { get; init; } = 3f;
-    public float RoundSeconds { get; init; } = 120f;
+    public float RespawnSeconds { get; set; } = 3f;
+    public float RoundSeconds { get; set; } = 120f;
     public float OvertimeSeconds { get; init; } = 30f;
-    public int MaxRounds { get; init; } = 5;
+    public int MaxRounds { get; set; } = 5;
     public int KoTarget { get; set; } = 3;
+    /// <summary>Manches gagnantes qui finissent la partie (0 = les <see cref="MaxRounds"/> manches sont toutes jouées).</summary>
+    public int RoundsToWin { get; set; }
+    /// <summary>Pause entre deux manches.</summary>
+    public float BreakSeconds { get; set; } = 3f;
+
+    /// <summary>KO qui gagnent une manche au format en ligne, selon la taille des équipes (valeurs de Knockout City : 7, 10, 15).</summary>
+    public static int OnlineKoTarget(int teamSize) => teamSize <= 2 ? 7 : teamSize == 3 ? 10 : 15;
+    public const int OnlineMaxRounds = 3;
+    public const int OnlineRoundsToWin = 2;
+    public const float OnlineRespawnSeconds = 5f;
+
+    /// <summary>
+    /// Format PC en ligne (décision n° 7, façon Knockout City) : premier à 7 / 10 / 15 KO, chrono de 5:00 en filet de sécurité,
+    /// 2 manches gagnantes, réapparition 5 s, pause de 12 s entre manches. La VR d'EVA garde 5 manches de 2 min.
+    /// </summary>
+    public void UseOnlineFormat(int teamSize)
+    {
+        KoTarget = OnlineKoTarget(teamSize);
+        RoundSeconds = 300f;
+        MaxRounds = OnlineMaxRounds;
+        RoundsToWin = OnlineRoundsToWin;
+        RespawnSeconds = OnlineRespawnSeconds;
+        BreakSeconds = 12f;
+    }
 
     readonly Dictionary<int, int> lives = new();
     readonly Dictionary<int, int> teamOf = new();
@@ -119,8 +143,10 @@ public class MatchRules
         InOvertime = false;
     }
 
-    /// <summary>La partie est finie quand les 5 manches sont jouées et que les équipes sont départagées.</summary>
-    public bool IsMatchOver(int roundsPlayed) => roundsPlayed >= MaxRounds && RoundsWon[0] != RoundsWon[1];
+    /// <summary>La partie est finie quand les 5 manches sont jouées et que les équipes sont départagées (format en ligne : 2 manches gagnées).</summary>
+    public bool IsMatchOver(int roundsPlayed) => RoundsToWin > 0
+        ? Math.Max(RoundsWon[0], RoundsWon[1]) >= RoundsToWin
+        : roundsPlayed >= MaxRounds && RoundsWon[0] != RoundsWon[1];
 
     public void ResetMatch()
     {
