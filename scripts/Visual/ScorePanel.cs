@@ -99,7 +99,7 @@ public partial class ScorePanel : Node3D
     {
         public ScorePanel Panel = null!;
         public MatchView.Snapshot State;
-        static readonly Color Back = new("17151f"), BackLow = new("0f0e16"), Ink = new("0a0910");
+        static readonly Color Back = UiKit.VioletTop, BackLow = UiKit.NavyLow, Ink = new("0a0910");
 
         static Vector2[] Slanted(Rect2 r, float s) => new[]
         {
@@ -119,7 +119,7 @@ public partial class ScorePanel : Node3D
             var s = State;
             int left = Panel.Team == 1 ? 1 : 0, right = 1 - left;
             float w = Size.X, h = Size.Y;
-            // Fond anthracite penché, liseré crème épais, ombre décalée.
+            // Fond violet du menu, penché, liseré crème épais, ombre décalée.
             var body = new Rect2(24, 20, w - 48, h - 40);
             DrawColoredPolygon(Slanted(new Rect2(body.Position + new Vector2(10, 12), body.Size), 28), new Color(0, 0, 0, 0.55f));
             DrawColoredPolygon(Slanted(body, 28), UiKit.Cream);

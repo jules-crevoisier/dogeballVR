@@ -188,7 +188,7 @@ public partial class VrEndStage : Node3D
         Cell("ATTRAPES", ColumnCatches, top, UiKit.Cream, size: 40);
         // Décompte sous le tableau.
         // Décompte sous le tableau, sur sa propre pastille encre (il ne se pose plus sur une barrière du décor).
-        AddPlate(board, new Vector3(0, top - height + 0.02f, 0.05f), new Vector2(2.2f, 0.34f), UiKit.Yellow);
+        AddPlate(board, new Vector3(0, top - height + 0.02f, 0.05f), new Vector2(2.7f, 0.34f), UiKit.Yellow);
         footer = AddText("", new Vector3(0, top - height + 0.02f, 0), 0.0042f, 56, UiKit.Yellow, board);
         if (stats == null)
         {
@@ -240,7 +240,7 @@ public partial class VrEndStage : Node3D
         parent.AddChild(new MeshInstance3D { Mesh = new QuadMesh { Size = size + new Vector2(0.08f, 0.08f) }, Position = center + new Vector3(0, 0, 0.01f), Rotation = new Vector3(0, Mathf.Pi, 0),
             MaterialOverride = Mat(border, 0), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
         parent.AddChild(new MeshInstance3D { Mesh = new QuadMesh { Size = size }, Position = center, Rotation = new Vector3(0, Mathf.Pi, 0),
-            MaterialOverride = Mat(new Color(new Color("17151f"), 0.92f), 1), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+            MaterialOverride = Mat(new Color(UiKit.VioletMid, 0.94f), 1), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
     }
 
     void HideStage()
