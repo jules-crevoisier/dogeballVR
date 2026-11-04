@@ -403,9 +403,13 @@ public static class ArenaBuilder
         AddWall(root, new Vector3(w + 1, 0.4f, d + 1), new Vector3(cx, ch + 0.2f, cz), mat);
     }
 
+    /// <summary>Groupe des murs d'enceinte invisibles (côtés de l'arène) : la caméra d'épaule des cartes en zones les traverse.</summary>
+    public const string EnclosureGroup = "arena_enclosure";
+
     static void AddWall(Node3D root, Vector3 size, Vector3 position, PhysicsMaterial? material = null)
     {
         var wall = new StaticBody3D { Position = position, PhysicsMaterialOverride = material };
+        wall.AddToGroup(EnclosureGroup);
         wall.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(wall);
     }

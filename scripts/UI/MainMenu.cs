@@ -24,8 +24,8 @@ public partial class MainMenu : CanvasLayer
         ("croix_neon", "CROIX NÉON", "2 CONTRE 2", false, "Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
         ("fosse_croisee", "FOSSE CROISÉE", "2 CONTRE 2", false, "Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
         ("tour_4v4", "TOUR 4V4", "4 CONTRE 4", false, "Terrasses, fosse et rotor : la plus grande carte."),
-        ("la_fosse", "LA FOSSE", "2 CONTRE 2", true, "Zones face à face, comme dans la salle VR : chacun garde sa zone."),
-        ("neon_court", "NÉON COURT", "2 CONTRE 2", true, "Terrain court en zones, comme dans la salle VR : échanges rapides."),
+        ("la_fosse", "LA FOSSE", "2 CONTRE 2", true, "Zones face à face : chacun garde la sienne, E pour esquiver."),
+        ("neon_court", "NÉON COURT", "2 CONTRE 2", true, "Terrain court en zones : chacun garde la sienne, E pour esquiver."),
     };
 
     Control root = null!;

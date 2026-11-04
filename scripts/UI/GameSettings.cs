@@ -22,6 +22,7 @@ public static class GameSettings
     public static float Fov = DefaultFov;                    // champ horizontal (degrés)
     public static float AimAssist = 1f;                      // 0 = aucune aide, 1 = aide normale
     public static bool ToggleCrouch;
+    public static bool FirstPerson;                          // vue à la 1re personne ; défaut : caméra d'épaule (3e personne) sur toutes les cartes PC
     // Partie
     public static int BotLevel = 1;                          // bots : 0 facile, 1 normal, 2 difficile
     public static bool ContextHints = true;                  // rappels de touches des premières parties (voir ContextHints)
@@ -75,6 +76,7 @@ public static class GameSettings
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
+        FirstPerson = B(cfg, "controls", "first_person", FirstPerson);
         BotLevel = Mathf.Clamp((int)F(cfg, "game", "bot_level", BotLevel), 0, 2);
         ContextHints = B(cfg, "game", "context_hints", ContextHints);
         Upnp = B(cfg, "online", "upnp", Upnp);
@@ -103,6 +105,7 @@ public static class GameSettings
         cfg.SetValue("controls", "fov", Fov);
         cfg.SetValue("controls", "aim_assist", AimAssist);
         cfg.SetValue("controls", "toggle_crouch", ToggleCrouch);
+        cfg.SetValue("controls", "first_person", FirstPerson);
         cfg.SetValue("controls", "screen_shake", ScreenShake);
         cfg.SetValue("controls", "haptics", Haptics);
         cfg.SetValue("controls", "hit_stop", HitStop);

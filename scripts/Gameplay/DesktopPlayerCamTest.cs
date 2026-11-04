@@ -5,6 +5,7 @@ namespace DogeballVR.Gameplay;
 /// <summary>
 /// --cam-test (carte croix_neon) : le joueur est posé tour à tour contre les couverts qui gênaient la caméra d'épaule
 /// (dos au muret, muret à droite, coin du L, dos au pylône, face au pilier, accroupi), 2 s par pose, bots au calme.
+/// Sur une carte en zones (--map=neon_court ou la_fosse) : poses dans sa zone (fond de zone dos au mur d'enceinte, coins, dos au pilier).
 /// À chaque image (après 0,6 s de mise en place) : tête visible, objectif hors des décors, centre de l'écran bouché à 30 % au plus
 /// par un décor opaque à moins de 2 m (rotor compris). Bilan par pose. Fin : « [CamTest] TOUT OK » ou la liste des poses à revoir.
 /// </summary>
@@ -31,6 +32,18 @@ public partial class DesktopPlayer
         new("au bord du rotor",      0f,    3.2f, 180f, false, false),   // la barre rayée balaie l'espace entre la caméra et le joueur
         new("rotor sur le côté",     2.6f,  2.6f, 135f, false, false),
     };
+    // Cartes en zones : coordonnées dans le repère de la zone (+Z = vers le fond, côté mur d'enceinte), lacet relatif au regard de départ
+    // (0 = face au terrain adverse). Le fond d'une zone est à 1 m du mur ; pilier de neon_court à 0,8 m derrière le centre.
+    static readonly CamPose[] ZoneCamPoses =
+    {
+        new("fond de zone, dos au mur", 0f,    3.7f,   0f, false, false),
+        new("coin du fond",            -7.2f,  3.7f,  25f, false, false),
+        new("fond, regard de côté",     3f,    3.7f,  70f, false, false),
+        new("accroupi au fond",         0f,    3.7f,   0f, true,  false),
+        new("dos au pilier",            0f,    0.15f,  0f, false, false),
+        new("bord avant",               2f,   -3.7f, -20f, false, false),
+    };
+    CamPose[] Poses => FreeRoam ? CamPoses : ZoneCamPoses;
     const double CamPoseTime = 2.0;
 
     void StartCamTest()
@@ -38,23 +51,23 @@ public partial class DesktopPlayer
         camTest = true;
         autoplay = true;   // pas de capture de la souris
         Bot.Calm = true;
-        GD.Print($"[CamTest] {CamPoses.Length} poses de {CamPoseTime:0.#} s");
+        GD.Print($"[CamTest] {Poses.Length} poses de {CamPoseTime:0.#} s sur {Zones.Map.Name}");
     }
 
     PcInput CamTestInput()
     {
         var input = new PcInput();
         int pose = (int)(time / CamPoseTime);
-        if (pose >= CamPoses.Length)
+        if (pose >= Poses.Length)
         {
-            if (camPose < CamPoses.Length) { camPose = CamPoses.Length; GD.Print(camFails == 0 ? "[CamTest] TOUT OK" : $"[CamTest] {camFails} pose(s) à revoir"); GetTree().Quit(camFails == 0 ? 0 : 1); }
+            if (camPose < Poses.Length) { camPose = Poses.Length; GD.Print(camFails == 0 ? "[CamTest] TOUT OK" : $"[CamTest] {camFails} pose(s) à revoir"); GetTree().Quit(camFails == 0 ? 0 : 1); }
             return input;
         }
-        var p = CamPoses[pose];
+        var p = Poses[pose];
         if (pose != camPose) { camPose = pose; camPoseAt = time; }
-        worldPos = new Vector2(p.X, p.Z);
+        if (FreeRoam) { worldPos = new Vector2(p.X, p.Z); yaw = Mathf.DegToRad(p.YawDeg); }
+        else { localPos = new Vector2(p.X, p.Z); yaw = Mathf.DegToRad(zone.FacingDegrees + p.YawDeg); }
         velocity = Vector2.Zero;
-        yaw = Mathf.DegToRad(p.YawDeg);
         pitch = Mathf.DegToRad(-6f);
         input.Crouch = p.Crouch;
         return input;
@@ -69,8 +82,8 @@ public partial class DesktopPlayer
     /// </summary>
     void CamTestMeasure()
     {
-        if (camPose < 0 || camPose >= CamPoses.Length || camPoseAt < 0) return;
-        var p = CamPoses[camPose];
+        if (camPose < 0 || camPose >= Poses.Length || camPoseAt < 0) return;
+        var p = Poses[camPose];
         double into = time - camPoseAt;
         if (into < 0.6) { camBadFrames = camFrames = camWorstPct = 0; camHeadEverHidden = camEverInDecor = false; return; }
         var cam = camera.GlobalPosition;

@@ -80,7 +80,7 @@ Règle appliquée : en cas de doute, l'option la plus nerveuse.
 
 Source : `masterclasse/level-design/03-game-design-knockout-pc-vr.md` et `v3/maps/map_a_croix_neon.json`.
 
-- **Carte** : `maps/croix_neon.json` (4 plateaux N/E/S/W autour d'un moyeu central, `layout: "ring"`). Les cartes en zones (`neon_court`, `la_fosse`) gardent la vue à la 1re personne.
+- **Carte** : `maps/croix_neon.json` (4 plateaux N/E/S/W autour d'un moyeu central, `layout: "ring"`). Les cartes en zones (`neon_court`, `la_fosse`) gardent leurs règles de zone (E esquive, Maj sprint, pas de passe ni de dash) ; depuis le 4/11 la caméra est la même partout sur PC : épaule (3e personne) par défaut, vue subjective en option (Options → Caméra et visée → Vue, `GameSettings.FirstPerson`).
 - **PC libre** : caméra à la 3e personne (épaule droite, 3 m), course constante 7,5 m/s sans sprint, saut d'environ 1 m, déplacement sur toute l'arène (bornes ±0,5 m), pylône central plein.
 - **Dash** : Maj, 4 m en 0,2 s, 2 charges, 1,6 s de recharge par charge, invulnérable pendant l'impulsion (`Hurtbox.DashInvulnerable`).
 - **Moyeu** : un lanceur envoie une balle neutre toutes les 6 s vers le plateau qui en a le moins (l'équipe menée gagne les égalités).

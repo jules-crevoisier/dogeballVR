@@ -56,8 +56,15 @@ public partial class DesktopPlayer : Node3D
     const float PickupRadius = 0.9f;
 
     public ZoneManager Zones { get; set; } = null!;
-    /// <summary>Map en moulinet : le joueur circule sur toute l'arène, caméra à la 3e personne, dash au lieu du sprint.</summary>
+    /// <summary>Map en moulinet : le joueur circule sur toute l'arène, dash au lieu du sprint, passes, tremplins. La caméra, elle, suit <see cref="ThirdPerson"/>.</summary>
     public bool FreeRoam { get; set; }
+    /// <summary>
+    /// Caméra d'épaule (3e personne) ou vue subjective : un réglage du joueur (Options → Caméra et visée), le même sur toutes les cartes,
+    /// en zones comme en jeu libre, en solo comme en ligne. Lu à chaque image : le changer en pause s'applique tout de suite.
+    /// Le test de caméra (--cam-test) mesure toujours la caméra d'épaule.
+    /// </summary>
+    public bool ThirdPerson => camTest || !(GameSettings.FirstPerson || forceEyeView);
+    bool forceEyeView;   // --first-person : vue subjective forcée (captures, tests), sans toucher aux réglages enregistrés
     public Hurtbox Hurtbox { get; set; } = null!;
 
     /// <summary>Charge du lancer en cours (0 à 1), pour la jauge du HUD.</summary>
@@ -92,7 +99,7 @@ public partial class DesktopPlayer : Node3D
     public double Time01 => time;
 
     Camera3D camera = null!;
-    Node3D head = null!;             // la tête du joueur ; en vue à la 1re personne c'est la caméra elle-même
+    Node3D head = null!;             // la tête du joueur : la caméra (posée dans le monde) se cale dessus en vue subjective, derrière l'épaule sinon
     Visual.Avatar? selfAvatar;
     Node3D holdPoint = null!;
     ZoneDef zone = null!;
@@ -136,6 +143,7 @@ public partial class DesktopPlayer : Node3D
     const float CamMinDistance = 1.2f;   // plus près que ça d'un couvert, la caméra préfère passer par-dessus
     const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
     const float RaiseHeight = 0.9f;      // hauteur du passage par-dessus un couvert bas
+    const float ZoneCamOutside = 3f;     // cartes en zones : distance max de la caméra d'épaule au-delà du mur d'enceinte
     const float AvatarHideDistance = 1.6f;   // caméra plus proche de la tête : le joueur est caché pour ne pas boucher l'écran
     readonly SphereShape3D camShape = new() { Radius = CamRadius };
     int dashCharges;
@@ -210,23 +218,18 @@ public partial class DesktopPlayer : Node3D
     public override void _Ready()
     {
         MatchController.HitScored += OnHitScored;
+        forceEyeView = Tools.DevFlags.Has("--first-person");
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
-        if (FreeRoam)
-        {
-            head = new Node3D { Name = "Head", Position = new Vector3(0, EyeHeight, 0) };
-            AddChild(head);
-            camera.TopLevel = true;                    // 3e personne : la caméra est posée dans le monde, derrière l'épaule
-            AddChild(camera);
-        }
-        else
-        {
-            head = camera;
-            AddChild(camera);
-        }
+        // Tête et caméra séparées sur toutes les cartes : la caméra est posée dans le monde à chaque image (PlaceCamera),
+        // derrière l'épaule ou à la place des yeux selon le réglage de vue.
+        head = new Node3D { Name = "Head", Position = new Vector3(0, EyeHeight, 0) };
+        AddChild(head);
+        camera.TopLevel = true;
+        AddChild(camera);
 
-        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f), Scale = Vector3.One * 0.45f };   // balle tenue réduite : elle ne masque ni l'écran ni le HUD
+        holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0.3f, -0.3f, -0.9f) };
         head.AddChild(holdPoint);
-        if (FreeRoam) holdPoint.Scale = Vector3.One;   // à la 3e personne la balle garde sa taille
+        holdPoint.Scale = HoldScale();
 
         Hurtbox.Head = head;
         AddChild(Hurtbox);
@@ -238,11 +241,12 @@ public partial class DesktopPlayer : Node3D
             var spawn = Zones.Map.Pc?.Spawns.Find(sp => sp.Zone == zone.Id);
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
-            selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
-            selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
-            selfAvatar.TopLevel = true;
-            AddChild(selfAvatar);
         }
+        // Son propre personnage, vu de dos en caméra d'épaule (caché en vue subjective), sur toutes les cartes.
+        selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
+        selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
+        selfAvatar.TopLevel = true;
+        AddChild(selfAvatar);
         dashCharges = MaxCharges;
         autoplay = Tools.DevFlags.Has("--pc-autoplay");   // option de test : ignorée par l'export de sortie
         if (Tools.DevFlags.Has("--cam-test")) StartCamTest();
@@ -332,7 +336,8 @@ public partial class DesktopPlayer : Node3D
         // Effets de caméra en temps réel : la secousse continue pendant l'arrêt sur image (comme les jeux de combat).
         float real = (float)(delta / Mathf.Max(Engine.TimeScale, 0.01));
         var fx = CameraFx.Step(Mathf.Min(real, 0.1f));
-        if (FreeRoam) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        if (ThirdPerson) PlaceCamera((float)delta, fx.rotation, fx.offset, real);
+        else PlaceEyeCamera(fx.rotation, fx.offset);
         if (camTest) CamTestMeasure();
         camera.Fov = Mathf.Clamp(fov + fx.fov, 60f, 130f);
         FadeBallsNearCamera();
@@ -872,6 +877,7 @@ public partial class DesktopPlayer : Node3D
         }
         else { charging = false; chargeTime = 0; }
         holdPoint.Position = HoldLocalPosition();
+        holdPoint.Scale = HoldScale();
         // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
         if (charging && chargeTime >= MaxChargeTime * 0.99)
             holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
@@ -932,14 +938,17 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>Direction de visée sans les secousses de caméra (une secousse ne doit jamais dévier un tir).</summary>
-    Vector3 AimFwd => FreeRoam ? -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z : -camera.GlobalTransform.Basis.Z;
+    Vector3 AimFwd => -(new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch)).Z;
+
+    /// <summary>Balle tenue réduite en vue subjective (elle ne masque ni l'écran ni le HUD) ; taille réelle en caméra d'épaule.</summary>
+    Vector3 HoldScale() => ThirdPerson ? Vector3.One : Vector3.One * 0.45f;
 
     Vector3 HoldLocalPosition()
     {
         float crouch = Mathf.Clamp((EyeHeight - eyeY) / (EyeHeight - CrouchHeight), 0f, 1f);
         // Vue subjective : balle à droite, au-dessus du bloc d'actions du HUD (bas centre) et à l'écart du viseur ;
         // en vue d'épaule, devant la poitrine du personnage, comme avant.
-        var rest = FreeRoam
+        var rest = ThirdPerson
             ? new Vector3(0.3f, Mathf.Lerp(-0.3f, -0.5f, crouch), Mathf.Lerp(-0.9f, -0.7f, crouch))
             : new Vector3(0.62f, Mathf.Lerp(-0.2f, -0.3f, crouch), Mathf.Lerp(-0.9f, -0.75f, crouch));
         rest.Z += ThrowCharge01 * 0.15f;       // la balle se recule en armant le lancer
@@ -967,8 +976,12 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Distance du point visé : premier décor touché par le regard (30 m maximum), pour que la compensation de chute vise juste de près comme de loin.</summary>
     float AimDistance()
     {
-        var from = camera.GlobalPosition;
-        var to = from + AimFwd * 30f;
+        // Le rayon part du plan de la tête, pas de l'objectif : en vue d'épaule, un couvert (ou le mur d'enceinte) entre la caméra et
+        // le joueur ne doit pas raccourcir la visée à 3 m, ce qui ferait partir le tir en arrière. La distance reste comptée depuis la caméra.
+        var fwd = AimFwd;
+        float skip = Mathf.Max(0f, (head.GlobalPosition - camera.GlobalPosition).Dot(fwd));
+        var from = camera.GlobalPosition + fwd * skip;
+        var to = camera.GlobalPosition + fwd * 30f;
         var space = GetWorld3D().DirectSpaceState;
         var exclude = new Godot.Collections.Array<Rid>();
         for (int i = 0; i < 4; i++)
@@ -976,7 +989,7 @@ public partial class DesktopPlayer : Node3D
             var query = PhysicsRayQueryParameters3D.Create(from, to, 0xFFFFFFFF, exclude);
             var hit = space.IntersectRay(query);
             if (hit.Count == 0) return 30f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(from.DistanceTo(hit["position"].AsVector3()), 3f, 30f);
+            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(camera.GlobalPosition.DistanceTo(hit["position"].AsVector3()), Mathf.Max(3f, skip + 1.5f), 30f);   // au moins 1,5 m devant la tête : un mur collé ne fait pas viser derrière la main
             exclude.Add(hit["rid"].AsRid());   // balle, hurtbox : on regarde derrière
         }
         return 30f;
@@ -1018,6 +1031,7 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     void PlaceCamera(float dt, Vector3 fxRot, Vector3 fxOffset, float realDt)
     {
+        if (eyeView) { eyeView = false; camDist = 0.5f; }   // retour de la vue subjective : le bras se déplie en douceur depuis la tête
         var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
         // Pas chassé : la caméra s'incline légèrement du côté où l'on court (lisible sans donner le mal de mer).
         var right2 = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
@@ -1077,8 +1091,16 @@ public partial class DesktopPlayer : Node3D
         if (inside < 1f) { camDist *= inside; pos = pivot + boom * (camDist / len); }
         pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
-        pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
-        pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
+        float m = FreeRoam ? -0.2f : ZoneCamOutside;   // cartes en zones : la caméra peut sortir de l'enceinte (voir BlocksCamera)
+        pos.X = Mathf.Clamp(pos.X, b.MinX - m, b.MaxX + m);
+        pos.Z = Mathf.Clamp(pos.Z, b.MinZ - m, b.MaxZ + m);
+        if (!FreeRoam)
+        {
+            // Hors de l'enceinte, le décor qui borde le terrain (parapets, caisses) n'a pas de collision : la caméra reste à hauteur
+            // d'une vue debout, même accroupi, pour passer au-dessus au lieu de le voir de dos en gros plan.
+            float outside = Mathf.Max(Mathf.Max(b.MinX - pos.X, pos.X - b.MaxX), Mathf.Max(b.MinZ - pos.Z, pos.Z - b.MaxZ));
+            if (outside > 0f) pos.Y = Mathf.Max(pos.Y, Mathf.Lerp(pos.Y, Elevation + EyeHeight + 0.7f, Mathf.Clamp(outside / 0.8f, 0f, 1f)));
+        }
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
         HideDecorInFront(pos, from);
@@ -1090,6 +1112,36 @@ public partial class DesktopPlayer : Node3D
         // Pas pour le buste : derrière un muret bas, on doit le voir opaque (c'est lui qui protège).
         CoversOnSight(pos, from, bnd);
         GhostCovers();
+    }
+
+    bool eyeView;   // la dernière image était en vue subjective
+
+    /// <summary>Vue subjective : la caméra à la place des yeux, orientée comme la tête, avec les secousses (sans roulis de course ni bras d'épaule).</summary>
+    void PlaceEyeCamera(Vector3 fxRot, Vector3 fxOffset)
+    {
+        var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch);
+        var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z)));
+        // Collé à un couvert dont le modèle déborde de sa collision (conteneur, abri) : l'œil reculerait dans le maillage
+        // et l'écran deviendrait d'une seule couleur. On recule l'objectif à l'horizontale (0,8 m au plus) jusqu'à en sortir.
+        var eye = head.GlobalPosition;
+        var back = new Basis(Vector3.Up, yaw) * Vector3.Back;
+        var bnd = Zones.Map.Bounds;
+        for (int i = 0; i < 8 && InCoverMesh(eye); i++)
+        {
+            var next = eye + back * 0.1f;
+            if (next.X < bnd.MinX || next.X > bnd.MaxX || next.Z < bnd.MinZ || next.Z > bnd.MaxZ) break;   // jamais hors de l'arène
+            eye = next;
+        }
+        camera.GlobalTransform = new Transform3D(shaken, eye + basis * fxOffset);
+        if (eyeView) return;
+        // Passage de la caméra d'épaule à la vue subjective : couverts translucides et décor caché rétablis, épaule droite par défaut.
+        eyeView = true;
+        lean = 0f; raise = 0f; sideTarget = 1; sideT = 1f; overTarget = false; overT = 0f;
+        coversThrough.Clear();
+        rotorGhostUntil = -1;
+        GhostCovers();
+        foreach (var g in hiddenDecor) if (IsInstanceValid(g)) g.Visible = true;
+        hiddenDecor.Clear();
     }
 
     /// <summary>
@@ -1195,10 +1247,15 @@ public partial class DesktopPlayer : Node3D
         return Mathf.Clamp(free, 0f, full);
     }
 
-    /// <summary>Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.</summary>
-    static bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
+    /// <summary>
+    /// Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.
+    /// Cartes en zones : le fond d'une zone est à 1 m du mur d'enceinte (invisible), qui collerait la caméra d'épaule au dos du joueur ;
+    /// elle passe donc au travers (jusqu'à <see cref="ZoneCamOutside"/> au-delà), au-dessus du décor bas qui borde le terrain.
+    /// </summary>
+    bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
     {
         if (collider is not StaticBody3D body || body is Maps.Rotor) return false;
+        if (!FreeRoam && body.IsInGroup(Maps.ArenaBuilder.EnclosureGroup)) return false;
         var p = body.GlobalPosition;
         if (p.Y > bnd.CeilingHeight - 0.5f) return false;
         return !(body.ShapeOwnerGetOwner(body.ShapeFindOwner(shape)) is CollisionShape3D cs && IsThin(cs));
@@ -1240,39 +1297,41 @@ public partial class DesktopPlayer : Node3D
     /// </summary>
     float OutsideDecorFraction(Vector3 pivot, Vector3 cam)
     {
+        if (!InCoverMesh(cam) || InCoverMesh(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
+        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
+        for (int i = 0; i < 10; i++)
+        {
+            float mid = 0.5f * (lo + hi);
+            if (InCoverMesh(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
+        }
+        return lo;
+    }
+
+    /// <summary>Vrai si p est dans le maillage (boîte orientée grossie de 0,2 m) d'un couvert opaque.</summary>
+    bool InCoverMesh(Vector3 p)
+    {
         if (coverMeshes == null)
         {
-            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return 1f;
+            if (GetTree().Root.FindChild("Arena", true, false) is not Node arena) return false;
             coverMeshes = new();
             foreach (var n in arena.FindChildren("*", "MeshInstance3D", true, false))
             {
                 if (n is not MeshInstance3D mi) continue;
                 StaticBody3D? body = null;
-                for (var p = mi.GetParent(); p != null && p != arena; p = p.GetParent())
-                    if (p is StaticBody3D sb) { body = sb; break; }
+                for (var par = mi.GetParent(); par != null && par != arena; par = par.GetParent())
+                    if (par is StaticBody3D sb) { body = sb; break; }
                 if (body == null || body is Maps.Rotor || !IsCover(body)) continue;
                 var box = mi.GetAabb();
                 if (box.Size.LengthSquared() < 1e-4f) continue;
                 coverMeshes.Add((mi, mi.GlobalTransform.AffineInverse(), box.Grow(0.2f)));
             }
         }
-        bool Inside(Vector3 p)
+        foreach (var (mi, toLocal, box) in coverMeshes)
         {
-            foreach (var (mi, toLocal, box) in coverMeshes!)
-            {
-                if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
-                if (box.HasPoint(toLocal * p)) return true;
-            }
-            return false;
+            if (!IsInstanceValid(mi) || !mi.Visible || ghosted.ContainsKey(mi)) continue;
+            if (box.HasPoint(toLocal * p)) return true;
         }
-        if (!Inside(cam) || Inside(pivot)) return 1f;   // pivot lui-même dans la boîte (joueur collé au couvert) : rien à gagner, la collision suffit
-        float lo = 0f, hi = 1f;   // dichotomie : lo dehors (on suppose le pivot dehors), hi dedans
-        for (int i = 0; i < 10; i++)
-        {
-            float mid = 0.5f * (lo + hi);
-            if (Inside(pivot.Lerp(cam, mid))) hi = mid; else lo = mid;
-        }
-        return lo;
+        return false;
     }
 
     /// <summary>Vrai si la sphère de caméra posée en p est dans un décor plein.</summary>
@@ -1452,7 +1511,7 @@ public partial class DesktopPlayer : Node3D
         if (selfAvatar != null)
         {
             var pose = Pose;
-            selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
+            selfAvatar.Visible = ThirdPerson && !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right, pose.Elevation);
             selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
