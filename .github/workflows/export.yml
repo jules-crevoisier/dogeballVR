@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# Deux fusions rapprochées : seul l'export du dernier commit de main va au bout et remplace la release build-latest.
+concurrency:
+  group: export-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   export-windows:
     runs-on: ubuntu-latest
