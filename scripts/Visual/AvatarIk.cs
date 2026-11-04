@@ -3,7 +3,7 @@ using Godot;
 namespace DogeballVR.Visual;
 
 /// <summary>
-/// IK des avatars riggés (rig maison de tools/blender/rig.py), appliquée après l'animation :
+/// IK des avatars riggés (rig maison de tools/blender/rig.py ou mannequin type Unreal de tools/blender/mannequin.py), appliquée après l'animation :
 /// bras à deux os vers une cible par main (mains réseau d'un joueur VR, ou pose d'armé), et accroupi qui garde
 /// les pieds posés (bassin abaissé, genoux pliés, buste penché) au lieu d'enfoncer le corps dans le sol.
 /// Avatar remplit les cibles à chaque image ; ce nœud ne lit rien du jeu.
@@ -38,18 +38,31 @@ public partial class AvatarIk : SkeletonModifier3D
     int hips, spine, neck, head;
     readonly int[] arm = new int[6];   // Bras, AvantBras, Main (G puis D)
     readonly int[] leg = new int[6];   // Cuisse, Tibia, Pied (G puis D)
+    readonly int[] clavicle = { -1, -1 };   // clavicules (mannequin Unreal seulement ; le rig maison n'en a pas)
     Vector3 up, right, forward;        // repère du personnage dans l'espace du squelette (tiré du repos)
+
+    static readonly string[] HomeArm = { "Bras.G", "AvantBras.G", "Main.G", "Bras.D", "AvantBras.D", "Main.D" };
+    static readonly string[] HomeLeg = { "Cuisse.G", "Tibia.G", "Pied.G", "Cuisse.D", "Tibia.D", "Pied.D" };
+    static readonly string[] UeArm = { "upperarm_l", "lowerarm_l", "hand_l", "upperarm_r", "lowerarm_r", "hand_r" };
+    static readonly string[] UeLeg = { "thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r" };
+
+    /// <summary>Os des bras (haut et avant-bras, G et D) dans les deux rigs : pistes que l'animation de recul reprend du repos.</summary>
+    public static readonly string[] ArmBones = { "Bras.G", "AvantBras.G", "Bras.D", "AvantBras.D", "upperarm_l", "lowerarm_l", "upperarm_r", "lowerarm_r" };
 
     void Resolve(Skeleton3D skel)
     {
         resolved = true;
-        hips = skel.FindBone("Hanches");
-        spine = skel.FindBone("Dos");
-        neck = skel.FindBone("Cou");
-        head = skel.FindBone("Tete");
-        string[] armNames = { "Bras.G", "AvantBras.G", "Main.G", "Bras.D", "AvantBras.D", "Main.D" };
-        string[] legNames = { "Cuisse.G", "Tibia.G", "Pied.G", "Cuisse.D", "Tibia.D", "Pied.D" };
+        // Deux rigs : le rig maison (tools/blender/rig.py) et le mannequin type Unreal (tools/blender/mannequin.py).
+        // « Dos » du rig maison va du bassin aux épaules : chez Unreal c'est spine_01, le bas de la colonne, qui porte tout le buste.
+        bool ue = skel.FindBone("pelvis") >= 0;
+        hips = skel.FindBone(ue ? "pelvis" : "Hanches");
+        spine = skel.FindBone(ue ? "spine_01" : "Dos");
+        neck = skel.FindBone(ue ? "neck_01" : "Cou");
+        head = skel.FindBone(ue ? "Head" : "Tete");
+        string[] armNames = ue ? UeArm : HomeArm;
+        string[] legNames = ue ? UeLeg : HomeLeg;
         for (int i = 0; i < 6; i++) { arm[i] = skel.FindBone(armNames[i]); leg[i] = skel.FindBone(legNames[i]); }
+        if (ue) { clavicle[0] = skel.FindBone("clavicle_l"); clavicle[1] = skel.FindBone("clavicle_r"); }
         valid = hips >= 0 && spine >= 0 && neck >= 0 && head >= 0 && System.Array.TrueForAll(arm, b => b >= 0) && System.Array.TrueForAll(leg, b => b >= 0);
         if (!valid) { GD.PushWarning("[AvatarIk] os du rig introuvables : IK désactivée"); return; }
         up = (skel.GetBoneGlobalRest(head).Origin - skel.GetBoneGlobalRest(hips).Origin).Normalized();
@@ -73,7 +86,11 @@ public partial class AvatarIk : SkeletonModifier3D
             var ankleL = skel.GetBoneGlobalPose(leg[2]);
             var ankleR = skel.GetBoneGlobalPose(leg[5]);
             var hipPose = skel.GetBonePose(hips);
-            skel.SetBonePosePosition(hips, hipPose.Origin - up * Mathf.Min(Crouch * scale, MaxCrouch));
+            // descente exprimée dans le repère du parent du bassin (« root » chez le mannequin Unreal, aucun pour le rig maison)
+            var drop = up * Mathf.Min(Crouch * scale, MaxCrouch);
+            int hipParent = skel.GetBoneParent(hips);
+            if (hipParent >= 0) drop = skel.GetBoneGlobalPose(hipParent).Basis.Inverse() * drop;
+            skel.SetBonePosePosition(hips, hipPose.Origin - drop);
             if (Lean > 0.001f)
             {
                 // Bassin basculé vers l'avant (la moitié), le dos fait le reste : le buste reste au-dessus des pieds.
@@ -108,6 +125,7 @@ public partial class AvatarIk : SkeletonModifier3D
             int upper = arm[s * 3], lower = arm[s * 3 + 1], hand = arm[s * 3 + 2];
             float side = s == 0 ? -1f : 1f;
             var target = toSkel * (s == 0 ? LeftTarget : RightTarget);
+            if (clavicle[s] >= 0) ReachWithClavicle(skel, clavicle[s], upper, lower, hand, target, w);
             var shoulder = skel.GetBoneGlobalPose(upper).Origin;
             // coudes vers le bas, en dehors et un peu en arrière ; armé : coude ouvert sur le côté, à hauteur d'épaule
             float o = s == 0 ? LeftElbowOut : RightElbowOut;
@@ -128,6 +146,28 @@ public partial class AvatarIk : SkeletonModifier3D
     /// IK analytique à deux os : amène l'origine de <paramref name="end"/> sur <paramref name="target"/> (espace du squelette),
     /// l'articulation du milieu dans le plan qui contient <paramref name="pole"/>. Mélangée à l'animation selon <paramref name="weight"/>.
     /// </summary>
+    /// <summary>
+    /// Main loin devant (parade accroupie, bras tendu) : l'épaule avance d'abord, la clavicule tournée vers la cible jusqu'à
+    /// <see cref="MaxClavicle"/>, comme VRIK, avant d'étirer le bras. Rien tant que la cible est à moins de 85 % du bras.
+    /// </summary>
+    static void ReachWithClavicle(Skeleton3D skel, int clav, int upper, int lower, int end, Vector3 target, float weight)
+    {
+        var c = skel.GetBoneGlobalPose(clav).Origin;
+        var sh = skel.GetBoneGlobalPose(upper).Origin;
+        float arm = sh.DistanceTo(skel.GetBoneGlobalPose(lower).Origin) + skel.GetBoneGlobalPose(lower).Origin.DistanceTo(skel.GetBoneGlobalPose(end).Origin);
+        float need = sh.DistanceTo(target);
+        float t = Mathf.Clamp((need - arm * 0.85f) / (arm * 0.3f), 0f, 1f) * Mathf.Clamp(weight, 0f, 1f);
+        var from = sh - c;
+        var to = target - c;
+        if (t <= 0f || from.LengthSquared() < 1e-6f || to.LengthSquared() < 1e-6f) return;
+        var axis = from.Cross(to);
+        if (axis.LengthSquared() < 1e-10f) return;
+        float angle = Mathf.Min(from.AngleTo(to), MaxClavicle) * t;
+        RotateGlobal(skel, clav, new Quaternion(axis.Normalized(), angle));
+    }
+
+    const float MaxClavicle = 0.35f;   // 20°
+
     static void SolveTwoBone(Skeleton3D skel, int upper, int lower, int end, Vector3 target, Vector3 pole, float weight)
     {
         var gUpper = skel.GetBoneGlobalPose(upper);
