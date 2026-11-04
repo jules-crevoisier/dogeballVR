@@ -118,6 +118,7 @@ public partial class Avatar : Node3D
     static float RestHeadHeight(Node3D model, Skeleton3D skel)
     {
         int bone = skel.FindBone("Tete");
+        if (bone < 0) bone = skel.FindBone("Head");   // mannequin type Unreal (tools/blender/mannequin.py), même repère : base du crâne
         if (bone < 0) return DefaultHeadHeight;
         var toModel = skel.Transform;
         for (var n = skel.GetParent(); n != null && n != model; n = n.GetParent())
@@ -223,7 +224,7 @@ public partial class Avatar : Node3D
         for (int t = 0; t < hit.GetTrackCount(); t++)
         {
             string path = hit.TrackGetPath(t).ToString();
-            if (hit.TrackGetType(t) != Animation.TrackType.Rotation3D || !(path.EndsWith(":Bras.D") || path.EndsWith(":Bras.G") || path.EndsWith(":AvantBras.D") || path.EndsWith(":AvantBras.G"))) continue;
+            if (hit.TrackGetType(t) != Animation.TrackType.Rotation3D || !System.Array.Exists(AvatarIk.ArmBones, b => path.EndsWith(":" + b))) continue;
             int i = idle.FindTrack(hit.TrackGetPath(t), Animation.TrackType.Rotation3D);
             if (i < 0 || idle.TrackGetKeyCount(i) == 0) continue;
             var down = (Quaternion)idle.TrackGetKeyValue(i, 0);

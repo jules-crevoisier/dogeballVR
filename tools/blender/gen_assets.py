@@ -409,10 +409,8 @@ ASSETS = {
     "avatar_orange_corps": L(avatar, "orange", "corps"), "avatar_orange_tete": L(avatar, "orange", "tete"),
     "avatar_orange": L(avatar, "orange", "tout"), "avatar_bleu": L(avatar, "bleu", "tout"),
     "avatar_bleu_corps": L(avatar, "bleu", "corps"), "avatar_bleu_tete": L(avatar, "bleu", "tete"), "main": L(hand),
-    "avatar_orange_rig": L(avatar_kc, "orange", 0, HERO_BUDGET), "avatar_bleu_rig": L(avatar_kc, "bleu", 0, HERO_BUDGET),
-    "avatar_orange2_rig": L(avatar_kc, "orange", 1, HERO_BUDGET), "avatar_bleu2_rig": L(avatar_kc, "bleu", 1, HERO_BUDGET),
-    "avatar_orange_rig_quest": L(avatar_kc_quest, "orange"), "avatar_bleu_rig_quest": L(avatar_kc_quest, "bleu"),
-    "avatar_orange2_rig_quest": L(avatar_kc_quest, "orange", 1), "avatar_bleu2_rig_quest": L(avatar_kc_quest, "bleu", 1),
+    # avatar_{orange,bleu}{,2}_rig(_quest) : mannequins Quaternius, construits par tools/blender/mannequin.py (04/11).
+    # Les héros KC restent disponibles sous un autre nom : "kc_orange_rig": L(avatar_kc, "orange", 0, HERO_BUDGET), etc.
     "plot_neutre": L(pad, "neutre"), "plot_orange": L(pad, "orange"), "plot_bleu": L(pad, "bleu"),
     "moyeu": L(hub), "mur": L(wall), "mur_orange": L(wall, "orange"), "mur_bleu": L(wall, "bleu"), "sol_tuile": L(floor_tile), "sol_tuile_orange": L(floor_tile, "orange"), "sol_tuile_bleu": L(floor_tile, "bleu"), "abri": L(cover_block),
     "tremplin": L(ramp), "bord_fosse": L(pit_edge), "tableau_score": L(scoreboard), "lampe": L(lamp),
