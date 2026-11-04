@@ -33,17 +33,17 @@ public static class Sfx
         [SfxKind.Perfect] = new(0f, 2, 0.02f, -8f),
         [SfxKind.Tier] = new(-6f, 2, 0.015f),
         [SfxKind.Ko] = new(0f, 2, 0.04f, -3f, 10f),
-        [SfxKind.Alert] = new(-3f, 2, 0.02f),
+        [SfxKind.Alert] = new(3f, 2, 0.02f, null, 15f),   // le son qui sauve le joueur doit percer le mix (il était le plus faible)
         [SfxKind.Parry] = new(-2f, 3),
         [SfxKind.Bomb] = new(0f, 2, 0.05f, -4f, 12f),
         [SfxKind.Hit] = new(0f, 4, 0.05f, -5f, 8f),
-        [SfxKind.Click] = new(-7f, 2),
+        [SfxKind.Click] = new(-2f, 2),
         [SfxKind.UiHover] = new(-12f, 2, 0.03f),
         [SfxKind.UiClick] = new(-6f, 2, 0.03f),
         [SfxKind.UiBack] = new(-6f, 2, 0.03f),
         [SfxKind.Countdown] = new(-3f, 2, 0f),
         [SfxKind.Go] = new(-1f, 1, 0f, null, 12f),
-        [SfxKind.Whistle] = new(-6f, 1, 0.01f, null, 14f),
+        [SfxKind.Whistle] = new(-11f, 1, 0.01f, null, 14f),   // ton pur à 3 kHz : le plus fort du jeu à -6
         [SfxKind.Dash] = new(-5f, 2),
         [SfxKind.Jump] = new(-7f, 2),
         [SfxKind.Land] = new(-3f, 2),
@@ -107,6 +107,9 @@ public static class Sfx
     /// <summary>Vrai si le type a au moins un fichier (sinon il sonnera en synthèse).</summary>
     public static bool HasFile(SfxKind kind) => Variants(FileName(kind)).Length > 0;
 
+    /// <summary>--feel-log : chaque son joué est écrit dans la sortie (vérification des retours sans casque ni haut-parleur).</summary>
+    public static readonly bool FeelLog = Array.IndexOf(OS.GetCmdlineUserArgs(), "--feel-log") >= 0;
+
     static string BusOf(SfxKind kind) => kind is SfxKind.UiHover or SfxKind.UiClick or SfxKind.UiBack ? "UI" : "SFX";
 
     /// <summary>Chaque son joué (type, position s'il est spatialisé) : indicateurs visuels des sons (accessibilité).</summary>
@@ -123,6 +126,7 @@ public static class Sfx
         ulong now = Time.GetTicksMsec();
         if (lastPlayMs.TryGetValue(kind, out var prev) && now - prev < 25) return;
         lastPlayMs[kind] = now;
+        if (FeelLog) GD.Print($"[Feel] son {kind} hauteur {pitch:0.00}{(position != null ? " (3D)" : "")}");
         Played?.Invoke(kind, position);
 
         if (!voices.TryGetValue(kind, out var active)) voices[kind] = active = new List<Node>();
@@ -167,6 +171,10 @@ public static class Sfx
                 else if (c is AudioStreamPlayer3D p3) { p3.Stop(); p3.Stream = null; }
             }
         holder = null;
+        // Les enveloppes C# gardent une référence sur chaque son jusqu'au ramasse-miettes, qui ne passe pas avant la fermeture :
+        // on la rend tout de suite, sinon Godot signale les .ogg « encore utilisés ».
+        foreach (var list in files.Values) foreach (var s in list) s?.Dispose();
+        foreach (var w in synth.Values) w?.Dispose();
         files.Clear(); synth.Clear(); voices.Clear(); lastVariant.Clear();
     }
 

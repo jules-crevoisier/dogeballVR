@@ -6,7 +6,9 @@ namespace DogeballVR.Gameplay;
 
 /// <summary>
 /// Balle de dodgeball. Côté hôte (autorité) : physique et touches. Côté clients : affichage.
-/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), la balle devient plus lumineuse.
+/// Charge de passe (0 à 3) : une passe d'un allié donne le palier 1 (pas plus), une attrape parfaite +1 ; la balle devient plus lumineuse.
+/// Le palier ne change jamais les dégâts (1 cœur par coup, voir KcRules.Damage) : au casque il raccourcit la fenêtre d'attrape
+/// normale de celui qui reçoit la balle, au clavier-souris il rend le tir plus rapide (+15 % par palier).
 /// </summary>
 public partial class Ball : RigidBody3D
 {
@@ -21,7 +23,7 @@ public partial class Ball : RigidBody3D
     /// <summary>Distance au plus proche adversaire au moment du lancer (mesure de portée, remplie par le MatchController).</summary>
     public float ThrowDistance { get; set; } = -1f;
     public static event System.Action<Ball>? Released;
-    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Le receveur regagne une vie.</summary>
+    /// <summary>Un adversaire attrape une balle lancée vite : (id du receveur, attrape parfaite). Statistiques ; le cœur rendu n'existe plus que si la map le demande (catchHealsHeart).</summary>
     public static event System.Action<int, bool>? CaughtThrow;
     double flightTime;
 
@@ -79,7 +81,8 @@ public partial class Ball : RigidBody3D
     MeshInstance3D? core;
 
     // Halo visuel plus grand que la hitbox (rayon 0,11 m) : lisibilité en VR, gameplay inchangé.
-    // Palier 0 discret, palier 1 un peu plus lumineux, palier 2 (KO) binaire et très marqué : double halo + anneau orbital (voir UpdateLook).
+    // Palier 0 discret, palier 1 un peu plus lumineux, palier 2 binaire et très marqué : double halo + anneau orbital (voir UpdateLook).
+    // Le double halo ne veut plus dire « KO » mais « attrape plus tôt » (VR : fenêtre plus courte ; PC : balle plus rapide).
     static readonly float[] HaloScale = { 1.0f, 1.12f, 1.35f, 1.5f };
     static readonly float[] HaloAlpha = { 0.22f, 0.32f, 0.6f, 0.75f };
     static readonly float[] PulseHz = { 0f, 0f, 2.5f, 2.5f };   // sous les 3 Hz (confort)
@@ -174,7 +177,7 @@ public partial class Ball : RigidBody3D
             MaterialOverride = ball.haloMaterial,
         };
         ball.AddChild(ball.halo);
-        // Palier 2 (KO) : second halo plus large et anneau orbital, invisibles aux paliers 0 et 1.
+        // Palier 2 et plus (« attrape plus tôt ») : second halo plus large et anneau orbital, invisibles aux paliers 0 et 1.
         ball.halo2Material = Materials.Additive(Palette.BallCore);
         ball.halo2 = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.26f, Height = 0.52f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.halo2Material, Visible = false };
         ball.AddChild(ball.halo2);
@@ -250,22 +253,25 @@ public partial class Ball : RigidBody3D
 
     /// <summary>
     /// Palier après une prise. Balle reçue d'un allié : palier 1 au plus, comme Knockout City (sinon deux passes donnent un KO
-    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite.
+    /// en un coup sans risque) ; un palier déjà plus haut est gardé. Balle prise à l'adversaire : palier 0, ou charge gardée +1 sur attrape parfaite
+    /// (une passe interceptée : palier 1 au plus).
     /// </summary>
-    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect)
+    public static int ChargeOnCatch(int charge, bool fromAlly, bool fromOpponent, bool perfect, bool wasPass = false)
     {
         if (fromAlly) return Mathf.Max(charge, 1);
-        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, MaxCharge) : 0;   // attrape parfaite : la balle garde sa charge, +1
+        // Attrape parfaite : la balle garde sa charge, +1. Une passe interceptée monte au palier 1 au plus (sinon intercepter une passe
+        // alliée au palier 1 donnait une balle de KO au palier 2, et passer devenait un risque sans contrepartie).
+        if (fromOpponent) return perfect ? Mathf.Min(charge + 1, wasPass ? 1 : MaxCharge) : 0;
         return charge;
     }
 
-    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire : charge à zéro (gardée +1 si parfaite).</summary>
+    /// <summary>Un joueur attrape la balle. Passe d'un allié : palier 1. Balle volée à l'adversaire (tir ou passe interceptée) : charge à zéro (gardée +1 si parfaite).</summary>
     public void Hold(Node3D hand, int playerId, int team, bool perfect = false)
     {
         if (OwnerTeam >= 0 && OwnerTeam != team && LinearVelocity.Length() >= HitMinSpeed) CaughtThrow?.Invoke(playerId, perfect);
         bool fromAlly = OwnerTeam == team && OwnerPlayerId >= 0 && OwnerPlayerId != playerId;
         CatchFx(team, playerId, perfect);
-        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect);
+        int next = ChargeOnCatch(Charge, fromAlly, OwnerTeam != team, perfect, IsPass);
         if (next != Charge) { ResetCharge(); for (int i = 0; i < next; i++) AddCharge(); }
         EndArc();
         SpeedCap = 0;

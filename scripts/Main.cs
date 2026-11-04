@@ -152,11 +152,11 @@ public partial class Main : Node3D
             var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
             AddChild(backdrop);
             var menu = new UI.MainMenu { Name = "MainMenu" };
-            void Begin(NetMode mode, string address, bool tutorial)
+            void Begin(NetMode mode, string address, bool tutorial, string map = "croix_neon")
             {
                 menu.QueueFree();
                 backdrop.QueueFree();
-                cfg.Choose(mode, address);
+                cfg.Choose(mode, address, map);
                 Tutorial = tutorial;
                 StartMatch(xrActive);
                 FadeIn();
@@ -171,6 +171,7 @@ public partial class Main : Node3D
             menu.JoinCode += code => Room(l => l.JoinByCode(code));
             menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
             UI.MainMenu.TextInput = (desc, cur, max, rect, done) => Online.SteamBridge.Init() && Online.Steam.SteamPlatform.ShowTextInput(desc, cur, max, rect, done);
+            menu.SoloChosen += map => Begin(NetMode.Offline, "", false, map);
             AddChild(menu);
             return;
         }
@@ -189,6 +190,9 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
+        KcRules.Configure(map.Rules, xrActive);
+        Assist.Configure(map.BallRules);
         int localZoneId = cfg.LocalZone;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
@@ -380,7 +384,10 @@ public partial class Main : Node3D
         };
         match.Register(localHurtbox);
         currentPlate = localZone.Id;
-        match.PlateSwaps = map.IsRing && (!pcProfile || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0);
+        // Échanges de plaques suspendus (décision n° 6) : seulement si la map donne des instants (plateSwapTimes), en VR ; --swap-test les force.
+        bool swapTest = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--swap-test") >= 0;
+        match.SwapTimes = KcRules.PlateSwapTimes(swapTest);
+        match.PlateSwaps = map.IsRing && match.SwapTimes.Length > 0 && (!pcProfile || swapTest);
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
@@ -574,7 +581,20 @@ public partial class Main : Node3D
         var hands = new List<HandThrower>();
         if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
-        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
+        // VR : main 0 gauche, 1 droite, -1 les deux (attrape, lancer, palier, touche, frôlé, départ de manche).
+        System.Action<int, float, float>? haptic = hands.Count == 0 ? null : (hand, a, d) =>
+        {
+            foreach (var h in hands) if (hand < 0 || (hand == 0) == (h.Tracker == "left_hand")) h.Pulse(a, d);
+        };
+        // --feel-log sans casque : les vibrations sont écrites dans la sortie (mêmes appels qu'en VR).
+        if (haptic == null && Audio.Sfx.FeelLog) haptic = (hand, a, d) => GD.Print($"[Feel] vibration main {(hand < 0 ? "les deux" : hand == 0 ? "gauche" : "droite")} {a:0.00} pendant {d:0.00} s");
+        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null, Haptic = haptic });
+        if (xrOrigin != null)
+        {
+            // Pas de HUD dans le casque : bips de départ, « GO ! », sifflets et jingle de fin par le son (et « GO ! » dans les mains).
+            AddChild(new Audio.MatchCues { Name = "MatchCues", View = MatchView.ForClient(score, lives, map, localZone.Id, localZone.Team), Haptic = haptic });
+            if (xrOrigin.GetNodeOrNull<Node3D>("XRCamera3D") is { } xrCam) Visual.VrVignette.Attach(xrCam);
+        }
         if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet.
         var left = hands.Find(h => h.Tracker == "left_hand");

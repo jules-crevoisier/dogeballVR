@@ -221,20 +221,22 @@ public partial class EndPodium : Control
     {
         bool local = id == View.LocalId;
         var plate = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
-        var box = UiKit.Box(UiKit.Cream, 6, 0.18f, local ? 4 : 0, local ? UiKit.Yellow : null, 5);
+        // Plaque crème penchée, ombre encre décalée (comme les items du menu) ; la mienne cerclée de jaune.
+        var box = new KcBox { Top = UiKit.Cream, Bottom = new Color("efe2c8"), Slant = 12, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.6f) };
         box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 6; box.ContentMarginBottom = 8;
-        if (local) { box.ShadowColor = new Color(UiKit.Yellow, 0.4f); box.ShadowSize = 10; }
         plate.AddThemeStyleboxOverride("panel", box);
         plate.CustomMinimumSize = new Vector2(mvp ? 320 : 280, 0);
         var name = UiKit.Text(View.NameOf(id), mvp ? 42 : 36, UiKit.Navy, 0, HorizontalAlignment.Center);
+        if (UiKit.Italic is Font it) name.AddThemeFontOverride("font", it);
         plate.AddChild(name);
         Control card = plate;
         if (mvp)
         {
             // Carte MVP : cadre bleu nuit liseré de jaune, étoile qui respire, MVP, pseudo, puis la stat principale (KO).
             var frame = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
-            var fb = UiKit.Box(UiKit.Navy, 14, 0f, 5, UiKit.Yellow, 8);
-            fb.ContentMarginLeft = 18; fb.ContentMarginRight = 18; fb.ContentMarginTop = 4; fb.ContentMarginBottom = 12;
+            var fb = UiKit.PanelBox(14, 18);
+            fb.BorderColor = UiKit.Yellow;
+            fb.ContentMarginLeft = 22; fb.ContentMarginRight = 22; fb.ContentMarginTop = 4; fb.ContentMarginBottom = 14;
             frame.AddThemeStyleboxOverride("panel", fb);
             var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
             col.AddThemeConstantOverride("separation", 4);
@@ -243,7 +245,7 @@ public partial class EndPodium : Control
             head.AddThemeConstantOverride("separation", 4);
             star = new EndScreen.Star { CustomMinimumSize = new Vector2(84, 76), MouseFilter = MouseFilterEnum.Ignore, Radius = 30f };
             head.AddChild(star);
-            var mvpLabel = UiKit.Text("MVP", 56, UiKit.Yellow, 12);
+            var mvpLabel = UiKit.Title("MVP", 56, HorizontalAlignment.Left);
             mvpLabel.VerticalAlignment = VerticalAlignment.Center;
             head.AddChild(mvpLabel);
             col.AddChild(head);

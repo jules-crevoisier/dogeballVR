@@ -246,7 +246,7 @@ public partial class Bot : Node3D
     }
 
     /// <summary>Le bot peut-il prendre cette balle ? (point unique : règles de prise des passes adverses.)</summary>
-    bool CanTake(Ball ball) => !(ball.IsPass && ball.OwnerTeam != Hurtbox.Team);
+    bool CanTake(Ball ball) => KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team);   // une passe adverse s'intercepte (si la map le permet)
 
     void TryCatch()
     {
@@ -356,6 +356,7 @@ public partial class Bot : Node3D
         {
             var s = Current;
             float speed = ThrowSpeed(s);
+            if (!Assist.VrRules) speed *= KcRules.PcTierFactor(held.Charge);   // partie au clavier : le palier rend le tir plus rapide (en VR il est plafonné à 20 m/s)
             float dist = target.GlobalPosition.DistanceTo(GlobalPosition);
             // Anticipation : on vise là où la cible sera à l'arrivée de la balle (en partie seulement aux niveaux bas).
             var lead = velocities.TryGetValue(target, out var tv) ? tv * (dist / speed) * s.Lead : Vector3.Zero;
