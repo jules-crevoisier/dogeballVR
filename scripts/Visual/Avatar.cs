@@ -25,6 +25,9 @@ public partial class Avatar : Node3D
     double actionLeft;
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
+    bool dash;
+    /// <summary>Le joueur charge un tir (clic maintenu) : pose « Armer » tenue jusqu'au lâcher, qui enchaîne sur « Lancer ».</summary>
+    public bool Charging { get; set; }     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
     const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
 
     static readonly System.Collections.Generic.List<Avatar> all = new();
@@ -40,18 +43,44 @@ public partial class Avatar : Node3D
     double ghostWindow;          // KO à l'instant : si l'avatar est masqué dans ce délai, une copie joue la chute
     Transform3D koTransform;
 
+    MeshInstance3D? blob;
+    float blobGround;
+    static StandardMaterial3D? blobMat;
+
+    /// <summary>Ombre portée simple : disque au dégradé radial sombre, posé à plat sous les pieds.</summary>
+    static MeshInstance3D BlobShadow()
+    {
+        blobMat ??= new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            AlbedoColor = new Color(0.05f, 0.05f, 0.12f, 0.55f), CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            AlbedoTexture = new GradientTexture2D
+            {
+                Gradient = new Gradient { Offsets = new[] { 0f, 0.55f, 1f }, Colors = new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.6f), new Color(1, 1, 1, 0) } },
+                Fill = GradientTexture2D.FillEnum.Radial, FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(0.5f, 0f), Width = 64, Height = 64,
+            },
+        };
+        return new MeshInstance3D
+        {
+            Name = "OmbreSimple", Mesh = new PlaneMesh { Size = new Vector2(0.9f, 0.9f) }, MaterialOverride = blobMat,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, TopLevel = true,
+        };
+    }
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
         string teamName = team == 0 ? "orange" : "bleu";
-        var rigged = ModelLibrary.Instance($"avatar_{teamName}_rig");
+        // deux persos par équipe (Riko/Bo, Nova/Kai) : le second joueur de chaque équipe prend la variante
+        var rigged = (playerId >= 0 && playerId / 2 % 2 == 1 ? ModelLibrary.Instance($"avatar_{teamName}2_rig") : null)
+                     ?? ModelLibrary.Instance($"avatar_{teamName}_rig");
         if (rigged != null)
         {
             avatar.body = rigged;
             avatar.modelName = $"avatar_{teamName}_rig";
             avatar.anim = rigged.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
             avatar.AddChild(rigged);
-            foreach (var loop in new[] { "Repos", "Course" })
+            foreach (var loop in new[] { "Repos", "Course", "Armer" })
                 if (avatar.anim?.HasAnimation(loop) == true) avatar.anim.GetAnimation(loop).LoopMode = Animation.LoopModeEnum.Linear;
             if (avatar.anim != null) AddRecoil(avatar.anim);
             avatar.anim?.Play("Repos");
@@ -61,6 +90,7 @@ public partial class Avatar : Node3D
             avatar.RightHand = new Node3D { Name = "RightHand" };
             avatar.torso = new Node3D { Name = "Torso" };
             foreach (var n in new[] { avatar.Head, avatar.LeftHand, avatar.RightHand, avatar.torso }) avatar.AddChild(n);
+            if (ModelLibrary.Quest) avatar.AddChild(avatar.blob = BlobShadow());   // Quest : ni ombres ni SSAO, sans tache sombre le perso flotte
             avatar.Pose(new Vector3(0, 1.6f, 0), 0f, new Vector3(-0.35f, 1.0f, -0.2f), new Vector3(0.35f, 1.0f, -0.2f));
             return avatar;
         }
@@ -241,6 +271,8 @@ public partial class Avatar : Node3D
     public void PlayAction(string name, double seconds)
     {
         if (anim == null || !anim.HasAnimation(name)) return;
+        // Même geste déjà en cours (élan du bot puis lâcher de la balle) : on le prolonge au lieu de le reprendre au début.
+        if (actionLeft > 0 && anim.CurrentAnimation == name) { actionLeft = Mathf.Max(actionLeft, seconds); return; }
         anim.Play(name, 0.08);
         anim.SpeedScale = 1f;
         actionLeft = seconds;
@@ -284,14 +316,16 @@ public partial class Avatar : Node3D
                 if (seenBalls.TryGetValue(ball, out var prev))
                 {
                     // balle lente = ramassée au sol, balle rapide = attrapée au vol
-                    if (!prev.held && cur.held && cur.owner == playerId) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.35);
-                    else if (prev.held && !cur.held && prev.owner == playerId) PlayAction(ball.IsPass ? "Passe" : "Lancer", ball.IsPass ? 0.45 : 0.6);
+                    if (!prev.held && cur.held && cur.owner == playerId) PlayAction(prev.speed < 3f ? "Ramasser" : "Attrape", prev.speed < 3f ? 0.4 : 0.5);
+                    else if (prev.held && !cur.held && prev.owner == playerId) PlayAction(ball.IsPass ? "Passe" : "Lancer", ball.IsPass ? 0.45 : 0.65);
                 }
                 seenBalls[ball] = cur;
             }
         if (actionLeft <= 0 && climb > 2.2f) PlayAction("Saut", 0.7);
+        if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
+        dash = false;
         if (actionLeft > 0) { actionLeft -= delta; return; }
-        string loop = speed > 1.0f ? "Course" : "Repos";
+        string loop = Charging && anim.HasAnimation("Armer") ? "Armer" : speed > 1.0f ? "Course" : "Repos";
         if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
         anim.SpeedScale = loop == "Course" ? Mathf.Clamp(speed / 4.5f, 0.7f, 1.6f) : 1f;
     }
@@ -306,6 +340,7 @@ public partial class Avatar : Node3D
             if (dt > 0 && lastHead != Vector3.Zero)
             {
                 speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / dt, 12f), 0.25f);
+                if (flat.Length() / dt > 13f && flat.Length() < 1.5f) dash = true;   // pas une téléportation (réapparition)
                 climb = (head.Y - lastHead.Y) / dt;
             }
             lastHead = head;
@@ -315,6 +350,14 @@ public partial class Avatar : Node3D
             bodyBase = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
             body.Position = bodyBase + (IsInsideTree() ? KickLocal() : Vector3.Zero);
             body.Rotation = new Vector3(0, yaw, 0);
+            if (blob != null)
+            {
+                // reste au sol pendant un saut : plus petite et plus pâle quand le corps monte
+                if (y < 0.25f || Mathf.Abs(climb) < 0.5f) blobGround = bodyBase.Y;
+                float lift = Mathf.Clamp((bodyBase.Y - blobGround) / 1.5f, 0f, 0.7f);
+                blob.Position = new Vector3(head.X, blobGround + 0.015f, head.Z);
+                blob.Scale = Vector3.One * (1f - lift);
+            }
         }
         Head.Position = head;
         Head.Rotation = new Vector3(0, yaw, 0);

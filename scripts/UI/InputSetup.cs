@@ -7,6 +7,7 @@ namespace DogeballVR.UI;
 /// Actions du clavier-souris, déclarées dans l'InputMap au démarrage. Les touches sont des touches physiques :
 /// la rangée « WASD » d'un clavier QWERTY est « ZQSD » sur un AZERTY, sans rien régler. Chaque action a une touche
 /// principale réassignable (menu Options) et, parfois, une touche secondaire fixe (flèches, X pour la passe…).
+/// À la manette, les boutons et gâchettes des actions sont réassignables aussi ; les sticks et Menu (pause) restent fixes.
 /// </summary>
 public static class InputSetup
 {
@@ -46,7 +47,12 @@ public static class InputSetup
     };
 
     static readonly Dictionary<string, InputEvent> primary = new();
+    static readonly Dictionary<string, InputEvent> pad = new();
     static bool registered;
+
+    /// <summary>Le bouton de manette de cette action peut-il être changé (boutons et gâchettes ; pas les sticks ni Menu) ?</summary>
+    public static bool PadRemappable(ActionDef a) => a.Name != "pause"
+        && a.Pad is InputEventJoypadButton or InputEventJoypadMotion { Axis: JoyAxis.TriggerLeft or JoyAxis.TriggerRight };
 
     public static void Register()
     {
@@ -56,6 +62,7 @@ public static class InputSetup
         {
             if (!InputMap.HasAction(a.Name)) InputMap.AddAction(a.Name, 0.2f);
             if (!primary.ContainsKey(a.Name)) primary[a.Name] = a.Primary;
+            if (a.Pad != null && !pad.ContainsKey(a.Name)) pad[a.Name] = a.Pad;
             Rebuild(a);
         }
         foreach (var (name, e) in PadLook)
@@ -71,7 +78,36 @@ public static class InputSetup
         InputMap.ActionEraseEvents(a.Name);
         InputMap.ActionAddEvent(a.Name, primary[a.Name]);
         if (a.Secondary != null && !SameInput(a.Secondary, primary[a.Name])) InputMap.ActionAddEvent(a.Name, a.Secondary);
-        if (a.Pad != null) InputMap.ActionAddEvent(a.Name, a.Pad);
+        if (pad.TryGetValue(a.Name, out var p)) InputMap.ActionAddEvent(a.Name, p);
+    }
+
+    public static InputEvent? PadOf(string action) { Register(); return pad.TryGetValue(action, out var p) ? p : null; }
+
+    /// <summary>Nouveau bouton ou gâchette de manette ; l'action qui l'avait prend l'ancien (échange, pas de doublon).
+    /// Faux si l'appui ne convient pas (stick, action fixe).</summary>
+    public static bool RebindPad(string action, InputEvent e)
+    {
+        Register();
+        var def = Find(action);
+        if (!PadRemappable(def)) return false;
+        InputEvent? clean = e switch
+        {
+            InputEventJoypadButton b => J(b.ButtonIndex),
+            InputEventJoypadMotion { Axis: JoyAxis.TriggerLeft or JoyAxis.TriggerRight } m when m.AxisValue > 0.5f => Ax(m.Axis, 1f),
+            _ => null,
+        };
+        if (clean == null || clean is InputEventJoypadButton { ButtonIndex: JoyButton.Start }) return false;
+        var old = pad[action];
+        foreach (var a in Actions)
+            if (a.Name != action && pad.TryGetValue(a.Name, out var other) && SameInput(other, clean))
+            {
+                if (!PadRemappable(a)) return false;   // Menu reste à la pause
+                pad[a.Name] = old;
+                Rebuild(a);
+            }
+        pad[action] = clean;
+        Rebuild(def);
+        return true;
     }
 
     public static InputEvent PrimaryOf(string action) => primary.TryGetValue(action, out var e) ? e : Find(action).Primary;
@@ -90,7 +126,7 @@ public static class InputSetup
 
     public static void ResetAll()
     {
-        foreach (var a in Actions) { primary[a.Name] = a.Primary; Rebuild(a); }
+        foreach (var a in Actions) { primary[a.Name] = a.Primary; if (a.Pad != null) pad[a.Name] = a.Pad; Rebuild(a); }
     }
 
     static InputEvent Normalize(InputEvent e) => e switch
@@ -104,6 +140,8 @@ public static class InputSetup
     {
         (InputEventKey x, InputEventKey y) => x.PhysicalKeycode == y.PhysicalKeycode,
         (InputEventMouseButton x, InputEventMouseButton y) => x.ButtonIndex == y.ButtonIndex,
+        (InputEventJoypadButton x, InputEventJoypadButton y) => x.ButtonIndex == y.ButtonIndex,
+        (InputEventJoypadMotion x, InputEventJoypadMotion y) => x.Axis == y.Axis && Mathf.Sign(x.AxisValue) == Mathf.Sign(y.AxisValue),
         _ => false,
     };
 
@@ -130,8 +168,42 @@ public static class InputSetup
         }
     }
 
-    /// <summary>Touche principale d'une action, telle qu'affichée dans les aides (« Clic G », « Maj », « Z »…).</summary>
-    public static string KeyName(string action) { Register(); return Describe(PrimaryOf(action)); }
+    /// <summary>Touche principale d'une action, telle qu'affichée dans les aides (« Clic G », « Maj », « Z »…), ou son bouton de manette si on joue à la manette.</summary>
+    public static string KeyName(string action)
+    {
+        Register();
+        if (UsingPad && pad.TryGetValue(action, out var p)) return DescribePad(p);
+        return Describe(PrimaryOf(action));
+    }
+
+    /// <summary>Dernier appareil utilisé : manette (aides en boutons de manette) ou clavier-souris. Manette d'emblée sur Steam Deck.</summary>
+    public static bool UsingPad { get; private set; } = GameSettings.OnSteamDeck;
+
+    public static void Track(InputEvent e)
+    {
+        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f) UsingPad = true;
+        else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true } || e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 25f) UsingPad = false;
+    }
+
+    /// <summary>Boutons à la façon d'une manette Xbox (disposition reprise par Steam Input et le Steam Deck).</summary>
+    static string DescribePad(InputEvent e) => e switch
+    {
+        InputEventJoypadButton b => b.ButtonIndex switch
+        {
+            JoyButton.A => "A", JoyButton.B => "B", JoyButton.X => "X", JoyButton.Y => "Y",
+            JoyButton.LeftShoulder => "LB", JoyButton.RightShoulder => "RB", JoyButton.LeftStick => "L3", JoyButton.RightStick => "R3",
+            JoyButton.Back => "Vue", JoyButton.Start => "Menu",
+            JoyButton.DpadUp => "Croix ↑", JoyButton.DpadDown => "Croix ↓", JoyButton.DpadLeft => "Croix ←", JoyButton.DpadRight => "Croix →",
+            _ => $"Bouton {(int)b.ButtonIndex}",
+        },
+        InputEventJoypadMotion m => m.Axis switch
+        {
+            JoyAxis.TriggerRight => "RT", JoyAxis.TriggerLeft => "LT",
+            JoyAxis.LeftX or JoyAxis.LeftY => "Stick G", JoyAxis.RightX or JoyAxis.RightY => "Stick D",
+            _ => "?",
+        },
+        _ => "?",
+    };
 
     public static void LoadBindings(ConfigFile cfg)
     {
@@ -144,6 +216,15 @@ public static class InputSetup
             if (v.StartsWith("key:") && int.TryParse(v[4..], out int key)) e = new InputEventKey { PhysicalKeycode = (Key)key };
             else if (v.StartsWith("mouse:") && int.TryParse(v[6..], out int btn)) e = new InputEventMouseButton { ButtonIndex = (MouseButton)btn };
             if (e != null) { primary[a.Name] = e; Rebuild(a); }
+        }
+        foreach (var a in Actions)
+        {
+            if (!PadRemappable(a) || !cfg.HasSectionKey("pad", a.Name)) continue;
+            string v = cfg.GetValue("pad", a.Name).AsString();
+            InputEvent? e = null;
+            if (v.StartsWith("btn:") && int.TryParse(v[4..], out int b)) e = J((JoyButton)b);
+            else if (v.StartsWith("axis:") && int.TryParse(v[5..], out int ax) && (JoyAxis)ax is JoyAxis.TriggerLeft or JoyAxis.TriggerRight) e = Ax((JoyAxis)ax, 1f);
+            if (e != null) { pad[a.Name] = e; Rebuild(a); }
         }
     }
 
@@ -159,6 +240,21 @@ public static class InputSetup
                 _ => "",
             };
             if (v != "") cfg.SetValue("keys", a.Name, v);
+            if (!PadRemappable(a)) continue;
+            string pv = pad[a.Name] switch
+            {
+                InputEventJoypadButton b => $"btn:{(long)b.ButtonIndex}",
+                InputEventJoypadMotion m => $"axis:{(long)m.Axis}",
+                _ => "",
+            };
+            if (pv != "") cfg.SetValue("pad", a.Name, pv);
         }
     }
+}
+
+/// <summary>Suit le dernier appareil utilisé (manette ou clavier-souris) pour les aides de touches.</summary>
+public partial class InputDeviceWatch : Node
+{
+    public override void _Ready() => ProcessMode = ProcessModeEnum.Always;
+    public override void _Input(InputEvent e) => InputSetup.Track(e);
 }

@@ -38,6 +38,11 @@ Concept et architecture : voir `docs/ARCHITECTURE.md` et les notes du projet (do
 ## Format de partie (nerveux)
 Partie de 5 min minimum, visée autour de 10 min : 5 manches de 2 min, toutes jouées ; une manche s'arrête dès qu'une équipe atteint le seuil de KO de la carte (3 par défaut, 6 sur Croix Néon et Fosse croisée, 10 sur Tour 4v4). 2 cœurs par joueur, 1 cœur par coup, attraper ne soigne pas (en VR, +1 cœur après 10 s sans être touché) ; un joueur à 0 cœur est KO et revient 3 s plus tard. La manche revient à l'équipe avec le plus de KO. Égalité : prolongation de 30 s à mort subite (le premier KO gagne), sinon manche nulle. Si les manches sont à égalité après la 5e, une manche décisive est jouée. Une balle passée à un allié gagne une charge, au palier 1 au plus (plus lumineuse) ; un coup retire toujours 1 cœur : le palier raccourcit la fenêtre d'attrape en VR et accélère le tir au clavier. Pause de 20 s entre les manches (12 s au clavier). Paramètres dans `scripts/Rules/MatchRules.cs` et dans le bloc `rules` des cartes (voir `docs/CHOIX-REGLES.md`, « Règles Knockout City »).
 
+## Sortie Steam
+- Checklist complète : `docs/steam/CHECKLIST-SORTIE-STEAM.md` ; actions de jules (compte, frais, page) : `docs/steam/ACTIONS-JULES.md` ; textes du store : `docs/steam/PAGE-STORE.md`.
+- Envoi des builds : `tools/steam/README.md` et le workflow manuel « Envoi Steam » (`.github/workflows/steam-upload.yml`).
+- Le zip de test contient `steam_api64.dll` et `steam_appid.txt` (480, Spacewar) pour essayer les fonctions Steam sans compte Steamworks.
+
 ## État
 - Le projet compile (`dotnet build`) et une partie complète tourne en simulation avec les bots (Godot 4.3 .NET, mode headless, sans casque) : manches, KO, prolongation.
 - Un workflow GitHub Actions (`.github/workflows/build.yml`) fait ce build et cette simulation à chaque PR.

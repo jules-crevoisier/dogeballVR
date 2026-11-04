@@ -34,6 +34,7 @@ public static class ImpactFx
         Sparks(context, pos, shooterColor, 16, 9f, 0.32f, k);
         Flash(context, pos, 0.9f * k, 0.11f);
         Ring(context, pos, shooterColor, 1.6f * k, 0.28f);
+        ImpactExtras.Hit(context, pos, shooterColor);   // étoile d'impact et traits de vitesse (fil Assets)
     }
 
     public static void Ko(Node context, Vector3 pos, Color shooterColor)
@@ -46,6 +47,7 @@ public static class ImpactFx
         Ring(context, pos, Colors.White, 1.8f * k, 0.3f);
         Stars(context, pos, k);
         Confetti(context, pos, shooterColor, k);
+        ImpactExtras.Ko(context, pos, shooterColor);   // étoile, onde au sol, poussière, colonne de lumière (fil Assets)
     }
 
     /// <summary>Au-delà de 9 m, l'effet grossit avec la distance (jusqu'à ×2,6) : une touche lointaine reste lisible à l'écran.</summary>
@@ -96,6 +98,7 @@ public static class ImpactFx
     /// <summary>Éclat blanc : disque doux face caméra, 0,1 à 0,16 s.</summary>
     static void Flash(Node context, Vector3 pos, float size, float duration)
     {
+        if (UI.GameSettings.ReduceFlashes) size *= 0.35f;   // photosensibilité : éclair réduit à une petite lueur
         flashTex ??= Radial(new[] { 0f, 0.35f, 1f }, new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0.85f), new Color(1, 1, 1, 0) });
         var mat = Billboard(flashTex, Colors.White);
         var q = new MeshInstance3D { Mesh = new QuadMesh { Size = Vector2.One }, MaterialOverride = mat, Scale = Vector3.One * size * 0.45f, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };

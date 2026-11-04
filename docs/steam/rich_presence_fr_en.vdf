@@ -1,0 +1,23 @@
+// Présence enrichie Steam (Steamworks > Communauté > Présence enrichie : téléverser ce fichier).
+// Clés posées par RichPresence.Set : steam_display = #Status_<Menu|Lobby|Match>, variables map et score.
+"lang"
+{
+	"english"
+	{
+		"tokens"
+		{
+			"#Status_Menu"		"In the menus"
+			"#Status_Lobby"		"In a lobby, waiting for players"
+			"#Status_Match"		"Playing on %map% — %score%"
+		}
+	}
+	"french"
+	{
+		"tokens"
+		{
+			"#Status_Menu"		"Dans les menus"
+			"#Status_Lobby"		"Dans un salon, en attente de joueurs"
+			"#Status_Match"		"En match sur %map% — %score%"
+		}
+	}
+}

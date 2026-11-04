@@ -374,6 +374,8 @@ public partial class MatchController : Node3D
 
     /// <summary>Touche validée par l'hôte (ou hors ligne) : tireur, cible, vrai si la cible est KO. Pour le marqueur de touche du HUD.</summary>
     public static event System.Action<int, int, bool>? HitScored;
+    /// <summary>Client : touche annoncée par l'hôte, relayée aux mêmes abonnés (HUD, succès) que sur l'hôte.</summary>
+    public static void ReportRemoteHit(int shooterId, int targetId, bool kill) => HitScored?.Invoke(shooterId, targetId, kill);
 
     void OnHit(int targetId, int shooterId, int charge, float throwDistance)
     {
@@ -679,8 +681,9 @@ public partial class MatchController : Node3D
         banner = winnerTeam < 0 ? "MANCHE NULLE" : $"MANCHE POUR L'ÉQUIPE {TeamName(winnerTeam)}";
         if (over) banner = $"VICTOIRE ÉQUIPE {TeamName(Champion)} !";
         GD.Print($"[Portée] touches/lancers par distance : {RangeReport()}");
+        GD.Print($"[Bots] {Bot.Report()}");
         GD.Print($"[Match] {banner} | manches {Rules.RoundsWon[0]}-{Rules.RoundsWon[1]} | KO {Rules.Kos[0]}-{Rules.Kos[1]}");
-        breakLeft = over ? MatchEndSeconds : RoundBreakSeconds;
+        breakLeft = over ? MatchEndSeconds : Mathf.Max(Rules.BreakSeconds, RoundBreakSeconds);   // format en ligne (Rules) ou pause VR 20 s / clavier 12 s (KcRules)
         if (over) MatchEnded?.Invoke(Champion);
     }
 
@@ -829,6 +832,15 @@ public partial class MatchController : Node3D
         float dirZ = trailing == 0 ? -1f : 1f;
         var ball = SpawnBallAt(new Vector3(def.X, Mathf.Max(def.Y, 3.5f), def.Z));
         ball.LinearVelocity = new Vector3(0, 2f, dirZ * 3f);
+    }
+
+    /// <summary>Entraînement : une balle spéciale lâchée à 1,5 m de haut, elle retombe à cet endroit.</summary>
+    public Ball DropSpecial(Vector3 at, int kind)
+    {
+        var ball = SpawnBallAt(at + new Vector3(0, 1.5f, 0));
+        ball.Kind = kind;
+        if (ballsCached >= 0) ballsCached++;
+        return ball;
     }
 
     Ball SpawnBallAt(Vector3 position)

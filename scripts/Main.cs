@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using DogeballVR.Gameplay;
 using DogeballVR.Maps;
@@ -15,7 +16,7 @@ namespace DogeballVR;
 /// </summary>
 public partial class Main : Node3D
 {
-    readonly NetConfig cfg = NetConfig.Parse();
+    readonly NetConfig cfg = Online.GameLaunch.Take();   // partie lancée par le lobby, sinon options de la ligne de commande
     MapData map = null!;
     ZoneManager zones = null!;
     MatchController match = null!;
@@ -29,6 +30,7 @@ public partial class Main : Node3D
     ClientWorld? clientWorld;
     System.Collections.Generic.Dictionary<int, Node3D> platforms = new();
     Node3D localMarker = null!;
+    MatchView? pcView;   // vue du match du joueur PC (HUD, écran de fin, succès)
     Hurtbox localHurtbox = null!;
     System.Func<PoseData>? localPose;
 
@@ -69,9 +71,22 @@ public partial class Main : Node3D
         tw.TweenCallback(Callable.From(layer.QueueFree));
     }
 
-    /// <summary>Recharge la scène sur le menu principal (ferme la connexion réseau).</summary>
+    /// <summary>Écran de la salle en ligne sur le décor du menu ; <paramref name="start"/> lance l'action choisie (partie rapide, code…).</summary>
+    void ShowLobbyScreen(System.Action<Online.OnlineLobby>? start)
+    {
+        if (DisplayServer.GetName() == "headless") { if (start != null) Online.OnlineLobby.Ensure(GetTree(), start); return; }
+        if (GetNodeOrNull("MenuBackdrop") == null) AddChild(new UI.MenuBackdrop { Name = "MenuBackdrop" });
+        Online.OnlineLobby.Ensure(GetTree(), l =>
+        {
+            AddChild(new Online.LobbyScreen { Name = "LobbyScreen" });
+            start?.Invoke(l);
+        });
+    }
+
+    /// <summary>Recharge la scène sur le menu principal (ferme la connexion réseau, quitte la salle en ligne).</summary>
     public void GoToMenu()
     {
+        Online.OnlineLobby.Instance?.Leave();
         ReturnToMenu = true;
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
@@ -80,19 +95,45 @@ public partial class Main : Node3D
         GetTree().ReloadCurrentScene();
     }
 
+    public override void _ExitTree()
+    {
+        // ressources gardées dans des champs static : à lâcher avant l'arrêt du runtime C# (sinon « Leaked unsafe reference » puis plantage)
+        Visual.KcShaders.ClearCache();
+        Visual.Materials.ClearCache();
+        Audio.Sfx.ClearCache();
+    }
+
     public override void _Ready()
     {
+        Online.CrashReporter.Start(GetTree());
+        Online.SteamBridge.Init();   // sans effet sans Steam (CI, LAN)
+        MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
+        Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque
         UI.GameSettings.Load();
+        UI.GameSettings.WatchScene(GetTree());
+        Audio.Sfx.Preload();   // pas de lecture disque ni de synthèse en pleine partie
+        System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency;   // pas de collecte complète bloquante en pleine partie   // préréglage de qualité sur chaque ciel et soleil chargés
         UI.InputSetup.Register();
         UI.GameSettings.Apply(xrActive ? null : GetViewport());
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
+        Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
+        Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
+        AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--gc-default") < 0) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--assist-test") >= 0) { AddChild(new AssistSelfTest()); return; }
+        // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
+        if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
+        {
+            Online.GameLaunch.ShowLobby = false;
+            ShowLobbyScreen(null);
+            return;
+        }
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--tutorial") >= 0) Tutorial = true;
         if (PlayOfflineOnLoad)
         {
@@ -105,7 +146,7 @@ public partial class Main : Node3D
             return;
         }
         // Lancement sans option, avec un écran : menu principal (les options de ligne de commande et la CI passent directement)
-        if (!xrActive && DisplayServer.GetName() != "headless" && (ReturnToMenu || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0 || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
+        if (!xrActive && !cfg.Preconnected && DisplayServer.GetName() != "headless" && (ReturnToMenu || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu") >= 0 || OS.GetCmdlineUserArgs().Length == 0 && OS.GetCmdlineArgs().Length <= 1))
         {
             ReturnToMenu = false;
             var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
@@ -122,6 +163,14 @@ public partial class Main : Node3D
             }
             menu.Chosen += (mode, address) => Begin(mode, address, false);
             menu.TutorialChosen += () => Begin(NetMode.Offline, "", true);
+            // En ligne : la salle (Steam si disponible, sinon réseau local / code) remplace le menu, le décor reste derrière.
+            void Room(System.Action<Online.OnlineLobby> start) { menu.QueueFree(); ShowLobbyScreen(start); }
+            menu.QuickMatch += () => Room(l => l.QuickMatch());
+            menu.CreatePrivate += () => Room(l => l.CreatePrivate());
+            menu.HostLan += () => Room(l => l.HostLan());
+            menu.JoinCode += code => Room(l => l.JoinByCode(code));
+            menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
+            UI.MainMenu.TextInput = (desc, cur, max, rect, done) => Online.SteamBridge.Init() && Online.Steam.SteamPlatform.ShowTextInput(desc, cur, max, rect, done);
             menu.SoloChosen += map => Begin(NetMode.Offline, "", false, map);
             AddChild(menu);
             return;
@@ -144,7 +193,7 @@ public partial class Main : Node3D
         // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
         KcRules.Configure(map.Rules, xrActive);
         Assist.Configure(map.BallRules);
-        int localZoneId = client ? cfg.Zone : 0;
+        int localZoneId = cfg.LocalZone;
         var localZone = map.Zones.Find(z => z.Id == localZoneId)
             ?? throw new System.InvalidOperationException($"Zone inconnue : {localZoneId}");
 
@@ -160,14 +209,16 @@ public partial class Main : Node3D
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
         };
-        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
+        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive && !Visual.ModelLibrary.Quest);
         AddChild(arena.Root);
         platforms = arena.Platforms;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista") >= 0 || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista-orbit") >= 0 || System.Array.Exists(OS.GetCmdlineUserArgs(), a => a.StartsWith("--vista-at="))) AddChild(new Visual.VistaCamera { Name = "Vista" });   // captures du décor
 
         if (cfg.Mode != NetMode.Offline)
         {
-            net = new NetSession { Name = "NetSession" };
+            net = new NetSession { Name = "NetSession", Token = Online.ReconnectSecret.Get() };
             AddChild(net);
+            if (DisplayServer.GetName() != "headless") AddChild(new Online.NetStatusOverlay { Name = "NetStatus", Net = net });
             if (client) BallActions.Net = net;
         }
 
@@ -322,6 +373,7 @@ public partial class Main : Node3D
         BallActions.ThrowsLocked = () => match.CountdownLeft > 0;
         match.PcProfile = pcProfile;
         match.ConfigureMap(map);
+        if (cfg.OnlineFormat) match.Rules.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));   // PC en ligne : façon Knockout City
         match.ZoneElevation = ZoneElevation;
         match.PlatformsMove = !(map.IsRing && xrOrigin == null);
         match.IsBot = id => bots.ContainsKey(id);
@@ -346,21 +398,34 @@ public partial class Main : Node3D
         targets.Add(localMarker);
         targetTeams.Add(localZone.Team);
         targetIndexOfZone[localZone.Id] = 0;
+        // Niveau des bots : celui des options de l'hôte (en ligne, seul l'hôte fait jouer les bots) ; --bot-level=N pour les tests.
+        Bot.Level = UI.GameSettings.BotLevel;
+        Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
         if (localBody is DesktopPlayer desktop)
         {
             // HUD et écran de fin du joueur PC ; un vrai joueur choisit REJOUER ou MENU, le joueur automatique et la CI relancent seuls.
-            var view = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
+            var view = pcView = MatchView.ForHost(match, map, localZone.Id, localZone.Team);
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
-            match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless";
+            AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
+            // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
+            match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
         }
+        // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt).
+        if (cfg.Preconnected)
+            match.MatchEnded += _ => GetTree().CreateTimer(UI.EndScreen.BackToRoomSeconds).Timeout += () => { if (IsInstanceValid(match) && match.IsInsideTree()) Online.OnlineLobby.Instance?.ReturnToLobby(); };
         if (localBody is DesktopPlayer) match.FloatingHudVisible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: cfg.Mode == NetMode.Offline, restart: () => match.StartMatch());
         if (Tutorial && localBody is DesktopPlayer tutee && cfg.Mode == NetMode.Offline)
-            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
+            AddChild(new UI.Tutorial { Name = "Tutorial", Player = tutee, Match = match, PlayForReal = PlayForReal, BackToMenu = GoToMenu });
         AddKnockoutFeedback(localZone, id => match.Rules.LivesOf(id), match.Rules.LivesPerPlayer, () => match.HudText);
 
         if (net != null)
@@ -389,15 +454,32 @@ public partial class Main : Node3D
             var bnds = map.Bounds;
             net.ArenaXZ = new Rect2(bnds.MinX, bnds.MinZ, bnds.MaxX - bnds.MinX, bnds.MaxZ - bnds.MinZ);
             net.HudText = () => match.HudText;
+            net.StatsData = () => MatchView.EncodeStats(match.Stats, id => bots.ContainsKey(id));
             net.PeerHello += OnPeerHello;
             net.PeerLeft += OnPeerLeft;
-            if (cfg.Mode == NetMode.Host)
+            net.ZoneAvailable = id => bots.ContainsKey(id) && id != localZone.Id;
+            net.PickZone = PickFreeZone;
+            if (cfg.Mode == NetMode.Host && cfg.Preconnected) net.AdoptHost(fromLobby: true);
+            else if (cfg.Mode == NetMode.Host)
             {
                 var err = net.Host(cfg.Port);
                 if (err != Error.Ok) GD.PrintErr($"[Net] Impossible d'héberger : {err}");
             }
         }
+        AddAchievementTracker(localZone, match);
         match.StartMatch();
+        if (cfg.Preconnected) Online.OnlineLobby.Instance?.HostMatchReady();   // les joueurs de la salle peuvent entrer
+    }
+
+    /// <summary>Zone tenue par un bot pour un joueur qui entre : dans l'équipe demandée si possible, sinon dans celle qui a le moins d'humains.</summary>
+    int PickFreeZone(int preferredTeam, System.Func<int, bool> allowed)
+    {
+        int Humans(int team) => map.Zones.Count(z => z.Team == team && !bots.ContainsKey(z.Id));
+        var free = map.Zones.Where(z => bots.ContainsKey(z.Id) && z.Id != localHurtbox.PlayerId && allowed(z.Id)).ToList();
+        if (free.Count == 0) return -1;
+        var pick = free.Where(z => z.Team == preferredTeam).FirstOrDefault()
+            ?? free.OrderBy(z => Humans(z.Team)).ThenBy(z => z.Id).First();
+        return pick.Id;
     }
 
     void SpawnBot(ZoneDef z)
@@ -485,6 +567,15 @@ public partial class Main : Node3D
     // ------------------------------------------------------------------ client
 
     /// <summary>Adaptation Knockout City : alerte de tir, sons, bulles, cœurs, panneaux muraux de score (communs à l'hôte et au client).</summary>
+    /// <summary>Succès Steam (ou leur repli local), stats et XP. Sans match local (client), fin et tableau viennent de l'hôte.</summary>
+    void AddAchievementTracker(ZoneDef localZone, MatchController? localMatch) =>
+        AddChild(new Online.Steam.AchievementTracker
+        {
+            Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch, View = pcView,
+            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Vr = xrOrigin != null, Online = net != null,
+            LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
+        });
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
@@ -534,12 +625,18 @@ public partial class Main : Node3D
         net!.LocalPose = localPose;
         currentPlate = localZone.Id;
         net.PlatesReceived += ApplyPlates;
+        net.StatsReceived += MatchView.ApplyRemoteStats;   // statistiques de fin et bots, envoyées par l'hôte
         if (localBody is DesktopPlayer desktop)
         {
-            // Le client ne reçoit que le texte du tableau de score : la vue le relit (pas de statistiques par joueur).
-            var view = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            // Le client relit le texte du tableau de score ; touches, statistiques et bots arrivent de l'hôte par le réseau.
+            var view = pcView = MatchView.ForClient(() => hud.Text, world.Lives, map, localZone.Id, localZone.Team);
+            if (cfg.OnlineFormat) view.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
             AddChild(new DesktopHud { Name = "DesktopHud", Player = desktop, View = view });
-            AddChild(new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay });
+            AddChild(new UI.ContextHints { Name = "ContextHints", Player = desktop, View = view });
+            AddChild(new UI.SoundCues { Name = "SoundCues", Player = desktop });
+            var end = new UI.EndScreen { Name = "EndScreen", View = view, QuitToMenu = GoToMenu, Autoplay = PcAutoplay, BackToRoom = cfg.Preconnected };
+            AddChild(end);
+            AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
         }
         if (localBody is DesktopPlayer) hud.Visible = false;
         if (localBody is DesktopPlayer) AddPauseMenu(canFreeze: false, restart: null);
@@ -552,9 +649,22 @@ public partial class Main : Node3D
             AddChild(new NetSelfTest { Name = "NetSelfTest", Net = net, World = world, PlayerId = localZone.Id, AimAt = enemy.Center + Vector3.Up,
                 Lift = localZone.Lift, ZoneCenter = localZone.Center, ZoneHalfSize = new Vector2(map.ZoneWidth / 2 - 0.3f, map.ZoneDepth / 2 - 0.3f) });
         }
+        AddAchievementTracker(localZone, null);
         net.SimulatedLag = cfg.LagMs / 1000.0;
-        var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
-        if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
+        net.SimulatedLoss = cfg.LossRate;
+        if (Online.OnlineLobby.Instance is { } lobby)
+        {
+            // Partie lancée par le lobby : reconnexion automatique, zone corrigée par l'hôte, refus renvoyé au menu.
+            net.Disconnected += lobby.OnMatchConnectionLost;
+            net.Welcomed += (zone, secret) => { Online.ReconnectSecret.Set(secret); lobby.OnWelcomedZone(zone, localZone.Id); };
+            net.Refused += lobby.OnMatchRefused;
+        }
+        if (cfg.Preconnected) net.AdoptClient(localZone.Id);
+        else
+        {
+            var err = net.Join(cfg.Address, cfg.Port, localZone.Id);
+            if (err != Error.Ok) GD.PrintErr($"[Net] Impossible de rejoindre : {err}");
+        }
     }
 
     public override void _Process(double delta)

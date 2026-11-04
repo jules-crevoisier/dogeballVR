@@ -35,10 +35,50 @@ public sealed class MatchView
     public Func<int, int> Lives { get; init; } = _ => 0;
     public IReadOnlyList<PlayerInfo> Players { get; init; } = Array.Empty<PlayerInfo>();
     public Snapshot State { get; private set; }
+    /// <summary>Manches gagnantes qui finissent la partie (0 = toutes les manches se jouent) : nombre de pastilles par équipe.</summary>
+    public int RoundsToWin => match?.Rules.RoundsToWin ?? roundsToWin;
+    int roundsToWin;
+    /// <summary>Durée d'un KO avant le retour en jeu.</summary>
+    public float RespawnSeconds => match?.Rules.RespawnSeconds ?? respawnSeconds;
+    float respawnSeconds = 3f;
 
-    /// <summary>Statistiques par joueur : seulement chez l'hôte (null côté client).</summary>
-    public IReadOnlyDictionary<int, MatchController.PlayerStats>? Stats => match?.Stats;
-    public bool HasStats => match != null;
+    /// <summary>Client d'une partie au format en ligne : objectif de KO et manches gagnantes connus d'avance (le texte de l'hôte ne les porte pas).</summary>
+    public void UseOnlineFormat(int teamSize)
+    {
+        roundsToWin = Rules.MatchRules.OnlineRoundsToWin;
+        respawnSeconds = Rules.MatchRules.OnlineRespawnSeconds;
+        State = State with { KoTarget = Rules.MatchRules.OnlineKoTarget(teamSize), MaxRounds = Rules.MatchRules.OnlineMaxRounds };
+    }
+
+    /// <summary>Statistiques par joueur : lues dans le match chez l'hôte, reçues de l'hôte chez le client (null tant que rien n'est arrivé).</summary>
+    public IReadOnlyDictionary<int, MatchController.PlayerStats>? Stats => match != null ? match.Stats : remoteStats;
+    public bool HasStats => Stats != null;
+
+    // Client : dernières statistiques et liste des bots envoyées par l'hôte (une seule partie à la fois par processus).
+    static Dictionary<int, MatchController.PlayerStats>? remoteStats;
+    static HashSet<int>? remoteBots;
+
+    /// <summary>Hôte : statistiques et bots à plat pour le réseau (id, bot, KO, touches, attrapes, lancers, attrapes parfaites).</summary>
+    public static int[] EncodeStats(IReadOnlyDictionary<int, MatchController.PlayerStats> stats, Func<int, bool> isBot)
+    {
+        var data = new List<int>();
+        foreach (var (id, st) in stats) data.AddRange(new[] { id, isBot(id) ? 1 : 0, st.Kos, st.Hits, st.Catches, st.Throws, st.PerfectCatches });
+        return data.ToArray();
+    }
+
+    /// <summary>Client : statistiques reçues de l'hôte.</summary>
+    public static void ApplyRemoteStats(int[] data)
+    {
+        var stats = new Dictionary<int, MatchController.PlayerStats>();
+        var bots = new HashSet<int>();
+        for (int i = 0; i + 6 < data.Length; i += 7)
+        {
+            stats[data[i]] = new MatchController.PlayerStats { Kos = data[i + 2], Hits = data[i + 3], Catches = data[i + 4], Throws = data[i + 5], PerfectCatches = data[i + 6] };
+            if (data[i + 1] != 0) bots.Add(data[i]);
+        }
+        remoteStats = stats;
+        remoteBots = bots;
+    }
     /// <summary>Balle spéciale de la partie (intermission : « balle spéciale de la manche suivante ») : hôte seulement, vide sinon.</summary>
     public string SpecialBall => match?.SpecialBallName ?? "";
     /// <summary>Seul l'hôte relance une partie ; le client attend.</summary>
@@ -78,6 +118,9 @@ public sealed class MatchView
     {
         var view = new MatchView { LocalId = localId, LocalTeam = localTeam, Lives = lives, Players = PlayersOf(map) };
         view.hudText = hudText;
+        remoteStats = null;   // nouvelle partie : les chiffres arrivent avec le premier envoi de l'hôte
+        remoteBots = null;
+        view.isBot = id => remoteBots?.Contains(id) == true;
         MatchController.HitScored += view.OnHitScored;   // touches relayées par l'hôte, quand le réseau les transmet
         view.State = new Snapshot(Phase.Playing, 0, 0, 0, 0, 0, 0, 1, 5, false, "", -1, map.Rules.KoTarget > 0 ? map.Rules.KoTarget : 3);
         return view;

@@ -122,6 +122,8 @@ public partial class MainMenu : CanvasLayer
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
         ShowMain();
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--options-test") >= 0) OpenOverlay(new OptionsMenu { FirstTab = 1 });
         // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in OS.GetCmdlineUserArgs())
             if (arg.StartsWith("--menu-page="))
@@ -137,6 +139,8 @@ public partial class MainMenu : CanvasLayer
                 };
             }
     }
+
+    void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); } });
 
     public override void _Process(double delta)
     {
@@ -242,6 +246,7 @@ public partial class MainMenu : CanvasLayer
             Item("JOUER", PlayBots),
             Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
             Item("EN LIGNE", ShowOnline),
+            Item("PROFIL", ShowProfile),
             Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
             UiKit.Spacer(14),
             Item("CRÉDITS", ShowCredits, false),
@@ -255,20 +260,51 @@ public partial class MainMenu : CanvasLayer
     public event Action? QuickMatch, CreatePrivate, HostLan;
     public event Action<string>? JoinCode, JoinAddress;
 
+    /// <summary>Clavier virtuel (Steam : Deck, Big Picture) ; branché par Main. Faux s'il n'a pas pu s'ouvrir.</summary>
+    public static Func<string, string, int, Rect2I, Action<string?>, bool>? TextInput { get; set; }
+
+    /// <summary>
+    /// Champ de texte jouable à la manette : A sur le champ (ou un bouton qui le demande vide) ouvre le clavier virtuel de Steam.
+    /// Sur Deck le clavier flottant tape directement dans le champ ; ailleurs le texte revient à la fermeture, puis le focus passe à <paramref name="next"/>.
+    /// </summary>
+    static void PadKeyboard(LineEdit field, string description, Func<Control?> next)
+    {
+        field.GuiInput += e =>
+        {
+            if (e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A }) { OpenKeyboard(field, description, next); field.AcceptEvent(); }
+        };
+    }
+
+    static bool OpenKeyboard(LineEdit field, string description, Func<Control?> next)
+    {
+        if (TextInput == null) return false;
+        var xf = field.GetViewport().GetFinalTransform() * field.GetGlobalTransformWithCanvas();
+        var r = xf * new Rect2(Vector2.Zero, field.Size);
+        var rect = new Rect2I((Vector2I)r.Position.Round(), (Vector2I)r.Size.Round());
+        return TextInput(description, field.Text, field.MaxLength > 0 ? field.MaxLength : 64, rect, text =>
+        {
+            if (!IsInstanceValid(field)) return;
+            if (text != null) { field.Text = text; field.CaretColumn = text.Length; }
+            next()?.GrabFocus();
+        });
+    }
+
     void ShowOnline()
     {
         back = ShowMain;
         var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
+        Button? join = null;
+        PadKeyboard(code, "Code de la salle", () => join);
         // Mêmes items que le menu racine (barre jaune qui glisse), en taille secondaire.
         Fill(
             UiKit.Title("EN LIGNE", 56, HorizontalAlignment.Left),
-            Item("PARTIE RAPIDE", () => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
+            Item("PARTIE RAPIDE", () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))), false, Colors.White),
             Item("CRÉER UNE SALLE PRIVÉE", () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
             code,
-            Item("REJOINDRE AVEC LE CODE", () =>
+            join = Item("REJOINDRE AVEC LE CODE", () =>
             {
                 var c = code.Text.Trim().ToUpperInvariant();
-                if (c == "") { code.GrabFocus(); return; }
+                if (c == "") { code.GrabFocus(); if (InputSetup.UsingPad) OpenKeyboard(code, "Code de la salle", () => join); return; }
                 if (JoinCode != null) Leave(() => JoinCode(c));
             }, false, Colors.White),
             Item("RÉSEAU LOCAL", ShowLan, false, Colors.White),
@@ -280,11 +316,13 @@ public partial class MainMenu : CanvasLayer
     {
         back = ShowOnline;
         var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
+        Button? join = null;
+        PadKeyboard(address, "Adresse IP de l'hôte", () => join);
         Fill(
             UiKit.Title("RÉSEAU LOCAL", 56, HorizontalAlignment.Left),
             Item("HÉBERGER", () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
             address,
-            Item("REJOINDRE", () =>
+            join = Item("REJOINDRE", () =>
             {
                 var ip = address.Text.Trim();
                 if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));
@@ -295,9 +333,12 @@ public partial class MainMenu : CanvasLayer
 
     void Online(Action? handler, Action fallback) => Leave(handler ?? fallback);
 
-    void PlayBots()
+    void PlayBots() => FirstMatch(ShowMapPicker);   // solo : choix de la carte (la première fois, après la proposition d'entraînement)
+
+    /// <summary>Contre les bots ou en partie rapide : la toute première fois, on propose l'entraînement avant <paramref name="play"/>.</summary>
+    void FirstMatch(Action play)
     {
-        if (GameSettings.TutorialDone) { ShowMapPicker(); return; }
+        if (GameSettings.TutorialDone) { play(); return; }
         // Première partie : on propose le tutoriel (2 minutes), sans l'imposer.
         var card = new PanelContainer();
         var col = new VBoxContainer();
@@ -314,7 +355,7 @@ public partial class MainMenu : CanvasLayer
         {
             GameSettings.TutorialDone = true;
             GameSettings.Save();
-            ShowMapPicker();
+            play();
         }, 28, new Vector2(320, 64)));
         OpenOverlay(Centered(card));
         yes.CallDeferred(Control.MethodName.GrabFocus);

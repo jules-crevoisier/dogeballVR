@@ -208,6 +208,7 @@ public partial class DesktopHud : CanvasLayer
             for (int i = 0; i < 5; i++)
             {
                 var pip = (Pip)roundPips[t][i];
+                pip.Visible = View.RoundsToWin <= 0 || i < View.RoundsToWin;   // format en ligne : 2 pastilles (2 manches gagnantes)
                 bool on = i < s.Rounds(t);
                 if (pip.On == on) continue;
                 pip.On = on;
@@ -734,6 +735,17 @@ public partial class DesktopHud : CanvasLayer
             DrawCircle(c, 6.5f, halo);
             DrawCircle(c, 4.6f, outline);
             DrawCircle(c, 2.2f, col);
+            // Option daltonisme : la forme de l'équipe visée à côté du viseur (rond orange, triangle bleu), comme sur les noms.
+            if (p.AimingAtEnemy && UI.GameSettings.TeamSymbols)
+            {
+                var at = c + new Vector2(30f, -30f);
+                if (1 - Hud.View.LocalTeam == 0) { DrawCircle(at, 10f, outline); DrawCircle(at, 7f, col); }
+                else
+                {
+                    DrawColoredPolygon(new[] { at + new Vector2(0, -13f), at + new Vector2(12f, 9f), at + new Vector2(-12f, 9f) }, outline);
+                    DrawColoredPolygon(new[] { at + new Vector2(0, -8f), at + new Vector2(7.5f, 6f), at + new Vector2(-7.5f, 6f) }, col);
+                }
+            }
 
             // Charge du lancer : trois arcs autour du viseur (un par palier de son), qui se remplissent.
             if (charge > 0.01f || p.HeldBall != null)
@@ -1486,7 +1498,7 @@ public partial class DesktopHud : CanvasLayer
         koTitle.Visible = koSub.Visible = ko;
         if (ko)
         {
-            int left = Mathf.CeilToInt(3f - (float)(age - koSince));
+            int left = Mathf.CeilToInt(View.RespawnSeconds - (float)(age - koSince));
             koSub.Text = left > 0 ? $"Retour dans {left}" : "Retour imminent…";
         }
         PumpAnnouncements();
@@ -2097,7 +2109,8 @@ public partial class DesktopHud : CanvasLayer
             GD.Print($"[HUD] {s.Phase} : manche {s.Round}/{s.MaxRounds}, manches {s.Rounds0}-{s.Rounds1}, KO {s.Kos0}-{s.Kos1}, gagnant {s.Winner}{(View.HasStats ? "" : " (client)")}");
 
         // Touché : liseré orange et arc vers le tireur (0,45 s) ; le cœur perdu se brise près des cœurs (UpdateHearts).
-        if (n < lastLives && n >= 0) { HurtFrom(); if (hudTest) vignette.From = Vector2.Left; vignette.Strength = 1f; }
+        // Option « Réduire les flashs » : liseré à 40 %.
+        if (n < lastLives && n >= 0) { HurtFrom(); if (hudTest) vignette.From = Vector2.Left; vignette.Strength = 1f; vignette.Intensity = GameSettings.ReduceFlashes ? 0.4f : 1f; }
         lastLives = n;
         vignette.Strength = Mathf.Max(0, vignette.Strength - (float)delta / 0.45f);
         vignette.QueueRedraw();

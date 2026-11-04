@@ -899,7 +899,7 @@ public partial class DesktopPlayer : Node3D
     }
 
     /// <summary>Vitesse initiale d'une cloche : sommet à `apexY` (au moins 0,8 m au-dessus des deux extrémités), gravité pleine (Ball.ArcGravity).</summary>
-    static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
+    public static Vector3 ArcVelocity(Vector3 from, Vector3 to, float apexY)
     {
         float g = Ball.ArcGravity;
         float top = Mathf.Max(from.Y, to.Y);
@@ -1453,10 +1453,14 @@ public partial class DesktopPlayer : Node3D
             var pose = Pose;
             selfAvatar.Visible = !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right);
+            selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }
     }
 
     // ---------------------------------------------------------------- mode test
+
+    /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
+    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
 
     PcInput AutoplayInput(double delta)
     {
@@ -1507,10 +1511,13 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } b || b.LinearVelocity.Length() < 10f) continue;
                 var rel = head.GlobalPosition - b.GlobalPosition;
-                if (rel.Length() < 6f && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
+                // --bande-annonce : appui au dernier moment, dans la fenêtre d'attrape parfaite (la balle gagne un palier à chaque échange)
+                float reach = TrailerTakes ? b.LinearVelocity.Length() * (float)PerfectCatchWindow * 0.8f + 0.6f : 6f;
+                if (rel.Length() < reach && rel.Normalized().Dot(b.LinearVelocity.Normalized()) > 0.9f) { input.Catch = true; break; }
             }
 
-        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche.
+        // Lancer : on arme un temps aléatoire une fois aligné, puis on relâche. Pas avant le « GO ! » : un lancer relâché
+        // pendant le décompte serait annulé et le joueur automatique, déjà relâché, ne tirerait plus jamais cette balle.
         if (held != null && enemy != null && !ThrowLocked)
         {
             float err = Mathf.RadToDeg((-head.GlobalTransform.Basis.Z).AngleTo(enemy.GlobalPosition - head.GlobalPosition));
