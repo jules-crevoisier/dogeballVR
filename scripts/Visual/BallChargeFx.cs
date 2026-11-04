@@ -27,7 +27,7 @@ public partial class BallChargeFx : Node3D
     CpuParticles3D sparks = null!;
     int shownCharge = -1, shownTeam = -2;
     /// <summary>--charge-test : chaque balle affiche un palier fixe (1, 2 ou 3) pour les captures, sans toucher aux règles.</summary>
-    static readonly bool ChargeTest = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--charge-test") >= 0;
+    static readonly bool ChargeTest = System.Array.IndexOf(Tools.DevFlags.Args, "--charge-test") >= 0;
     double t;
     readonly RandomNumberGenerator rng = new();
 
@@ -35,7 +35,7 @@ public partial class BallChargeFx : Node3D
     {
         TopLevel = true;
         // simulations de CI : rien à dessiner ; --sans-charge-fx : images « avant » de la vitrine
-        if (DisplayServer.GetName() == "headless" || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--sans-charge-fx") >= 0) { SetProcess(false); return; }
+        if (DisplayServer.GetName() == "headless" || System.Array.IndexOf(Tools.DevFlags.Args, "--sans-charge-fx") >= 0) { SetProcess(false); return; }
         for (int i = 0; i < rings.Length; i++)
         {
             rings[i] = new MeshInstance3D

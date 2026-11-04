@@ -21,7 +21,7 @@ public partial class VistaCamera : Camera3D
 
     static (Vector3, Vector3)? ParseFixed()
     {
-        foreach (var a in OS.GetCmdlineUserArgs())
+        foreach (var a in Tools.DevFlags.Args)
         {
             if (!a.StartsWith("--vista-at=")) continue;
             var parts = a[11..].Split(':');
@@ -31,7 +31,7 @@ public partial class VistaCamera : Camera3D
         return null;
     }
 
-    static readonly bool Orbit = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista-orbit") >= 0;
+    static readonly bool Orbit = System.Array.IndexOf(Tools.DevFlags.Args, "--vista-orbit") >= 0;
 
     public override void _Process(double delta)
     {

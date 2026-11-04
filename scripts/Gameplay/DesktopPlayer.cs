@@ -1460,7 +1460,7 @@ public partial class DesktopPlayer : Node3D
     // ---------------------------------------------------------------- mode test
 
     /// <summary>--bande-annonce (avec --pc-autoplay) : le joueur automatique attrape au dernier moment, pour filmer attrapes parfaites et balles chargées.</summary>
-    static readonly bool TrailerTakes = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--bande-annonce") >= 0;
+    static readonly bool TrailerTakes = System.Array.IndexOf(Tools.DevFlags.Args, "--bande-annonce") >= 0;
 
     PcInput AutoplayInput(double delta)
     {
