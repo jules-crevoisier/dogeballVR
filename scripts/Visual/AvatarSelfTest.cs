@@ -207,7 +207,7 @@ public partial class AvatarSelfTest : Node3D
             avatars[i].Pose(World(i, head), yaw, lw, rw, c.Floor);
             if (c.Kind == Kind.PcLan && clock > 1.4 && avatars[i].ArmsTracked) pcSpinTracked = true;
             if (c.DuckAt > 0f && clock >= c.DuckAt + 0.1f && delta < 0.05 && !duckChecked.ContainsKey(i))   // pas pendant une capture en rendu logiciel
-                duckChecked[i] = (avatars[i].FindChild("AvatarIk", true, false) as AvatarIk)?.FinalHead.Y + 0.13f * avatars[i].ModelScale ?? 99f;
+                duckChecked[i] = (avatars[i].FindChild("AvatarIk", true, false) as AvatarIk)?.FinalHead.Y + Avatar.HeadAboveBone * avatars[i].ModelScale ?? 99f;
         }
         if (clock < Duration) return;
         done = true;
@@ -236,7 +236,7 @@ public partial class AvatarSelfTest : Node3D
             if (ik == null) { Check(c.Name, false, "pas de squelette riggé (assets/models/avatar_*_rig.glb)"); continue; }
             var basis = new Basis(Vector3.Up, Yaw(i));
             float ankle = ik.FinalAnkleY - c.Floor;
-            float headY = ik.FinalHead.Y + 0.13f * avatars[i].ModelScale;   // os Tete = base du crâne, centre de la tête 13 cm plus haut
+            float headY = ik.FinalHead.Y + Avatar.HeadAboveBone * avatars[i].ModelScale;   // os Tete = base du crâne, centre de la tête 13 cm plus haut
             bool finite = float.IsFinite(ik.FinalWristL.X + ik.FinalWristR.Y + ik.FinalHead.Z + ik.FinalAnkleY);
             if (!finite) { Check($"{c.Name} : pose valide", false, "NaN"); continue; }
             if (c.OffCamera && c.Head.Y < 0f)
