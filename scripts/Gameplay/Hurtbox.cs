@@ -20,6 +20,12 @@ public partial class Hurtbox : Area3D
     /// <summary>Main (0 gauche, 1 droite) qui tient une balle, -1 sinon : un joueur ne tient qu'une balle à la fois.</summary>
     public int HeldHand { get; set; } = -1;
 
+    /// <summary>
+    /// Blocage après une attrape ratée (VR, 0,6 s) : tenu par joueur, lu par les deux mains (l'autre main ne le contourne pas) ;
+    /// pour un joueur distant, l'hôte en tient le miroir (NetSession.GripRpc).
+    /// </summary>
+    public CatchLock CatchLock { get; } = new();
+
     /// <summary>Côté client : la touche est jugée par l'hôte, cette zone ne détecte rien.</summary>
     public bool Passive { get; set; }
 
@@ -58,7 +64,7 @@ public partial class Hurtbox : Area3D
     {
         if (Eliminated || DashInvulnerable || body is not Ball ball || ball.IsHeld || ball.HasExploded) return;
         if (ball.OwnerTeam < 0 || ball.OwnerTeam == Team) return;          // neutre ou tir allié
-        if (ball.IsPass) return;                                           // une passe ne blesse personne
+        if (ball.IsPass) return;                                           // une passe ne blesse personne (elle s'intercepte, voir KcRules.CanTake)
         if (ball.LinearVelocity.Length() < (ball.ThrowMode == Ball.ModeLob ? Ball.LobHitMinSpeed : Ball.HitMinSpeed)) return;       // trop lente
         if (Vulnerable != null && !Vulnerable()) return;                     // invulnérable : la balle passe, elle n'est pas consommée
         if (HitGraceSeconds > 0f && !graceBalls.Contains(ball) && ball.Kind != Ball.KindBomb && ball.LinearVelocity.Length() >= 10f)

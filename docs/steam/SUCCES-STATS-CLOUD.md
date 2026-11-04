@@ -45,7 +45,7 @@ Le nom affiché (Display Name) est en anglais dans Steamworks.
 
 ## 2. Succès (Stats & Achievements > Achievements)
 
-Il y a 23 succès, listés dans `docs/steam/achievements.csv` avec leurs textes en français et en anglais.
+Il y a 22 succès, listés dans `docs/steam/achievements.csv` avec leurs textes en français et en anglais.
 
 Pour chacun :
 

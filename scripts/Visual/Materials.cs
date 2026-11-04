@@ -40,6 +40,9 @@ void fragment() {
     static Shader? grid;
     static Shader? limit;
 
+    /// <summary>Lâche les shaders en cache à la sortie (voir KcShaders.ClearCache).</summary>
+    public static void ClearCache() => grid = limit = null;
+
     public static ShaderMaterial Grid(Color baseColor, Color lineColor)
     {
         grid ??= new Shader { Code = GridCode };
