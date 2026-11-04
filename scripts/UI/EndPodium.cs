@@ -82,7 +82,7 @@ public partial class EndPodium : Control
     /// sans toucher au reste. Renvoie un socle à poser (pieds à l'origine, regard vers -Z) ; le MVP célèbre en boucle,
     /// ses coéquipiers tiennent « Victoire » si le modèle l'a, sinon « Celebration » décalée dans le temps.
     /// </summary>
-    Node3D SpawnPodiumHero(int team, int playerId, bool mvp)
+    internal static Node3D SpawnPodiumHero(int team, int playerId, bool mvp)
     {
         var socle = new Node3D { Name = $"Heros{playerId}" };
         var avatar = Avatar.Create(team, false, playerId);

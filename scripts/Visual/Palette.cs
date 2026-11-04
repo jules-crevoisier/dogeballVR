@@ -3,8 +3,9 @@ using Godot;
 namespace DogeballVR.Visual;
 
 /// <summary>
-/// Palette unique du rendu : tout s'y réfère. Valeurs de la direction artistique v3 (arène sombre, deux équipes,
-/// balle jaune-vert réservée à la balle). Les noms historiques (Night, Indigo, Danger, UiGrey) sont conservés.
+/// Palette unique du rendu : tout s'y réfère. Rôles des couleurs : `design/art/art-bible.md` §4 (DA Knockout City, deux équipes,
+/// balle jaune-vert réservée à la balle). Les couleurs d'arène (Wall, Floor, Indigo) viennent de l'ancienne arène sombre v3 et ne servent
+/// plus qu'aux cartes sans décor. Les noms historiques (Night, Indigo, Danger, UiGrey) sont conservés.
 /// </summary>
 public static class Palette
 {

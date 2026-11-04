@@ -17,17 +17,17 @@ public partial class DesktopPlayer
 
     record struct CamPose(string Name, float X, float Z, float YawDeg, bool Crouch, bool ScreenMayBeBlocked);
 
-    // Couverts de croix_neon : muret « abri_g_z0 » (x -1,3 → 1,9 en z -7,2), son flanc (x 1,8, z -10,1 → -6,9),
-    // pilier_z0 (-4 ; -9, 2,2 m de haut), pylône (0 ; 0, 1,6 m de côté, 3,4 m de haut). Lacet 0 = regard vers -Z.
+    // Couverts de croix_neon : muret « abri_g_z0 » (x -1,8 → 1,4 en z -7,2), son flanc (x 1,3, z -10,1 → -6,9),
+    // pilier_z0 (-4,5 ; -9, 2,2 m de haut), pylône (0 ; 0, 1,6 m de côté, 3,4 m de haut). Lacet 0 = regard vers -Z.
     static readonly CamPose[] CamPoses =
     {
-        new("dos au muret",          0.3f, -6.65f, 180f, false, false),
-        new("muret à droite",        1.25f, -8.6f,   0f, false, false),
-        new("coin du L",             1.2f, -7.75f,  45f, false, false),
+        new("dos au muret",         -0.2f, -6.65f, 180f, false, false),
+        new("muret à droite",        0.75f, -8.6f,   0f, false, false),
+        new("coin du L",             0.7f, -7.75f,  45f, false, false),
         new("dos au pylône",         0f,    1.35f, 180f, false, false),
-        new("face au pilier",       -4f,   -8.15f,   0f, false, true),    // un pilier à 50 cm devant soi bouche forcément le viseur
-        new("accroupi au muret",     0.3f, -6.65f,   0f, true,  false),
-        new("dos au muret, de biais", -0.6f, -6.7f, 150f, false, false),
+        new("face au pilier",       -4.5f, -8.15f,   0f, false, true),    // un pilier à 50 cm devant soi bouche forcément le viseur
+        new("accroupi au muret",    -0.2f, -6.65f,   0f, true,  false),
+        new("dos au muret, de biais", -1.1f, -6.7f, 150f, false, false),
         new("au bord du rotor",      0f,    3.2f, 180f, false, false),   // la barre rayée balaie l'espace entre la caméra et le joueur
         new("rotor sur le côté",     2.6f,  2.6f, 135f, false, false),
     };
