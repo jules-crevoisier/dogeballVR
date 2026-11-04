@@ -29,7 +29,12 @@ public partial class Avatar : Node3D
     bool dash;
     /// <summary>Le joueur charge un tir (clic maintenu) : pose « Armer » tenue jusqu'au lâcher, qui enchaîne sur « Lancer ».</summary>
     public bool Charging { get; set; }     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
-    const float HeadHeight = 1.62f;   // centre de la tête du modèle (1,75 m) au-dessus des pieds
+    /// <summary>Centre de la tête du modèle au-dessus des pieds, à l'échelle 1 : lu sur le repos du squelette (os Tete + 13 cm,
+    /// voir <see cref="RestHeadHeight"/>), car chaque perso a sa taille. 1,62 m sans squelette (avatar de secours).</summary>
+    float headHeight = DefaultHeadHeight;
+    const float DefaultHeadHeight = 1.62f;
+    /// <summary>De l'os Tete (base du crâne) au centre de la tête, mètres du modèle.</summary>
+    public const float HeadAboveBone = 0.13f;
 
     static readonly System.Collections.Generic.List<Avatar> all = new();
     string modelName = "";
@@ -54,7 +59,7 @@ public partial class Avatar : Node3D
     Gameplay.Ball? heldBall;
     float floorY;                // sol sous les pieds (altitude réseau : terrasse ou lift), passé par Pose
     float lastYaw;
-    float standing = HeadHeight; // hauteur de tête debout mesurée du joueur (au-dessus du sol)
+    float standing = DefaultHeadHeight; // hauteur de tête debout mesurée du joueur (au-dessus du sol)
     bool standingMeasured;
     float steadyHead;
     double steadyFor;
@@ -105,6 +110,22 @@ public partial class Avatar : Node3D
         };
     }
 
+    /// <summary>
+    /// Hauteur du centre de la tête au repos, dans l'espace du modèle (pieds à 0) : os Tete du squelette + <see cref="HeadAboveBone"/>.
+    /// Les persos n'ont pas tous la même taille (Tete entre 1,44 et 1,52 m) : une constante commune posait la tête d'un perso
+    /// plus petit sous celle du joueur.
+    /// </summary>
+    static float RestHeadHeight(Node3D model, Skeleton3D skel)
+    {
+        int bone = skel.FindBone("Tete");
+        if (bone < 0) return DefaultHeadHeight;
+        var toModel = skel.Transform;
+        for (var n = skel.GetParent(); n != null && n != model; n = n.GetParent())
+            if (n is Node3D n3) toModel = n3.Transform * toModel;
+        float y = (toModel * skel.GetBoneGlobalRest(bone).Origin).Y + HeadAboveBone;
+        return y > 1.2f && y < 2.1f ? y : DefaultHeadHeight;   // rig inattendu : on garde la valeur historique
+    }
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
@@ -126,6 +147,7 @@ public partial class Avatar : Node3D
             {
                 avatar.ik = new AvatarIk { Name = "AvatarIk" };
                 skel.AddChild(avatar.ik);
+                avatar.headHeight = avatar.standing = RestHeadHeight(rigged, skel);
             }
             avatar.trackable = !bot && playerId >= 0;
             // Nœuds attendus par les appelants (tête, mains) : vides, le modèle animé porte le rendu.
@@ -444,14 +466,14 @@ public partial class Avatar : Node3D
             else
             {
                 // pieds au sol même pour un grand joueur (écart de taille), mais le corps suit un vrai saut
-                float y = head.Y - HeadHeight;
+                float y = head.Y - headHeight;
                 bodyBase = new Vector3(head.X, y < 0.25f ? Mathf.Min(0f, y) : y, head.Z);
             }
             body.Position = bodyBase + (IsInsideTree() ? KickLocal() : Vector3.Zero);
             if (blob != null)
             {
                 // reste au sol pendant un saut : plus petite et plus pâle quand le corps monte
-                if (head.Y - floorY - HeadHeight < 0.25f || Mathf.Abs(climb) < 0.5f) blobGround = bodyBase.Y;
+                if (head.Y - floorY - headHeight < 0.25f || Mathf.Abs(climb) < 0.5f) blobGround = bodyBase.Y;
                 float lift = Mathf.Clamp((bodyBase.Y - blobGround) / 1.5f, 0f, 0.7f);
                 blob.Position = new Vector3(head.X, blobGround + 0.015f, head.Z);
                 blob.Scale = Vector3.One * (1f - lift);
@@ -475,12 +497,12 @@ public partial class Avatar : Node3D
     {
         float above = head.Y - floorY;
         if (playerId >= 0) MeasureStanding(above, dt);   // menu et podium : personnages à la taille du modèle
-        modelScale = Mathf.MoveToward(modelScale, Mathf.Clamp(standing / HeadHeight, MinScale, MaxScale), dt * 0.5f);
+        modelScale = Mathf.MoveToward(modelScale, Mathf.Clamp(standing / headHeight, MinScale, MaxScale), dt * 0.5f);
         body!.Scale = Vector3.One * modelScale;
         float rise = above - standing;
         float fall = -rise - CrouchDeadZone;
-        float range = MaxCrouchDrop * standing / HeadHeight;   // descente de tête que l'accroupi du modèle sait montrer
-        crouchDrop = fall > 0f ? Mathf.Min(fall, range) * HeadHeight * modelScale / standing : 0f;
+        float range = MaxCrouchDrop * standing / headHeight;   // descente de tête que l'accroupi du modèle sait montrer
+        crouchDrop = fall > 0f ? Mathf.Min(fall, range) * headHeight * modelScale / standing : 0f;
         airborne = rise > 0.04f;
         float feet = floorY + (airborne ? rise - 0.04f : fall > range ? range - fall : 0f);
         // Buste penché (valeur lissée de l'IK) : la tête du modèle avance, le corps recule de la moitié pour la garder au-dessus
@@ -603,7 +625,7 @@ public partial class Avatar : Node3D
             if (human == trackable) return;
             trackable = human;
             // Autre occupant de la zone : sa taille se mesure de nouveau (un bot a la taille du modèle).
-            standing = HeadHeight;
+            standing = headHeight;
             standingMeasured = false;
             steadyFor = 0;
             modelScale = 1f;
@@ -653,8 +675,8 @@ public partial class Avatar : Node3D
         // Accroupi : suit la tête vite (un baissé d'esquive se voit tout de suite), plus doucement au KO. La tête du modèle est
         // ramenée sur la vraie tête par une petite correction du bassin (boucle sur la pose de l'image précédente).
         float s = modelScale;
-        var modelHeadY = bodyBase.Y + HeadHeight * s - crouchDrop;
-        if (posed && !ko && crouchDrop > 0f) headFix = Mathf.Clamp(headFix + (ik.FinalHead.Y + 0.13f * s - modelHeadY) * 6f * dt, -0.08f, 0.25f);
+        var modelHeadY = bodyBase.Y + headHeight * s - crouchDrop;
+        if (posed && !ko && crouchDrop > 0f) headFix = Mathf.Clamp(headFix + (ik.FinalHead.Y + HeadAboveBone * s - modelHeadY) * 6f * dt, -0.08f, 0.25f);
         else headFix = Mathf.MoveToward(headFix, 0f, dt);
         float crouchRate = ko ? 2.5f : 10f, leanRate = ko ? 4f : 12f;
         // Bassin au plus bas (squat profond) : le reste de la correction penche le buste.
@@ -665,7 +687,7 @@ public partial class Avatar : Node3D
 
         var basis = new Basis(Vector3.Up, posed ? bodyYaw : body.GlobalRotation.Y);
         var feet = body.GlobalPosition;
-        var headPos = feet + basis * new Vector3(0, HeadHeight * s - crouchDrop, 0);
+        var headPos = feet + basis * new Vector3(0, headHeight * s - crouchDrop, 0);
         Vector3 Shoulder(Vector3 headAt, float side) => headAt + basis * (new Vector3(0.19f * side, -0.24f, 0f) * s);
         Vector3 Local(Vector3 v) => feet + basis * (v * s - new Vector3(0, crouchDrop, 0));
         // Balle tenue sans mains suivies : dans la main armée (et dans la main animée pendant l'attrape ou le ramassage).
@@ -676,7 +698,7 @@ public partial class Avatar : Node3D
             grip = grip.Lerp(ik.FinalWristR + ik.FinalHandDirR * BallGrip * s, catchBlend);
         }
         // Mains réseau relatives à la vraie tête, ramenées à la taille du modèle.
-        float k = HeadHeight * s / standing;
+        float k = headHeight * s / standing;
         var modelHead = new Vector3(lastHead.X, modelHeadY, lastHead.Z);
         Vector3 Scaled(Vector3 hand) => modelHead + (hand - lastHead) * k;
         if (shownHold != null) shownHold.GlobalPosition = tracked && trackBlend > 0.5f ? Scaled(heldLeft == true ? netLeft : netRight) : grip;
