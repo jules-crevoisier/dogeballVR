@@ -18,7 +18,8 @@ public partial class MatchController : Node3D
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
     /// <summary>Pause entre deux manches (décision du 22/10) : 20 s si l'hôte est en VR, 12 s au clavier-souris (map : vrRoundBreakSeconds, pcRoundBreakSeconds).</summary>
     float RoundBreakSeconds => KcRules.RoundBreakSeconds(!PcProfile);
-    const float MatchEndSeconds = 8f;
+    /// <summary>Durée de l'écran de fin avant la partie suivante (8 s au PC ; 20 s en casque, réglable par l'opérateur).</summary>
+    public float MatchEndSeconds { get; set; } = 8f;
     const float CountdownSeconds = 3f;    // « 3, 2, 1, GO ! » au début de chaque manche : chrono figé, touches ignorées
 
     public MatchRules Rules { get; } = new();

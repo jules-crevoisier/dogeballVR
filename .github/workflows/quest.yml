@@ -1,0 +1,117 @@
+name: Build Quest
+
+# APK de debug pour Meta Quest (OpenXR, rendu Vulkan mobile), à installer soi-même :
+# Meta Quest Developer Hub ou adb (docs/ESSAI-CASQUE.md).
+# Téléchargement : onglet Actions > run « Build Quest » > artifact DogeballVR-quest-debug.
+# Pas de clé de release : l'APK est signé avec le keystore de debug du dépôt (tools/quest/debug.keystore),
+# toujours le même, pour qu'un nouvel APK s'installe par-dessus l'ancien.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk-quest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: 4.3-stable
+      GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/tools/quest/debug.keystore
+      GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+      GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: SDK Android (versions du modèle Gradle de Godot 4.3)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;23.2.8568313" > /dev/null
+
+      - name: Cache Godot, modèles d'export et Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-dl
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: quest-${{ env.GODOT_VERSION }}-vendors-3.1.2-v1
+
+      - name: Installer Godot .NET et ses modèles d'export
+        run: |
+          mkdir -p ~/godot-dl
+          cd ~/godot-dl
+          [ -f godot.zip ] || curl -sSfL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_linux_x86_64.zip"
+          [ -f templates.tpz ] || curl -sSfL -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_mono_export_templates.tpz"
+          unzip -q -o godot.zip -d "$RUNNER_TEMP"
+          TPL="$HOME/.local/share/godot/export_templates/4.3.stable.mono"
+          mkdir -p "$TPL"
+          # Seuls les modèles Android servent ici.
+          unzip -q -o -j templates.tpz "templates/android_*" "templates/version.txt" -d "$TPL"
+          echo "GODOT=$RUNNER_TEMP/Godot_v${GODOT_VERSION}_mono_linux_x86_64/Godot_v${GODOT_VERSION}_mono_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Plugin OpenXR Meta, keystore de debug, réglages de l'éditeur
+        run: tools/quest/prepare-android.sh
+
+      - name: Importer le projet (modèles glb, plugin OpenXR)
+        run: |
+          "$GODOT" --headless --path . --import --quit 2>&1 | tail -5 || true
+          grep -q godotopenxrvendors .godot/extension_list.cfg || { echo "Le plugin OpenXR n'est pas chargé"; exit 1; }
+
+      - name: Exporter les APK Quest (debug)
+        run: |
+          mkdir -p build/quest
+          # Deux applications côte à côte dans le casque : le jeu tel qu'à EVA (Néon court) et l'essai à la maison
+          # (La Fosse, départ sur le pad du lift face au terrain adverse : --essai-maison, lu seulement dans un export de debug).
+          "$GODOT" --headless --path . --install-android-build-template --export-debug "Meta Quest" build/quest/DogeballVR-quest.apk 2>&1 | tee export.log
+          "$GODOT" --headless --path . --export-debug "Meta Quest Essai maison" build/quest/DogeballVR-quest-essai.apk 2>&1 | tee export-essai.log
+          if grep -h "ERROR: Project export for preset" export.log export-essai.log; then exit 1; fi
+          test -f build/quest/DogeballVR-quest.apk && test -f build/quest/DogeballVR-quest-essai.apk || { echo "APK manquant"; exit 1; }
+
+      - name: Vérifier les APK (arm64, chargeur OpenXR, application VR Meta, signature)
+        run: |
+          AAPT2="$ANDROID_HOME/build-tools/34.0.0/aapt2"
+          for APK in build/quest/DogeballVR-quest.apk build/quest/DogeballVR-quest-essai.apk; do
+            echo "== $APK"
+            ls -lh "$APK"
+            unzip -l "$APK" > content.txt
+            grep -q "lib/arm64-v8a/libgodot_android.so" content.txt || { echo "Moteur arm64 absent"; exit 1; }
+            grep -q "lib/arm64-v8a/libopenxr_loader.so" content.txt || { echo "Chargeur OpenXR absent"; exit 1; }
+            grep -q "DogeballVR.dll" content.txt || { echo "Assemblage C# absent"; exit 1; }
+            "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > manifest.txt
+            grep -q "com.oculus.intent.category.VR" manifest.txt || { echo "Pas déclarée comme application VR Meta"; exit 1; }
+            grep -q "android.permission.INTERNET" manifest.txt || { echo "Permission réseau absente (LAN)"; exit 1; }
+            "$AAPT2" dump badging "$APK" | grep -E "^package:|sdkVersion|targetSdkVersion|application-label:"
+            "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK" > signature.txt
+            grep "Signer #1 certificate" signature.txt
+          done
+          unzip -p build/quest/DogeballVR-quest-essai.apk assets/_cl_ > cl.bin
+          grep -a -q -- "--essai-maison" cl.bin || { echo "L'APK d'essai n'a pas ses options de lancement"; exit 1; }
+
+      - name: Empaqueter
+        run: |
+          mkdir -p dist
+          cp build/quest/DogeballVR-quest.apk build/quest/DogeballVR-quest-essai.apk dist/
+          cp docs/ESSAI-CASQUE.md dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DogeballVR-quest-debug
+          path: dist/
+          retention-days: 30

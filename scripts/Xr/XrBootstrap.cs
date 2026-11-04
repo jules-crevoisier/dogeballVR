@@ -17,6 +17,7 @@ public static class XrBootstrap
             return false;
         }
         viewport.UseXR = true;
+        viewport.Msaa3D = Viewport.Msaa.Msaa4X;   // bible artistique §8 : MSAA 4x en VR (peu coûteux sur le GPU à tuiles du Quest)
         DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // le casque cadence le rendu
         Active = true;
         return true;
