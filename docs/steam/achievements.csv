@@ -18,7 +18,6 @@ achievement,ACH_RING_OUT,Ring Out,Push an opponent into the pit.,Sortie de piste
 achievement,ACH_TACKLE,Tackle,Tackle an opponent with a dash.,Plaquage,Tacler un adversaire en plein dash.,STAT_TACKLES,1,0
 achievement,ACH_FLAWLESS,Flawless,Win a match without losing a round.,Sans bavure,Remporter un match sans perdre une manche.,,,0
 achievement,ACH_ONLINE_FRIEND,Squad Up,Play an online match with a Steam friend.,Entre potes,Jouer un match en ligne avec un ami Steam.,,,0
-achievement,ACH_VR_PLAYER,Full Immersion,Play a match in virtual reality.,Immersion totale,Jouer une partie en réalité virtuelle.,,,0
 achievement,ACH_WINS_10,Podium Regular,Win 10 matches.,Habitué du podium,Remporter 10 matchs.,STAT_WINS,10,0
 achievement,ACH_WINS_50,Block Boss,Win 50 matches.,Patron du quartier,Remporter 50 matchs.,STAT_WINS,50,0
 achievement,ACH_MATCHES_25,Court Regular,Play 25 matches.,Pilier du terrain,Jouer 25 matchs.,STAT_MATCHES,25,0
