@@ -16,6 +16,8 @@ public partial class MatchController : Node3D
     const int BallsOnField = 4;
     const float BallSpawnInterval = 3f;   // une nouvelle balle toutes les 3 s tant qu'il en manque
     const float BallRecycleSeconds = 6f;  // balle immobile trop longtemps : recyclée
+    /// <summary>Pause entre deux manches (décision du 22/10) : 20 s si l'hôte est en VR, 12 s au clavier-souris (map : vrRoundBreakSeconds, pcRoundBreakSeconds).</summary>
+    float RoundBreakSeconds => KcRules.RoundBreakSeconds(!PcProfile);
     const float MatchEndSeconds = 8f;
     const float CountdownSeconds = 3f;    // « 3, 2, 1, GO ! » au début de chaque manche : chrono figé, touches ignorées
 
@@ -97,7 +99,8 @@ public partial class MatchController : Node3D
     double neutralTimer;
     double returnSeconds = 3;
     int maxBallsInPlay;
-    double invulnerableSeconds;
+    double invulnerableSeconds, respawnProtection = 1.5;
+    readonly Dictionary<int, double> protectedUntil = new();
     readonly Dictionary<int, double> lastHitAt = new();
     readonly Dictionary<int, double> lastDamageAt = new();   // dernier cœur perdu ou regagné : repart le délai de régénération
     float heartRegenSeconds;
@@ -178,13 +181,14 @@ public partial class MatchController : Node3D
         }
     }
 
-    /// <summary>Attraper une balle lancée vite par l'adversaire rend une vie (jusqu'au maximum).</summary>
+    /// <summary>Attrape d'une balle lancée vite par l'adversaire : statistiques. Elle ne rend plus de cœur (décision n° 5), sauf si la map le demande.</summary>
     void OnCaughtThrow(int catcherId, bool perfect)
     {
         if (!inRound || !hurtboxes.ContainsKey(catcherId)) return;
         var st = StatsOf(catcherId);
         st.Catches++;
         if (perfect) st.PerfectCatches++;
+        if (!KcRules.CatchHeals) return;
         Rules.RegisterPerfectCatch(catcherId);
         lastDamageAt[catcherId] = gameClock;   // le cœur rendu repousse aussi la régénération
     }
@@ -216,7 +220,8 @@ public partial class MatchController : Node3D
         Ball.GravityFactor = map.BallRules.BallGravityFactor;
         Ball.MaxFlightSeconds = map.BallRules.MaxFlightSeconds;
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
-        heartRegenSeconds = map.Rules.HeartRegenSeconds;
+        respawnProtection = map.Rules.RespawnProtectionSeconds;
+        heartRegenSeconds = KcRules.HeartRegenSeconds(!PcProfile);   // VR : toutes les cartes ; clavier-souris : aucune
         ringMap = PcProfile && map.PitRect != null ? map : null;
         terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
@@ -255,7 +260,8 @@ public partial class MatchController : Node3D
         StatsOf(hurtbox.PlayerId);
         Rules.AddPlayer(hurtbox.PlayerId, hurtbox.Team);
         hurtbox.Hit += OnHit;
-        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && gameClock - t < invulnerableSeconds);
+        hurtbox.Vulnerable = () => !(invulnerableSeconds > 0 && lastHitAt.TryGetValue(hurtbox.PlayerId, out double t) && gameClock - t < invulnerableSeconds)
+                                   && !(protectedUntil.TryGetValue(hurtbox.PlayerId, out double until) && gameClock < until);
         // Un joueur KO remplacé (départ, arrivée) reste KO jusqu'à son retour : pas d'invulnérabilité à 0 vie.
         if (Rules.LivesOf(hurtbox.PlayerId) <= 0)
         {
@@ -344,11 +350,11 @@ public partial class MatchController : Node3D
 
     void OnBallReleased(Ball ball)
     {
-        // Tir plongeant : la première balle lancée depuis le plateau haut est chargée +1 (une fois par montée).
+        // Tir plongeant : la première balle lancée depuis le plateau haut gagne un palier (une fois par montée).
         int thrower = ball.OwnerPlayerId;
         if (thrower >= 0 && ball.OwnerTeam >= 0 && ball.LinearVelocity.Length() >= Ball.HitMinSpeed && ZoneElevation(thrower) > 0.1f && highBonusUsed.Add(thrower))
         {
-            if (!terraceBonus) { ball.AddCharge(); ball.AddCharge(); }   // lift VR : charge 2, dégâts doubles dès le premier tir
+            if (!terraceBonus) { int to = KcRules.ChargeAfterLift(ball.Charge); while (ball.Charge < to) ball.AddCharge(); }   // lift VR : +1 palier (fenêtre d'attrape plus courte), plus de KO direct
             else if (ball.Charge == 0 && highSince.TryGetValue(thrower, out double since) && gameClock - since <= 3.0) ball.AddCharge();   // terrasse PC : +1 palier dans les 3 s après l'arrivée
         }
         float best = float.MaxValue;
@@ -381,13 +387,13 @@ public partial class MatchController : Node3D
         double clock = gameClock;
         // Invulnérabilité après une touche : pas d'enchaînement de KO sur une même rafale.
         if (invulnerableSeconds > 0 && lastHitAt.TryGetValue(targetId, out double prev) && clock - prev < invulnerableSeconds) return;
+        if (protectedUntil.TryGetValue(targetId, out double until) && clock < until) return;   // retour de KO ou de chute
         lastHitAt[targetId] = clock;
         lastDamageAt[targetId] = clock;
         if (throwDistance >= 0f) hitsByRange[RangeBucket(throwDistance)]++;
-        // Une balle chargée fait plus mal : charge 2 ou plus = 2 vies, sinon 1.
+        // 1 cœur par coup quel que soit le palier, comme Knockout City (décision n° 2) ; la map peut rétablir le KO au palier (doubleDamageCharge).
         int livesBefore = Rules.LivesOf(targetId);
-        Rules.RegisterHit(shooterId, targetId);
-        if (charge >= 2 && Rules.LivesOf(targetId) > 0) Rules.RegisterHit(shooterId, targetId);
+        for (int i = 0; i < KcRules.Damage(charge) && Rules.LivesOf(targetId) > 0; i++) Rules.RegisterHit(shooterId, targetId);
         bool kill = Rules.LivesOf(targetId) <= 0;
         if (Rules.LivesOf(targetId) < livesBefore)   // tir allié ou cible déjà KO : rien à compter
         {
@@ -434,7 +440,7 @@ public partial class MatchController : Node3D
         {
             if (now < respawnAt[id]) continue;
             if (!fallReturn.Remove(id)) Rules.Respawn(id);   // retour d'une chute : les cœurs restants ne sont pas rendus
-            else lastHitAt[id] = now;                          // et 1,5 s d'invulnérabilité au point d'apparition
+            protectedUntil[id] = now + respawnProtection;      // KO ou chute : protégé à l'apparition
             if (hurtboxes.TryGetValue(id, out var back)) back.Eliminated = false;
             ringGraceUntil[id] = now + 1.6;
             respawnAt.Remove(id);
@@ -512,9 +518,10 @@ public partial class MatchController : Node3D
         GD.Print("[Match] Test bombe : lancée");
     }
 
-    // Échanges de plaques (VR/EVA ; au clavier seulement avec --swap-test) : à 20, 45, 70 et 95 s deux plaques échangent leurs joueurs,
-    // annoncé 3 s avant. L'hôte tient la table « plaque occupée par chaque joueur » ; chaque machine déplace son propre joueur.
-    static readonly double[] SwapTimes = { 20, 45, 70, 95 };
+    // Échanges de plaques (VR/EVA ; au clavier seulement avec --swap-test) : aux instants de la map (plateSwapTimes), deux plaques échangent
+    // leurs joueurs, annoncé 3 s avant. Suspendus par défaut (décision n° 6 : KC n'a rien de tel) ; --swap-test reprend 20, 45, 70 et 95 s.
+    // L'hôte tient la table « plaque occupée par chaque joueur » ; chaque machine déplace son propre joueur.
+    public double[] SwapTimes { get; set; } = System.Array.Empty<double>();
     const double SwapWarnSeconds = 3;
     public bool PlateSwaps { get; set; }
     int[] plateOf = System.Array.Empty<int>();
@@ -610,6 +617,9 @@ public partial class MatchController : Node3D
 
     static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
 
+    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a pas de lanceur central.</summary>
+    public string SpecialBallName => hubLauncher == null || specialKind == 0 ? "" : SpecialName(specialKind);
+
     void UpdateSpecialBalls(double delta)
     {
         if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
@@ -678,7 +688,7 @@ public partial class MatchController : Node3D
         GD.Print($"[Portée] touches/lancers par distance : {RangeReport()}");
         GD.Print($"[Bots] {Bot.Report()}");
         GD.Print($"[Match] {banner} | manches {Rules.RoundsWon[0]}-{Rules.RoundsWon[1]} | KO {Rules.Kos[0]}-{Rules.Kos[1]}");
-        breakLeft = over ? MatchEndSeconds : Rules.BreakSeconds;
+        breakLeft = over ? MatchEndSeconds : Mathf.Max(Rules.BreakSeconds, RoundBreakSeconds);   // format en ligne (Rules) ou pause VR 20 s / clavier 12 s (KcRules)
         if (over) MatchEnded?.Invoke(Champion);
     }
 
@@ -861,10 +871,24 @@ public partial class MatchController : Node3D
         foreach (var n in GetTree().GetNodesInGroup("balls")) n.QueueFree();
     }
 
+    /// <summary>Secondes avant la manche suivante pendant la pause (0 en jeu ou à la fin de la partie).</summary>
+    public double BreakLeft => !inRound && !MatchOver() ? Mathf.Max(0, breakLeft) : 0;
+
     void UpdateHud()
     {
         int seconds = inRound ? Mathf.Max(0, Mathf.CeilToInt((float)roundTimeLeft)) : 0;
-        hud.Text = $"{(specialNotice != "" ? specialNotice : banner)}{(swapNotice != "" ? "\n" + swapNotice : "")}\nÉquipe 1 : {Rules.RoundsWon[0]}  -  {Rules.RoundsWon[1]} : Équipe 2\n" +
-                   $"KO {Rules.Kos[0]} - {Rules.Kos[1]}   |   {seconds}s";
+        string top = specialNotice != "" ? specialNotice : banner;
+        // Pause entre deux manches : le bandeau porte le compte à rebours (relu par MatchView.FromText chez le client, lu tel quel au casque).
+        if (!inRound && !MatchOver()) top = BreakBanner(banner, round, Rules.MaxRounds, Mathf.CeilToInt((float)BreakLeft));
+        hud.Text = FormatHud(top, swapNotice, Rules.RoundsWon[0], Rules.RoundsWon[1], Rules.Kos[0], Rules.Kos[1], seconds);
     }
+
+    /// <summary>Bandeau de la pause : « MANCHE POUR L'ÉQUIPE ORANGE - MANCHE 3 DANS 12 » (ou « … - MANCHE DÉCISIVE DANS 12 »).</summary>
+    public static string BreakBanner(string banner, int nextRound, int maxRounds, int secondsLeft) =>
+        $"{banner} - {(nextRound > maxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {nextRound}")} DANS {Mathf.Max(0, secondsLeft)}";
+
+    /// <summary>Texte du tableau de score envoyé aux clients (relu par <see cref="MatchView.FromText"/>).</summary>
+    public static string FormatHud(string top, string swapNotice, int rounds0, int rounds1, int kos0, int kos1, int seconds) =>
+        $"{top}{(swapNotice != "" ? "\n" + swapNotice : "")}\nÉquipe 1 : {rounds0}  -  {rounds1} : Équipe 2\n" +
+        $"KO {kos0} - {kos1}   |   {seconds}s";
 }

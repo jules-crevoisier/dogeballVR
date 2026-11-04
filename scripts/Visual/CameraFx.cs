@@ -28,9 +28,10 @@ public static class CameraFx
     public static void Shake(float amount) => trauma = Mathf.Clamp(trauma + amount * GameSettings.ScreenShake, 0f, 1f);
 
     /// <summary>Coup directionnel en degrés (x = lacet vers la droite, y = tangage vers le haut).</summary>
-    public static void Kick(Vector2 degrees) => kick += degrees * Mathf.Max(0.35f, GameSettings.ScreenShake);
+    public static void Kick(Vector2 degrees) => kick += degrees * GameSettings.ScreenShake;
 
-    public static void FovPunch(float degrees) => fovPunch = Mathf.Max(fovPunch, degrees);
+    /// <summary>À-coup du champ de vision, réduit avec les secousses (« Aucune » le coupe : les à-coups de champ donnent la nausée).</summary>
+    public static void FovPunch(float degrees) => fovPunch = Mathf.Max(fovPunch, degrees * GameSettings.ScreenShake);
 
     public static void Reset() { trauma = 0; kick = Vector2.Zero; kickVel = Vector2.Zero; fovPunch = 0; }
 
