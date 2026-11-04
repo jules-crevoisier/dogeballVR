@@ -56,7 +56,7 @@ public partial class DesktopPlayer : Node3D
     const float PickupRadius = 0.9f;
 
     public ZoneManager Zones { get; set; } = null!;
-    /// <summary>Map en moulinet : le joueur circule sur toute l'arène, caméra à la 3e personne, dash au lieu du sprint.</summary>
+    /// <summary>Map en moulinet : le joueur circule sur toute l'arène, dash au lieu du sprint, passes, tremplins. La caméra, elle, suit <see cref="ThirdPerson"/>.</summary>
     public bool FreeRoam { get; set; }
     /// <summary>
     /// Caméra d'épaule (3e personne) ou vue subjective : un réglage du joueur (Options → Caméra et visée), le même sur toutes les cartes,
@@ -143,6 +143,7 @@ public partial class DesktopPlayer : Node3D
     const float CamMinDistance = 1.2f;   // plus près que ça d'un couvert, la caméra préfère passer par-dessus
     const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
     const float RaiseHeight = 0.9f;      // hauteur du passage par-dessus un couvert bas
+    const float ZoneCamOutside = 3f;     // cartes en zones : distance max de la caméra d'épaule au-delà du mur d'enceinte
     const float AvatarHideDistance = 1.6f;   // caméra plus proche de la tête : le joueur est caché pour ne pas boucher l'écran
     readonly SphereShape3D camShape = new() { Radius = CamRadius };
     int dashCharges;
@@ -975,8 +976,12 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Distance du point visé : premier décor touché par le regard (30 m maximum), pour que la compensation de chute vise juste de près comme de loin.</summary>
     float AimDistance()
     {
-        var from = camera.GlobalPosition;
-        var to = from + AimFwd * 30f;
+        // Le rayon part du plan de la tête, pas de l'objectif : en vue d'épaule, un couvert (ou le mur d'enceinte) entre la caméra et
+        // le joueur ne doit pas raccourcir la visée à 3 m, ce qui ferait partir le tir en arrière. La distance reste comptée depuis la caméra.
+        var fwd = AimFwd;
+        float skip = Mathf.Max(0f, (head.GlobalPosition - camera.GlobalPosition).Dot(fwd));
+        var from = camera.GlobalPosition + fwd * skip;
+        var to = camera.GlobalPosition + fwd * 30f;
         var space = GetWorld3D().DirectSpaceState;
         var exclude = new Godot.Collections.Array<Rid>();
         for (int i = 0; i < 4; i++)
@@ -984,7 +989,7 @@ public partial class DesktopPlayer : Node3D
             var query = PhysicsRayQueryParameters3D.Create(from, to, 0xFFFFFFFF, exclude);
             var hit = space.IntersectRay(query);
             if (hit.Count == 0) return 30f;
-            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(from.DistanceTo(hit["position"].AsVector3()), 3f, 30f);
+            if (hit["collider"].AsGodotObject() is StaticBody3D and not Maps.Rotor) return Mathf.Clamp(camera.GlobalPosition.DistanceTo(hit["position"].AsVector3()), 3f, 30f);
             exclude.Add(hit["rid"].AsRid());   // balle, hurtbox : on regarde derrière
         }
         return 30f;
@@ -1086,8 +1091,9 @@ public partial class DesktopPlayer : Node3D
         if (inside < 1f) { camDist *= inside; pos = pivot + boom * (camDist / len); }
         pos.Y = Mathf.Max(pos.Y, Elevation + 0.3f);
         var b = Zones.Map.Bounds;
-        pos.X = Mathf.Clamp(pos.X, b.MinX + 0.2f, b.MaxX - 0.2f);
-        pos.Z = Mathf.Clamp(pos.Z, b.MinZ + 0.2f, b.MaxZ - 0.2f);
+        float m = FreeRoam ? -0.2f : ZoneCamOutside;   // cartes en zones : la caméra peut sortir de l'enceinte (voir BlocksCamera)
+        pos.X = Mathf.Clamp(pos.X, b.MinX - m, b.MaxX + m);
+        pos.Z = Mathf.Clamp(pos.Z, b.MinZ - m, b.MaxZ + m);
         var shaken = basis * Basis.FromEuler(new Vector3(Mathf.DegToRad(fxRot.X), Mathf.DegToRad(fxRot.Y), Mathf.DegToRad(fxRot.Z + lean)));
         camera.GlobalTransform = new Transform3D(shaken, pos + basis * fxOffset);
         HideDecorInFront(pos, from);
@@ -1223,10 +1229,15 @@ public partial class DesktopPlayer : Node3D
         return Mathf.Clamp(free, 0f, full);
     }
 
-    /// <summary>Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.</summary>
-    static bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
+    /// <summary>
+    /// Décor plein qui arrête la caméra : couverts, pylône, plateformes, murs d'enceinte (la caméra s'en approche en douceur au lieu d'être ramenée d'un coup dans le dos)… mais ni le plafond, ni le rotor, ni les accessoires fins.
+    /// Cartes en zones : le fond d'une zone est à 1 m du mur d'enceinte (invisible), qui collerait la caméra d'épaule au dos du joueur ;
+    /// elle passe donc au travers (jusqu'à <see cref="ZoneCamOutside"/> au-delà), au-dessus du décor bas qui borde le terrain.
+    /// </summary>
+    bool BlocksCamera(GodotObject collider, int shape, Maps.BoundsDef bnd)
     {
         if (collider is not StaticBody3D body || body is Maps.Rotor) return false;
+        if (!FreeRoam && body.IsInGroup(Maps.ArenaBuilder.EnclosureGroup)) return false;
         var p = body.GlobalPosition;
         if (p.Y > bnd.CeilingHeight - 0.5f) return false;
         return !(body.ShapeOwnerGetOwner(body.ShapeFindOwner(shape)) is CollisionShape3D cs && IsThin(cs));
