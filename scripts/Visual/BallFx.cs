@@ -16,13 +16,13 @@ public static class BallFx
 {
     public enum Catch { Pickup, Pass, Steal }
 
-    static readonly bool Off = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--sans-balle-fx") >= 0;
+    static readonly bool Off = System.Array.IndexOf(Tools.DevFlags.Args, "--sans-balle-fx") >= 0;
     static readonly Color Gold = new(1f, 0.82f, 0.25f), MaxColor = new(1f, 0.35f, 0.75f);
     static GradientTexture2D? flashTex, softTex;
     const float MinCameraDistance = 1.2f;
     static float zoom = 1f;
     /// <summary>--balle-fx-log : chaque effet écrit son image et sa nature (repérage des plans pour les captures).</summary>
-    static readonly bool Log = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--balle-fx-log") >= 0;
+    static readonly bool Log = System.Array.IndexOf(Tools.DevFlags.Args, "--balle-fx-log") >= 0;
     static void Note(string what, Vector3 pos) { if (Log) GD.Print($"[BallFx] {Engine.GetProcessFrames()} {what} {pos}"); }
 
     /// <summary>Couleur d'un tir : équipe du lanceur, rose vif au palier max (comme la charge et la traînée).</summary>

@@ -13,7 +13,7 @@ public partial class ChargeShowcase : Node3D
 
     public override void _Ready()
     {
-        foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--out=")) outPath = a.Substring(6);
+        foreach (var a in Tools.DevFlags.Args) if (a.StartsWith("--out=")) outPath = a.Substring(6);
         Maps.ArenaBuilder.AddKcEnvironment(this, true, "jour");
         AddChild(new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2(30, 30) }, MaterialOverride = Materials.Flat(new Color("3A4057")) });
         for (int i = 0; i < 4; i++)

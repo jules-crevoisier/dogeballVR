@@ -15,7 +15,7 @@ public partial class ImpactShowcase : Node3D
 
     public override void _Ready()
     {
-        foreach (var a in OS.GetCmdlineUserArgs()) if (a.StartsWith("--out=")) outPrefix = a.Substring(6);
+        foreach (var a in Tools.DevFlags.Args) if (a.StartsWith("--out=")) outPrefix = a.Substring(6);
         Maps.ArenaBuilder.AddKcEnvironment(this, true, "jour");
         var floor = new StaticBody3D();
         floor.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(30, 0.2f, 30) }, Position = Vector3.Down * 0.1f });
