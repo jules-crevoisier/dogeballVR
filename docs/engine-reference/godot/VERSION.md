@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Engine Version** | Godot 4.3 (.NET / C#) |
-| **Installed at pin time** | 4.3-stable mono — the version the CI downloads (`.github/workflows/build.yml`, `GODOT_VERSION: 4.3-stable`) |
+| **Installed at pin time** | 4.3-stable mono — the version the CI downloads (`.github/actions/godot-setup/action.yml`, `godot-version: 4.3-stable`) |
 | **Release Date** | August 2024 |
 | **Project Pinned** | 2026-10-22 |
 | **Last Docs Verified** | 2026-10-22 (pin set to 4.3 for dogeballVR) |

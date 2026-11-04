@@ -10,6 +10,12 @@ on:
 permissions:
   contents: write
 
+# Deux fusions rapprochées : un export à la fois, sans couper une publication en cours ;
+# GitHub ne garde en attente que le plus récent, qui remplace ensuite la release build-latest.
+concurrency:
+  group: export-windows-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   export-windows:
     runs-on: ubuntu-latest
