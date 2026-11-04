@@ -124,6 +124,7 @@ public partial class MainMenu : CanvasLayer
         ShowMain();
         if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--profile-test") >= 0) ShowProfile();   // captures
         if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--options-test") >= 0) OpenOverlay(new OptionsMenu { FirstTab = 1 });
+        // Captures d'écran : --menu-page=online | lan | credits | first ouvre la page au bout d'une seconde.
         // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in OS.GetCmdlineUserArgs())
             if (arg.StartsWith("--menu-page="))

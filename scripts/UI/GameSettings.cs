@@ -25,6 +25,7 @@ public static class GameSettings
     // Partie
     public static int BotLevel = 1;                          // bots : 0 facile, 1 normal, 2 difficile
     public static bool ContextHints = true;                  // rappels de touches des premières parties (voir ContextHints)
+    public static bool Upnp;                                 // ouvrir le port de la salle sur la box (UPnP) : seulement si le joueur l'a choisi
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
     public static float Haptics = 1f;                        // vibrations des manettes VR, 0 à 1
@@ -76,6 +77,7 @@ public static class GameSettings
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
         BotLevel = Mathf.Clamp((int)F(cfg, "game", "bot_level", BotLevel), 0, 2);
         ContextHints = B(cfg, "game", "context_hints", ContextHints);
+        Upnp = B(cfg, "online", "upnp", Upnp);
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
         Haptics = Mathf.Clamp(F(cfg, "controls", "haptics", Haptics), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
@@ -111,6 +113,7 @@ public static class GameSettings
         cfg.SetValue("audio", "ui", UiVolume);
         cfg.SetValue("game", "bot_level", BotLevel);
         cfg.SetValue("game", "context_hints", ContextHints);
+        cfg.SetValue("online", "upnp", Upnp);
         cfg.SetValue("accessibility", "reduce_flashes", ReduceFlashes);
         cfg.SetValue("accessibility", "team_symbols", TeamSymbols);
         cfg.SetValue("accessibility", "sound_cues", SoundCues);

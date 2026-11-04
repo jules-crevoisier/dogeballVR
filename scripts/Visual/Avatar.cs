@@ -24,6 +24,7 @@ public partial class Avatar : Node3D
     float speed;
     double actionLeft;
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
+    readonly System.Collections.Generic.List<Gameplay.Ball> goneBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
     bool dash;
     /// <summary>Le joueur charge un tir (clic maintenu) : pose « Armer » tenue jusqu'au lâcher, qui enchaîne sur « Lancer ».</summary>
@@ -321,6 +322,13 @@ public partial class Avatar : Node3D
                 }
                 seenBalls[ball] = cur;
             }
+        // Balles supprimées (manche finie, bombe explosée) : on les oublie, sinon chaque avatar les garde en mémoire avec leur traînée.
+        if (seenBalls.Count > 0 && Engine.GetProcessFrames() % 30 == 0)
+        {
+            goneBalls.Clear();
+            foreach (var b in seenBalls.Keys) if (!IsInstanceValid(b)) goneBalls.Add(b);
+            foreach (var b in goneBalls) seenBalls.Remove(b);
+        }
         if (actionLeft <= 0 && climb > 2.2f) PlayAction("Saut", 0.7);
         if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
         dash = false;

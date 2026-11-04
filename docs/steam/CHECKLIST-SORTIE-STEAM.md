@@ -33,7 +33,7 @@ Conséquence : **aucune sortie Steam n'est possible avant J+30 après le paiemen
 | [ ] | Paiement des frais Steam Direct (100 $) : démarre les 30 jours | jules | partner.steamgames.com/steamdirect |
 | [ ] | Création de l'app, nom définitif choisi (voir PAGE-STORE.md §1), AppID noté | jules | partner.steamgames.com/dashboard |
 | [ ] | Depot Windows (AppID + 1) ; depot Linux facultatif ; publier | jules | /doc/sdk/uploading, /doc/store/application/depots |
-| [ ] | Options de lancement (au moins une option VR, sinon la VR n'est pas activée) : voir section 10 | jules | /doc/features/steamvr/settings |
+| [ ] | Option de lancement (Installation > Général) : une seule, « Jouer », exe `DogeballVR.exe`, sans argument, Windows. Aucune option VR (la VR n'est pas vendue sur Steam, voir section 10) | jules | /doc/sdk/uploading |
 | [ ] | Compte builder dédié (permissions Edit App Metadata + Publish App Changes) | jules | tools/steam/README.md §2 |
 | [ ] | Secrets GitHub `STEAM_USERNAME`, `STEAM_CONFIG_VDF`, `STEAM_APP_ID`, `STEAM_DEPOT_ID_WINDOWS` (+ `STEAM_DEPOT_ID_LINUX`) | jules | tools/steam/README.md §3-4 |
 | [ ] | Branche beta (avec mot de passe pour les testeurs) | jules | tools/steam/README.md §6 |
@@ -69,7 +69,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | Icône de l'exe Windows (`application/icon` dans `export_presets.cfg`, .ico) | art + code | export_presets.cfg ; voir section 4 |
 | [ ] | Bande-annonce : 1920x1080 max, 30/60 i/s, ≥ 5 000 kbit/s, H.264 + AAC (.mp4/.mov), 16:9, la première = gameplay ; plan 75 s | art | /doc/store/trailer ; PAGE-STORE.md §8 |
 | [ ] | Langues déclarées : interface FR + EN (l'anglais est obligatoire comme langue de repli) ; ni audio ni sous-titres (pas de voix) | jules + code | /doc/store/localization/languages |
-| [ ] | Configuration minimale / recommandée PC et VR (estimations à mesurer) | code + jules | PAGE-STORE.md §7 |
+| [ ] | Configuration minimale / recommandée PC (estimations à mesurer ; pas de configuration VR) | code + jules | PAGE-STORE.md §7 |
 | [ ] | Contrôleurs : questionnaire « controller support » ; manette en mode écran faite (sauf saisie d'un code), donc Partial après essai sur une vraie manette | jules | Steamworks > page store (questionnaire) ; à revérifier |
 | [ ] | Page soumise en revue ≥ 7 jours ouvrés avant le « Coming soon » visé, puis bouton « Post as Coming Soon » | jules | /doc/store/coming_soon |
 | [ ] | Date de sortie (ou « à venir ») affichée sur la page | jules | /doc/store/coming_soon |
@@ -102,7 +102,7 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Partie rapide qui n'attend pas : une salle ouverte par « Partie rapide » (Steam ou réseau local) se lance seule au bout de 20 s, les places libres tenues par des bots ; un joueur qui arrive est prêt d'office et relance le compte à au moins 8 s ; salle pleine : 4 s. Les joueurs peuvent encore entrer pendant la partie, à la place d'un bot | code | scripts/Online/OnlineLobby.cs (QuickStartIn) |
 | [x] | Lobbies Steam : partie rapide (recherche filtrée par version puis création), salon privé (amis), invitations (overlay, « Rejoindre la partie », `+connect_lobby` au lancement) ; **jamais testé avec un vrai client Steam** : à valider avec l'AppID 480 sur deux PC | code + jules | scripts/Online/SteamBridge.cs ; /doc/features/multiplayer/matchmaking |
 | [x] | Transport P2P par relais Steam (ISteamNetworkingMessages, relais SDR de Valve, pas de port à ouvrir) ; même code testé en CI sur UDP local avec 10 % de perte | code | scripts/Online/Steam/SteamMultiplayerPeer.cs ; /doc/features/multiplayer/steamdatagramrelay |
-| [x] | 23 succès et 8 stats (`docs/steam/achievements.csv`, icônes provisoires dans `docs/steam/succes-icones/`), totaux comptés en fin de match d'après le tableau de l'hôte (identique sur les clients), repli local sans Steam | code | scripts/Online/Steam/AchievementTracker.cs ; /doc/features/achievements |
+| [x] | 22 succès et 8 stats (aucun succès VR : la VR n'est pas sur Steam) (`docs/steam/achievements.csv`, icônes provisoires dans `docs/steam/succes-icones/`), totaux comptés en fin de match d'après le tableau de l'hôte (identique sur les clients), repli local sans Steam | code | scripts/Online/Steam/AchievementTracker.cs ; /doc/features/achievements |
 | [x] | Rich presence FR/EN (`docs/steam/rich_presence_fr_en.vdf`, clé `steam_display`) : menu, salle, en partie, « Rejoindre » | code | scripts/Online/Steam/RichPresence.cs ; /doc/api/ISteamFriends#richpresencelocalization |
 | [~] | Steam Cloud pour `user://settings.cfg` (options du joueur) et `user://progress.cfg` (succès, stats, XP) : Auto-Cloud, chemins à saisir par jules (ACTIONS-JULES.md) ; `machine.cfg` (vidéo, taille de l'interface), `identity.cfg`, `sessions/`, `crash/` restent locaux | jules | /doc/features/cloud ; docs/steam/SUCCES-STATS-CLOUD.md |
 | [x] | Niveau du joueur et XP de fin de match (bandeau sur l'écran de fin), écran Profil (stats de carrière, succès et progression) | code | scripts/Online/Progression.cs ; scripts/UI/XpBanner.cs ; scripts/UI/ProfileScreen.cs |
@@ -149,7 +149,6 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | Taille du texte et de l'interface (4 tailles, tout le HUD et les menus) ; daltonisme : palette orange / bleu sûre pour les daltonismes rouge-vert, et option « Symboles d'équipe » (rond / triangle au-dessus des joueurs et à côté du viseur sur l'adversaire visé) ; pas de voix : toutes les annonces sont écrites à l'écran | code | scripts/UI/GameSettings.cs, scripts/Visual/PlayerTag.cs |
 | [x] | Sons importants à l'écran (option, pour jouer sans le son) : lancers, explosions, attrapes parfaites, touches et KO entendus à moins de 30 m, montrés autour du viseur avec une flèche vers leur source | code | scripts/UI/SoundCues.cs |
 | [x] | Réduction des secousses d'écran (curseur), de l'arrêt sur image (option) et des flashs (option : éclairs d'impact à 35 %, voile de dégâts à 40 %) | code | scripts/UI/OptionsMenu.cs |
-| [ ] | Confort VR : rotation par crans ou continue, vignette, hauteur, main dominante | code | voir section 10 |
 | [~] | Support manette en mode écran (nécessaire pour Steam Deck « Vérifié » et pour cocher Full Controller Support) : fait sauf la saisie d'un code de salle, donc Partial pour l'instant | code | /doc/steamdeck/compat |
 
 ## 7. Technique et qualité
@@ -159,14 +158,13 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [x] | CI : compilation C#, parties simulées, tests réseau hôte + client | code | .github/workflows/build.yml |
 | [x] | Hôte qui fait autorité (anti-triche de base : vitesses, portée, validation des prises) | code | docs/CHOIX-REGLES.md |
 | [x] | Dossier des sauvegardes fixé, indépendant du nom du jeu : `%APPDATA%/DogeballVR/` (Windows), `~/.local/share/DogeballVR/` (Linux) ; chemins Auto-Cloud alignés dans ACTIONS-JULES.md | code | project.godot (`config/use_custom_user_dir`) |
-| [ ] | Pas d'alerte OpenXR au démarrage sans casque (réglage `xr/openxr/startup_alert` à vérifier dans Godot 4.3) et pas de lancement involontaire de SteamVR en mode écran | code | project.godot, scripts/Xr/XrBootstrap.cs |
-| [~] | Performance : CPU mesuré (`--perf-log`) sur partie complète, 140 i/s plafonnées sur 4 cœurs, pauses du ramasse-miettes supprimées (pire image 30 à 53 ms au lieu de 150 à 380), sons préchargés ; préréglages bas / moyen / haut (MSAA, ombres, glow, SSAO), moyen par défaut sur puce intégrée. Reste : mesurer les i/s GPU sur un vrai PC modeste (Croix Néon, 1920x1080 : 863 / 912 / 987 appels de dessin et 211 / 252 / 233 k triangles en bas / moyen / haut) et 90 i/s en VR | code + jules | scripts/Tools/PerfProbe.cs, scripts/Tools/GcPacer.cs |
+| [x] | Pas d'alerte OpenXR ni de lancement involontaire de SteamVR : OpenXR coupé dans le build Steam | code | .github/workflows/steam-upload.yml |
+| [~] | Performance : CPU mesuré (`--perf-log`) sur partie complète, 140 i/s plafonnées sur 4 cœurs, pauses du ramasse-miettes supprimées (pire image 30 à 53 ms au lieu de 150 à 380), sons préchargés ; préréglages bas / moyen / haut (MSAA, ombres, glow, SSAO), moyen par défaut sur puce intégrée. Reste : mesurer les i/s GPU sur un vrai PC modeste (Croix Néon, 1920x1080 : 863 / 912 / 987 appels de dessin et 211 / 252 / 233 k triangles en bas / moyen / haut) | code + jules | scripts/Tools/PerfProbe.cs, scripts/Tools/GcPacer.cs |
 | [~] | Interpolation des autres joueurs sur l'horloge de l'hôte avec retard adaptatif à la gigue (fait, testé en CI à 80 ms et 5 % de perte) ; rembobinage côté hôte et prédiction du lancer côté client (à faire) | code | scripts/Net/ClientWorld.cs |
 | [x] | Déconnexions : client qui revient dans sa zone (coupure ou crash, secret émis par l'hôte, 45 s), bot qui reprend la place en attendant ; hôte qui ferme : les clients sont prévenus et reviennent au menu (pas de migration d'hôte) ; testé en CI | code | scripts/Net/NetSession.cs, scripts/Online/OnlineLobby.cs |
 | [x] | Test de bout en bout en CI : salle à 4 (hôte + 3 clients + 4 bots, Tour 4v4), deux parties enchaînées par la revanche, zones distinctes, chaque client joue | code | .github/workflows/build.yml |
 | [ ] | Test de charge 4c4 avec 8 humains et latence réelle (100–150 ms) | code + jules | |
 | [ ] | Tests sur plusieurs PC (NVIDIA, AMD, Intel ; Windows 10 et 11 ; écran 144 Hz) | jules | |
-| [ ] | Test sur casques réels : Quest via Link / Air Link / Steam Link, Index ou Vive | jules | |
 | [ ] | Écrans 16:10, 21:9, 4K ; Alt+Tab ; perte de focus | code | |
 
 ## 8. Légal
@@ -190,30 +188,27 @@ Tailles vérifiées sur /doc/store/assets/standard, /doc/store/assets/libraryass
 | [ ] | Page « Coming soon » publiée au plus tôt (les wishlists s'accumulent dès ce moment) | jules | /doc/store/coming_soon |
 | [ ] | Démo jouable (app démo gratuite rattachée) et inscription au Steam Next Fest (calendrier et dates limites sur Steamworks) | jules + code | /doc/marketing/upcoming_events/nextfest (à revérifier) |
 | [ ] | Playtest Steam fermé (outil « Steam Playtest ») pour remplir les serveurs et mesurer le ressenti | jules | /doc/features/playtest |
-| [ ] | Kit presse (captures, logo, GIF, fiche), liste de créateurs VR et de jeux de sport | art + jules | |
+| [ ] | Kit presse (captures, logo, GIF, fiche), liste de créateurs de jeux de sport et de jeux en ligne entre amis | art + jules | |
 | [ ] | Discord ou forum de la communauté, lien depuis le jeu | jules | |
 | [ ] | Réduction de lancement (10 à 20 %) et date de sortie hors des gros soldes Steam | jules | /doc/marketing/discounts |
 | [ ] | Notes de version et événement « Sortie » dans le centre d'événements Steam | jules | /doc/marketing/event_tools |
 
-## 10. VR spécifique (SteamVR / OpenXR)
+## 10. VR : hors Steam (arènes EVA)
+
+Décision du 22/10 : **sur Steam on vend le mode écran seulement** (PC et Steam Deck). La VR reste pour les arènes EVA et se distribue hors Steam. Côté Steamworks : ne rien cocher ni remplir dans la partie VR (ni « VR Supported », ni « VR Only », ni manettes suivies), aucune option de lancement VR, aucune mention de la VR sur la page, dans la bande-annonce ou les captures.
 
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
-| [x] | OpenXR activé, carte d'actions avec profils Touch, Index, Vive, Cosmos, WMR, Pico, HP Reverb | code | project.godot, openxr_action_map.tres |
-| [x] | Démarrage sans casque en mode écran si OpenXR est indisponible | code | scripts/Xr/XrBootstrap.cs |
-| [ ] | Choix **« VR Supported »** (le jeu se joue aussi sans casque) et non « VR Only » | jules | /doc/features/steamvr/settings ; libellés à revérifier |
-| [ ] | Options de lancement Steamworks (Installation > Général) : « Jouer en VR » (`--xr-mode on`) et « Jouer sur écran » (`--xr-mode off`, arguments natifs de Godot 4) ; au moins une option VR, sinon la VR n'est pas activée | jules + code | /doc/features/steamvr/settings |
-| [ ] | Page store : SDK (OpenXR), casques, espace (debout, échelle de la pièce), entrées (manettes suivies) | jules | /doc/features/steamvr/settings ; PAGE-STORE.md §7 |
-| [ ] | Liaisons SteamVR suggérées pour Index, Vive, WMR (Valve demande des liaisons dédiées à ces manettes) | code | /doc/features/steamvr/settings |
-| [ ] | **Déplacement artificiel pour la VR à domicile** (stick, rotation par crans, vignette) : la VR actuelle est conçue pour les arènes EVA où l'on marche (déplacement au stick interdit chez EVA) ; sur Steam les joueurs n'ont que 2 à 3 m. À désactiver dans le build arène | code | docs/ARCHITECTURE.md (principe 6) |
+| [x] | Build Steam sans VR : OpenXR coupé à l'export (`openxr/enabled=false`), donc ni SteamVR ni alerte de casque au lancement | code | .github/workflows/steam-upload.yml |
+| [x] | Version EVA : OpenXR activé, carte d'actions avec profils Touch, Index, Vive, Cosmos, WMR, Pico, HP Reverb ; démarrage en mode écran si OpenXR est indisponible | code | project.godot, openxr_action_map.tres, scripts/Xr/XrBootstrap.cs |
 | [ ] | Mesure sur casque : lancer, attrape, vibrations, lisibilité du texte (jamais testé, README) | jules | README.md |
-| [ ] | Rendu : vérifier le renderer Mobile sur PC VR (ou passer en Forward+ pour le build PC) | code | project.godot |
-| [ ] | Salon mixte VR + clavier-souris sur les cartes en anneau (pas fait) : ne pas l'annoncer avant | code | docs/CHOIX-REGLES.md |
-| [ ] | Build Quest autonome / EVA : distribution hors Steam (Meta Horizon Store ou APK arène), à séparer de la version Steam | jules | |
+| [ ] | Confort VR (arène) : hauteur, main dominante | code | |
+| [ ] | Salon mixte VR + clavier-souris sur les cartes en anneau (pas fait), pour EVA seulement | code | docs/CHOIX-REGLES.md |
+| [ ] | Build Quest autonome / EVA : distribution hors Steam (APK arène ou Meta Horizon Store) | jules | |
 
 ## 11. Steam Deck
 
-Critères vérifiés sur /doc/steamdeck/compat. La VR ne marche pas sur Deck : seul le mode écran compte.
+Critères vérifiés sur /doc/steamdeck/compat. La version Steam est en mode écran seulement.
 
 | Statut | Élément | Qui | Référence |
 |---|---|---|---|
@@ -221,6 +216,6 @@ Critères vérifiés sur /doc/steamdeck/compat. La VR ne marche pas sur Deck : s
 | [~] | Glyphes de boutons qui suivent l'entrée active : noms de boutons (RT, LT, B…) dès qu'on touche la manette, d'emblée sur Deck (`InputSetup.UsingPad`) ; glyphes dessinés à faire | code | /doc/steamdeck/compat |
 | [~] | Texte d'au moins 9 px de haut à 1280x800 (12 px conseillés) : interface « Très grande » (×1,3) au premier lancement sur Deck ou écran ≤ 800 lignes ; captures 1280x800 dans /mnt/project-files/steam/page/steam-deck/ ; à confirmer sur console | code | /doc/steamdeck/compat |
 | [ ] | 30 i/s au moins en 800p avec les réglages par défaut (qualité basse par défaut sur Deck ; non mesuré sans console) | code | /doc/steamdeck/compat |
-| [ ] | Pas d'alerte OpenXR ni de lancement de SteamVR sur Deck (option de lancement écran par défaut) | code | section 7 |
+| [x] | Pas d'alerte OpenXR ni de lancement de SteamVR sur Deck : OpenXR coupé dans le build Steam | code | section 10 |
 | [ ] | Saisie de texte (nom de salon) à la manette (clavier virtuel Steam) | code | /doc/steamdeck/compat |
 | [ ] | Demande de revue Deck (après la revue du build) | jules | Steamworks > Technical Tools > Steam Hardware Compatibility Review |

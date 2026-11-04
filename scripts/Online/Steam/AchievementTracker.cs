@@ -30,7 +30,6 @@ public partial class AchievementTracker : Node
     public MatchView? View { get; set; }
     /// <summary>Passes faites par le joueur local depuis son arrivée (compteur du joueur PC).</summary>
     public Func<int>? LocalPasses { get; set; }
-    public bool Vr { get; set; }
     public bool Online { get; set; }
     /// <summary>Un ami Steam est-il dans la partie ? Par défaut : un ami dans le salon Steam courant.</summary>
     public Func<bool> FriendInGame { get; set; } = SteamLobbies.FriendInCurrent;
@@ -50,7 +49,6 @@ public partial class AchievementTracker : Node
         MatchController.TackleRequested += OnTackle;
         Ball.Released += OnReleased;
         Ball.CaughtThrow += OnCaughtThrow;
-        if (Vr) Achievements.Unlock(AchievementDefs.VrPlayer);
         passesAtStart = LocalPasses?.Invoke() ?? 0;
     }
 
@@ -127,10 +125,9 @@ public partial class AchievementTracker : Node
         }
         else if (Match != null)
         {
-            // Sans vue (VR) : le bandeau « VICTOIRE ÉQUIPE n » du MatchController reste affiché pendant la pause de fin.
-            string hud = Match.HudText;
-            over = hud.StartsWith("VICTOIRE ÉQUIPE ");
-            if (over && !victoryShown) ReportMatchEnd(hud.Length > 16 && char.IsDigit(hud[16]) ? hud[16] - '1' : -1, Match.Rules.RoundsWon);
+            // Sans vue (VR) : l'état du MatchController (le texte du bandeau, « VICTOIRE ÉQUIPE ORANGE ! », ne sert qu'à l'affichage).
+            over = Match.IsMatchOver;
+            if (over && !victoryShown) ReportMatchEnd(Match.Champion, Match.Rules.RoundsWon);
         }
         else return;
         if (!over && victoryShown) passesAtStart = LocalPasses?.Invoke() ?? 0;   // nouvelle partie

@@ -81,6 +81,9 @@ public partial class OnlineLobby : Node
     bool autoReady;
     int autoStart;
     Upnp? upnp;
+    bool announceOnLan;   // salle ENet visible des parties rapides du réseau local (pas une salle privée)
+    /// <summary>Salle ENet annoncée sur le réseau local (Partie rapide la trouve) ; faux pour une salle privée.</summary>
+    public bool ListedOnLan => announceOnLan;
     int upnpTicket;   // salle pour laquelle le port est demandé : une ouverture qui aboutit après la fermeture est annulée
 
     // ------------------------------------------------------------------ création
@@ -191,12 +194,13 @@ public partial class OnlineLobby : Node
         SetState(LobbyState.Searching, "Recherche d'une partie sur le réseau local…");
     }
 
-    /// <summary>Salle privée : invitation par Steam si disponible, sinon par code (adresse IP).</summary>
+    /// <summary>Salle privée : invitation par Steam si disponible, sinon par code (adresse IP). Sans Steam, elle n'est pas
+    /// annoncée sur le réseau local : seul qui a le code y entre (Partie rapide ne la trouve pas).</summary>
     public void CreatePrivate(string? map = null)
     {
         Reset();
         if (SteamBridge.Available) { SteamBridge.Host(this, publicLobby: false, map ?? Map); return; }
-        HostLan(NetSession.DefaultPort, map ?? Map);
+        HostLan(NetSession.DefaultPort, map ?? Map, announce: false);
     }
 
     public void JoinByCode(string code)
@@ -212,8 +216,11 @@ public partial class OnlineLobby : Node
         JoinAddress(ip, codePort);
     }
 
-    /// <summary>Ouvre une salle ENet (réseau local ou Internet si le port est ouvert ; UPnP tenté hors mode headless).</summary>
-    public void HostLan(int listenPort = NetSession.DefaultPort, string? map = null)
+    /// <summary>
+    /// Ouvre une salle ENet (réseau local, ou Internet si le port est ouvert). <paramref name="announce"/> : visible des
+    /// parties rapides du réseau local. UPnP seulement si le joueur l'a activé dans Options (jamais en mode headless).
+    /// </summary>
+    public void HostLan(int listenPort = NetSession.DefaultPort, string? map = null, bool announce = true)
     {
         Reset();
         var peer = new ENetMultiplayerPeer();
@@ -223,8 +230,9 @@ public partial class OnlineLobby : Node
         OpenRoomAsHost(peer, map ?? Map);
         Code = JoinCode.FromAddress(LocalIPv4(), port);
         CodeIsInternet = false;
-        Lan.Announcement = Announcement;
-        if (DisplayServer.GetName() != "headless" && Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-upnp") < 0) OpenPortMapping(port);
+        announceOnLan = announce;
+        Lan.Announcement = announce ? Announcement : null;
+        if (UI.GameSettings.Upnp && DisplayServer.GetName() != "headless" && Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-upnp") < 0) OpenPortMapping(port);
         GD.Print($"[Lobby] Salle ouverte sur le port {port}, code {Code}");
     }
 
@@ -351,7 +359,7 @@ public partial class OnlineLobby : Node
         cfg.Preconnected = true;
         cfg.OnlineFormat = OnlineFormat;
         GD.Print($"[Lobby] Lancement : {Map}, {members.Count} joueur(s), format {(OnlineFormat ? "en ligne" : "VR")}, zones {string.Join(", ", matchZones.Select(kv => $"{kv.Key}->{kv.Value}"))}");
-        Lan.Announcement = Announcement;
+        if (announceOnLan) Lan.Announcement = Announcement;
         SetState(LobbyState.InMatch, "Partie en cours");
         BroadcastRoster();
         SteamBridge.OnMatchStarted(this);
@@ -462,6 +470,7 @@ public partial class OnlineLobby : Node
     public override void _Process(double delta)
     {
         stateClock += delta;
+        RenewPortMapping(delta);
         if (quitFile != null && (quitCheck += delta) > 0.5)
         {
             quitCheck = 0;
@@ -806,6 +815,7 @@ public partial class OnlineLobby : Node
         Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
         SteamBridge.Leave();
         Lan.Announcement = null;
+        announceOnLan = false;
         Lan.StopListening();
         ClosePortMapping();
         members.Clear();
@@ -853,7 +863,7 @@ public partial class OnlineLobby : Node
             {
                 var u = new Upnp();
                 if (u.Discover(2000, 2, "") != (int)Upnp.UpnpResult.Success || u.GetGateway() is not { } gw || !gw.IsValidGateway()) { GD.Print("[Lobby] UPnP : pas de box compatible"); return; }
-                if (u.AddPortMapping(mapPort, mapPort, "Dogeball", "UDP", 4 * 3600) != (int)Upnp.UpnpResult.Success) { GD.Print("[Lobby] UPnP : ouverture du port refusée"); return; }
+                if (u.AddPortMapping(mapPort, mapPort, "Dogeball", "UDP", UpnpLease) != (int)Upnp.UpnpResult.Success) { GD.Print("[Lobby] UPnP : ouverture du port refusée"); return; }
                 string external = u.QueryExternalAddress();
                 Callable.From(() =>
                 {
@@ -863,11 +873,25 @@ public partial class OnlineLobby : Node
                         return;
                     }
                     upnp = u;
+                    upnpRenew = UpnpLease * 0.8;
                     if (IsHost && external.Count(c => c == '.') == 3) { Code = JoinCode.FromAddress(external, mapPort); CodeIsInternet = true; GD.Print($"[Lobby] UPnP : port {mapPort} ouvert, code Internet {Code}"); Changed?.Invoke(); }
                 }).CallDeferred();
             }
             catch (Exception e) { GD.Print($"[Lobby] UPnP : {e.Message}"); }
         });
+    }
+
+    // Bail court (1 h), renouvelé tant que la salle est ouverte : après un plantage, la box referme le port d'elle-même.
+    const int UpnpLease = 3600;
+    double upnpRenew;
+
+    void RenewPortMapping(double delta)
+    {
+        if (upnp == null || (upnpRenew -= delta) > 0) return;
+        upnpRenew = UpnpLease * 0.8;
+        var u = upnp;
+        int mapped = port;
+        System.Threading.Tasks.Task.Run(() => { try { u.AddPortMapping(mapped, mapped, "Dogeball", "UDP", UpnpLease); } catch (Exception) { } });
     }
 
     void ClosePortMapping()
