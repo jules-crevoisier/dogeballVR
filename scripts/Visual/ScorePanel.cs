@@ -148,11 +148,6 @@ public partial class ScorePanel : Node3D
                     DrawColoredPolygon(Slanted(pr, 10), on ? UiKit.Cream : new Color(UiKit.Cream, 0.5f));
                     DrawColoredPolygon(Slanted(pr.Grow(-5), 8), on ? color : Ink);
                 }
-                // Barre de progression vers l'objectif de KO.
-                var rail = new Rect2(plate.Position.X + 20, plate.End.Y + 80, plate.Size.X - 40, 22);
-                DrawColoredPolygon(Slanted(rail, 8), new Color(1, 1, 1, 0.1f));
-                float f = s.KoTarget > 0 ? Mathf.Clamp(s.Kos(team) / (float)s.KoTarget, 0f, 1f) : 0f;
-                if (f > 0f) DrawColoredPolygon(Slanted(new Rect2(rail.Position, new Vector2(Mathf.Max(20f, rail.Size.X * f), rail.Size.Y)), 8), color);
             }
 
             // Chrono au centre (chiffres de 130 px), manche et objectif dessous.

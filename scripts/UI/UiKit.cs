@@ -33,7 +33,7 @@ public static class UiKit
     /// <summary>Encre des textes sur fond clair (barre jaune, touches) et des ombres portées.</summary>
     public static readonly Color InkText = new("1a0f33");
     public static readonly Color Gold = new("ffb21f");
-    public static readonly Color Lavender = new("a9a6cf");
+    public static readonly Color Lavender = new("c9c5ea");   // 3e niveau de hiérarchie, assez clair pour rester lisible sur l'encre
     static readonly Color Ink = new("0a0f22");
 
     /// <summary>Fenêtre (options, pause, fin de match…) : le bandeau du menu en panneau penché, liseré crème, ombre et bande violette.</summary>

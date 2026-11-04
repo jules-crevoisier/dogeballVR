@@ -782,7 +782,7 @@ public partial class DesktopHud : CanvasLayer
             if (charge > 0.01f || p.HeldBall != null)
             {
                 float r = 54f, gap = 0.14f, seg = (Mathf.Tau * 0.75f - 2 * gap) / 3f, start = Mathf.Pi * 0.75f;
-                float alpha = p.HeldBall != null ? Mathf.Max(0.35f, Mathf.Min(1f, charge * 4f + 0.35f)) : charge;
+                float alpha = p.HeldBall != null ? Mathf.Max(0.22f, Mathf.Min(1f, charge * 4f + 0.22f)) : charge;   // balle en main sans armer : arcs discrets, le centre reste dégagé
                 for (int i = 0; i < 3; i++)
                 {
                     float a0 = start + i * (seg + gap);
@@ -932,7 +932,7 @@ public partial class DesktopHud : CanvasLayer
     // Placement à la main (pas de conteneur) : un conteneur replace ses enfants à chaque mise en page et se battait avec
     // l'animation d'entrée, d'où des lignes qui sautaient d'une image à l'autre. Ici, chaque ligne est collée au bord droit,
     // à 24 px du coin, et ne bouge que pour entrer (glissé) ou monter d'un cran quand la plus ancienne part.
-    const float FeedMargin = 24f, FeedGap = 8f;
+    const float FeedMargin = 40f, FeedGap = 8f;   // marge de 40 px comme le reste du HUD (zone sûre)
     const double FeedHold = 4.0;
     Control feed = null!;
     sealed class FeedEntry { public PanelContainer Panel = null!; public double Born; public float Y = -1; }
@@ -2208,7 +2208,7 @@ public partial class DesktopHud : CanvasLayer
         // Compte à rebours : pas de lancer avant le « GO ! » (hôte et client), étiquettes 3D cachées tant que le chiffre ou le GO est là,
         // et pendant toute l'intermission (moitiés qui glissent comprises).
         Player.ThrowLocked = s.Phase == MatchView.Phase.Countdown;
-        PlayerTag.HideAll = !Tutorial.Running && (s.Phase == MatchView.Phase.Countdown || countdown.Visible && countdown.Modulate.A > 0.05f || interVisible || inter.Visible);
+        PlayerTag.HideAll = UI.VrEndStage.Showing || !Tutorial.Running && (s.Phase == MatchView.Phase.Countdown || countdown.Visible && countdown.Modulate.A > 0.05f || interVisible || inter.Visible);
         UpdateScoreBoard(s);
         UpdateHearts(n, delta);
         UpdateBottomCenter();

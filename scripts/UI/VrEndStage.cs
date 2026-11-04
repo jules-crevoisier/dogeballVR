@@ -28,6 +28,8 @@ public partial class VrEndStage : Node3D
 
     Node3D? stage;
     Label3D? footer;
+    /// <summary>Scène de fin affichée : les étiquettes des avatars sont cachées (elles chevauchaient le podium).</summary>
+    public static bool Showing { get; private set; }
     float placedAt;
     double clock, shownAt, nextRead;   // temps de jeu (suit --fixed-fps), pas l'horloge murale
 
@@ -52,6 +54,8 @@ public partial class VrEndStage : Node3D
         if (over && stage == null) ShowStage();
         else if (!over && stage != null) HideStage();
         if (stage != null && FollowCamera) Place();
+        Showing = stage != null;
+        if (Showing) PlayerTag.HideAll = true;
         if (stage != null && footer != null)
         {
             double left = HoldSeconds - (clock - shownAt);
@@ -86,7 +90,7 @@ public partial class VrEndStage : Node3D
         int Score(int id) => stats != null && stats.TryGetValue(id, out var st) ? st.Score : 0;
         int lead = mvp >= 0 ? mvp : ids.Contains(View.LocalId) ? View.LocalId : -1;
         ids.Sort((a, b) => a == lead ? -1 : b == lead ? 1 : Score(b).CompareTo(Score(a)) != 0 ? Score(b).CompareTo(Score(a)) : a.CompareTo(b));
-        var podium = new Node3D { Name = "Podium", Position = new Vector3(-0.9f, 0, 0) };
+        var podium = new Node3D { Name = "Podium", Position = new Vector3(-1.5f, 0, 0) };
         stage.AddChild(podium);
         for (int i = 0; i < ids.Count; i++)
         {
@@ -168,7 +172,7 @@ public partial class VrEndStage : Node3D
     void BuildBoard(IReadOnlyDictionary<int, MatchController.PlayerStats>? stats, int mvp)
     {
         // Face lisible vers -Z local ; le joueur est en (-1,9 ; -Distance) vu du tableau : rotation positive pour lui faire face.
-        var board = new Node3D { Name = "Tableau", Position = new Vector3(1.9f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(20), 0) };
+        var board = new Node3D { Name = "Tableau", Position = new Vector3(1.65f, 0, 0.2f), Rotation = new Vector3(0, Mathf.DegToRad(12), 0) };
         stage!.AddChild(board);
         int rows = Mathf.Max(1, View.Players.Count);
         float top = 2.22f, step = 0.22f, height = 0.45f + rows * step;   // à l'échelle 1 (mise en page à 7,5 m), au-dessus des couverts
@@ -183,7 +187,9 @@ public partial class VrEndStage : Node3D
         Cell("TOUCHES", ColumnHits, top, UiKit.Cream, size: 40);
         Cell("ATTRAPES", ColumnCatches, top, UiKit.Cream, size: 40);
         // Décompte sous le tableau.
-        footer = AddText("", new Vector3(0, top - height - 0.1f, 0), 0.0042f, 56, UiKit.Yellow, board);
+        // Décompte sous le tableau, sur sa propre pastille encre (il ne se pose plus sur une barrière du décor).
+        AddPlate(board, new Vector3(0, top - height + 0.02f, 0.05f), new Vector2(2.2f, 0.34f), UiKit.Yellow);
+        footer = AddText("", new Vector3(0, top - height + 0.02f, 0), 0.0042f, 56, UiKit.Yellow, board);
         if (stats == null)
         {
             Cell("Statistiques en attente de l'hôte", 0, top - step * 1.5f, Palette.Lines);
@@ -243,6 +249,8 @@ public partial class VrEndStage : Node3D
         stage?.QueueFree();
         stage = null;
         footer = null;
+        Showing = false;
+        PlayerTag.HideAll = false;
     }
 
     /// <summary>MVP pris dans l'équipe gagnante (même règle que l'écran de fin du PC) ; sans vainqueur, le meilleur des deux équipes.</summary>
