@@ -108,7 +108,7 @@ public static class Sfx
     public static bool HasFile(SfxKind kind) => Variants(FileName(kind)).Length > 0;
 
     /// <summary>--feel-log : chaque son joué est écrit dans la sortie (vérification des retours sans casque ni haut-parleur).</summary>
-    public static readonly bool FeelLog = Array.IndexOf(OS.GetCmdlineUserArgs(), "--feel-log") >= 0;
+    public static readonly bool FeelLog = Array.IndexOf(Tools.DevFlags.Args, "--feel-log") >= 0;
 
     static string BusOf(SfxKind kind) => kind is SfxKind.UiHover or SfxKind.UiClick or SfxKind.UiBack ? "UI" : "SFX";
 
