@@ -25,8 +25,14 @@ UAL2 = os.path.join(SRC, "UAL2_Standard.glb")      # rig Unreal « Armature », 
 FEMALE = os.path.join(SRC, "Mannequin_F.glb")      # même rig Unreal, mannequin femme, sans animation
 OUT = sys.argv[-1] if len(sys.argv) > 1 and not sys.argv[-1].endswith(".py") else os.path.join(H, "..", "..", "assets", "models")
 
-TEAMS = {"orange": (1.0, 0.36, 0.06), "bleu": (0.08, 0.55, 1.0)}
-GREY = (0.40, 0.41, 0.44)
+def srgb(h):
+    """#RRGGBB -> couleur linéaire (glTF et Blender travaillent en linéaire)."""
+    c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    return tuple(v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in c)
+
+
+TEAMS = {"orange": srgb("#FF6A1A"), "bleu": srgb("#2E9BFF")}   # mêmes teintes que les tenues d'équipe de gen_assets.py
+GREY = srgb("#7C7F86")   # gris moyen du mannequin Unreal
 QUEST_TRIS = 8000
 SCALE = 0.95   # os Head à 1,57 m -> 1,49 m, comme « Tete »
 
