@@ -55,6 +55,14 @@ public static class UiKit
         return b;
     }
 
+    /// <summary>Touche de clavier : pavé crème penché à coins vifs, tranche grise décalée dessous pour le relief.</summary>
+    public static KcBox KeyBox()
+    {
+        var b = new KcBox { Top = new Color("f6f1e7"), Bottom = new Color("e4dccd"), Slant = 5, ShadowOffset = new Vector2(0, 4), ShadowColor = new Color("8d97ad") };
+        b.ContentMarginLeft = b.ContentMarginRight = 11; b.ContentMarginTop = 1; b.ContentMarginBottom = 2;
+        return b;
+    }
+
     /// <summary>Bouton au repos : aplat violet nuit penché à fin liseré crème, accent de couleur à gauche (transparent : aucun).</summary>
     public static KcBox ButtonIdle(Color accent, bool box = true)
     {
@@ -100,7 +108,7 @@ public static class UiKit
     {
         var b = new StyleBoxFlat
         {
-            BgColor = bg, CornerRadiusTopLeft = radius, CornerRadiusTopRight = radius, CornerRadiusBottomLeft = radius, CornerRadiusBottomRight = radius,
+            BgColor = bg,   // coins vifs (DA du menu) : radius n'est plus utilisé, gardé pour les appels existants
             ContentMarginLeft = 26, ContentMarginRight = 26, ContentMarginTop = 10, ContentMarginBottom = 10,
             BorderWidthBottom = bottom + border, BorderWidthLeft = border, BorderWidthRight = border, BorderWidthTop = border,
             BorderColor = borderColor ?? new Color(0.04f, 0.06f, 0.14f, 0.95f),
@@ -188,8 +196,8 @@ public static class UiKit
         t.SetColor("font_hover_color", "PopupMenu", Navy);
         t.SetFontSize("font_size", "PopupMenu", 22);
 
-        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.12f), CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4, ContentMarginLeft = 4, ContentMarginRight = 4 };
-        var grab = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.5f), CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4 };
+        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.12f), ContentMarginLeft = 4, ContentMarginRight = 4 };
+        var grab = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.5f) };
         t.SetStylebox("scroll", "VScrollBar", scroll);
         t.SetStylebox("grabber", "VScrollBar", grab);
         t.SetStylebox("grabber_highlight", "VScrollBar", grab);
@@ -305,8 +313,8 @@ public static class UiKit
     }
 
     /// <summary>
-    /// Touche de clavier dessinée (même dessin que le HUD) : cadre clair arrondi, liseré gris, tranche plus foncée en bas
-    /// (relief), texte marine. minWidth aligne les touches d'une colonne.
+    /// Touche de clavier dessinée (même dessin que le HUD) : pavé crème penché, tranche grise en bas (relief), texte marine.
+    /// minWidth aligne les touches d'une colonne.
     /// </summary>
     public static Label KeyCap(string text, int size = 20, float minWidth = 0)
     {
@@ -314,14 +322,7 @@ public static class UiKit
         l.VerticalAlignment = VerticalAlignment.Center;
         l.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
         if (minWidth > 0) l.CustomMinimumSize = new Vector2(minWidth, 0);
-        l.AddThemeStyleboxOverride("normal", new StyleBoxFlat
-        {
-            BgColor = new Color("f6f1e7"), AntiAliasing = true,
-            CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
-            BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 5, BorderColor = new Color("8d97ad"),
-            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 1, ContentMarginBottom = 3,
-            ShadowColor = new Color(Navy, 0.6f), ShadowSize = 3,
-        });
+        l.AddThemeStyleboxOverride("normal", KeyBox());
         return l;
     }
 

@@ -28,6 +28,7 @@ public static class GameSettings
     public static bool Upnp;                                 // ouvrir le port de la salle sur la box (UPnP) : seulement si le joueur l'a choisi
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
+    public static float Haptics = 1f;                        // vibrations des manettes VR, 0 à 1
     public static bool HitStop = true;
     public static bool HitMarkers = true;
     public static bool ShowFps;
@@ -78,6 +79,7 @@ public static class GameSettings
         ContextHints = B(cfg, "game", "context_hints", ContextHints);
         Upnp = B(cfg, "online", "upnp", Upnp);
         ScreenShake = Mathf.Clamp(F(cfg, "controls", "screen_shake", ScreenShake), 0f, 1f);
+        Haptics = Mathf.Clamp(F(cfg, "controls", "haptics", Haptics), 0f, 1f);
         HitStop = B(cfg, "controls", "hit_stop", HitStop);
         HitMarkers = B(cfg, "controls", "hit_markers", HitMarkers);
         ReduceFlashes = B(cfg, "accessibility", "reduce_flashes", ReduceFlashes);
@@ -102,6 +104,7 @@ public static class GameSettings
         cfg.SetValue("controls", "aim_assist", AimAssist);
         cfg.SetValue("controls", "toggle_crouch", ToggleCrouch);
         cfg.SetValue("controls", "screen_shake", ScreenShake);
+        cfg.SetValue("controls", "haptics", Haptics);
         cfg.SetValue("controls", "hit_stop", HitStop);
         cfg.SetValue("controls", "hit_markers", HitMarkers);
         cfg.SetValue("audio", "master", MasterVolume);
@@ -259,6 +262,11 @@ public static class AudioBuses
             AudioServer.SetBusName(i, name);
             AudioServer.SetBusSend(i, "Master");
         }
+        // Limiteur sur Master : au KO subi, coup + KO + foule + musique dépassaient 0 dBFS et écrêtaient.
+        int master = AudioServer.GetBusIndex("Master");
+        bool hasLimiter = false;
+        for (int e = 0; e < AudioServer.GetBusEffectCount(master); e++) hasLimiter |= AudioServer.GetBusEffect(master, e) is AudioEffectHardLimiter;
+        if (!hasLimiter) AudioServer.AddBusEffect(master, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f });
     }
 
     public static void SetVolume(string bus, float linear)

@@ -95,6 +95,14 @@ public partial class Main : Node3D
         GetTree().ReloadCurrentScene();
     }
 
+    public override void _ExitTree()
+    {
+        // ressources gardées dans des champs static : à lâcher avant l'arrêt du runtime C# (sinon « Leaked unsafe reference » puis plantage)
+        Visual.KcShaders.ClearCache();
+        Visual.Materials.ClearCache();
+        Audio.Sfx.ClearCache();
+    }
+
     public override void _Ready()
     {
         Online.CrashReporter.Start(GetTree());
@@ -102,6 +110,7 @@ public partial class Main : Node3D
         MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
+        Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque
         UI.GameSettings.Load();
         UI.GameSettings.WatchScene(GetTree());
         Audio.Sfx.Preload();   // pas de lecture disque ni de synthèse en pleine partie
@@ -120,6 +129,7 @@ public partial class Main : Node3D
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
         if (Tools.DevFlags.Has("--assist-test")) { AddChild(new AssistSelfTest()); return; }
+        if (Tools.DevFlags.Has("--avatar-test")) { AddChild(new Visual.AvatarSelfTest { Name = "AvatarSelfTest" }); return; }
         // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
         {
@@ -146,11 +156,11 @@ public partial class Main : Node3D
             var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
             AddChild(backdrop);
             var menu = new UI.MainMenu { Name = "MainMenu" };
-            void Begin(NetMode mode, string address, bool tutorial)
+            void Begin(NetMode mode, string address, bool tutorial, string map = "croix_neon")
             {
                 menu.QueueFree();
                 backdrop.QueueFree();
-                cfg.Choose(mode, address);
+                cfg.Choose(mode, address, map);
                 menuSolo = mode == NetMode.Offline;
                 Tutorial = tutorial;
                 StartMatch(xrActive);
@@ -166,6 +176,7 @@ public partial class Main : Node3D
             menu.JoinCode += code => Room(l => l.JoinByCode(code));
             menu.JoinAddress += ip => Room(l => l.JoinAddress(ip));
             UI.MainMenu.TextInput = (desc, cur, max, rect, done) => Online.SteamBridge.Init() && Online.Steam.SteamPlatform.ShowTextInput(desc, cur, max, rect, done);
+            menu.SoloChosen += map => Begin(NetMode.Offline, "", false, map);
             AddChild(menu);
             return;
         }
@@ -187,6 +198,9 @@ public partial class Main : Node3D
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
+        KcRules.Configure(map.Rules, xrActive);
+        Assist.Configure(map.BallRules);
         int localZoneId = cfg.LocalZone;
         if (xrActive && !map.VrAllowed)
         {
@@ -221,9 +235,10 @@ public partial class Main : Node3D
             lastEdgeLog = now;
             GD.Print($"Bord de zone à {d:0.00} m");
         };
-        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive);
+        var arena = ArenaBuilder.Build(map, localZone.Id, !xrActive && !Visual.ModelLibrary.Quest);
         AddChild(arena.Root);
         platforms = arena.Platforms;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista") >= 0 || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--vista-orbit") >= 0 || System.Array.Exists(OS.GetCmdlineUserArgs(), a => a.StartsWith("--vista-at="))) AddChild(new Visual.VistaCamera { Name = "Vista" });   // captures du décor
 
         if (cfg.Mode != NetMode.Offline)
         {
@@ -302,6 +317,7 @@ public partial class Main : Node3D
             }
             origin.AddChild(left);
             origin.AddChild(right);
+            if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
             localHurtbox.Head = camera;
             origin.AddChild(localHurtbox);
             AddChild(origin);
@@ -448,7 +464,10 @@ public partial class Main : Node3D
         // Échange de plaques coupé en VR (sécurité, audit du 22/10) : le joueur ne bouge pas dans la salle, mais son monde
         // tourne vers une autre plaque ; le voisin réel s'affiche alors du mauvais côté, et sur Tour 4v4 les plaques échangées
         // se touchent. À rouvrir après un essai au casque avec le plan de la salle EVA. --swap-test le garde pour la CI.
-        match.PlateSwaps = map.IsRing && Tools.DevFlags.Has("--swap-test");
+        // Décision n° 6 : les instants viennent de la carte (plateSwapTimes) ; --swap-test les force.
+        bool swapTest = Tools.DevFlags.Has("--swap-test");
+        match.SwapTimes = KcRules.PlateSwapTimes(swapTest);
+        match.PlateSwaps = map.IsRing && match.SwapTimes.Length > 0 && swapTest;
         match.HeadOf = zoneId => net != null && net.PoseProviders.TryGetValue(zoneId, out var provider) ? provider().Head : null;
         match.PlatesChanged += (plates, targets) =>
         {
@@ -464,6 +483,8 @@ public partial class Main : Node3D
         Bot.ArmsLocked = n => n == localMarker && localBody is DesktopPlayer { CatchState: 2 };
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
+        // Essai maison : bots faciles et doux (tirs à 12-15 m/s espacés de 2 à 3,5 s) : on reste sur place dans une pièce.
+        if (Tools.DevFlags.Has("--essai-maison")) { Bot.Level = 0; Bot.Gentle = true; }
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 
@@ -484,7 +505,8 @@ public partial class Main : Node3D
                 AddChild(new UI.XpBanner { Name = "XpBanner", View = view, Ready = () => end.ShowingStats });
             }
             // En ligne, l'hôte ne fait pas attendre les autres sur l'écran de fin : la partie suivante démarre seule (mêmes joueurs, bots en renfort).
-            match.AutoRestart = PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host;
+            // Partie lancée depuis une salle : pas de relance, la salle reprend la main (EndScreen.BackToRoomSeconds).
+            match.AutoRestart = !cfg.Preconnected && (PcAutoplay || DisplayServer.GetName() == "headless" || cfg.Mode == NetMode.Host);
         }
         // Partie lancée depuis la salle : à la fin, tout le monde y retourne (la salle relance seule si chacun reste prêt) ;
         // l'hôte ne relance pas lui-même, sinon une partie pourrait démarrer juste avant le retour à la salle.
@@ -588,7 +610,8 @@ public partial class Main : Node3D
     static PoseData BotPose(Bot bot, ZoneDef z)
     {
         var a = bot.Avatar!;
-        return new PoseData(a.Head.GlobalPosition, Mathf.DegToRad(z.FacingDegrees), a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
+        // lacet réel de l'avatar (il pivote vers sa cible) : chez les clients, la main armée et la balle tenue tournent ensemble
+        return new PoseData(a.Head.GlobalPosition, a.GlobalRotation.Y, a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
     }
 
     /// <summary>Un joueur distant prend la place du bot de sa zone.</summary>
@@ -649,7 +672,7 @@ public partial class Main : Node3D
         AddChild(new Online.Steam.AchievementTracker
         {
             Name = "AchievementTracker", LocalPlayerId = localZone.Id, LocalTeam = localZone.Team, Match = localMatch, View = pcView,
-            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Vr = xrOrigin != null, Online = net != null,
+            TeamOf = id => map.Zones.Find(z => z.Id == id)?.Team ?? -1, Online = net != null,
             LocalPasses = localBody is DesktopPlayer pc ? () => pc.Passes : null,
         });
 
@@ -667,12 +690,39 @@ public partial class Main : Node3D
             FollowCamera = xrOrigin == null,
         });
 
+    /// <summary>
+    /// Essai au casque dans une pièce (APK « Essai maison », <c>--essai-maison</c>, export de debug seulement) : le joueur
+    /// démarre sur le pad du lift de sa zone (à 5 m du centre de la zone sur La Fosse), face au terrain adverse, et le jeu
+    /// est recalé sur sa tête (<see cref="Xr.HomeTestRecenter"/>). Le bord arrière est à 2,1 m : la vibration du bord
+    /// commence après 0,6 m de marche à reculons, le lift et le voile du garde-corps s'essaient sans bouger.
+    /// </summary>
+    void PlaceForHomeTest(XROrigin3D origin, ZoneDef zone)
+    {
+        origin.RotationDegrees = new Vector3(0, zone.FacingDegrees, 0);
+        if (zone.Lift != null) origin.Position = new Vector3(zone.Lift.Pad.X, zone.Y, zone.Lift.Pad.Z);
+        origin.AddChild(new Xr.HomeTestRecenter { Name = "HomeTestRecenter" });
+        GD.Print($"[Essai maison] Départ en ({origin.Position.X:0.0}, {origin.Position.Z:0.0}), face au terrain adverse ({zone.FacingDegrees:0}°)");
+    }
+
     void AddKnockoutFeedback(ZoneDef localZone, System.Func<int, int> lives, int maxLives, System.Func<string> score)
     {
         var hands = new List<HandThrower>();
         if (xrOrigin != null) foreach (var c in xrOrigin.GetChildren()) if (c is HandThrower h) hands.Add(h);
         AddChild(new Visual.ThreatIndicator { Name = "ThreatIndicator", Local = localHurtbox, Haptic = hands.Count == 0 ? null : (a, d) => { foreach (var h in hands) h.Pulse(a, d); } });
-        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null });
+        // VR : main 0 gauche, 1 droite, -1 les deux (attrape, lancer, palier, touche, frôlé, départ de manche).
+        System.Action<int, float, float>? haptic = hands.Count == 0 ? null : (hand, a, d) =>
+        {
+            foreach (var h in hands) if (hand < 0 || (hand == 0) == (h.Tracker == "left_hand")) h.Pulse(a, d);
+        };
+        // --feel-log sans casque : les vibrations sont écrites dans la sortie (mêmes appels qu'en VR).
+        if (haptic == null && Audio.Sfx.FeelLog) haptic = (hand, a, d) => GD.Print($"[Feel] vibration main {(hand < 0 ? "les deux" : hand == 0 ? "gauche" : "droite")} {a:0.00} pendant {d:0.00} s");
+        AddChild(new Visual.Feedback { Name = "Feedback", Local = localHurtbox, Lives = lives, MaxLives = maxLives, GrayWhenKo = xrOrigin == null, Haptic = haptic });
+        if (xrOrigin != null)
+        {
+            // Pas de HUD dans le casque : bips de départ, « GO ! », sifflets et jingle de fin par le son (et « GO ! » dans les mains).
+            AddChild(new Audio.MatchCues { Name = "MatchCues", View = MatchView.ForClient(score, lives, map, localZone.Id, localZone.Team), Haptic = haptic });
+            if (xrOrigin.GetNodeOrNull<Node3D>("XRCamera3D") is { } xrCam) Visual.VrVignette.Attach(xrCam);
+        }
         if (xrOrigin != null) foreach (var z in map.Zones) AddChild(Visual.ScorePanel.Create(z, map, score));   // au clavier-souris, le score est dans le HUD : pas de textes flottants dans le décor
         // Cœurs au dos de la main gauche (VR) : deux cœurs lisibles d'un coup d'œil sur le poignet. Accrochés au gant (pose grip,
         // repère du modèle : dos de la main vers +Y), pas à la manette (pointe), pour rester sur la main.
