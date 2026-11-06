@@ -63,7 +63,7 @@ public partial class MainMenu : CanvasLayer
         stage.Resized += stage.QueueRedraw;
         root.AddChild(stage);
         var heroBox = new MenuHero();
-        heroBox.AnchorLeft = 0.44f; heroBox.AnchorRight = 0.76f; heroBox.AnchorTop = 0.04f; heroBox.AnchorBottom = 1f;
+        heroBox.AnchorLeft = 0.40f; heroBox.AnchorRight = 0.80f; heroBox.AnchorTop = -0.08f; heroBox.AnchorBottom = 1.02f;   // plus grand que son panneau : la tête en sort, comme chez KC
         heroBox.OffsetLeft = heroBox.OffsetRight = heroBox.OffsetTop = heroBox.OffsetBottom = 0;
         root.AddChild(heroBox);
         UiKit.SlideIn(heroBox, 0f, 200f);

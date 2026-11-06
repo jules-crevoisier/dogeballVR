@@ -104,7 +104,7 @@ public partial class PauseMenu : CanvasLayer
         col.AddThemeConstantOverride("separation", 14);
         root.AddChild(col);
 
-        var title = UiKit.Title("PAUSE", 104, HorizontalAlignment.Left);
+        var title = UiKit.Title("PAUSE", 120, HorizontalAlignment.Left, UiKit.Yellow);
         col.AddChild(title);
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
