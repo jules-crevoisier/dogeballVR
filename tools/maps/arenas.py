@@ -93,7 +93,16 @@ class Arena:
             self.decor.append({"x": round(x, 1), "y": base, "z": round(z, 1), "sx": round(w, 1), "sy": round(h - base, 1), "sz": round(d, 1),
                                "color": c1, "color2": c2, "pattern": 5 if i % 3 else 1})
 
+    def check_heights(self):
+        """Règle de lecture : un couvert bas s'enjambe (1,2 m ou moins), un couvert haut est un mur (1,65 m ou plus).
+        Entre les deux, un humain (saut 1,04 m + marche 0,45) monte et un bot (NavGrid.MaxJumpUp 1,3) ne monte pas."""
+        for b in self.blocks:
+            h = b["y1"] - b["y0"]
+            if b["kind"] in ("cover", "low", "crate") and 1.25 < h < 1.65:
+                raise SystemExit(f"{b['id']} : hauteur {h:.2f} m ambiguë (ni enjambable ni mur)")
+
     def write(self, name, meta):
+        self.check_heights()
         data = {
             "name": name, "schemaVersion": 4, "layout": "arena", **meta,
             "rules": {**COMMON_RULES, **meta.get("rules", {})},
@@ -148,10 +157,10 @@ def marche_suspendu():
     # Front : deux couverts pleins à moins de 3 m du bord (conteneur, cage d'escalier), demi-couverts par-dessus lesquels on tire.
     a.block("conteneur", "container", -7, -8, 6, 2.4, 2.6, 0, color=ORANGE, color_b=BLEU)
     a.block("cage_escalier", "wall", 6, -8.5, 2.6, 2.6, 2.4, 0)
-    a.block("clim_1", "cover", -12.5, -6, 2.4, 1.6, 1.3, 0, model="clim")
+    a.block("clim_1", "cover", -15.2, -7.2, 2.4, 1.6, 1.2, 0, model="clim")   # laisse 4 m de sortie à la planche
     a.block("caisses_1", "crate", -1.5, -6, 2, 1, 0.9, 0)
     a.block("caisses_2", "crate", 15, -9, 1.4, 1.4, 1.0, 0, model="caisse_bois")
-    a.block("clim_2", "cover", 4, -12.5, 2, 2, 1.3, 0, model="clim")
+    a.block("clim_2", "cover", 4, -12.5, 2, 2, 1.2, 0, model="clim")
     a.block("lanterneau", "low", 0.5, -11, 3, 2, 0.8, 0)
     # Passerelle d'enseigne : haute (3 m), au bord du vide, côté droit ; tremplin pour y monter, on en redescend en sautant.
     a.block("passerelle_enseigne", "bridge", 12, -5.3, 6, 2.2, 3.0, 2.6)
@@ -162,7 +171,7 @@ def marche_suspendu():
     # Ponts au-dessus de la rue : pont central (5 m) coupé par une charrette en deux couloirs de 1,8 m au bord du vide,
     # et deux planches étroites (1,8 m) sur les flancs.
     a.block("pont_central", "bridge", 0, 0, 5, 8, 0, -0.6, mirror=False)
-    a.block("charrette", "cover", 0, 0, 1.4, 2.4, 1.4, 0, mirror=False, color="#C9894A")
+    a.block("charrette", "cover", 0, 0, 1.4, 2.4, 1.2, 0, mirror=False, color="#F2C230")   # jaune marché, neutre
     a.block("planche", "bridge", -12, 0, 1.8, 8, 0, -0.4, mirror=False)
     a.block("planche_b", "bridge", 12, 0, 1.8, 8, 0, -0.4, mirror=False)
     # Places : 4 par équipe sur la terrasse du fond.
@@ -171,7 +180,7 @@ def marche_suspendu():
     # Balles : une avancée devant le conteneur, une en retrait, une de chaque côté de la charrette.
     a.ball("balle_avant", -9, -5.2, 1.0)
     a.ball("balle_fond", 8, -12, 1.0)
-    a.ball("balle_pont", 0, -2.8, 0.9, interval=10)
+    a.ball("balle_pont", 1.6, -0.6, 0.9, interval=10)   # au milieu d'un couloir, exposée : la prendre engage
     # La rue, 20 m plus bas : étals bâchés, deux rangées de guirlandes (parallaxe), et des bâches en porte-à-faux sous le bord
     # de chaque toit, aux couleurs de l'équipe : le marché se voit depuis le toit.
     for x, c in [(-14, "#E36A2E"), (-7, "#5FE0C8"), (0, "#F2C230"), (7, "#E36A2E"), (14, "#5FE0C8")]:
@@ -183,8 +192,10 @@ def marche_suspendu():
         garland(a, -17, z, 17, z, -2.0, sag=0.8, step=1.6)
     for z in (-1.5, 1.5):
         garland(a, -17, z, 17, z, -7.0, sag=1.0, step=1.8)
-    for x in (-14, -8, 2, 8, 14):
-        a.deco(x=x, y=-1.4, z=-3.25, sx=4.5, sy=0.2, sz=1.5, color=ORANGE, color_b=BLEU, pattern=0)
+    for i, x in enumerate((-14, -8, 2, 8, 14)):
+        c, cb = (ORANGE, BLEU) if i % 2 == 0 else ("#F4EDE0", "#F4EDE0")
+        a.deco(x=x, y=-3.0, z=-3.5, sx=4.5, sy=0.15, sz=1.0, color=c, color_b=cb, pattern=0)
+        a.deco(x=x, y=-3.5, z=-3.0, sx=4.5, sy=0.5, sz=0.05, color=c, color_b=cb, pattern=0)   # lambrequin : se lit comme du tissu, pas comme un rebord
     a.deco(model="enseigne_bulle", x=-16.6, y=1.6, z=-10, rotY=90, scale=1.0)
     a.deco(model="lampadaire", x=8, y=1.2, z=-17.6, scale=1.0)
     a.skyline((-19, 19, -20, 20), 7, [("#B5533C", "#F6C56A"), ("#5A6180", "#F6C56A"), ("#D9A441", "#232A4D"), ("#8E95AD", "#F6C56A")], base=-20)
@@ -218,23 +229,27 @@ def piscine():
     a.ramp("escalier_bassin_c", 3.5, -5, 3, 3, 0, D, "-z", stairs=True)
     a.ramp("escalier_bassin_d", 8, -1.5, 4, 3, 0, D, "+x", stairs=True)
     # Plongeoir central (2,2 m de côté, 3,2 m) et sa planche qui dépasse de chaque côté au-dessus du bassin.
-    a.block("plongeoir", "tower", 0, 0, 2.2, 2.2, 3.2, 0, mirror=False)
-    a.block("planche_plongeoir", "bridge", 0, 0, 7, 0.9, 3.2, 3.0, mirror=False)
+    a.block("plongeoir", "tower", 0, 0, 2.2, 2.2, 3.2, 0, mirror=False, color="#DDE7EE")
+    a.block("planche_plongeoir", "bridge", 0, 0, 7, 0.9, 3.2, 3.0, mirror=False, color="#E8ECF2")
     a.pad("tremplin_bassin", -4.5, -3, 0, -0.6, -0.6, 3.2, apex=1.4)
     # Couverts du bassin : chaise de maître-nageur (pleine) et bouées empilées (mi-hauteur).
-    a.block("chaise_maitre_nageur", "tower", -6.5, -1.5, 1.2, 1.2, 2.4, 0)
-    a.block("bouees", "cover", 7.2, -5, 2.4, 1.2, 1.4, 0, color=ORANGE, color_b=BLEU)
+    a.block("chaise_maitre_nageur", "tower", -6.5, -1.5, 1.2, 1.2, 2.4, 0, color="#F4F4F4")
+    a.deco(x=-6.5, y=2.4, z=-1.5, sx=1.4, sy=0.15, sz=1.4, color="#F4F4F4", pattern=0)
+    for k, x in enumerate((6.6, 7.8)):   # bouées empilées : couvert de poitrine (1,7 m), on ne monte pas dessus
+        a.block(f"bouees_{k + 1}", "cover", x, -5, 1.2, 1.2, 1.7, 0, color="#F4F4F4")
+        a.deco(x=x, y=0.7, z=-5, sx=1.24, sy=0.3, sz=1.24, color=ORANGE, color_b=BLEU, pattern=0)
     # Couverts de la plage : cabines (pleines, 2,6 m) en porte vers les bandes latérales, bar, transats, jardinières.
-    a.block("cabine_g", "stall", -13, -8.5, 3, 3, D + 2.6, D, color=ORANGE, color_b=BLEU)
-    a.block("cabine_d", "stall", 13, -8.5, 3, 3, D + 2.6, D, color=ORANGE, color_b=BLEU)
-    a.block("bar", "cover", 0, -10, 6, 1.2, D + 1.2, D)
+    for nom, x in (("cabine_g", -13), ("cabine_d", 13)):   # cabines blanches, bande d'équipe face au bassin
+        a.block(nom, "stall", x, -8.5, 3, 3, D + 2.6, D, color="#EDEFF5")
+        a.deco(x=x, y=D + 2.0, z=-6.95, sx=3.1, sy=0.5, sz=0.08, color=ORANGE, color_b=BLEU, pattern=0)
+    a.block("bar", "cover", 0, -12.5, 7, 1.2, D + 1.7, D)   # vrai mur : cache les places du plongeoir
     a.block("transat_1", "low", -7, -10.5, 2.2, 0.9, D + 0.7, D)
     a.block("transat_2", "low", 7.5, -10, 2.2, 0.9, D + 0.7, D)
     a.block("jardiniere_g", "cover", -14.5, -3.5, 1.2, 3, D + 1.1, D, model="jardiniere")
     a.block("jardiniere_d", "cover", 14.5, -1.5, 1.2, 3, D + 1.1, D, model="jardiniere")
     a.block("parapet_fond", "parapet", 0, -16.7, 32.8, 0.4, D + 1.6, D)
     # Places : derrière le bar, sur la plage du fond.
-    for x, z in [(-2.5, -13), (2.5, -13), (-7, -14), (7, -14)]:
+    for x, z in [(-2.5, -15.3), (2.5, -15.3), (-7.5, -15.6), (7.5, -15.6)]:
         a.spawn(x, z)
     a.ball("balle_plage", -11, -12, D + 0.9)
     a.ball("balle_bassin", 5, -1.5, 0.9)

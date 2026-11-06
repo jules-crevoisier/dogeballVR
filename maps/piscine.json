@@ -121,7 +121,8 @@
     "sz": 2.2,
     "y0": 0,
     "y1": 3.2,
-    "rotY": 0
+    "rotY": 0,
+    "color": "#DDE7EE"
    },
    {
     "id": "planche_plongeoir",
@@ -132,7 +133,8 @@
     "sz": 0.9,
     "y0": 3.0,
     "y1": 3.2,
-    "rotY": 0
+    "rotY": 0,
+    "color": "#E8ECF2"
    },
    {
     "id": "chaise_maitre_nageur",
@@ -143,7 +145,8 @@
     "sz": 1.2,
     "y0": 0,
     "y1": 2.4,
-    "rotY": 0
+    "rotY": 0,
+    "color": "#F4F4F4"
    },
    {
     "id": "chaise_maitre_nageur_b",
@@ -154,31 +157,56 @@
     "sz": 1.2,
     "y0": 0,
     "y1": 2.4,
-    "rotY": 0
+    "rotY": 0,
+    "color": "#F4F4F4"
    },
    {
-    "id": "bouees",
+    "id": "bouees_1",
     "kind": "cover",
-    "x": 7.2,
+    "x": 6.6,
     "z": -5,
-    "sx": 2.4,
+    "sx": 1.2,
     "sz": 1.2,
     "y0": 0,
-    "y1": 1.4,
+    "y1": 1.7,
     "rotY": 0,
-    "color": "#E36A2E"
+    "color": "#F4F4F4"
    },
    {
-    "id": "bouees_b",
+    "id": "bouees_1_b",
     "kind": "cover",
-    "x": -7.2,
+    "x": -6.6,
     "z": 5,
-    "sx": 2.4,
+    "sx": 1.2,
     "sz": 1.2,
     "y0": 0,
-    "y1": 1.4,
+    "y1": 1.7,
     "rotY": 0,
-    "color": "#2FA8E0"
+    "color": "#F4F4F4"
+   },
+   {
+    "id": "bouees_2",
+    "kind": "cover",
+    "x": 7.8,
+    "z": -5,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 1.7,
+    "rotY": 0,
+    "color": "#F4F4F4"
+   },
+   {
+    "id": "bouees_2_b",
+    "kind": "cover",
+    "x": -7.8,
+    "z": 5,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 1.7,
+    "rotY": 0,
+    "color": "#F4F4F4"
    },
    {
     "id": "cabine_g",
@@ -190,7 +218,7 @@
     "y0": 1.6,
     "y1": 4.2,
     "rotY": 0,
-    "color": "#E36A2E"
+    "color": "#EDEFF5"
    },
    {
     "id": "cabine_g_b",
@@ -202,7 +230,7 @@
     "y0": 1.6,
     "y1": 4.2,
     "rotY": 0,
-    "color": "#2FA8E0"
+    "color": "#EDEFF5"
    },
    {
     "id": "cabine_d",
@@ -214,7 +242,7 @@
     "y0": 1.6,
     "y1": 4.2,
     "rotY": 0,
-    "color": "#E36A2E"
+    "color": "#EDEFF5"
    },
    {
     "id": "cabine_d_b",
@@ -226,28 +254,28 @@
     "y0": 1.6,
     "y1": 4.2,
     "rotY": 0,
-    "color": "#2FA8E0"
+    "color": "#EDEFF5"
    },
    {
     "id": "bar",
     "kind": "cover",
     "x": 0,
-    "z": -10,
-    "sx": 6,
+    "z": -12.5,
+    "sx": 7,
     "sz": 1.2,
     "y0": 1.6,
-    "y1": 2.8,
+    "y1": 3.3,
     "rotY": 0
    },
    {
     "id": "bar_b",
     "kind": "cover",
     "x": 0,
-    "z": 10,
-    "sx": 6,
+    "z": 12.5,
+    "sx": 7,
     "sz": 1.2,
     "y0": 1.6,
-    "y1": 2.8,
+    "y1": 3.3,
     "rotY": 0
    },
    {
@@ -463,53 +491,158 @@
    {
     "team": 0,
     "x": -2.5,
-    "z": -13,
+    "z": -15.3,
     "facingDegrees": 180
    },
    {
     "team": 1,
     "x": 2.5,
-    "z": 13,
+    "z": 15.3,
     "facingDegrees": 0
    },
    {
     "team": 0,
     "x": 2.5,
-    "z": -13,
+    "z": -15.3,
     "facingDegrees": 180
    },
    {
     "team": 1,
     "x": -2.5,
-    "z": 13,
+    "z": 15.3,
     "facingDegrees": 0
    },
    {
     "team": 0,
-    "x": -7,
-    "z": -14,
+    "x": -7.5,
+    "z": -15.6,
     "facingDegrees": 180
    },
    {
     "team": 1,
-    "x": 7,
-    "z": 14,
+    "x": 7.5,
+    "z": 15.6,
     "facingDegrees": 0
    },
    {
     "team": 0,
-    "x": 7,
-    "z": -14,
+    "x": 7.5,
+    "z": -15.6,
     "facingDegrees": 180
    },
    {
     "team": 1,
-    "x": -7,
-    "z": 14,
+    "x": -7.5,
+    "z": 15.6,
     "facingDegrees": 0
    }
   ],
   "decor": [
+   {
+    "x": -6.5,
+    "y": 2.4,
+    "z": -1.5,
+    "sx": 1.4,
+    "sy": 0.15,
+    "sz": 1.4,
+    "color": "#F4F4F4",
+    "pattern": 0
+   },
+   {
+    "x": 6.5,
+    "y": 2.4,
+    "z": 1.5,
+    "sx": 1.4,
+    "sy": 0.15,
+    "sz": 1.4,
+    "color": "#F4F4F4",
+    "pattern": 0,
+    "rotY": 180
+   },
+   {
+    "x": 6.6,
+    "y": 0.7,
+    "z": -5,
+    "sx": 1.24,
+    "sy": 0.3,
+    "sz": 1.24,
+    "color": "#E36A2E",
+    "pattern": 0
+   },
+   {
+    "x": -6.6,
+    "y": 0.7,
+    "z": 5,
+    "sx": 1.24,
+    "sy": 0.3,
+    "sz": 1.24,
+    "color": "#2FA8E0",
+    "pattern": 0,
+    "rotY": 180
+   },
+   {
+    "x": 7.8,
+    "y": 0.7,
+    "z": -5,
+    "sx": 1.24,
+    "sy": 0.3,
+    "sz": 1.24,
+    "color": "#E36A2E",
+    "pattern": 0
+   },
+   {
+    "x": -7.8,
+    "y": 0.7,
+    "z": 5,
+    "sx": 1.24,
+    "sy": 0.3,
+    "sz": 1.24,
+    "color": "#2FA8E0",
+    "pattern": 0,
+    "rotY": 180
+   },
+   {
+    "x": -13,
+    "y": 3.6,
+    "z": -6.95,
+    "sx": 3.1,
+    "sy": 0.5,
+    "sz": 0.08,
+    "color": "#E36A2E",
+    "pattern": 0
+   },
+   {
+    "x": 13,
+    "y": 3.6,
+    "z": 6.95,
+    "sx": 3.1,
+    "sy": 0.5,
+    "sz": 0.08,
+    "color": "#2FA8E0",
+    "pattern": 0,
+    "rotY": 180
+   },
+   {
+    "x": 13,
+    "y": 3.6,
+    "z": -6.95,
+    "sx": 3.1,
+    "sy": 0.5,
+    "sz": 0.08,
+    "color": "#E36A2E",
+    "pattern": 0
+   },
+   {
+    "x": -13,
+    "y": 3.6,
+    "z": 6.95,
+    "sx": 3.1,
+    "sy": 0.5,
+    "sz": 0.08,
+    "color": "#2FA8E0",
+    "pattern": 0,
+    "rotY": 180
+   },
    {
     "x": 0,
     "y": 0,
