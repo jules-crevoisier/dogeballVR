@@ -33,6 +33,10 @@ public partial class PlayerTag : Node3D
     bool? throughWalls;
     float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 24 px pour un adversaire)
     float unitPx;         // taille d'un em en pixels de la fenêtre, à la dernière image affichée
+    // Désencombrement : position à l'écran sans décalage (pied des cœurs), taille et distance ; décalage vers le haut visé et lissé (px).
+    Vector2 basePx;
+    float distM, liftTarget, liftPx;
+    static ulong solvedFrame = ulong.MaxValue;
 
     /// <summary>Toutes les étiquettes cachées (compte à rebours du joueur PC : le chiffre et « GO ! » ne les chevauchent pas ; intermission entre deux manches).</summary>
     public static bool HideAll { get; set; }
@@ -68,17 +72,19 @@ public partial class PlayerTag : Node3D
     public override void _Ready()
     {
         TopLevel = true;
-        font ??= GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
-        var color = Palette.Team(Target.Team).Lerp(Colors.White, 0.15f);
+        font ??= UI.UiKit.Heavy ?? GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
+        // Couleurs d'équipe de l'interface (DA « Affiche »), contour encre ; le bleu un peu éclairci pour rester lisible sur le ciel.
+        var color = Target.Team == 0 ? UI.UiKit.Orange : Target.Team == 1 ? UI.UiKit.Blue.Lightened(0.18f) : Palette.Team(Target.Team);
+        var ink = UI.UiKit.Ink;
         nameLabel = new Label3D
         {
-            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 40, Modulate = color, OutlineModulate = Palette.Panel,
+            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 36, Modulate = color, OutlineModulate = ink,
             VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, 1.05f, 0), RenderPriority = 1, OutlineRenderPriority = 0,
         };
-        // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Lilita One).
+        // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Barlow).
         hearts = new Label3D
         {
-            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 44, Modulate = color, OutlineModulate = Palette.Panel,
+            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 44, Modulate = color, OutlineModulate = ink,
             VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * (28f / 24f),
         };
         symbol = new Sprite3D
@@ -118,7 +124,14 @@ public partial class PlayerTag : Node3D
         float alpha = mate ? 0.7f : 1f;
         float em = 24f * k * mpp;   // 1 unité locale = 1 em de 24 px
         var basis = cam.GlobalTransform.Basis.Orthonormalized();
-        GlobalTransform = new Transform3D(basis * Basis.FromScale(Vector3.One * em), head + basis.Y * (6f * mpp));
+        var anchor = head + basis.Y * (6f * mpp);
+        // Étiquettes qui se chevauchent : la plus proche garde sa place, les autres montent au-dessus (lissé, sans saut).
+        basePx = cam.IsPositionBehind(anchor) ? new Vector2(float.NaN, float.NaN) : cam.UnprojectPosition(anchor);
+        distM = dist;
+        ulong frame = Engine.GetProcessFrames();
+        if (solvedFrame != frame) { solvedFrame = frame; Declutter(); }
+        liftPx = Mathf.Lerp(liftPx, liftTarget, 1f - Mathf.Exp(-14f * (float)delta));
+        GlobalTransform = new Transform3D(basis * Basis.FromScale(Vector3.One * em), anchor + basis.Y * (liftPx * mpp));
 
         string n = PlayerName();
         if (n != lastName)
@@ -142,6 +155,37 @@ public partial class PlayerTag : Node3D
             var sm = symbol.Modulate; sm.A = alpha; symbol.Modulate = sm;
         }
         Visible = true;
+    }
+
+    /// <summary>
+    /// Range les étiquettes affichées (mesures de l'image précédente) : de la plus proche à la plus lointaine, chacune monte
+    /// juste au-dessus de celles déjà posées qu'elle chevaucherait. Un nom ne recouvre plus jamais un autre.
+    /// </summary>
+    static void Declutter()
+    {
+        var tags = new List<PlayerTag>();
+        foreach (var t in Shown()) if (!float.IsNaN(t.basePx.X)) tags.Add(t); else t.liftTarget = 0f;
+        tags.Sort((a, b) => a.distM.CompareTo(b.distM));
+        var placed = new List<Rect2>();
+        foreach (var t in tags)
+        {
+            float w = t.widthEm * t.unitPx, top = TopEm * t.unitPx, bottom = BottomEm * t.unitPx, lift = 0f;
+            for (int pass = 0; pass < 8; pass++)
+            {
+                var r = new Rect2(t.basePx.X - w / 2f, t.basePx.Y - lift - top, w, top + bottom);
+                bool moved = false;
+                foreach (var p in placed)
+                {
+                    if (!r.Intersects(p)) continue;
+                    lift = t.basePx.Y + bottom - p.Position.Y + 2f;   // bas de l'étiquette juste au-dessus de l'autre
+                    moved = true;
+                    break;
+                }
+                if (!moved) break;
+            }
+            t.liftTarget = lift;
+            placed.Add(new Rect2(t.basePx.X - w / 2f, t.basePx.Y - lift - top, w, top + bottom));
+        }
     }
 
     /// <summary>Forme de l'équipe, blanche à contour sombre (teintée par Modulate) : rond (orange), triangle pointe en haut (bleue).</summary>

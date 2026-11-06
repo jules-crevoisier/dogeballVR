@@ -109,13 +109,13 @@ public partial class PauseMenu : CanvasLayer
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
         // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
-        var resume = UiKit.ListButton("REPRENDRE", Close);
+        var resume = UiKit.ListButton("REPRENDRE", Close, 42, new Vector2(520, 66));
         col.AddChild(resume);
-        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 42, new Vector2(520, 66)));
         if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
         if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 30, new Vector2(520, 54), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -140,7 +140,7 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>Bouton à confirmer : un premier appui demande « SÛR ? », le second agit (3 s pour confirmer).</summary>
-    static Button Confirmed(string text, Action act, int fontSize = 28, Vector2? minSize = null, Color? rest = null)
+    static Button Confirmed(string text, Action act, int fontSize = 42, Vector2? minSize = null, Color? rest = null)
     {
         Button? b = null;
         double armedUntil = 0;
@@ -157,7 +157,7 @@ public partial class PauseMenu : CanvasLayer
                 b.Text = text;
                 b.AddThemeColorOverride("font_color", rest ?? Colors.White);
             };
-        }, fontSize, minSize);
+        }, fontSize, minSize ?? new Vector2(520, 66));
         if (rest is Color c) b.AddThemeColorOverride("font_color", c);
         return b;
     }

@@ -119,12 +119,14 @@ public partial class DesktopHud : CanvasLayer
         {
             var color = team == 0 ? UiKit.Orange : UiKit.Blue;
             bool mine = team == View.LocalTeam;
-            var box = MakePanel(color, team == 0 ? -0.18f : 0.18f, 14, mine ? 4 : 0, UiKit.Yellow);
+            var box = MakePanel(color, 0f, 0, 0, UiKit.Ink, 6);
             box.Position = new Vector2(team == 0 ? 0 : 450, 0);
             box.Size = new Vector2(250, 92);
             box.PivotOffset = box.Size / 2;
             board.AddChild(box);
             teamBoxes[team] = box;
+            // Mon équipe : une languette lime sous le bloc (seul repère « ton équipe »).
+            if (mine) box.AddChild(new ColorRect { Color = UiKit.Yellow, Position = new Vector2(0, 86), Size = new Vector2(250, 8), MouseFilter = Control.MouseFilterEnum.Ignore });
 
             // Nom d'équipe seul (le liseré jaune dit déjà laquelle est la mienne), gros chiffre des KO et « KO » discret dessous.
             var align = team == 0 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
@@ -134,15 +136,16 @@ public partial class DesktopHud : CanvasLayer
             box.AddChild(name);
 
             var ko = UiKit.Poster(UiKit.Text("0", 64, UiKit.Cream, 0, align), null, 4);
-            ko.Position = new Vector2(team == 0 ? 112 : 30, -8);
+            ko.Position = new Vector2(team == 0 ? 96 : 52, -8);
             ko.Size = new Vector2(100, 92);
             ko.PivotOffset = ko.Size / 2;
             box.AddChild(ko);
             koLabels[team] = ko;
             // « KO » et pastilles : 22 px du HUD de 1080 lignes, soit 14 px au moins en 720p.
-            var koTag = UiKit.Text("KO", 22, UiKit.Cream, 6, align);
-            koTag.Position = new Vector2(team == 0 ? 118 : 26, 61);
-            koTag.Size = new Vector2(100, 28);
+            // « KO » à côté du chiffre, côté chrono (à droite du chiffre orange, à gauche du chiffre bleu).
+            var koTag = UiKit.Text("KO", 22, UiKit.Cream, 0, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            koTag.Position = new Vector2(team == 0 ? 202 : 4, 48);
+            koTag.Size = new Vector2(44, 28);
             box.AddChild(koTag);
 
             // Pastilles des manches gagnées (22 px), du côté du chrono.
@@ -189,8 +192,8 @@ public partial class DesktopHud : CanvasLayer
         {
             float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, sh = Mathf.Max(2f, h * 0.18f);
             DrawRect(new Rect2(sh, y + sh, w, h), UiKit.Ink);
-            DrawRect(new Rect2(0, y, w, h), UiKit.Navy);
-            DrawRect(new Rect2(3, y + 3, w - 6, h - 6), On ? Color : new Color(UiKit.Cream, 0.16f));
+            DrawRect(new Rect2(0, y, w, h), On ? UiKit.Navy : new Color(UiKit.Cream, 0.6f));   // à jouer : cadre papier, case encre
+            DrawRect(new Rect2(3, y + 3, w - 6, h - 6), On ? Color : UiKit.Navy);
         }
     }
 
@@ -282,10 +285,10 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * Size.X * 0.12f, 0);
             float r = Size.X * 0.36f;
-            DrawColoredPolygon(At(c + new Vector2(0, 3), r + 5), new Color(0, 0, 0, 0.4f));
-            DrawColoredPolygon(At(c, r + 5), UiKit.Navy);
-            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(0.25f, 0.28f, 0.4f));
-            if (Full) DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.28f), new Color(1, 1, 1, 0.55f));
+            // Aplat d'affiche : ombre encre dure, liseré encre, cœur plein à la couleur d'équipe ; perdu : encre cerclée de papier.
+            DrawColoredPolygon(At(c + new Vector2(5, 5), r + 5), UiKit.Ink);
+            DrawColoredPolygon(At(c, r + 5), Full ? UiKit.Navy : new Color(UiKit.Cream, 0.35f));
+            DrawColoredPolygon(At(c, r), Full ? Fill : UiKit.Navy);
         }
     }
 
@@ -298,17 +301,17 @@ public partial class DesktopHud : CanvasLayer
         root.AddChild(holder);
         heartsHolder = holder;
         string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
-        var who = UiKit.Text(me, 28, Colors.White, 8);
+        var who = UiKit.Poster(UiKit.Text(me.ToUpperInvariant(), 30, UiKit.Cream, 0), null, 3);
         who.Position = new Vector2(8, 0);
         who.Size = new Vector2(380, 36);
         holder.AddChild(who);
-        var back = MakePanel(new Color(UiKit.Navy, 0.6f), -0.15f, 16, 0, null, 4);
+        var back = MakePanel(new Color(UiKit.Navy, 0.82f), 0f, 0, 0, null, 0);
         back.Position = new Vector2(0, 38);
         back.Size = new Vector2(24 + (HeartSize + 8) * View.MaxLives, HeartSize + 12);
         holder.AddChild(back);
         for (int i = 0; i < View.MaxLives; i++)
         {
-            var h = new Heart { Fill = Palette.Team(View.LocalTeam), MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(14 + i * (HeartSize + 8), 44) };
+            var h = new Heart { Fill = View.LocalTeam == 1 ? UiKit.Blue : UiKit.Orange, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(14 + i * (HeartSize + 8), 44) };
             h.PivotOffset = h.Size / 2;
             holder.AddChild(h);
             hearts.Add(h);
@@ -476,15 +479,13 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = Size / 2;
             float r = 46f;
-            DrawCircle(c + new Vector2(0, 4), r + 6, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 6, new Color(UiKit.Navy, 0.8f));
+            // Case d'affiche : carré encre, ombre dure ; vide : simple cadre papier pâle.
+            var tile = new Rect2(c - new Vector2(r + 6, r + 6), new Vector2(2 * r + 12, 2 * r + 12));
+            DrawRect(new Rect2(tile.Position + new Vector2(7, 7), tile.Size), UiKit.Ink);
+            DrawRect(tile, UiKit.Navy);
             if (!Holding)
             {
-                for (int i = 0; i < 16; i++)
-                {
-                    float a = Mathf.Tau * i / 16f;
-                    DrawArc(c, r - 6, a, a + Mathf.Tau / 32f, 4, new Color(1, 1, 1, 0.3f), 4f, true);
-                }
+                DrawRect(tile.Grow(-10), new Color(UiKit.Cream, 0.25f), false, 3f);
                 return;
             }
             float rr = r - 6 + Pop * 8f;
@@ -494,22 +495,22 @@ public partial class DesktopHud : CanvasLayer
             if (Tier > 0)
             {
                 var col = BallTierColors[Mathf.Clamp(Tier, 0, 3)];
-                DrawArc(c, r + 2, 0, Mathf.Tau, 48, col, 6f, true);
-                for (int i = 0; i < Tier; i++)   // pastilles de palier au-dessus de la balle
+                DrawRect(tile.Grow(-3), col, false, 6f);
+                for (int i = 0; i < Tier; i++)   // pastilles carrées de palier au-dessus de la case
                 {
-                    var p = c + new Vector2((i - (Tier - 1) / 2f) * 20f, -r - 16);
-                    DrawCircle(p, 8f, UiKit.Navy);
-                    DrawCircle(p, 6f, col);
+                    var p = c + new Vector2((i - (Tier - 1) / 2f) * 20f, -r - 20);
+                    DrawRect(new Rect2(p - new Vector2(8, 8), new Vector2(16, 16)), UiKit.Navy);
+                    DrawRect(new Rect2(p - new Vector2(6, 6), new Vector2(12, 12)), col);
                 }
             }
         }
     }
 
-    /// <summary>Jauge ronde (attrape, dash) : pictogramme, remplissage en camembert pendant la recharge, charges en pastilles.</summary>
+    /// <summary>Jauge carrée (attrape, esquive) : case d'affiche encre, remplissage montant pendant la recharge, aplat plein quand l'action est prête, charges en pastilles carrées.</summary>
     sealed partial class RoundGauge : Control
     {
         public float Fill = 1f;
-        public Color Color = UiKit.Green;
+        public Color Color = UiKit.Cream;
         public bool Dash;
         public int Charges, MaxCharges;
         public float Glow;
@@ -517,18 +518,19 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = new Vector2(Size.X / 2, 40);
             float r = 34f;
-            DrawCircle(c + new Vector2(0, 3), r + 5, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 5, UiKit.Navy);
-            DrawCircle(c, r, new Color(0.18f, 0.22f, 0.36f));
+            var outer = new Rect2(c - new Vector2(r + 5, r + 5), new Vector2(2 * r + 10, 2 * r + 10));
+            var inner = outer.Grow(-5);
+            DrawRect(new Rect2(outer.Position + new Vector2(6, 6), outer.Size), UiKit.Ink);
+            DrawRect(outer, UiKit.Navy);
+            DrawRect(inner, UiKit.NavySoft);
             if (Fill > 0.001f)
             {
-                var pts = new List<Vector2> { c };
-                int n = Mathf.Max(2, (int)(40 * Fill));
-                for (int i = 0; i <= n; i++) pts.Add(c + Vector2.FromAngle(-Mathf.Pi / 2 + Mathf.Tau * Fill * i / n) * r);
-                DrawColoredPolygon(pts.ToArray(), new Color(Color, Fill >= 1f ? 1f : 0.55f));
+                float h = inner.Size.Y * Mathf.Clamp(Fill, 0f, 1f);   // monte du bas vers le haut
+                DrawRect(new Rect2(inner.Position.X, inner.End.Y - h, inner.Size.X, h), new Color(Color, Fill >= 1f ? 1f : 0.55f));
             }
-            if (Glow > 0) DrawArc(c, r + 9, 0, Mathf.Tau, 40, new Color(Color, Glow), 5f, true);
-            var ink = UiKit.Navy;
+            if (Glow > 0) DrawRect(outer.Grow(5), new Color(UiKit.Yellow, Glow), false, 5f);
+            // Pictogramme encre sur la case pleine, papier sur la case vide.
+            var ink = Fill >= 1f ? UiKit.Navy : new Color(UiKit.Cream, 0.7f);
             if (Dash)
             {
                 for (int k = 0; k < 2; k++)   // deux chevrons : élan
@@ -538,9 +540,9 @@ public partial class DesktopHud : CanvasLayer
                 }
                 for (int i = 0; i < MaxCharges; i++)
                 {
-                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 20f, r + 16);
-                    DrawCircle(p, 8f, UiKit.Navy);
-                    DrawCircle(p, 6f, i < Charges ? Color : new Color(1, 1, 1, 0.2f));
+                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 20f, r + 18);
+                    DrawRect(new Rect2(p - new Vector2(8, 8), new Vector2(16, 16)), UiKit.Navy);
+                    DrawRect(new Rect2(p - new Vector2(6, 6), new Vector2(12, 12)), i < Charges ? UiKit.Cream : new Color(UiKit.Cream, 0.18f));
                 }
             }
             else
@@ -645,10 +647,10 @@ public partial class DesktopHud : CanvasLayer
         ballSlot.Pop = Player.ThrowCharge01 * (0.5f + 0.5f * Mathf.Sin((float)age * 30f));
         ballSlot.QueueRedraw();
 
-        // Attrape : verte prête, jaune pendant la fenêtre, grise qui se remplit pendant la recharge ; éteinte balle en main.
+        // Attrape : papier prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge ; éteinte balle en main.
         int cs = Player.CatchState;
         catchGauge.Fill = holding ? 0f : Player.CatchCooldown01;
-        catchGauge.Color = cs == 1 ? UiKit.Yellow : cs == 2 ? new Color(0.6f, 0.63f, 0.72f) : UiKit.Green;
+        catchGauge.Color = cs == 1 ? UiKit.Yellow : cs == 2 ? UiKit.Lavender : UiKit.Cream;
         catchGauge.Glow = cs == 1 ? 0.9f : Mathf.Max(0, catchGauge.Glow - 0.05f);
         if (cs == 1 && lastCatchState != 1) UiKit.Punch(catchGauge, 1.25f, 0.2);
         if (cs == 0 && lastCatchState == 2) UiKit.Punch(catchGauge, 1.15f, 0.2);   // de nouveau prête
@@ -660,7 +662,7 @@ public partial class DesktopHud : CanvasLayer
         dashGauge.Charges = charges;
         dashGauge.MaxCharges = Player.DashMax;
         dashGauge.Fill = charges >= 1 ? 1f : Player.DashRecharge01;
-        dashGauge.Color = charges >= 1 ? UiKit.Sky : new Color(0.6f, 0.63f, 0.72f);
+        dashGauge.Color = charges >= 1 ? UiKit.Cream : UiKit.Lavender;
         dashGauge.Glow = Player.Dashing ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.05f);
         if (lastDashCharges >= 0 && charges > lastDashCharges) UiKit.Punch(dashGauge, 1.2f, 0.2);
         lastDashCharges = charges;
@@ -1625,7 +1627,7 @@ public partial class DesktopHud : CanvasLayer
         plate.AddChild(score);
         for (int t = 0; t < 2; t++)
         {
-            var digit = Italic(UiKit.Text("0", 124, t == 0 ? UiKit.Orange.Lightened(0.1f) : UiKit.Sky, 22, HorizontalAlignment.Center));
+            var digit = Italic(UiKit.Text("0", 124, t == 0 ? UiKit.Orange.Lightened(0.1f) : UiKit.Blue.Lightened(0.2f), 22, HorizontalAlignment.Center));
             digit.VerticalAlignment = VerticalAlignment.Center;
             digit.CustomMinimumSize = new Vector2(130, 0);
             interScore[t] = digit;
@@ -1646,8 +1648,8 @@ public partial class DesktopHud : CanvasLayer
             var align = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             float x = left ? 60 : 1240;
             c.AddChild(Place(Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 104, Colors.White, 22, align)), x, 296, 620, 120));
-            interTeamTags[t] = Put(c, Place(UiKit.Text("", 30, UiKit.Cream, 9, align), x, 410, 620, 40));
-            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 468), Size = new Vector2(620, 0) };
+            interTeamTags[t] = Put(c, Place(UiKit.Text("", 30, UiKit.Cream, 9, align), x, 424, 620, 40));
+            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 478), Size = new Vector2(620, 0) };
             list.AddThemeConstantOverride("separation", 10);
             c.AddChild(list);
             interLists[t] = list;
@@ -1658,7 +1660,7 @@ public partial class DesktopHud : CanvasLayer
         c.AddChild(bottom);
         var nextPanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         var nextBox = UiKit.Box(new Color(UiKit.Navy, 0.96f), 24, -0.12f, 4, UiKit.Yellow, 10);
-        nextBox.ContentMarginLeft = 64; nextBox.ContentMarginRight = 64; nextBox.ContentMarginTop = 0; nextBox.ContentMarginBottom = 24;
+        nextBox.ContentMarginLeft = 48; nextBox.ContentMarginRight = 48; nextBox.ContentMarginTop = 0; nextBox.ContentMarginBottom = 12;
         nextPanel.AddThemeStyleboxOverride("panel", nextBox);
         bottom.AddChild(nextPanel);
         interNextRow = nextPanel;
@@ -1668,11 +1670,11 @@ public partial class DesktopHud : CanvasLayer
         var next = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
         next.AddThemeConstantOverride("separation", 26);
         nextCol.AddChild(next);
-        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 64, UiKit.Yellow, 14));
+        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 54, UiKit.Yellow, 14));
         interNextTitle.VerticalAlignment = VerticalAlignment.Center;
         next.AddChild(interNextTitle);
-        interNext = Italic(UiKit.Text("12", 128, UiKit.Yellow, 22, HorizontalAlignment.Center));
-        interNext.CustomMinimumSize = new Vector2(150, 0);
+        interNext = Italic(UiKit.Text("12", 96, UiKit.Cream, 22, HorizontalAlignment.Center));
+        interNext.CustomMinimumSize = new Vector2(110, 0);
         next.AddChild(interNext);
         interSpecial = UiKit.Text("", 28, UiKit.Cream, 8, HorizontalAlignment.Center);
         nextCol.AddChild(interSpecial);
@@ -1694,7 +1696,7 @@ public partial class DesktopHud : CanvasLayer
         name.CustomMinimumSize = new Vector2(230, 0);
         var ko = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = View.HasStats };
         ko.AddThemeConstantOverride("separation", 6);
-        var n = UiKit.Text("0", 50, UiKit.Yellow, 12, HorizontalAlignment.Right);
+        var n = UiKit.Text("0", 50, UiKit.Cream, 12, HorizontalAlignment.Right);
         n.VerticalAlignment = VerticalAlignment.Center;
         n.CustomMinimumSize = new Vector2(34, 0);
         var unit = UiKit.Text("KO", 26, UiKit.Cream, 7);
@@ -1971,7 +1973,7 @@ public partial class DesktopHud : CanvasLayer
         line.AddThemeConstantOverride("separation", 10);
         row.AddChild(line);
         // Bleu d'équipe éclairci vers le ciel : le bleu moyen se perdait sur le fond marine.
-        line.AddChild(UiKit.Text(team == 0 ? "ÉQUIPE ORANGE" : "ÉQUIPE BLEUE", 30, team == 0 ? color.Lightened(0.25f) : UiKit.Sky.Lightened(0.25f), 8));
+        line.AddChild(UiKit.Text(team == 0 ? "ÉQUIPE ORANGE" : "ÉQUIPE BLEUE", 30, team == 0 ? color.Lightened(0.15f) : UiKit.Blue.Lightened(0.2f), 8));
         if (team == View.LocalTeam)
         {
             var mine = UiKit.Text("ton équipe", 20, new Color(1, 1, 1, 0.75f), 5);

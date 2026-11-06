@@ -25,7 +25,7 @@ public partial class MainMenu : CanvasLayer
         ("piscine", "LA PISCINE", "3 contre 3. Un bassin vide et un plongeoir : le bas contre le haut, les bords ouverts sur le vide."),
         ("croix_neon", "CROIX NÉON", "2 contre 2. Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
         ("fosse_croisee", "FOSSE CROISÉE", "2 contre 2. Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
-        ("tour_4v4", "TOUR 4V4", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
+        ("tour_4v4", "LA TOUR", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
         ("la_fosse", "LA FOSSE", "2 contre 2. Zones face à face : chacun garde la sienne, E pour esquiver."),
         ("neon_court", "NÉON COURT", "2 contre 2. Terrain court en zones : chacun garde la sienne, E pour esquiver."),
     };
@@ -39,6 +39,7 @@ public partial class MainMenu : CanvasLayer
     Control? barOn;   // item sous la barre jaune (null : barre cachée)
     Tween? barTween;
     Control escHint = null!;
+    Control hintBar = null!;   // aides clavier : toujours au-dessus des fenêtres et de leur voile
     Action? back;   // page précédente (Échap) : null sur le menu racine
     bool leaving, compact;
 
@@ -99,6 +100,7 @@ public partial class MainMenu : CanvasLayer
         hints.GrowVertical = Control.GrowDirection.Begin;
         hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
         root.AddChild(hints);
+        hintBar = hints;
 
         // Barre jaune de sélection, sous les items (elle suit le focus dans _Process).
         bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
@@ -232,7 +234,7 @@ public partial class MainMenu : CanvasLayer
             slide = b.CreateTween();
             slide.TweenProperty(pad, "content_margin_left", to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 0); Shift(main ? 30f : 24f); };
+        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 0); Shift(0f); };   // le texte reste aligné : la plaque papier et la languette lime suffisent
         b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
@@ -361,26 +363,63 @@ public partial class MainMenu : CanvasLayer
         yes.CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    /// <summary>Solo : choix de la carte, à la Knockout City (liste à gauche, description de la carte sélectionnée dessous).</summary>
+    /// <summary>
+    /// Solo : choix de la carte. Liste à gauche ; à droite, l'aperçu de la carte sélectionnée (cadre papier, ombre dure),
+    /// son format et sa description. Aperçus : assets/ui/cartes/&lt;carte&gt;.jpg (vue de la carte en hauteur).
+    /// </summary>
     void ShowMapPicker()
     {
         var card = new PanelContainer();
         var col = new VBoxContainer();
-        col.AddThemeConstantOverride("separation", 10);
+        col.AddThemeConstantOverride("separation", 14);
         card.AddChild(col);
-        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52));
-        var info = UiKit.Text("", 22, UiKit.Cream, 6, HorizontalAlignment.Center);
+        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52, HorizontalAlignment.Left));
+        var split = new HBoxContainer();
+        split.AddThemeConstantOverride("separation", 34);
+        col.AddChild(split);
+        var list = new VBoxContainer();
+        list.AddThemeConstantOverride("separation", 6);
+        split.AddChild(list);
+
+        var right = new VBoxContainer();
+        right.AddThemeConstantOverride("separation", 12);
+        split.AddChild(right);
+        var frame = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var frameBox = new KcBox { Top = UiKit.Cream, Bottom = UiKit.Cream, ShadowOffset = new Vector2(10, 10), ShadowColor = UiKit.Ink };
+        frameBox.ContentMarginLeft = frameBox.ContentMarginRight = frameBox.ContentMarginTop = frameBox.ContentMarginBottom = 6;
+        frame.AddThemeStyleboxOverride("panel", frameBox);
+        right.AddChild(frame);
+        var preview = new TextureRect
+        {
+            CustomMinimumSize = new Vector2(512, 288), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered, MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        frame.AddChild(preview);
+        var mode = UiKit.Text("", 30, UiKit.Yellow, 0);
+        if (UiKit.Heavy is Font hv) mode.AddThemeFontOverride("font", hv);
+        right.AddChild(mode);
+        var info = UiKit.Text("", 24, UiKit.Cream, 0);
         info.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        info.CustomMinimumSize = new Vector2(560, 64);
+        info.CustomMinimumSize = new Vector2(524, 64);
+        right.AddChild(info);
+
         Button? first = null;
         foreach (var (map, name, text) in SoloMaps)
         {
-            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(560, 62));
-            b.FocusEntered += () => info.Text = text;
-            col.AddChild(b);
+            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(400, 60));
+            // « 3 contre 3. Deux toits… » : le format en accent, la description dessous.
+            int dot = text.IndexOf(". ", StringComparison.Ordinal);
+            string head = dot > 0 ? text[..dot].ToUpperInvariant() : "", body = dot > 0 ? text[(dot + 2)..] : text;
+            string path = $"res://assets/ui/cartes/{map}.jpg";
+            b.FocusEntered += () =>
+            {
+                mode.Text = head;
+                info.Text = body;
+                preview.Texture = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+            };
+            list.AddChild(b);
             first ??= b;
         }
-        col.AddChild(info);
         OpenOverlay(Centered(card));
         first?.CallDeferred(Control.MethodName.GrabFocus);
     }
@@ -425,6 +464,7 @@ public partial class MainMenu : CanvasLayer
         holder.AddChild(UiKit.Dim(0.5f));
         var center = new CenterContainer();
         center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        center.OffsetLeft = MenuBand.Width + 30;   // centrée à droite de la colonne d'encre, sans chevaucher son filet
         holder.AddChild(center);
         center.AddChild(card);
         UiKit.Punch(card, 0.85f, 0.22);
@@ -438,6 +478,7 @@ public partial class MainMenu : CanvasLayer
         overlay = c;
         if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; ShowMain(); };
         root.AddChild(c);
+        root.MoveChild(hintBar, -1);
         root.MoveChild(fade, -1);
     }
 

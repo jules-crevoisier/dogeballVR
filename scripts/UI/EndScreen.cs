@@ -63,7 +63,6 @@ public partial class EndScreen : CanvasLayer
         }
         overFor = overFor < 0 ? 0 : overFor + delta;
         // Animations dessinées pilotées d'ici : le _Process des classes imbriquées n'est pas appelé par Godot.
-        if (burst != null) { burst.Angle += (float)delta * 0.12f; burst.QueueRedraw(); }
         if (star != null) { star.T += (float)delta; star.QueueRedraw(); }
         if (root == null && overFor >= OpenDelay) Open();
         if (page == null && podium != null && (podiumLeft -= delta) <= 0) ShowStats();
@@ -140,7 +139,7 @@ public partial class EndScreen : CanvasLayer
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
-        // Victoire : rayons papier en aplats francs (affiche). Défaite : pas de rayons, juste un disque gris-bleu éteint.
+        // Victoire : trame de points papier autour du titre (affiche). Défaite : trame gris-bleu éteinte, plus fine.
         burst = new Sunburst { Color = win ? UiKit.Cream : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
         burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         host.AddChild(burst);
@@ -149,12 +148,12 @@ public partial class EndScreen : CanvasLayer
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
         bool compact = host.GetViewportRect().Size.Y < 960f;
-        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -96 : -118;   // bas : place du bandeau d'XP (XpBanner), les boutons restent visibles
-        col.AddThemeConstantOverride("separation", compact ? 8 : 14);
+        col.OffsetTop = compact ? 12 : 24; col.OffsetBottom = compact ? -112 : -160;   // bas : place du bandeau d'XP (XpBanner), les boutons restent visibles
+        col.AddThemeConstantOverride("separation", compact ? 6 : 8);
         host.AddChild(col);
 
-        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 96 : 136, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
-        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 196);   // Anton : capitales hautes, interligne large
+        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 90 : 112, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
+        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 166);   // Anton : capitales hautes, interligne large
         col.AddChild(title);
 
         // Score des manches, aux couleurs des équipes, avec son unité sous les chiffres.
@@ -178,7 +177,7 @@ public partial class EndScreen : CanvasLayer
         mid.AddChild(digits);
         mid.AddChild(UiKit.Text("MANCHES", 22, UiKit.Cream, 6, HorizontalAlignment.Center));
         score.AddChild(mid);
-        score.AddChild(Team("ÉQUIPE BLEUE", UiKit.Sky));
+        score.AddChild(Team("ÉQUIPE BLEUE", UiKit.Blue.Lightened(0.15f)));
         col.AddChild(score);
         col.AddChild(UiKit.Spacer(6));
 
@@ -437,7 +436,7 @@ public partial class EndScreen : CanvasLayer
         var rows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         rows.AddThemeConstantOverride("separation", 6);
         panel.AddChild(rows);
-        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "BALLES\nATTRAPÉES", "ARRÊTS\nPARFAITS", "LANCERS" }, false));
+        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "BALLES\nATTRAPÉES", "ATTRAPES\nPARFAITES", "LANCERS" }, false));
         int mvp = MvpId();
         // Mon équipe d'abord, puis l'adverse ; dans chaque équipe, du meilleur score MVP au moins bon (KO à égalité).
         var ordered = new List<MatchView.PlayerInfo>();
@@ -501,26 +500,32 @@ public partial class EndScreen : CanvasLayer
         ? (bright ? UiKit.Orange : UiKit.Orange.Darkened(0.22f))
         : (bright ? UiKit.Blue : UiKit.Blue.Darkened(0.22f));
 
-    /// <summary>Rayons lumineux qui tournent lentement derrière le titre, avec un halo au centre (animés par l'écran).</summary>
+    /// <summary>
+    /// Fond d'affiche derrière le titre : trame de points en quinconce, gros points autour du titre qui s'effacent vers les bords
+    /// (victoire : papier ; défaite : gris-bleu éteint, trame plus fine). Dessin fixe : redessiné seulement si la taille change.
+    /// </summary>
     sealed partial class Sunburst : Control
     {
-        public Color Color = UiKit.Yellow;
+        public Color Color = UiKit.Cream;
         public bool Rays = true;
-        public float Angle;
+        public override void _Notification(int what)
+        {
+            if (what == NotificationResized) QueueRedraw();
+        }
         public override void _Draw()
         {
-            var c = new Vector2(Size.X / 2, 260);
-            float r = Size.Length();
-            const int n = 18;
-            for (int i = 0; i < (Rays ? n : 0); i++)
-            {
-                float a = Angle + Mathf.Tau * i / n;
-                var tip0 = c + Vector2.FromAngle(a) * r;
-                var tip1 = c + Vector2.FromAngle(a + Mathf.Tau / n * 0.5f) * r;
-                var ray = new Color(Color, 0.07f);   // rayons d'affiche : aplats francs, sans dégradé
-                DrawPolygon(new[] { c, tip0, tip1 }, new[] { ray, ray, ray });
-            }
-            if (!Rays) DrawCircle(c, 300f, new Color(Color, 0.05f));   // défaite : un disque éteint derrière le titre
+            var c = new Vector2(Size.X / 2, 230);
+            float reach = Mathf.Max(Size.X, Size.Y) * 0.62f;
+            float step = Rays ? 26f : 22f, top = Rays ? 0.46f : 0.3f;
+            var dot = new Color(Color, Rays ? 0.13f : 0.08f);
+            int row = 0;
+            for (float y = step / 2; y < Size.Y; y += step, row++)
+                for (float x = (row % 2) * step / 2; x < Size.X + step; x += step)
+                {
+                    float k = 1f - new Vector2(x, y).DistanceTo(c) / reach;
+                    if (k <= 0.05f) continue;
+                    DrawCircle(new Vector2(x, y), step * top * k, dot);
+                }
         }
     }
 

@@ -18,7 +18,8 @@ public static class UiKit
     public static readonly Color NavySoft = new("27252e");
     public static readonly Color Orange = new("f2612d");
     public static readonly Color Blue = new("2e86de");
-    public static readonly Color Sky = new("8ccbff");
+    /// <summary>Libellé secondaire neutre (papier à ~70 % sur l'encre). Le bleu reste réservé à l'équipe bleue.</summary>
+    public static readonly Color Sky = new("b5afa3");
     /// <summary>Accent de la marque (vert acide) : sélection, progression, chiffres mis en avant. Ancien jaune.</summary>
     public static readonly Color Yellow = new("d2f53c");
     public static readonly Color Pink = new("ff4f7b");
@@ -103,9 +104,12 @@ public static class UiKit
     {
         var l = Text(text.ToUpperInvariant(), size, color ?? Cream, 0, align);
         if (Display is Font d) l.AddThemeFontOverride("font", d);
-        l.AddThemeColorOverride("font_shadow_color", color == null && size >= 40 ? Yellow : Ink);   // petit titre : ombre encre, le lime baverait
-        l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(2, size / 18));
-        l.AddThemeConstantOverride("shadow_offset_y", Mathf.Max(2, size / 18));
+        // Ombre lime réservée aux grands titres (logo, PAUSE) ; en dessous de 80 px elle baverait : ombre encre plus franche.
+        bool lime = color == null && size >= 80;
+        int o = lime ? Mathf.Max(2, size / 18) : Mathf.Max(3, size / 11);
+        l.AddThemeColorOverride("font_shadow_color", lime ? Yellow : Ink);
+        l.AddThemeConstantOverride("shadow_offset_x", o);
+        l.AddThemeConstantOverride("shadow_offset_y", o);
         l.AddThemeConstantOverride("shadow_outline_size", 0);
         return l;
     }
@@ -277,7 +281,7 @@ public static class UiKit
     }
 
     /// <summary>Habille un bouton : repos (idle), barre jaune au focus et au survol, texte qui glisse, son. Rest = couleur du texte au repos.</summary>
-    public static void Style(Button b, KcBox idle, Color rest, float shift = 22f)
+    public static void Style(Button b, KcBox idle, Color rest, float shift = 0f)
     {
         var lit = ButtonLit();
         var down = ButtonLit(true);
@@ -291,7 +295,7 @@ public static class UiKit
         b.AddThemeColorOverride("font_color", rest);
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, Navy);
         b.AddThemeColorOverride("font_outline_color", Navy);
-        b.AddThemeConstantOverride("outline_size", 6);
+        b.AddThemeConstantOverride("outline_size", 0);   // Anton sur aplat : pas de contour (il empâterait le texte encre sur papier)
         float baseLeft = idle.ContentMarginLeft;
         Tween? slide = null;
         void Shift(float to)
@@ -302,8 +306,8 @@ public static class UiKit
             foreach (var box in new[] { idle, lit, down })
                 slide.TweenProperty(box, "content_margin_left", baseLeft + to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 1); Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
-        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 6); Shift(0f); };
+        b.FocusEntered += () => { Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
+        b.FocusExited += () => Shift(0f);
         b.MouseEntered += () => { if (!b.Disabled && b.FocusMode != Control.FocusModeEnum.None) b.GrabFocus(); };
     }
 
@@ -338,7 +342,7 @@ public static class UiKit
         b.AddThemeFontSizeOverride("font_size", fontSize);
         var idle = ButtonIdle(new Color(0, 0, 0, 0), false);
         idle.ContentMarginLeft = 34;   // place de la languette de sélection
-        Style(b, idle, Colors.White, 26f);
+        Style(b, idle, Colors.White);
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }
@@ -380,14 +384,19 @@ public static class UiKit
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         row.AddThemeConstantOverride("separation", 16);
         center.AddChild(row);
-        row.AddChild(KeyCap(key, 20));
-        var l = Text(text, fontSize, color == Grey ? Lavender : Colors.White, 6);
+        var cap = KeyCap(key, 20);
+        row.AddChild(cap);
+        var rest = color == Grey ? Cream : Colors.White;   // secondaire : papier plein, il ne doit pas sembler désactivé
+        var l = Text(text, fontSize, rest, 0);
         if (Italic is Font it) l.AddThemeFontOverride("font", it);
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
-        // Le texte est un Label à part : il suit lui-même la barre jaune (marine au focus).
-        b.FocusEntered += () => { l.AddThemeColorOverride("font_color", Navy); l.AddThemeConstantOverride("outline_size", 1); };
-        b.FocusExited += () => { l.AddThemeColorOverride("font_color", color == Grey ? Lavender : Colors.White); l.AddThemeConstantOverride("outline_size", 6); };
+        // Le texte est un Label à part : il suit lui-même la plaque papier (encre au focus) ; la touche passe en encre pour
+        // rester une touche dessinée sur le papier.
+        var capInk = KeyBox(); capInk.Top = capInk.Bottom = Navy; capInk.ShadowColor = Ink;
+        var capPaper = KeyBox();
+        b.FocusEntered += () => { l.AddThemeColorOverride("font_color", Navy); cap.AddThemeStyleboxOverride("normal", capInk); cap.AddThemeColorOverride("font_color", Cream); };
+        b.FocusExited += () => { l.AddThemeColorOverride("font_color", rest); cap.AddThemeStyleboxOverride("normal", capPaper); cap.AddThemeColorOverride("font_color", Navy); };
         return b;
     }
 

@@ -64,7 +64,7 @@ public partial class XpBanner : CanvasLayer
         panel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         panel.GrowHorizontal = Control.GrowDirection.Both;
         panel.GrowVertical = Control.GrowDirection.Begin;
-        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -98; panel.OffsetBottom = -20;   // marge : l'ombre penchée reste dans l'écran
+        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -112; panel.OffsetBottom = -34;   // marge : l'ombre dure reste dans l'écran, 32 px du bord
         root.AddChild(panel);
 
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };

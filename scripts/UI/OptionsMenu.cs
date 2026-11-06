@@ -247,7 +247,7 @@ public partial class OptionsMenu : Control
     {
         tab = i;
         for (int k = 0; k < 4; k++)
-            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Violet : null, k == i ? UiKit.Yellow : null);   // onglet ouvert : violet clair, accent et texte jaunes
+            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Cream : null, k == i ? UiKit.Navy : null);   // onglet ouvert : plaque papier, languette lime, texte encre
         foreach (var c in list.GetChildren()) c.QueueFree();
         rows.Clear();
         lit = null;
@@ -378,7 +378,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
         var b = UiKit.Button(value ? "OUI" : "NON", UiKit.NavySoft, () => { }, 22, new Vector2(150, 44));
-        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Green : new Color(0, 0, 0, 0), on ? new Color("1f6b45") : null, on ? Colors.White : UiKit.Lavender);
+        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Yellow : new Color(0, 0, 0, 0), on ? UiKit.Cream : null, on ? UiKit.Navy : UiKit.Lavender);   // OUI : plaque papier et languette lime
         Paint(value);
         b.Pressed += () =>
         {
