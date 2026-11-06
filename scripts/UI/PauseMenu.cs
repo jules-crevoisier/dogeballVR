@@ -104,18 +104,18 @@ public partial class PauseMenu : CanvasLayer
         col.AddThemeConstantOverride("separation", 14);
         root.AddChild(col);
 
-        var title = UiKit.Title("PAUSE", 104, HorizontalAlignment.Left);
+        var title = UiKit.Title("PAUSE", 120, HorizontalAlignment.Left, UiKit.Yellow);
         col.AddChild(title);
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
         // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
-        var resume = UiKit.ListButton("REPRENDRE", Close);
+        var resume = UiKit.ListButton("REPRENDRE", Close, 46, new Vector2(560, 80));   // items plus gros (revue de la refonte)
         col.AddChild(resume);
-        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
-        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
-        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 46, new Vector2(560, 80)));
+        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }, 46, new Vector2(560, 80)));
+        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }, 46, new Vector2(560, 80)));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 28, new Vector2(500, 60), UiKit.Cream));   // secondaire : crème, plus petit que les autres
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -128,7 +128,7 @@ public partial class PauseMenu : CanvasLayer
         var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         list.AddThemeConstantOverride("separation", 14);
         card.AddChild(list);
-        list.AddChild(UiKit.Title("COMMANDES", 38, HorizontalAlignment.Left));
+        list.AddChild(UiKit.Header("COMMANDES", 40));
         list.AddChild(CommandGrid(24, 12));
         var hint = UiKit.KeyHint(InputSetup.KeyName("help"), "Aide complète", 22);
         hint.Modulate = new Color(1, 1, 1, 0.8f);
@@ -230,7 +230,7 @@ public partial class PauseMenu : CanvasLayer
             var col = new VBoxContainer();
             col.AddThemeConstantOverride("separation", 16);
             panel.AddChild(col);
-            col.AddChild(UiKit.Title("COMMANDES", 52));
+            col.AddChild(UiKit.Header("COMMANDES", 52));
             col.AddChild(CommandGrid(26, 10));
             if (Text != "") col.AddChild(UiKit.Text(Text, 20, UiKit.Sky, 5));
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));

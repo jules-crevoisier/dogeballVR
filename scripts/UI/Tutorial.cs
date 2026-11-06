@@ -32,7 +32,8 @@ public partial class Tutorial : CanvasLayer
     Dictionary<string, float> start = new();
 
     PanelContainer card = null!;
-    Label counter = null!, title = null!, check = null!, skipHint = null!;
+    Label counter = null!, title = null!, check = null!;
+    HBoxContainer skipHint = null!;   // « [Entrée] PASSER L'ÉTAPE », touche dessinée comme partout ailleurs
     bool shownPad;
     Ball? special;
     double specialAge;
@@ -88,7 +89,7 @@ public partial class Tutorial : CanvasLayer
         counter = UiKit.Text("", 22, UiKit.Sky, 6);
         counter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         head.AddChild(counter);
-        skipHint = UiKit.Text("", 22, UiKit.Cream, 6);
+        skipHint = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         head.AddChild(skipHint);
         title = UiKit.Title("", 46, HorizontalAlignment.Left);
         col.AddChild(title);
@@ -159,7 +160,8 @@ public partial class Tutorial : CanvasLayer
     void RefreshTexts()
     {
         shownPad = InputSetup.UsingPad;
-        skipHint.Text = Pad("Vue : passer l'étape", "Entrée : passer l'étape");
+        foreach (var c in skipHint.GetChildren()) c.QueueFree();
+        skipHint.AddChild(UiKit.KeyHint(Pad("Vue", "Entrée"), "Passer l'étape", 20));
         if (index >= 0 && index < steps.Count) body.Text = steps[index].Text();
     }
 

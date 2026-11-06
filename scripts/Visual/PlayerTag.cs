@@ -68,11 +68,11 @@ public partial class PlayerTag : Node3D
     public override void _Ready()
     {
         TopLevel = true;
-        font ??= GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
+        font ??= UI.UiKit.Italic ?? GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
         var color = Palette.Team(Target.Team).Lerp(Colors.White, 0.15f);
         nameLabel = new Label3D
         {
-            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 40, Modulate = color, OutlineModulate = Palette.Panel,
+            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 22, Modulate = color, OutlineModulate = Palette.Panel,
             VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, 1.05f, 0), RenderPriority = 1, OutlineRenderPriority = 0,
         };
         // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Lilita One).

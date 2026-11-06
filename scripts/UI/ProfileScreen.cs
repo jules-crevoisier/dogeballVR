@@ -108,7 +108,7 @@ public partial class ProfileScreen : Control
         panel.CreateTween().TweenProperty(panel, "modulate:a", 1.0, 0.2);
     }
 
-    static Label Heading(string text) => UiKit.Title(text, 32, HorizontalAlignment.Left);
+    static Label Heading(string text) => UiKit.Header(text, 34);
 
     static void StatRow(VBoxContainer parent, string label, string value)
     {
@@ -144,7 +144,7 @@ public partial class ProfileScreen : Control
         text.AddThemeConstantOverride("separation", -2);
         bool secret = a.Hidden && !unlocked;
         text.AddChild(UiKit.Text(secret ? "Succès caché" : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
-        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
+        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 20, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
         h.AddChild(text);
         if (!unlocked && a.Stat != null && a.Threshold > 1)
             h.AddChild(UiKit.Text($"{Mathf.Min(Achievements.GetStat(a.Stat), a.Threshold)} / {a.Threshold}", 20, UiKit.Sky, 4, HorizontalAlignment.Right));

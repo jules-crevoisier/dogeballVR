@@ -5,10 +5,11 @@ using DogeballVR.Audio;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Briques d'interface communes (menus, pause, options, fin de partie, HUD) dans la DA Knockout City :
-/// police Lilita One, texte blanc cerné de marine. Fenêtres et boutons reprennent le menu principal (voir KcBox) : panneaux
-/// penchés violet profond → marine à liseré crème, ombre et bande violette en retrait ; boutons en lettres penchées qui passent
-/// en marine sur une barre jaune inclinée (étoile devant le texte) au survol ou au clavier, et glissent un peu vers la droite.
+/// Briques d'interface communes (menus, pause, options, fin de partie, HUD) dans la DA Knockout City, version 3 (06/11 :
+/// violet saturé, liseré crème épais, turquoise en retrait ; version 2 du 04/11 pour la typo) : police condensée Barlow Condensed (OFL) en vraie italique très grasse pour les titres et les boutons, droite
+/// pour le texte courant ; texte blanc sans gros contour, avec une ombre portée nette (lisible sur le décor). Fenêtres en
+/// panneaux penchés violet à liseré crème, bande turquoise en retrait (comme les menus de KC) ; boutons en lettres
+/// penchées qui passent en encre sur une barre jaune inclinée (étoile devant le texte) au survol ou au clavier.
 /// </summary>
 public static class UiKit
 {
@@ -22,13 +23,17 @@ public static class UiKit
     public static readonly Color Cream = new("fff4e0");
     public static readonly Color Grey = new("55607f");
     public static readonly Color Green = new("4fdc7a");
-    // Couleurs du bandeau du menu principal.
-    public static readonly Color VioletTop = new("2e1260");
-    public static readonly Color VioletMid = new("221447");
-    public static readonly Color NavyLow = new("121a3c");
+    // Couleurs du bandeau du menu principal et des fenêtres : le violet saturé de Knockout City (DA v3 du 06/11).
+    public static readonly Color VioletTop = new("6c24a8");
+    public static readonly Color VioletMid = new("551a8c");
+    public static readonly Color NavyLow = new("3a0f68");
     public static readonly Color Violet = new("5a1a8a");
+    /// <summary>Turquoise des menus de KC : bandes en retrait derrière les panneaux, accents interactifs (menus 2D du PC seulement).</summary>
+    public static readonly Color Teal = new("2fd6c3");
+    /// <summary>Encre des textes sur fond clair (barre jaune, touches) et des ombres portées.</summary>
+    public static readonly Color InkText = new("1a0f33");
     public static readonly Color Gold = new("ffb21f");
-    public static readonly Color Lavender = new("a9a6cf");
+    public static readonly Color Lavender = new("c9c5ea");   // 3e niveau de hiérarchie, assez clair pour rester lisible sur l'encre
     static readonly Color Ink = new("0a0f22");
 
     /// <summary>Fenêtre (options, pause, fin de match…) : le bandeau du menu en panneau penché, liseré crème, ombre et bande violette.</summary>
@@ -36,9 +41,9 @@ public static class UiKit
     {
         var b = new KcBox
         {
-            Top = VioletTop, Bottom = NavyLow, BorderWidth = 7, BorderColor = Cream, Slant = slant,
-            ShadowOffset = new Vector2(12, 12), ShadowColor = new Color(Ink, 0.6f),
-            StripOffset = new Vector2(26, 26), StripColor = new Color(Violet, 0.75f),
+            Top = VioletTop, Bottom = NavyLow, BorderWidth = 8, BorderColor = Cream, Slant = slant,
+            ShadowOffset = new Vector2(14, 16), ShadowColor = new Color(0, 0, 0, 0.55f),
+            StripOffset = new Vector2(-22, 18), StripColor = Teal,
         };
         b.ContentMarginLeft = b.ContentMarginRight = margin + slant * 0.5f;
         b.ContentMarginTop = b.ContentMarginBottom = margin * 0.7f;
@@ -48,7 +53,7 @@ public static class UiKit
     /// <summary>Encart dans une fenêtre (description, ligne de tableau, carte) : aplat sombre penché, sans liseré.</summary>
     public static KcBox InsetBox(Color? fill = null, float slant = 10f, int border = 0, Color? borderColor = null)
     {
-        var c = fill ?? new Color(Ink, 0.45f);
+        var c = fill ?? new Color(InkText, 0.4f);
         var b = new KcBox { Top = c, Bottom = c.Darkened(0.12f), Slant = slant, BorderWidth = border, BorderColor = borderColor ?? Cream };
         b.ContentMarginLeft = b.ContentMarginRight = 22 + Mathf.Abs(slant) * 0.5f;
         b.ContentMarginTop = 8; b.ContentMarginBottom = 8;
@@ -68,7 +73,7 @@ public static class UiKit
     {
         var b = new KcBox
         {
-            Top = box ? new Color("2a1458") : new Color(0, 0, 0, 0), Bottom = box ? new Color("17183c") : new Color(0, 0, 0, 0),
+            Top = box ? new Color("4a1680") : new Color(0, 0, 0, 0), Bottom = box ? new Color("32105a") : new Color(0, 0, 0, 0),
             BorderWidth = box ? 3 : 0, BorderColor = new Color(Cream, 0.9f), Slant = 12,
             ShadowOffset = new Vector2(6, 6), ShadowColor = new Color(Ink, box ? 0.55f : 0f),
             AccentColor = accent, AccentWidth = 9,
@@ -89,20 +94,54 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>Titre de fenêtre : lettres penchées jaunes cernées de marine, ombre portée encre décalée (comme le logo).</summary>
+    /// <summary>Titre : lettres Black Italic blanches (ou de la couleur donnée), ombre portée encre décalée, sans contour.</summary>
     public static Label Title(string text, int size = 54, HorizontalAlignment align = HorizontalAlignment.Center, Color? color = null)
     {
-        var l = Text(text, size, color ?? Yellow, Mathf.Max(8, size / 5), align);
-        if (Italic is Font it) l.AddThemeFontOverride("font", it);
-        l.AddThemeColorOverride("font_shadow_color", Ink);
-        l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(3, size / 12));
-        l.AddThemeConstantOverride("shadow_offset_y", Mathf.Max(4, size / 10));
-        l.AddThemeConstantOverride("shadow_outline_size", Mathf.Max(8, size / 5));
+        bool huge = size >= 100;   // très gros titre : la grasse large (Heavy), réduite d'autant qu'elle est plus large
+        var l = Text(text, huge ? Mathf.RoundToInt(size * 0.78f) : size, color ?? Colors.White, 0, align);
+        if ((huge ? Heavy : Display) is Font d) l.AddThemeFontOverride("font", d);
+        // Ombre portée nette décalée en bas à droite, sans flou ni contour : le relief des titres de KC.
+        l.AddThemeColorOverride("font_shadow_color", new Color(Ink, 0.85f));
+        l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(2, size / 18));
+        l.AddThemeConstantOverride("shadow_offset_y", Mathf.Max(3, size / 14));
+        l.AddThemeConstantOverride("shadow_outline_size", 0);
         return l;
     }
 
-    public static Font? Font => font ??= ResourceLoader.Exists("res://assets/fonts/LilitaOne-Regular.ttf") ? GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf") : null;
+    /// <summary>
+    /// En-tête de fenêtre (revue de la refonte) : bande encre penchée sur toute la largeur, barre jaune à gauche, titre blanc
+    /// aligné à gauche. Donne un axe aux fenêtres (options, commandes, choix de carte, crédits), comme les en-têtes de Rocket League.
+    /// </summary>
+    public static Label Header(string text, int size = 54)
+    {
+        var l = Title(text, size, HorizontalAlignment.Left);
+        var band = new KcBox { Top = new Color("2a0a4a"), Bottom = new Color("220840"), Slant = 14, AccentColor = Yellow, AccentWidth = 14, ShadowOffset = new Vector2(8, 8), ShadowColor = new Color(0, 0, 0, 0.35f) };
+        band.ContentMarginLeft = 36; band.ContentMarginRight = 24; band.ContentMarginTop = 0; band.ContentMarginBottom = 2;
+        l.AddThemeStyleboxOverride("normal", band);
+        return l;
+    }
+
+    /// <summary>Texte courant (descriptions, lignes d'options, tableaux) : Barlow Condensed Bold, droite.</summary>
+    public static Font? Font => font ??= Load("BarlowCondensed-Bold");
     static Font? font;
+    /// <summary>Petits textes longs (aides, descriptions) : Barlow Condensed SemiBold, droite.</summary>
+    public static Font? Body => body ??= Load("BarlowCondensed-SemiBold");
+    static Font? body;
+    /// <summary>Titres, logo, gros chiffres du HUD : Barlow Condensed Black Italic (vraie italique, la plus grasse).</summary>
+    public static Font? Display => display ??= Load("BarlowCondensed-BlackItalic");
+    /// <summary>
+    /// Très gros titres (logo, items du menu, PAUSE, VICTOIRE, décompte) : Rubik Black Italic (OFL), large et ronde comme la
+    /// police de Knockout City ; la condensée garde les chiffres et les libellés (DA v3, 06/11). Plus large : ~0,8 × la taille.
+    /// </summary>
+    public static Font? Heavy => heavy ??= Load("Rubik-BlackItalic") ?? Display;
+    static Font? heavy;
+    static Font? display;
+
+    static Font? Load(string name)
+    {
+        string path = $"res://assets/fonts/{name}.ttf";
+        return ResourceLoader.Exists(path) ? GD.Load<Font>(path) : null;
+    }
 
     public static StyleBoxFlat Box(Color bg, int radius = 16, float skew = 0f, int border = 0, Color? borderColor = null, int bottom = 6)
     {
@@ -128,7 +167,7 @@ public static class UiKit
         t.DefaultFontSize = 24;
         t.SetColor("font_color", "Label", Colors.White);
         t.SetColor("font_outline_color", "Label", Navy);
-        t.SetConstant("outline_size", "Label", 8);
+        t.SetConstant("outline_size", "Label", 3);
 
         var disabled = ButtonIdle(new Color(0, 0, 0, 0));
         disabled.Top = new Color(Ink, 0.5f); disabled.Bottom = new Color(Ink, 0.5f); disabled.BorderColor = new Color(Cream, 0.3f);
@@ -142,7 +181,7 @@ public static class UiKit
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "Button", Navy);
         t.SetColor("font_disabled_color", "Button", new Color(1, 1, 1, 0.4f));
         t.SetColor("font_outline_color", "Button", Navy);
-        t.SetConstant("outline_size", "Button", 6);
+        t.SetConstant("outline_size", "Button", 3);
         t.SetFontSize("font_size", "Button", 26);
         if (Italic != null) t.SetFont("font", "Button", Italic);
 
@@ -176,7 +215,7 @@ public static class UiKit
         t.SetColor("font_hover_color", "CheckButton", Yellow);
         t.SetColor("font_pressed_color", "CheckButton", Colors.White);
         t.SetColor("font_outline_color", "CheckButton", Navy);
-        t.SetConstant("outline_size", "CheckButton", 6);
+        t.SetConstant("outline_size", "CheckButton", 3);
 
         t.SetStylebox("normal", "OptionButton", ButtonIdle(new Color(0, 0, 0, 0)));
         t.SetStylebox("hover", "OptionButton", ButtonLit());
@@ -185,7 +224,7 @@ public static class UiKit
         t.SetColor("font_color", "OptionButton", Colors.White);
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "OptionButton", Navy);
         t.SetColor("font_outline_color", "OptionButton", Navy);
-        t.SetConstant("outline_size", "OptionButton", 5);
+        t.SetConstant("outline_size", "OptionButton", 3);
         if (Italic != null) t.SetFont("font", "OptionButton", Italic);
 
         var popup = PanelBox(8, 14);
@@ -196,8 +235,9 @@ public static class UiKit
         t.SetColor("font_hover_color", "PopupMenu", Navy);
         t.SetFontSize("font_size", "PopupMenu", 22);
 
-        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.12f), ContentMarginLeft = 4, ContentMarginRight = 4 };
-        var grab = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.5f) };
+        // Barre de défilement visible (revue de la refonte) : rail clair de 8 px, curseur jaune.
+        var scroll = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.14f), ContentMarginLeft = 4, ContentMarginRight = 4 };
+        var grab = new StyleBoxFlat { BgColor = Yellow };
         t.SetStylebox("scroll", "VScrollBar", scroll);
         t.SetStylebox("grabber", "VScrollBar", grab);
         t.SetStylebox("grabber_highlight", "VScrollBar", grab);
@@ -220,14 +260,35 @@ public static class UiKit
         return ImageTexture.CreateFromImage(img);
     }
 
+    /// <summary>Plus petite taille de texte de l'interface à 1080p (revue de la refonte : rien sous 18 px).</summary>
+    public const int MinTextSize = 18;
+
     public static Label Text(string text, int size, Color? color = null, int outline = 8, HorizontalAlignment align = HorizontalAlignment.Left)
     {
+        size = Math.Max(size, MinTextSize);
         var l = new Label { Text = text, HorizontalAlignment = align, MouseFilter = Control.MouseFilterEnum.Ignore };
         l.AddThemeFontSizeOverride("font_size", size);
         if (color is Color c) l.AddThemeColorOverride("font_color", c);
-        l.AddThemeConstantOverride("outline_size", outline);
-        l.AddThemeColorOverride("font_outline_color", Navy);
+        Inked(l, size, outline);
         return l;
+    }
+
+    /// <summary>
+    /// Encrage d'un texte (DA v2) : plus de gros contour marine façon autocollant. Un liseré fin (au plus 1/12 de la taille, 5 px
+    /// sauf pour les titres d'impact de 80 px et plus, qui gardent un contour encre jusqu'à 12 px)
+    /// et une ombre nette décalée vers le bas gardent le texte lisible sur le décor. outline = 0 : ni liseré ni ombre
+    /// (texte sur fond clair : touches, barre jaune).
+    /// </summary>
+    public static void Inked(Control l, int size, int outline)
+    {
+        int thin = outline <= 0 ? 0 : Mathf.Clamp(Mathf.Min(outline, size / 12), 2, size >= 80 ? 12 : 5);   // titres d'impact : contour encre franc
+        l.AddThemeConstantOverride("outline_size", thin);
+        l.AddThemeColorOverride("font_outline_color", new Color(Ink, 0.9f));
+        if (outline <= 0) { l.AddThemeConstantOverride("shadow_offset_x", 0); l.AddThemeConstantOverride("shadow_offset_y", 0); return; }
+        l.AddThemeColorOverride("font_shadow_color", new Color(Ink, 0.7f));
+        l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(1, size / 24));
+        l.AddThemeConstantOverride("shadow_offset_y", Mathf.Max(2, size / 16));
+        l.AddThemeConstantOverride("shadow_outline_size", thin);
     }
 
     /// <summary>
@@ -260,7 +321,7 @@ public static class UiKit
         b.AddThemeColorOverride("font_color", rest);
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, Navy);
         b.AddThemeColorOverride("font_outline_color", Navy);
-        b.AddThemeConstantOverride("outline_size", 6);
+        b.AddThemeConstantOverride("outline_size", 3);
         float baseLeft = idle.ContentMarginLeft;
         Tween? slide = null;
         void Shift(float to)
@@ -271,8 +332,8 @@ public static class UiKit
             foreach (var box in new[] { idle, lit, down })
                 slide.TweenProperty(box, "content_margin_left", baseLeft + to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 1); Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
-        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 6); Shift(0f); };
+        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 0); Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
+        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 3); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && b.FocusMode != Control.FocusModeEnum.None) b.GrabFocus(); };
     }
 
@@ -280,10 +341,10 @@ public static class UiKit
     public static void Tint(Button b, Color accent, Color? fill = null, Color? text = null)
     {
         if (b.GetThemeStylebox("normal") is not KcBox idle) return;
-        var f = fill ?? new Color("2a1458");
+        var f = fill ?? new Color("4a1680");
         idle.AccentColor = accent;
         idle.Top = f;
-        idle.Bottom = fill is Color c ? c.Darkened(0.3f) : new Color("17183c");
+        idle.Bottom = fill is Color c ? c.Darkened(0.15f) : new Color("32105a");
         b.AddThemeColorOverride("font_color", text ?? Colors.White);
     }
 
@@ -316,7 +377,7 @@ public static class UiKit
     /// Touche de clavier dessinée (même dessin que le HUD) : pavé crème penché, tranche grise en bas (relief), texte marine.
     /// minWidth aligne les touches d'une colonne.
     /// </summary>
-    public static Label KeyCap(string text, int size = 20, float minWidth = 0)
+    public static Label KeyCap(string text, int size = 22, float minWidth = 0)
     {
         var l = Text(text, size, Navy, 0, HorizontalAlignment.Center);
         l.VerticalAlignment = VerticalAlignment.Center;
@@ -332,7 +393,8 @@ public static class UiKit
         var h = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 10);
         h.AddChild(KeyCap(key, size - 2));
-        var l = Text(label, size, Colors.White, 6);
+        var l = Text(label.ToUpperInvariant(), size, Colors.White, 6);
+        if (Italic is Font it) l.AddThemeFontOverride("font", it);
         l.VerticalAlignment = VerticalAlignment.Center;
         h.AddChild(l);
         return h;
@@ -349,23 +411,19 @@ public static class UiKit
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         row.AddThemeConstantOverride("separation", 16);
         center.AddChild(row);
-        row.AddChild(KeyCap(key, 20));
+        row.AddChild(KeyCap(key, 22));
         var l = Text(text, fontSize, color == Grey ? Lavender : Colors.White, 6);
         if (Italic is Font it) l.AddThemeFontOverride("font", it);
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
         // Le texte est un Label à part : il suit lui-même la barre jaune (marine au focus).
-        b.FocusEntered += () => { l.AddThemeColorOverride("font_color", Navy); l.AddThemeConstantOverride("outline_size", 1); };
-        b.FocusExited += () => { l.AddThemeColorOverride("font_color", color == Grey ? Lavender : Colors.White); l.AddThemeConstantOverride("outline_size", 6); };
+        b.FocusEntered += () => { l.AddThemeColorOverride("font_color", Navy); l.AddThemeConstantOverride("outline_size", 0); };
+        b.FocusExited += () => { l.AddThemeColorOverride("font_color", color == Grey ? Lavender : Colors.White); l.AddThemeConstantOverride("outline_size", 3); };
         return b;
     }
 
-    /// <summary>
-    /// Lilita One penchée et un peu grasse (pas d'italique dans la police) : titres et items à la Knockout City.
-    /// La matrice passe telle quelle à FreeType (repère y vers le haut) : le biais va dans la composante y de l'axe x
-    /// (x' = x + 0,22·y), sinon c'est la ligne de base qui penche au lieu des lettres.
-    /// </summary>
-    public static Font? Italic => italic ??= Font == null ? null : new FontVariation { BaseFont = Font, VariationTransform = new Transform2D(new Vector2(1, 0.22f), new Vector2(0, 1), Vector2.Zero), VariationEmbolden = 0.35f };
+    /// <summary>Boutons, items de menu, étiquettes fortes : Barlow Condensed ExtraBold Italic (vraie italique).</summary>
+    public static Font? Italic => italic ??= Load("BarlowCondensed-ExtraBoldItalic");
     static Font? italic;
 
     /// <summary>Survol et focus : petit grossissement élastique et son ; s'applique à tout contrôle cliquable.</summary>
