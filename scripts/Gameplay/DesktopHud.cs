@@ -123,7 +123,8 @@ public partial class DesktopHud : CanvasLayer
         // répété ici : le bandeau de début de manche le donne.
         board = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(700, 128) };
         board.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        board.OffsetLeft = -350; board.OffsetRight = 350; board.OffsetTop = 14; board.OffsetBottom = 142;
+        board.OffsetLeft = -350; board.OffsetRight = 350; board.OffsetTop = 18; board.OffsetBottom = 146;
+        board.PivotOffset = new Vector2(350, 0); board.Scale = Vector2.One * 1.15f;   // DA v3 : un bandeau plus massif, lisible d'un coup d'œil
         root.AddChild(board);
         // Socle unique du bandeau (DA v3) : une seule dalle violette à liseré crème et bande turquoise décalée, sur laquelle
         // les deux plaques et le chrono sont posés : un bloc massif, lisible d'un coup d'œil, comme un tableau télévisé.
@@ -1320,13 +1321,13 @@ public partial class DesktopHud : CanvasLayer
     {
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
-        countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
+        countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 184, 76);   // sous le bandeau de score agrandi (DA v3)
         // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
         var roundBox = UiKit.PanelBox(16, 4);
         roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
         countdownRound.AddThemeStyleboxOverride("normal", roundBox);
         if (UiKit.Italic is Font it) countdownRound.AddThemeFontOverride("font", it);
-        countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
+        countdown = CenterLabel("", 220, UiKit.Yellow, 26, 264, 230);
         // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
         // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
         notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -1699,11 +1700,11 @@ public partial class DesktopHud : CanvasLayer
         var c = interContent;
 
         interHead = Put(c, Place(Italic(UiKit.Text("FIN DE LA MANCHE 1/5", 38, UiKit.Cream, 6, HorizontalAlignment.Center)), 0, 34, 1920, 56));
-        interTitle = Put(c, Place(Italic(UiKit.Text("", 140, Colors.White, 26, HorizontalAlignment.Center)), 0, 84, 1920, 170));
+        interTitle = Put(c, Place(Italic(UiKit.Text("", 150, Colors.White, 26, HorizontalAlignment.Center)), 0, 80, 1920, 176));
 
         // Score de manches au centre, façon tableau : « 1 – 0 », pastilles, KO de la manche, règle de la partie.
         var plate = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.95f), Bottom = new Color(HudBack.Darkened(0.35f), 0.97f), Slant = 0, BorderWidth = 5, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) });
+        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.97f), Bottom = new Color(HudBack.Darkened(0.35f), 0.98f), Slant = 0, BorderWidth = 7, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(0, 0), ShadowColor = new Color(0, 0, 0, 0), StripOffset = new Vector2(14, 16), StripColor = UiKit.Teal });
         plate.Position = new Vector2(960 - 250, 316); plate.Size = new Vector2(500, 400);
         c.AddChild(plate);
         plate.AddChild(Place(Italic(UiKit.Text("MANCHES", 30, UiKit.Cream, 0, HorizontalAlignment.Center)), 0, 16, 500, 40));
@@ -1732,9 +1733,16 @@ public partial class DesktopHud : CanvasLayer
             bool left = t == 0;
             var align = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             float x = left ? 60 : 1240;
-            c.AddChild(Place(Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 104, Colors.White, 22, align)), x, 296, 620, 120));
-            interTeamTags[t] = Put(c, Place(Italic(UiKit.Text("", 30, UiKit.Cream, 5, align)), x, 410, 620, 40));
-            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 468), Size = new Vector2(620, 0) };
+            // Nom d'équipe sur un cartouche penché à sa couleur, cerclé de crème (DA v3), au lieu de lettres posées sur le fond.
+            var teamName = Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 96, Colors.White, 0, HorizontalAlignment.Center));
+            var tc = left ? UiKit.Orange : UiKit.Blue;
+            var tbox = new KcBox { Top = tc.Lightened(0.1f), Bottom = tc.Darkened(0.15f), Slant = left ? 24 : -24, BorderWidth = 6, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f), StripOffset = new Vector2(left ? -14 : 14, 14), StripColor = UiKit.Teal };
+            teamName.AddThemeStyleboxOverride("normal", tbox);
+            teamName.AddThemeColorOverride("font_shadow_color", new Color(ChronoInk, 0.7f));
+            teamName.AddThemeConstantOverride("shadow_offset_x", 5); teamName.AddThemeConstantOverride("shadow_offset_y", 6);
+            c.AddChild(Place(teamName, left ? x + 180 : x, 300, 440, 116));
+            interTeamTags[t] = Put(c, Place(Italic(UiKit.Text("", 30, UiKit.Cream, 5, align)), x, 428, 620, 40));
+            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 484), Size = new Vector2(620, 0) };
             list.AddThemeConstantOverride("separation", 10);
             c.AddChild(list);
             interLists[t] = list;
@@ -1776,7 +1784,8 @@ public partial class DesktopHud : CanvasLayer
     {
         bool me = p.Id == View.LocalId;
         var row = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsHorizontal = left ? Control.SizeFlags.ShrinkEnd : Control.SizeFlags.ShrinkBegin };
-        var box = new KcBox { Top = new Color(ChronoInk, me ? 0.85f : 0.55f), Bottom = new Color(ChronoInk, me ? 0.9f : 0.6f), Slant = left ? 12 : -12, BorderWidth = me ? 3 : 0, BorderColor = UiKit.Yellow, ShadowColor = new Color(0, 0, 0, 0) };
+        // Ligne façon « Stats partie » de KC : dalle violette opaque, barre de la couleur d'équipe côté extérieur, la mienne cerclée de jaune.
+        var box = new KcBox { Top = HudBack, Bottom = HudBack.Darkened(0.3f), Slant = left ? 12 : -12, BorderWidth = me ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.35f), AccentColor = left ? UiKit.Orange : UiKit.Blue, AccentWidth = 12 };
         box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 0; box.ContentMarginBottom = 2;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
