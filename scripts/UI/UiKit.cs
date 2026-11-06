@@ -275,7 +275,7 @@ public static class UiKit
         var b = new Button { Text = text, CustomMinimumSize = minSize ?? new Vector2(440, 66), FocusMode = Control.FocusModeEnum.All };
         b.AddThemeFontSizeOverride("font_size", fontSize);
         bool secondary = color == Grey;
-        Style(b, ButtonIdle(secondary ? new Color(0, 0, 0, 0) : color), secondary ? Lavender : Colors.White);
+        Style(b, ButtonIdle(secondary ? new Color(0, 0, 0, 0) : color), secondary ? Cream : Colors.White);   // secondaire : papier plein, pas « désactivé »
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }

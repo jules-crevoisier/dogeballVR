@@ -407,7 +407,7 @@ public partial class EndScreen : CanvasLayer
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(360, 0) };
         // Carte penchée à la couleur de l'équipe, liseré jaune, ombre et bande violette : la fenêtre du menu, version trophée.
         var box = UiKit.PanelBox(18, 26);
-        box.Top = TeamRow(team, true); box.Bottom = TeamRow(team, false).Darkened(0.2f); box.BorderColor = UiKit.Yellow;
+        box.Top = box.Bottom = TeamRow(team, true); box.BorderColor = UiKit.Yellow;   // aplat franc (sérigraphie)
         panel.Rotation = -0.03f;
         box.ContentMarginTop = 18; box.ContentMarginBottom = 22;
         panel.AddThemeStyleboxOverride("panel", box);
@@ -472,7 +472,7 @@ public partial class EndScreen : CanvasLayer
         // Couleurs pleines et vives par équipe (orange / bleu) ; ma ligne plus claire, cerclée de jaune avec un halo.
         var bg = header ? new Color(0, 0, 0, 0) : TeamRow(p!.Team, local);
         // Lignes penchées comme la barre du menu ; la mienne cerclée de jaune.
-        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        var box = new KcBox { Top = bg, Bottom = bg, Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
         box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };

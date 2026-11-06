@@ -192,8 +192,8 @@ public partial class DesktopHud : CanvasLayer
         {
             float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, sh = Mathf.Max(2f, h * 0.18f);
             DrawRect(new Rect2(sh, y + sh, w, h), UiKit.Ink);
-            DrawRect(new Rect2(0, y, w, h), On ? UiKit.Navy : new Color(UiKit.Cream, 0.6f));   // à jouer : cadre papier, case encre
-            DrawRect(new Rect2(3, y + 3, w - 6, h - 6), On ? Color : UiKit.Navy);
+            DrawRect(new Rect2(0, y, w, h), On ? UiKit.Navy : new Color(UiKit.Cream, 0.85f));   // à jouer : cadre papier, case encre
+            DrawRect(new Rect2(2.5f, y + 2.5f, w - 5, h - 5), On ? Color : UiKit.NavySoft);
         }
     }
 
@@ -302,7 +302,7 @@ public partial class DesktopHud : CanvasLayer
         heartsHolder = holder;
         string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
         var who = UiKit.Poster(UiKit.Text(me.ToUpperInvariant(), 30, UiKit.Cream, 0), null, 3);
-        who.Position = new Vector2(8, 0);
+        who.Position = new Vector2(8, -8);   // 10 px d'air au-dessus du bloc des cœurs
         who.Size = new Vector2(380, 36);
         holder.AddChild(who);
         var back = MakePanel(new Color(UiKit.Navy, 0.82f), 0f, 0, 0, null, 0);
@@ -485,7 +485,9 @@ public partial class DesktopHud : CanvasLayer
             DrawRect(tile, UiKit.Navy);
             if (!Holding)
             {
-                DrawRect(tile.Grow(-10), new Color(UiKit.Cream, 0.25f), false, 3f);
+                // Pas de balle : le pictogramme de la balle, en papier pâle (l'action existe, elle attend une balle).
+                DrawArc(c, r - 14, 0, Mathf.Tau, 40, new Color(UiKit.Cream, 0.35f), 6f, true);
+                DrawArc(c, (r - 14) * 0.55f, -2.4f, -0.7f, 16, new Color(UiKit.Cream, 0.35f), 5f, true);
                 return;
             }
             float rr = r - 6 + Pop * 8f;
@@ -1547,9 +1549,10 @@ public partial class DesktopHud : CanvasLayer
         {
             float w = Size.X, h = Size.Y, mid = w / 2f, s = Slant * h;
             var color = Team == 0 ? UiKit.Orange : UiKit.Blue;
-            var edge = color.Darkened(0.55f);              // bord de l'écran
-            var seam = Team == 0 ? color.Darkened(0.05f) : color.Lightened(0.05f);
-            var seamDark = color.Darkened(0.3f);           // haut et bas de la séparation
+            // Aplats de sérigraphie : à peine plus sombre au bord de l'écran (±6 %), la trame de points fait la matière.
+            var edge = color.Darkened(0.12f);              // bord de l'écran
+            var seam = color;
+            var seamDark = color.Darkened(0.06f);          // haut et bas de la séparation
             // Séparation : de (mid + s, 0) en haut à (mid - s, h) en bas. Le polygone déborde de 40 px sous l'autre moitié.
             float top = mid + s, bottom = mid - s, over = Team == 0 ? 40f : -40f;
             float outer = Team == 0 ? -4f : w + 4f;
@@ -1638,7 +1641,7 @@ public partial class DesktopHud : CanvasLayer
         interPips = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 220), Size = new Vector2(500, 60) };
         interPips.AddThemeConstantOverride("separation", 14);
         plate.AddChild(interPips);
-        interKoLine = Put(plate, Place(UiKit.Text("", 28, UiKit.Yellow, 8, HorizontalAlignment.Center), 0, 292, 500, 40));
+        interKoLine = Put(plate, Place(UiKit.Text("", 28, UiKit.Cream, 8, HorizontalAlignment.Center), 0, 292, 500, 40));
         interRule = Put(plate, Place(UiKit.Text("", 21, new Color(UiKit.Cream, 0.8f), 6, HorizontalAlignment.Center), 0, 336, 500, 34));
 
         // Équipes : nom en très gros, « TON ÉQUIPE » / « ADVERSES », puis les joueurs et leurs KO de la manche (rangés vers le centre).
@@ -1670,10 +1673,10 @@ public partial class DesktopHud : CanvasLayer
         var next = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
         next.AddThemeConstantOverride("separation", 26);
         nextCol.AddChild(next);
-        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 54, UiKit.Yellow, 14));
+        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 54, UiKit.Cream, 14));
         interNextTitle.VerticalAlignment = VerticalAlignment.Center;
         next.AddChild(interNextTitle);
-        interNext = Italic(UiKit.Text("12", 96, UiKit.Cream, 22, HorizontalAlignment.Center));
+        interNext = Italic(UiKit.Text("12", 96, UiKit.Yellow, 22, HorizontalAlignment.Center));
         interNext.CustomMinimumSize = new Vector2(110, 0);
         next.AddChild(interNext);
         interSpecial = UiKit.Text("", 28, UiKit.Cream, 8, HorizontalAlignment.Center);
