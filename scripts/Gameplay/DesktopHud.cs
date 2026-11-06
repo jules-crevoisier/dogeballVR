@@ -330,7 +330,7 @@ public partial class DesktopHud : CanvasLayer
         string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
         // Pseudo sur une étiquette penchée à la couleur de mon équipe (comme KC), au-dessus de la plaque encre des cœurs.
         var tag = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(10, 0) };
-        var tagBox = new KcBox { Top = Palette.Team(View.LocalTeam), Bottom = Palette.Team(View.LocalTeam).Darkened(0.15f), Slant = 8, ShadowOffset = new Vector2(3, 3), ShadowColor = new Color(0, 0, 0, 0.3f) };
+        var tagBox = new KcBox { Top = Palette.Team(View.LocalTeam), Bottom = Palette.Team(View.LocalTeam).Darkened(0.15f), Slant = 8, BorderWidth = 3, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(3, 3), ShadowColor = new Color(0, 0, 0, 0.3f) };
         tagBox.ContentMarginLeft = 16; tagBox.ContentMarginRight = 18; tagBox.ContentMarginTop = 0; tagBox.ContentMarginBottom = 2;
         tag.AddThemeStyleboxOverride("panel", tagBox);
         var who = UiKit.Text(me.ToUpperInvariant(), 24, Colors.White, 3);
@@ -338,7 +338,8 @@ public partial class DesktopHud : CanvasLayer
         tag.AddChild(who);
         holder.AddChild(tag);
         var back = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        back.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.55f), Bottom = new Color(HudBack.Darkened(0.25f), 0.7f), Slant = 14, ShadowColor = new Color(0, 0, 0, 0) });
+        // Cartouche joueur (DA v3) : dalle violette opaque à liseré crème et bande turquoise décalée, comme le score.
+        back.AddThemeStyleboxOverride("panel", new KcBox { Top = HudBack, Bottom = HudBack.Darkened(0.3f), Slant = 14, BorderWidth = 4, BorderColor = UiKit.Cream, StripOffset = new Vector2(8, 9), StripColor = UiKit.Teal, ShadowColor = new Color(0, 0, 0, 0) });
         back.Position = new Vector2(0, 38);
         back.Size = new Vector2(24 + (HeartSize + 8) * View.MaxLives, HeartSize + 12);
         holder.AddChild(back);
@@ -611,7 +612,7 @@ public partial class DesktopHud : CanvasLayer
         bottomHolder = holder;
         // Plaque encre penchée sous le bloc : icônes, noms et touches lisibles sur un sol clair (revue de la refonte).
         var plate = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(-22, -12), Size = new Vector2(ActionsWidth + 40, ActionsHeight + 14) };
-        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.78f), Bottom = new Color(HudBack.Darkened(0.25f), 0.86f), Slant = 18, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.3f) });
+        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.92f), Bottom = new Color(HudBack.Darkened(0.3f), 0.94f), Slant = 18, BorderWidth = 4, BorderColor = UiKit.Cream, StripOffset = new Vector2(8, 9), StripColor = UiKit.Teal, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.3f) });
         holder.AddChild(plate);
         var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
         holder.AddChild(icons);
