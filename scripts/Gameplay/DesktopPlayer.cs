@@ -58,6 +58,9 @@ public partial class DesktopPlayer : Node3D
     public ZoneManager Zones { get; set; } = null!;
     /// <summary>Map en moulinet : le joueur circule sur toute l'arène, dash au lieu du sprint, passes, tremplins. La caméra, elle, suit <see cref="ThirdPerson"/>.</summary>
     public bool FreeRoam { get; set; }
+
+    /// <summary>Arène libre (cartes PC à étages) : sol, flancs et vide viennent de sa géométrie ; null sur les autres cartes.</summary>
+    Maps.ArenaGeometry? Geo => Zones.Map.Geometry;
     /// <summary>
     /// Caméra d'épaule (3e personne) ou vue subjective : un réglage du joueur (Options → Caméra et visée), le même sur toutes les cartes,
     /// en zones comme en jeu libre, en solo comme en ligne. Lu à chaque image : le changer en pause s'applique tout de suite.
@@ -241,6 +244,7 @@ public partial class DesktopPlayer : Node3D
             var spawn = Zones.Map.Pc?.Spawns.Find(sp => sp.Zone == zone.Id);
             worldPos = spawn != null ? new Vector2(spawn.X, spawn.Z) : new Vector2(zone.X, zone.Z);
             spawnPos = worldPos;
+            Elevation = SpawnElevation();
         }
         // Son propre personnage, vu de dos en caméra d'épaule (caché en vue subjective), sur toutes les cartes.
         selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
@@ -531,7 +535,10 @@ public partial class DesktopPlayer : Node3D
             bool dashing = velocity.Length() > RunSpeed + 1f && !padFlight && time >= pushUntil;
             if (dashing)
             {
-                if (PitGap(worldPos + step) < VoidMargin && PitGap(worldPos + step) < PitGap(worldPos) && PitGap(worldPos) > 0f)
+                bool voidAhead = Geo != null
+                    ? Geo.IsVoid((worldPos + step + step.Normalized() * VoidMargin).X, (worldPos + step + step.Normalized() * VoidMargin).Y) && !Geo.IsVoid(worldPos.X, worldPos.Y) && Elevation + jumpY >= -0.1f
+                    : PitGap(worldPos + step) < VoidMargin && PitGap(worldPos + step) < PitGap(worldPos) && PitGap(worldPos) > 0f;
+                if (voidAhead)
                 {
                     // Le dash s'arrête à 0,8 m du vide : il ne suffit pas d'un dash pour tomber, il faut courir ou être poussé.
                     step = Vector2.Zero; velocity = Vector2.Zero; dodgeLeft = 0; Hurtbox.DashInvulnerable = false;
@@ -547,7 +554,7 @@ public partial class DesktopPlayer : Node3D
             worldPos = c;
             PushOutOfObstacles();
             KeepInsidePit();
-            if (Elevation > 0 && time - terraceSince > TerraceMaxStay && time >= evictUntil)
+            if (Geo == null && Elevation > 0 && time - terraceSince > TerraceMaxStay && time >= evictUntil)
             {
                 // Plus de 8 s sur la terrasse : on est ramené vers la plaque.
                 var tr = Zones.Map.TerraceAt(worldPos.X, worldPos.Y);
@@ -589,8 +596,9 @@ public partial class DesktopPlayer : Node3D
     {
         var map = Zones.Map;
         float feet = Elevation + jumpY;
-        var terrace = map.TerraceAt(worldPos.X, worldPos.Y);
-        float ground = terrace != null && feet >= terrace.Sy - 0.25f ? terrace.Sy : map.OverPit(worldPos.X, worldPos.Y, -0.05f) ? float.NegativeInfinity : 0f;
+        var terrace = Geo == null ? map.TerraceAt(worldPos.X, worldPos.Y) : null;
+        float ground = Geo != null ? Geo.GroundAt(worldPos.X, worldPos.Y, feet)
+            : terrace != null && feet >= terrace.Sy - 0.25f ? terrace.Sy : map.OverPit(worldPos.X, worldPos.Y, -0.05f) ? float.NegativeInfinity : 0f;
         bool grounded = jumpVel <= 0f && ground > float.NegativeInfinity && feet <= ground + 0.03f;
         if (input.Jump) jumpPressedAt = time;
         // Tampon de 0,12 s (appui juste avant de toucher le sol) et « coyote time » de 0,1 s (appui juste après avoir quitté une terrasse).
@@ -608,7 +616,7 @@ public partial class DesktopPlayer : Node3D
             wasAirborne = false;
             feet = ground; jumpVel = 0f; padFlight = false;
             if (wantJump) { jumpVel = FreeJumpSpeed; jumpPressedAt = -10; Jumps++; Sfx.Play(this, SfxKind.Jump, null, 1f, -6f); }
-            else if (!Hurtbox.Eliminated) TryPad();
+            else if (!Hurtbox.Eliminated) { if (Geo != null) TryArenaPad(feet); else TryPad(); }
         }
         else if (wantJump && !padFlight && jumpVel <= 0f && jumpVel > -3f && time - groundedAt <= 0.1 && ground > float.NegativeInfinity)
         {
@@ -621,8 +629,17 @@ public partial class DesktopPlayer : Node3D
             jumpVel -= (padFlight ? PadGravity : Gravity) * dt;
             feet += jumpVel * dt;
             if (jumpVel < 0f && ground > float.NegativeInfinity && prev >= ground && feet <= ground) { feet = ground; jumpVel = 0f; padFlight = false; }
-            if (feet < -6f) { feet = -6f; jumpVel = 0f; }   // fond de la fosse : l'hôte a déjà jugé la chute depuis longtemps
+            if (feet < (Geo != null ? Geo.KillY - 3f : -6f)) { feet = Geo != null ? Geo.KillY - 3f : -6f; jumpVel = 0f; }   // fond de la fosse : l'hôte a déjà jugé la chute depuis longtemps
             if (jumpVel != 0f) { wasAirborne = true; airVel = jumpVel; }
+        }
+        if (Geo != null)
+        {
+            // Arène : l'altitude est le sol sous les pieds (posé ou en l'air au-dessus d'un sol) ; au-dessus du vide, le dernier
+            // sol quitté, sans descendre sous les pieds ni sous 0 (l'hôte juge la chute sur la hauteur de tête).
+            float e = !float.IsNegativeInfinity(ground) && ground <= feet + 0.01f ? ground : Mathf.Min(Elevation, Mathf.Max(feet, 0f));
+            Elevation = Mathf.Max(0f, e);
+            jumpY = feet - Elevation;
+            return;
         }
         float elevation = terrace != null && feet >= terrace.Sy - 0.05f ? terrace.Sy : 0f;
         if (elevation != Elevation)
@@ -631,6 +648,20 @@ public partial class DesktopPlayer : Node3D
             Elevation = elevation;
         }
         jumpY = feet - Elevation;
+    }
+
+    /// <summary>Tremplin d'arène sous les pieds : vol en cloche vers sa cible (le même calcul que les bots). Recharge par joueur.</summary>
+    void TryArenaPad(float feet)
+    {
+        if (time < padReadyAt || Geo == null) return;
+        var pad = Geo.PadAt(worldPos.X, worldPos.Y, feet);
+        if (pad == null) return;
+        var (h, vy, _) = Maps.ArenaGeometry.PadLaunch(pad, worldPos, feet, PadGravity);
+        padVel = h; jumpVel = vy; padFlight = true;
+        padReadyAt = time + pad.CooldownSeconds;
+        Sfx.Play(this, SfxKind.Jump, null, 0.8f, -2f);
+        CameraFx.FovPunch(6f);
+        GD.Print($"[PC] Tremplin {pad.Id}");
     }
 
     /// <summary>Tremplin de son camp sous les pieds : vol guidé de 1,8 s (sommet à 3 m) qui se pose au centre de la terrasse de la plaque. Recharge 10 s.</summary>
@@ -719,6 +750,16 @@ public partial class DesktopPlayer : Node3D
             }
             p += push.Rotated(-rot);
             moved = true;
+        }
+        if (Geo != null)
+        {
+            float feetY = Elevation + jumpY;
+            if (Geo.Collide(ref p, feetY, PlayerRadius))
+            {
+                var bnd = Zones.Map.Bounds;
+                worldPos = new Vector2(Mathf.Clamp(p.X, bnd.MinX + 0.5f, bnd.MaxX - 0.5f), Mathf.Clamp(p.Y, bnd.MinZ + 0.5f, bnd.MaxZ - 0.5f));
+            }
+            return;
         }
         foreach (var o in Zones.Map.Obstacles)
         {
@@ -1481,6 +1522,9 @@ public partial class DesktopPlayer : Node3D
         GD.Print($"[PC] Échange de plaques : plaque {from.Id} -> {to.Id}, en {worldPos.X:0.0} / {worldPos.Y:0.0}");
     }
 
+    /// <summary>Hauteur du sol au point d'apparition (arène : une terrasse ; ailleurs 0).</summary>
+    float SpawnElevation() => Geo != null ? Mathf.Max(0f, Geo.HighestAt(spawnPos.X, spawnPos.Y)) : 0f;
+
     void ApplyTransform()
     {
         var zoneBasis = new Basis(Vector3.Up, Mathf.DegToRad(zone.FacingDegrees));
@@ -1489,16 +1533,16 @@ public partial class DesktopPlayer : Node3D
             if (wasEliminated && !Hurtbox.Eliminated)   // retour de KO : au point d'apparition, au sol
             {
                 worldPos = spawnPos; velocity = Vector2.Zero;
-                jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; pushUntil = 0; evictUntil = 0;
+                jumpY = 0; jumpVel = 0; Elevation = SpawnElevation(); padFlight = false; pushUntil = 0; evictUntil = 0;
             }
             // Tombé et jamais jugé (pause entre deux manches…) : après 1,5 s au fond on remonte au point d'apparition.
             fallenFor = !Hurtbox.Eliminated && Elevation + jumpY < -2.5f ? fallenFor + 1.0 / 60.0 : 0;
-            if (fallenFor > 1.5) { fallenFor = 0; worldPos = spawnPos; velocity = Vector2.Zero; jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; GD.Print("[PC] Remonté au point d'apparition (chute non jugée)"); }
+            if (fallenFor > 1.5) { fallenFor = 0; worldPos = spawnPos; velocity = Vector2.Zero; jumpY = 0; jumpVel = 0; Elevation = SpawnElevation(); padFlight = false; GD.Print("[PC] Remonté au point d'apparition (chute non jugée)"); }
             if (Hurtbox.Eliminated && Elevation + jumpY < -2.5f)
             {
                 // Tombé dans la fosse et déclaré KO : on remonte au point d'apparition tout de suite (invisible, immobile) pour que la copie de l'hôte suive avant le retour.
                 worldPos = spawnPos; velocity = Vector2.Zero;
-                jumpY = 0; jumpVel = 0; Elevation = 0; padFlight = false; pushUntil = 0; evictUntil = 0;
+                jumpY = 0; jumpVel = 0; Elevation = SpawnElevation(); padFlight = false; pushUntil = 0; evictUntil = 0;
                 GD.Print("[PC] Remonté au point d'apparition après la chute");
             }
             wasEliminated = Hurtbox.Eliminated;
@@ -1620,6 +1664,19 @@ public partial class DesktopPlayer : Node3D
         {
             var wish = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw)) * input.Move.X - new Vector2(-Mathf.Sin(yaw), -Mathf.Cos(yaw)) * input.Move.Y;
             if (PitGap(worldPos + wish.Normalized() * 1.6f) < 0.3f || PitGap(worldPos + velocity.Normalized() * 2.4f) < 0.2f && velocity.Length() > 4f) input.Move = Vector2.Zero;   // freinage : à 7,5 m/s l'inertie porte à près de 2 m
+        }
+        // Arène libre : même prudence au bord du vide (le pilote se fait encore pousser par les tacles, c'est voulu).
+        if (Geo != null && input.Move.LengthSquared() > 0.01f)
+        {
+            var wish = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw)) * input.Move.X - new Vector2(-Mathf.Sin(yaw), -Mathf.Cos(yaw)) * input.Move.Y;
+            var ahead = worldPos + wish.Normalized() * 1.6f;
+            var drift = worldPos + (velocity.LengthSquared() > 0.01f ? velocity.Normalized() : Vector2.Zero) * 2.4f;
+            if (Geo.IsVoid(ahead.X, ahead.Y, 0f) || velocity.Length() > 4f && Geo.IsVoid(drift.X, drift.Y, 0f)) { input.Move = Vector2.Zero; input.Dodge = false; }
+        }
+        if (Geo != null && input.Dodge)
+        {
+            var ahead = worldPos + new Vector2(-Mathf.Sin(yaw), -Mathf.Cos(yaw)) * 5f;
+            if (Geo.IsVoid(ahead.X, ahead.Y, 0f)) input.Dodge = false;
         }
         ScriptedMoves(ref input, (float)delta);
         return input;

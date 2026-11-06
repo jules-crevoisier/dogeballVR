@@ -18,6 +18,7 @@ public static class ArenaBuilder
 
     public static Result Build(MapData map, int localZoneId, bool pcProfile = true)
     {
+        if (map.IsArena) return ArenaLevelBuilder.Build(map, pcProfile);   // arène libre du PC : son propre constructeur
         var root = new Node3D { Name = "Arena" };
         var platforms = new Dictionary<int, Node3D>();
         foreach (var z in map.Zones)
@@ -69,7 +70,7 @@ public static class ArenaBuilder
     };
 
     /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>
-    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null)
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null, float fogScale = 1f)
     {
         var m = Moods.TryGetValue(ambiance ?? "jour", out var mood) ? mood : Moods["jour"];
         var sky = new ProceduralSkyMaterial
@@ -86,7 +87,7 @@ public static class ArenaBuilder
             // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume qui repousse le fond
             AmbientLightEnergy = m.Ambient,
             TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = m.Exposure, TonemapWhite = 6f,
-            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity * fogScale, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
             GlowEnabled = pcProfile, GlowIntensity = m.Glow, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
             AdjustmentEnabled = true, AdjustmentSaturation = m.Saturation, AdjustmentContrast = 1.08f,
@@ -388,6 +389,12 @@ public static class ArenaBuilder
         });
         root.AddChild(launcher);
     }
+
+    /// <summary>Murs et plafond invisibles (accès pour les arènes libres).</summary>
+    internal static void AddBoundsPublic(Node3D root, MapData map) => AddBounds(root, map);
+
+    /// <summary>Boîte englobante d'un modèle dans son propre repère (null sans maillage).</summary>
+    internal static Aabb? ModelBounds(Node3D model) => Bounds(model, Transform3D.Identity);
 
     /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>
     static void AddBounds(Node3D root, MapData map)

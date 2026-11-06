@@ -38,11 +38,11 @@ public partial class OnlineLobby : Node
 
     const double JoinRequestTimeout = 10.0, ConnectTimeout = 10.0, ReconnectWindow = 30.0, ReconnectEvery = 3.0;
     const int MaxLobbyMessagesPerSecond = 8;
-    static readonly string[] MapChoices = { "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
+    static readonly string[] MapChoices = { "marche_suspendu", "piscine", "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
 
     public LobbyState State { get; private set; } = LobbyState.Idle;
     public bool IsHost { get; private set; }
-    public string Map { get; private set; } = "croix_neon";
+    public string Map { get; private set; } = "marche_suspendu";
     /// <summary>Code à donner aux amis (IP:port encodé ou lobby Steam), vide tant qu'inconnu.</summary>
     public string Code { get; private set; } = "";
     /// <summary>Vrai si le code marche depuis Internet (lobby Steam, ou port ouvert par UPnP) ; sinon il ne vaut que sur le réseau local.</summary>

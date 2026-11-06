@@ -197,6 +197,8 @@ public partial class Main : Node3D
             GD.PrintErr($"Map introuvable : {mapPath}. Repli sur neon_court.");
             mapPath = "res://maps/neon_court.json";
         }
+        // Arènes libres : 3 contre 3 par défaut (fiche de la carte) ; --team-size=2|3|4 pour les essais.
+        if (int.TryParse(Tools.DevFlags.Value("--team-size=") ?? "", out int teamSize)) MapData.ArenaTeamSize = Mathf.Clamp(teamSize, 1, 4);
         map = MapData.Load(mapPath);
         // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
         KcRules.Configure(map.Rules, xrActive);
@@ -229,7 +231,7 @@ public partial class Main : Node3D
         zones.EdgeWarning += d =>
         {
             double now = Time.GetTicksMsec() / 1000.0;
-            if (map.IsRing && xrOrigin == null) return;   // jeu libre au clavier : pas de bord de zone
+            if (map.IsFreeRoam && xrOrigin == null) return;   // jeu libre au clavier : pas de bord de zone
             if (xrOrigin != null) WarnEdgeVr(d, now, ref lastEdgePulse, ref lastEdgeSound);
             if (now - lastEdgeLog < 2.0) return;   // pas un message par image contre le bord
             lastEdgeLog = now;
@@ -250,7 +252,7 @@ public partial class Main : Node3D
 
         localHurtbox = new Hurtbox { Name = "LocalHurtbox", PlayerId = localZone.Id, Team = localZone.Team, Passive = client };
         BuildLocalPlayer(xrActive, localZone);
-        if (localZone.Lift != null && !(map.IsRing && xrOrigin == null)) BuildLift(localZone);   // le lift est un geste VR ; au clavier, tremplins et terrasses
+        if (localZone.Lift != null && !(map.IsFreeRoam && xrOrigin == null)) BuildLift(localZone);   // le lift est un geste VR ; au clavier, tremplins et terrasses
 
         if (client) BuildClient(localZone);
         else BuildHost(localZone);
@@ -329,7 +331,7 @@ public partial class Main : Node3D
         else
         {
             // Pas de casque : joueur clavier-souris pour tester (voir DesktopPlayer).
-            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = localHurtbox, FreeRoam = map.IsRing };
+            var desktop = new DesktopPlayer { Name = "DesktopPlayer", Zones = zones, Hurtbox = localHurtbox, FreeRoam = map.IsFreeRoam };
             AddChild(desktop);
             localBody = desktop;
             desktopPlayer = desktop;
@@ -452,10 +454,15 @@ public partial class Main : Node3D
         // et la VR gardent les 5 manches.
         if (cfg.OnlineFormat || menuSolo && xrOrigin == null && !Tutorial) match.Rules.UseOnlineFormat(map.Zones.Count(z => z.Team == 0));
         match.ZoneElevation = ZoneElevation;
-        match.PlatformsMove = !(map.IsRing && xrOrigin == null);
+        match.PlatformsMove = !(map.IsFreeRoam && xrOrigin == null);
         match.IsBot = id => bots.ContainsKey(id);
+        // Arène libre au clavier : les bots courent partout (navigation sur la géométrie), on peut les tacler.
+        Bot.World = map.IsArena && xrOrigin == null ? new RoamWorld(map) : null;
+        match.BotsRoam = Bot.World != null;
+        if (Bot.World != null) GD.Print($"[Arène] {map.Name} : {Bot.World.Nav.WalkableCount()} cases praticables sur {Bot.World.Nav.Count}");
         match.PushVictim = (victimId, dir) =>
         {
+            if (bots.TryGetValue(victimId, out var pushedBot)) { pushedBot.ApplyPush(dir); return; }
             if (victimId == localZone.Id) desktopPlayer?.ApplyPush(dir);
             else net?.SendPush(victimId, dir);
         };
@@ -533,7 +540,7 @@ public partial class Main : Node3D
             net.LivesOf = id => match.Rules.LivesOf(id);
             net.IsEliminated = id => match.IsEliminated(id);
             net.IsBot = id => bots.ContainsKey(id);
-            net.FreeRoam = map.IsRing && xrOrigin == null;
+            net.FreeRoam = map.IsFreeRoam && xrOrigin == null;
             net.SpawnOf = id => map.Pc?.Spawns.Find(sp => sp.Zone == match.PlateOf(id)) is { } s ? new Vector3(s.X, 0, s.Z) : null;
             net.ZoneRect = id =>
             {
@@ -611,7 +618,7 @@ public partial class Main : Node3D
     {
         var a = bot.Avatar!;
         // lacet réel de l'avatar (il pivote vers sa cible) : chez les clients, la main armée et la balle tenue tournent ensemble
-        return new PoseData(a.Head.GlobalPosition, a.GlobalRotation.Y, a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition);
+        return new PoseData(a.Head.GlobalPosition, a.GlobalRotation.Y, a.LeftHand.GlobalPosition, a.RightHand.GlobalPosition, Bot.World != null ? bot.GroundY is var g && float.IsNegativeInfinity(g) ? 0f : Mathf.Max(0f, g) : 0f);
     }
 
     /// <summary>Un joueur distant prend la place du bot de sa zone.</summary>
@@ -811,7 +818,7 @@ public partial class Main : Node3D
             if (hostDeniedFor > 1.0) { lift.ForceDown(); hostDeniedFor = 0; }
         }
         localMarker.GlobalPosition = new Vector3(p.X, elevation, p.Z);
-        if (map.IsRing && xrOrigin == null) return;   // clavier-souris en moulinet : pas de plateaux de lift
+        if (map.IsFreeRoam && xrOrigin == null) return;   // clavier-souris en jeu libre : pas de plateaux de lift
         foreach (var (id, platform) in platforms)
         {
             float e = ZoneElevation(id);

@@ -96,19 +96,20 @@ public partial class Bot : Node3D
         Avatar = Avatar.Create(Hurtbox.Team, bot: true, Hurtbox.PlayerId);
         AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
+        if (World != null) SetupRoam();
         AddChild(Hurtbox);
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Hurtbox.Eliminated) { DropHeld(); Visible = false; return; }
+        if (Hurtbox.Eliminated) { DropHeld(); Visible = false; roamOut = World != null; return; }
         Visible = true;
         if (held != null && !IsInstanceValid(held)) { held = null; windupLeft = -1; } // balle supprimée au changement de manche
         catchCooldown -= delta;
         whiffLeft -= delta;
         TrackTargets(delta);
         ReadThreats();
-        Dodge(delta);
+        if (World != null) Roam(delta); else Dodge(delta);
         FaceNearestEnemy(delta);
         if (held == null && catchCooldown <= 0) TryCatch();
         else ThinkThrow(delta);
@@ -165,6 +166,7 @@ public partial class Bot : Node3D
     /// <summary>Pas de côté, perpendiculaire au tir, vers le côté le plus libre de la zone.</summary>
     void StartDodge(Ball ball)
     {
+        if (World != null) { StartRoamDodge(ball); return; }
         var basis = new Basis(Vector3.Up, Mathf.DegToRad(Zone.FacingDegrees));
         var side = (basis.Inverse() * ball.LinearVelocity).Cross(Vector3.Up);
         float local = (basis.Inverse() * (GlobalPosition - Zone.Center)).X;
@@ -272,6 +274,7 @@ public partial class Bot : Node3D
                 return;
             }
             held = ball;
+            if (World != null) { World.Claims.Remove(ball); goalBall = null; repathAt = 0; }
             if (reads.Remove(ball) || ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f) { nCatches++; if (perfect) nPerfects++; }
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team, perfect);
             feinted = false;
@@ -326,6 +329,8 @@ public partial class Bot : Node3D
         // Hors de portée utile (18 m et plus : aucune touche mesurée) : on attend un peu que la cible se rapproche.
         if (mate == null && dist > MaxUsefulRange && waitedForRange < 3) { waitedForRange++; throwDelay = 0.5; return; }
         waitedForRange = 0;
+        // Jeu libre : pas de tir dans un mur ; on attend que le déplacement ouvre la ligne (ChooseGoal s'en charge).
+        if (World != null && mate == null && !LineOfSight(target)) { throwDelay = 0.25; return; }
         // Feinte : l'élan sans lâcher la balle, puis le vrai tir un peu plus tard (piège une attrape trop précoce).
         if (mate == null && !feinted && rng.Randf() < s.Feint)
         {

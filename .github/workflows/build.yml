@@ -660,11 +660,70 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  arenes:
+    name: Arènes libres (Toits du Marché, La Piscine)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/godot-setup
+
+      - name: Test solo des arènes (géométrie, grille des bots, manche complète)
+        run: |
+          for MAP in marche_suspendu piscine; do
+            "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 -- --map=$MAP --pc-autoplay 2>&1 | tee arene-$MAP.log
+            if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" arene-$MAP.log; then
+              echo "Erreur à l'exécution ($MAP, solo)"; exit 1
+            fi
+            grep -q "\[Arène\]" arene-$MAP.log || { echo "$MAP : arène non construite"; exit 1; }
+            TIRS=$(grep -oE "\[Bots\] niveau [A-Za-zé]+ : [0-9]+ tirs" arene-$MAP.log | tail -1 | grep -oE "[0-9]+ tirs" | grep -oE "[0-9]+" || echo 0)
+            CHUTES=$(grep -c "Chute dans la fosse" arene-$MAP.log || true)
+            echo "$MAP : tirs des bots $TIRS, chutes sans poussée $CHUTES"
+            if [ "$CHUTES" -gt 3 ]; then echo "$MAP : trop de chutes sans poussée (bots ou joueur auto qui tombent seuls)"; exit 1; fi
+            if [ "${TIRS:-0}" -lt 20 ]; then echo "$MAP : les bots ne jouent pas (moins de 20 tirs)"; exit 1; fi
+            grep -qE "MANCHE POUR|MANCHE NULLE" arene-$MAP.log || { echo "$MAP : aucune manche terminée"; exit 1; }
+          done
+
+      - name: Test réseau sur Toits du Marché (client PC libre validé par l'hôte)
+        run: |
+          for ATTEMPT in 1 2 3; do
+            "$GODOT" --headless --path . --max-fps 60 --quit-after 4500 -- --host --map=marche_suspendu --pc-autoplay > arene-host.log 2>&1 &
+            HOST_PID=$!
+            for i in $(seq 1 60); do grep -q "Hôte en écoute" arene-host.log && break; sleep 0.5; done
+            tools/ci/godot-fg.sh arene-client.log "$GODOT" --headless --path . --max-fps 60 --quit-after 3600 -- --join=127.0.0.1 --map=marche_suspendu --pc-autoplay
+            wait $HOST_PID || true
+            if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" arene-host.log arene-client.log; then
+              echo "Erreur à l'exécution (arène, réseau)"; exit 1
+            fi
+            CATCHES=$(grep -c "attrapée par la zone 2" arene-host.log || true)
+            THROWS=$(grep -c "Balle [0-9]* lancée par la zone 2" arene-host.log || true)
+            DASHES=$(grep -c "Dash validé pour la zone 2" arene-host.log || true)
+            echo "Toits du Marché, client PC libre : prises $CATCHES, lancers $THROWS, dashs $DASHES"
+            if [ "$CATCHES" -ge 4 ] && [ "$THROWS" -ge 4 ] && [ "$DASHES" -ge 3 ]; then exit 0; fi
+            echo "Tentative $ATTEMPT non concluante (scénario automatique non déterministe)"
+          done
+          echo "Le joueur libre client n'est pas accepté par l'hôte sur l'arène"; exit 1
+
+      - name: Journaux en cas d'échec
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journaux-${{ github.job }}-${{ github.run_attempt }}
+          path: |
+            *.log
+            *.log.run
+            *.log.exit
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Résumé : vert si tous les jobs sont verts (ou sautés pour une PR de documentation seule).
   build:
     name: build
     if: always()
-    needs: [changes, compile, solo, reseau, p2p, croix-neon, fosse-croisee, tour-4v4, lobby, entrainement]
+    needs: [changes, compile, solo, reseau, p2p, croix-neon, fosse-croisee, tour-4v4, lobby, entrainement, arenes]
     runs-on: ubuntu-latest
     steps:
       - name: Résultat des jobs

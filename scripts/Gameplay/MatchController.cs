@@ -124,6 +124,8 @@ public partial class MatchController : Node3D
     /// <summary>Tacle validé : la victime est poussée de 2 m dans la direction donnée (le joueur local l'applique, un joueur distant reçoit un message).</summary>
     public System.Action<int, Vector2>? PushVictim { get; set; }
     public System.Func<int, bool>? IsBot { get; set; }
+    /// <summary>Arène libre : les bots courent partout, on peut donc les tacler (et les pousser dans le vide).</summary>
+    public bool BotsRoam { get; set; }
 
     void OnTackle(int tacklerId, int victimId, Vector2 dir)
     {
@@ -136,7 +138,7 @@ public partial class MatchController : Node3D
         var toVictim = new Vector2(pv.X - pa.X, pv.Z - pa.Z);
         if (toVictim.Length() > TackleReach || Mathf.Abs(pv.Y - pa.Y) > 1.5f) return;
         if (toVictim.Length() > 0.4f && Mathf.Abs(Mathf.RadToDeg(toVictim.AngleTo(dir))) > 70f) return;   // on pousse dans le sens du dash, pas où l'on veut
-        if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true) return;        // un bot ne se déplace pas : pas de tacle sans poussée
+        if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true && !BotsRoam) return;        // un bot de zone ne se déplace pas : pas de tacle sans poussée
         tackleReadyAt[tacklerId] = now + 0.8;
         lastPush[victimId] = (tacklerId, now);
         foreach (var n in GetTree().GetNodesInGroup("balls"))
@@ -154,11 +156,19 @@ public partial class MatchController : Node3D
             if (h.Eliminated || h.Head == null || !IsInstanceValid(h)) continue;
             if (ringGraceUntil.TryGetValue(id, out double grace) && now < grace) continue;
             var hp = h.Head.GlobalPosition;
-            // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
-            bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
-            if (!above) overPitSince.Remove(id);
-            else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
-            if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
+            if (ringMap.Geometry is { } geo)
+            {
+                // Arène libre : tombé quand la tête passe sous le niveau du sol le plus bas (0) au-dessus du vide.
+                if (hp.Y > -1.0f || !geo.IsVoid(hp.X, hp.Z, 0f)) continue;
+            }
+            else
+            {
+                // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
+                bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
+                if (!above) overPitSince.Remove(id);
+                else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
+                if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
+            }
             if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team
                 && Rules.Eliminate(push.by, id))   // toutes les vies d'un coup ; l'ancienne boucle de RegisterHit pouvait ne jamais finir
             {
@@ -224,7 +234,7 @@ public partial class MatchController : Node3D
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
         respawnProtection = map.Rules.RespawnProtectionSeconds;
         heartRegenSeconds = KcRules.HeartRegenSeconds(!PcProfile);   // VR : toutes les cartes ; clavier-souris : aucune
-        ringMap = PcProfile && map.PitRect != null ? map : null;
+        ringMap = PcProfile && (map.PitRect != null || map.IsArena) ? map : null;
         terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
         Assist.Configure(map.BallRules);
@@ -237,6 +247,7 @@ public partial class MatchController : Node3D
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
                 if (zone != null) dispensers.Add(new Dispenser { Def = def, Team = zone.Team });
             }
+            else if (def.Kind == "pedestal") dispensers.Add(new Dispenser { Def = def, Team = -1 });   // arène libre : piédestal neutre, à qui le prend
         }
     }
 
@@ -762,7 +773,7 @@ public partial class MatchController : Node3D
             if (now < pendingReturns[i].due) continue;
             Dispenser? target = null;
             foreach (var d in dispensers)
-                if (d.Team == pendingReturns[i].team && (target == null || d.Stored < target.Stored)) target = d;
+                if ((d.Team == pendingReturns[i].team || d.Team < 0) && (target == null || d.Stored < target.Stored)) target = d;
             // Distributeur plein : la balle retournée attend en file jusqu'à ce qu'il y ait de la place.
             if (target == null) { pendingReturns.RemoveAt(i); continue; }
             if (target.Stored >= target.Def.MaxStored) continue;
