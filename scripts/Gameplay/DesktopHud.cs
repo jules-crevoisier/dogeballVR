@@ -125,6 +125,15 @@ public partial class DesktopHud : CanvasLayer
         board.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         board.OffsetLeft = -350; board.OffsetRight = 350; board.OffsetTop = 14; board.OffsetBottom = 142;
         root.AddChild(board);
+        // Socle unique du bandeau (DA v3) : une seule dalle violette à liseré crème et bande turquoise décalée, sur laquelle
+        // les deux plaques et le chrono sont posés : un bloc massif, lisible d'un coup d'œil, comme un tableau télévisé.
+        var slab = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(-14, -6), Size = new Vector2(728, 136) };   // assez haut pour porter les pastilles de manche
+        slab.AddThemeStyleboxOverride("panel", new KcBox
+        {
+            Top = HudBack, Bottom = HudBack.Darkened(0.3f), Slant = 26, BorderWidth = 5, BorderColor = UiKit.Cream,
+            ShadowOffset = new Vector2(8, 10), ShadowColor = new Color(0, 0, 0, 0.4f), StripOffset = new Vector2(12, 14), StripColor = UiKit.Teal,
+        });
+        board.AddChild(slab);
 
         for (int team = 0; team < 2; team++)
         {

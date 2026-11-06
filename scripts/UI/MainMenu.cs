@@ -56,6 +56,18 @@ public partial class MainMenu : CanvasLayer
         compact = root.GetViewportRect().Size.Y < 960f;
         float top = compact ? -44f : 0f;
 
+        // Page pleine (DA v3, comme les menus de KC) : fond turquoise rayé, panneau violet et héros en pied à droite. Elle
+        // couvre la rue 3D, qui reste derrière pour les autres pages.
+        var stage = new MenuStage { MouseFilter = Control.MouseFilterEnum.Ignore };
+        stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        stage.Resized += stage.QueueRedraw;
+        root.AddChild(stage);
+        var heroBox = new MenuHero();
+        heroBox.AnchorLeft = 0.44f; heroBox.AnchorRight = 0.76f; heroBox.AnchorTop = 0.04f; heroBox.AnchorBottom = 1f;
+        heroBox.OffsetLeft = heroBox.OffsetRight = heroBox.OffsetTop = heroBox.OffsetBottom = 0;
+        root.AddChild(heroBox);
+        UiKit.SlideIn(heroBox, 0f, 200f);
+
         // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
         band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
         band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
