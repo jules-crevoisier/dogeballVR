@@ -68,7 +68,7 @@ public partial class PlayerTag : Node3D
     }
 
     /// <summary>Hauteur du nom en pixels d'une image de 720 lignes (cœurs : HeartsScale fois plus).</summary>
-    const float NamePx = 12f;
+    const float NamePx = 13f;
     const float FarFade = 25f, FarName = 40f;
     /// <summary>Cœurs par rapport au nom : le glyphe ♥ est petit dans sa case, d'où 1,6 em.</summary>
     const float HeartsScale = 1.6f;
@@ -85,7 +85,7 @@ public partial class PlayerTag : Node3D
         var ink = UI.UiKit.Ink;
         nameLabel = new Label3D
         {
-            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 16, Modulate = color, OutlineModulate = ink,
+            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 20, Modulate = color, OutlineModulate = ink,
             VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, NameLift, 0), RenderPriority = 1, OutlineRenderPriority = 0,
         };
         // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Barlow).
@@ -126,7 +126,7 @@ public partial class PlayerTag : Node3D
             throughWalls = walls;
             nameLabel.NoDepthTest = hearts.NoDepthTest = walls;
         }
-        // Taille : nom 12 px, cœurs à 1,6 em (image 720 lignes ; nom de 18 px en 1080), discrets comme dans les jeux d'action en ligne ;
+        // Taille : nom 13 px, cœurs à 1,6 em (image 720 lignes ; nom d'environ 20 px en 1080), discrets comme dans les jeux d'action en ligne ;
         // coéquipiers aux trois quarts et plus pâles ; au-delà de 25 m tout pâlit, au-delà de 40 m le nom disparaît (cœurs seuls).
         float k = mate ? 0.75f : 1f;
         float alpha = (mate ? 0.7f : 1f) * (dist > FarFade ? 0.6f : 1f);

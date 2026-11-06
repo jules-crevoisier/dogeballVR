@@ -223,7 +223,7 @@ public partial class DesktopHud : CanvasLayer
         return p;
     }
 
-    /// <summary>Manche gagnée (barre pleine à la couleur de l'équipe) ou à jouer (contour blanc translucide, intérieur vide). Le dessin suit la taille du contrôle.</summary>
+    /// <summary>Manche gagnée (barre pleine à la couleur de l'équipe) ou à jouer (encre légère, contour blanc à 50 %). Le dessin suit la taille du contrôle.</summary>
     sealed partial class Pip : Control
     {
         public Color Color;
@@ -237,7 +237,8 @@ public partial class DesktopHud : CanvasLayer
                 DrawRect(new Rect2(Vector2.Zero, Size), Color);
                 return;
             }
-            DrawRect(new Rect2(Vector2.Zero, Size).Grow(-0.5f), new Color(1, 1, 1, 0.3f), false, 1f);
+            DrawRect(new Rect2(Vector2.Zero, Size), new Color(UiKit.Navy, 0.4f));
+            DrawRect(new Rect2(Vector2.Zero, Size).Grow(-0.5f), new Color(1, 1, 1, 0.5f), false, 1f);
         }
     }
 
@@ -973,9 +974,9 @@ public partial class DesktopHud : CanvasLayer
         if (victim == View.LocalId) LocalKoBanner(by);
         bool mine = by == View.LocalId || victim == View.LocalId;
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        // Ligne fine et translucide ; seules mes lignes (je tire ou je tombe) portent un filet blanc à droite.
+        // Ligne fine sur plaque d'encre ; seules mes lignes (je tire ou je tombe) sont plus opaques, avec un liseré de mon équipe.
         var box = PlateBox(new Color(UiKit.Navy, mine ? 0.88f : 0.65f), 14, 2, 8);
-        box.BorderColor = Colors.White; box.BorderWidthRight = mine ? 4 : 0;
+        box.BorderColor = Palette.Team(View.LocalTeam); box.BorderWidthLeft = mine ? 4 : 0;   // mes lignes : liseré de mon équipe à gauche
         panel.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 10);
@@ -1049,7 +1050,7 @@ public partial class DesktopHud : CanvasLayer
             var c = s / 2;
             float midA = Mathf.Atan2(From.Y, From.X), half = 0.38f;
             float a1 = Mathf.Min(1f, e * 1.2f);
-            DrawArc(c, ArcRadius, midA - half, midA + half, 32, new Color(UiKit.Ink, 0.35f * a1), 12f, true);
+            DrawArc(c, ArcRadius, midA - half, midA + half, 32, new Color(UiKit.Ink, 0.85f * a1), 12f, true);
             DrawArc(c, ArcRadius, midA - half, midA + half, 32, new Color(Hot, 0.7f * a1 + 0.3f * a1 * a1), 8f, true);
             // Pointe au milieu de l'arc, tournée vers l'extérieur (vers le tireur).
             var d = new Vector2(Mathf.Cos(midA), Mathf.Sin(midA));
@@ -1903,16 +1904,23 @@ public partial class DesktopHud : CanvasLayer
         }
 
         // Rappel discret des premières secondes : « [F1] commandes ».
-        var hint = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
-        hint.AddThemeConstantOverride("separation", 10);
+        // Une seule plaque d'encre de 28 px : la touche (plaque plus claire) puis le mot.
+        var hint = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        hint.AddThemeStyleboxOverride("panel", PlateBox(PlateInk, 6, 2, 7));
+        var hintRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        hintRow.AddThemeConstantOverride("separation", 10);
+        hint.AddChild(hintRow);
         hint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         hint.GrowHorizontal = Control.GrowDirection.Begin;
         hint.GrowVertical = Control.GrowDirection.Begin;
         hint.OffsetRight = -36; hint.OffsetBottom = -40; hint.OffsetLeft = -36; hint.OffsetTop = -40;
-        hint.AddChild(HudKey(InputSetup.KeyName("help"), 17));
-        var words = Soft(UiKit.Text("commandes", 20, new Color(1, 1, 1, 0.9f), 0), UiKit.Heavy);
+        var hintKey = HudKey(InputSetup.KeyName("help"), 15);
+        hintKey.AddThemeStyleboxOverride("normal", PlateBox(new Color(1, 1, 1, 0.16f), 9, 0, 5));
+        hintRow.AddChild(hintKey);
+        var words = Soft(UiKit.Text("commandes", 18, new Color(1, 1, 1, 0.9f), 0), UiKit.Heavy);
         words.VerticalAlignment = VerticalAlignment.Center;
-        hint.AddChild(words);
+        hintRow.AddChild(words);
+        hintRow.AddChild(new Control { CustomMinimumSize = new Vector2(4, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         helpLayer.AddChild(hint);
         helpHint = hint;
     }
