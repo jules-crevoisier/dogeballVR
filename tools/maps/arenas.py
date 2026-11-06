@@ -277,7 +277,7 @@ def piscine():
     for x in (-12, 12):
         garland(a, x, -16.5, x, 16.5, 5.4, sag=0.9)
     a.deco(model="lampadaire", x=-15.3, y=D, z=-16)
-    a.skyline((-19, 19, -19, 19), 11, [("#3A3F5C", "#F6C56A"), ("#4A4E6A", "#FFB070"), ("#5B4A5E", "#F6C56A"), ("#2E3350", "#F6C56A")], base=-14)   # ville froide et sombre : le club se détache
+    a.skyline((-19, 19, -19, 19), 11, [("#3A3F5C", "#F6C56A"), ("#4A4E6A", "#FFB070"), ("#5B4A5E", "#F6C56A"), ("#2E3350", "#F6C56A")], base=-14, brick=False, max_h=22)   # ville froide et sombre : le club se détache
     a.write("piscine", {
         "ambiance": "soiree",
         "info": {"title": "La Piscine", "tagline": "Un bassin vide, un plongeoir, deux camps.",
