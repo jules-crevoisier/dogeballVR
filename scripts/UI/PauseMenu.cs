@@ -109,11 +109,11 @@ public partial class PauseMenu : CanvasLayer
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
         // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
-        var resume = UiKit.ListButton("REPRENDRE", Close, 38, new Vector2(500, 72));   // items plus gros (revue de la refonte)
+        var resume = UiKit.ListButton("REPRENDRE", Close, 46, new Vector2(560, 80));   // items plus gros (revue de la refonte)
         col.AddChild(resume);
-        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 38, new Vector2(500, 72)));
-        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }, 38, new Vector2(500, 72)));
-        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }, 38, new Vector2(500, 72)));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 46, new Vector2(560, 80)));
+        if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }, 46, new Vector2(560, 80)));
+        if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }, 46, new Vector2(560, 80)));
         col.AddChild(UiKit.Spacer(26));
         col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 28, new Vector2(500, 60), UiKit.Cream));   // secondaire : crème, plus petit que les autres
 

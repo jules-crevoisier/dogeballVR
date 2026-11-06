@@ -5,8 +5,8 @@ using DogeballVR.Audio;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Briques d'interface communes (menus, pause, options, fin de partie, HUD) dans la DA Knockout City, version 2 (refonte
-/// du 04/11) : police condensée Barlow Condensed (OFL) en vraie italique très grasse pour les titres et les boutons, droite
+/// Briques d'interface communes (menus, pause, options, fin de partie, HUD) dans la DA Knockout City, version 3 (06/11 :
+/// violet saturé, liseré crème épais, turquoise en retrait ; version 2 du 04/11 pour la typo) : police condensée Barlow Condensed (OFL) en vraie italique très grasse pour les titres et les boutons, droite
 /// pour le texte courant ; texte blanc sans gros contour, avec une ombre portée nette (lisible sur le décor). Fenêtres en
 /// panneaux penchés violet à liseré crème, bande turquoise en retrait (comme les menus de KC) ; boutons en lettres
 /// penchées qui passent en encre sur une barre jaune inclinée (étoile devant le texte) au survol ou au clavier.
@@ -23,10 +23,10 @@ public static class UiKit
     public static readonly Color Cream = new("fff4e0");
     public static readonly Color Grey = new("55607f");
     public static readonly Color Green = new("4fdc7a");
-    // Couleurs du bandeau du menu principal.
-    public static readonly Color VioletTop = new("352a5c");
-    public static readonly Color VioletMid = new("271f45");
-    public static readonly Color NavyLow = new("171330");
+    // Couleurs du bandeau du menu principal et des fenêtres : le violet saturé de Knockout City (DA v3 du 06/11).
+    public static readonly Color VioletTop = new("6c24a8");
+    public static readonly Color VioletMid = new("551a8c");
+    public static readonly Color NavyLow = new("3a0f68");
     public static readonly Color Violet = new("5a1a8a");
     /// <summary>Turquoise des menus de KC : bandes en retrait derrière les panneaux, accents interactifs (menus 2D du PC seulement).</summary>
     public static readonly Color Teal = new("2fd6c3");
@@ -41,9 +41,9 @@ public static class UiKit
     {
         var b = new KcBox
         {
-            Top = VioletTop, Bottom = NavyLow, BorderWidth = 6, BorderColor = Cream, Slant = slant,
-            ShadowOffset = new Vector2(12, 14), ShadowColor = new Color(0, 0, 0, 0.6f),
-            StripOffset = new Vector2(-16, 0), StripColor = Yellow,
+            Top = VioletTop, Bottom = NavyLow, BorderWidth = 8, BorderColor = Cream, Slant = slant,
+            ShadowOffset = new Vector2(14, 16), ShadowColor = new Color(0, 0, 0, 0.55f),
+            StripOffset = new Vector2(-22, 18), StripColor = Teal,
         };
         b.ContentMarginLeft = b.ContentMarginRight = margin + slant * 0.5f;
         b.ContentMarginTop = b.ContentMarginBottom = margin * 0.7f;
@@ -53,7 +53,7 @@ public static class UiKit
     /// <summary>Encart dans une fenêtre (description, ligne de tableau, carte) : aplat sombre penché, sans liseré.</summary>
     public static KcBox InsetBox(Color? fill = null, float slant = 10f, int border = 0, Color? borderColor = null)
     {
-        var c = fill ?? new Color(Ink, 0.45f);
+        var c = fill ?? new Color(InkText, 0.4f);
         var b = new KcBox { Top = c, Bottom = c.Darkened(0.12f), Slant = slant, BorderWidth = border, BorderColor = borderColor ?? Cream };
         b.ContentMarginLeft = b.ContentMarginRight = 22 + Mathf.Abs(slant) * 0.5f;
         b.ContentMarginTop = 8; b.ContentMarginBottom = 8;
@@ -73,7 +73,7 @@ public static class UiKit
     {
         var b = new KcBox
         {
-            Top = box ? new Color("2a1458") : new Color(0, 0, 0, 0), Bottom = box ? new Color("17183c") : new Color(0, 0, 0, 0),
+            Top = box ? new Color("4a1680") : new Color(0, 0, 0, 0), Bottom = box ? new Color("32105a") : new Color(0, 0, 0, 0),
             BorderWidth = box ? 3 : 0, BorderColor = new Color(Cream, 0.9f), Slant = 12,
             ShadowOffset = new Vector2(6, 6), ShadowColor = new Color(Ink, box ? 0.55f : 0f),
             AccentColor = accent, AccentWidth = 9,
@@ -114,7 +114,7 @@ public static class UiKit
     public static Label Header(string text, int size = 54)
     {
         var l = Title(text, size, HorizontalAlignment.Left);
-        var band = new KcBox { Top = new Color(Ink, 0.7f), Bottom = new Color(Ink, 0.5f), Slant = 14, AccentColor = Yellow, AccentWidth = 12, ShadowColor = new Color(0, 0, 0, 0) };
+        var band = new KcBox { Top = new Color("2a0a4a"), Bottom = new Color("220840"), Slant = 14, AccentColor = Yellow, AccentWidth = 14, ShadowOffset = new Vector2(8, 8), ShadowColor = new Color(0, 0, 0, 0.35f) };
         band.ContentMarginLeft = 36; band.ContentMarginRight = 24; band.ContentMarginTop = 0; band.ContentMarginBottom = 2;
         l.AddThemeStyleboxOverride("normal", band);
         return l;
@@ -334,10 +334,10 @@ public static class UiKit
     public static void Tint(Button b, Color accent, Color? fill = null, Color? text = null)
     {
         if (b.GetThemeStylebox("normal") is not KcBox idle) return;
-        var f = fill ?? new Color("2a1458");
+        var f = fill ?? new Color("4a1680");
         idle.AccentColor = accent;
         idle.Top = f;
-        idle.Bottom = fill is Color c ? c.Darkened(0.3f) : new Color("17183c");
+        idle.Bottom = fill is Color c ? c.Darkened(0.15f) : new Color("32105a");
         b.AddThemeColorOverride("font_color", text ?? Colors.White);
     }
 

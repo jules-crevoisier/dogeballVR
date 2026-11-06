@@ -118,7 +118,7 @@ public partial class MainMenu : CanvasLayer
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"ACCÈS ANTICIPÉ · V{(ver == "" ? "0.1" : ver)}", 20, new Color(1, 1, 1, 0.85f), 5, HorizontalAlignment.Right);
+        var version = UiKit.Text($"ACCÈS ANTICIPÉ · V{(ver == "" ? "0.1" : ver)}", 22, UiKit.InkText, 0, HorizontalAlignment.Right);   // sur la bande turquoise du bas
         if (UiKit.Italic is Font vi) version.AddThemeFontOverride("font", vi);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;

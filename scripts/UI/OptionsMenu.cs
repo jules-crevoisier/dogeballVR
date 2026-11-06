@@ -247,7 +247,7 @@ public partial class OptionsMenu : Control
     {
         tab = i;
         for (int k = 0; k < 4; k++)
-            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Violet : null, k == i ? UiKit.Yellow : null);   // onglet ouvert : violet clair, accent et texte jaunes
+            UiKit.Tint(tabs[k], new Color(0, 0, 0, 0), k == i ? UiKit.Yellow : null, k == i ? UiKit.InkText : null);   // onglet ouvert : cartouche jaune plein, texte encre (comme KC)
         foreach (var c in list.GetChildren()) c.QueueFree();
         rows.Clear();
         lit = null;

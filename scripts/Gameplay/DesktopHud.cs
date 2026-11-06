@@ -105,8 +105,10 @@ public partial class DesktopHud : CanvasLayer
     readonly List<Control>[] roundPips = { new(), new() };
     Label timer = null!, roundLabel = null!, overtime = null!;
     Panel timerBox = null!;
-    readonly KcBox timerStyle = new() { Top = new Color("1a0f33"), Bottom = new Color("120a26"), Slant = 0, BorderWidth = 0, ShadowOffset = new Vector2(0, 5), ShadowColor = new Color(0, 0, 0, 0.35f) };   // fond du chrono, chauffe sous 10 s
+    readonly KcBox timerStyle = new() { Top = new Color("4a1680"), Bottom = new Color("32105a"), Slant = 0, BorderWidth = 4, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(0, 5), ShadowColor = new Color(0, 0, 0, 0.35f) };   // fond du chrono, chauffe sous 10 s
     static readonly Color ChronoInk = new("1a0f33");
+    /// <summary>Fond des plaques du HUD (chrono, fil des KO, actions, tableau) : le violet saturé du menu (DA v3), plus l'encre.</summary>
+    static readonly Color HudBack = new("4a1680");
     int lastSecond = -1;
 
     /// <summary>
@@ -132,7 +134,7 @@ public partial class DesktopHud : CanvasLayer
             box.AddThemeStyleboxOverride("panel", new KcBox
             {
                 Top = color.Lightened(0.08f), Bottom = color.Darkened(0.14f), Slant = team == 0 ? 22 : -22,
-                BorderWidth = mine ? 5 : 0, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(0, 7), ShadowColor = new Color(0, 0, 0, 0.45f),
+                BorderWidth = mine ? 6 : 4, BorderColor = mine ? UiKit.Yellow : UiKit.Cream, ShadowOffset = new Vector2(6, 8), ShadowColor = new Color(0, 0, 0, 0.5f),   // liseré partout (DA v3), jaune sur mon équipe
             });
             box.Position = new Vector2(team == 0 ? 16 : 434, 4);
             box.Size = new Vector2(250, 88);
@@ -246,7 +248,7 @@ public partial class DesktopHud : CanvasLayer
         lastSecond = sec;
         float pulse = urgent ? 0.5f + 0.5f * Mathf.Sin((float)age * 10f) : 0f;
         timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(Urgent, 0.6f + 0.4f * pulse) : Colors.White);
-        var heat = urgent ? ChronoInk.Lerp(new Color("6a3d06"), pulse) : ChronoInk;
+        var heat = urgent ? HudBack.Lerp(new Color("a8420a"), pulse) : HudBack;
         timerStyle.Top = heat; timerStyle.Bottom = heat.Darkened(0.3f);
         timerBox.QueueRedraw();
         bool ot = s.Overtime && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
@@ -327,7 +329,7 @@ public partial class DesktopHud : CanvasLayer
         tag.AddChild(who);
         holder.AddChild(tag);
         var back = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        back.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(ChronoInk, 0.55f), Bottom = new Color(ChronoInk, 0.7f), Slant = 14, ShadowColor = new Color(0, 0, 0, 0) });
+        back.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.55f), Bottom = new Color(HudBack.Darkened(0.25f), 0.7f), Slant = 14, ShadowColor = new Color(0, 0, 0, 0) });
         back.Position = new Vector2(0, 38);
         back.Size = new Vector2(24 + (HeartSize + 8) * View.MaxLives, HeartSize + 12);
         holder.AddChild(back);
@@ -600,7 +602,7 @@ public partial class DesktopHud : CanvasLayer
         bottomHolder = holder;
         // Plaque encre penchée sous le bloc : icônes, noms et touches lisibles sur un sol clair (revue de la refonte).
         var plate = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(-22, -12), Size = new Vector2(ActionsWidth + 40, ActionsHeight + 14) };
-        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(ChronoInk, 0.78f), Bottom = new Color(ChronoInk, 0.86f), Slant = 18, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.3f) });
+        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.78f), Bottom = new Color(HudBack.Darkened(0.25f), 0.86f), Slant = 18, ShadowOffset = new Vector2(6, 7), ShadowColor = new Color(0, 0, 0, 0.3f) });
         holder.AddChild(plate);
         var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
         holder.AddChild(icons);
@@ -979,7 +981,7 @@ public partial class DesktopHud : CanvasLayer
         // Puce encre penchée (DA v2) ; un KO qui me concerne porte un liseré crème et un accent jaune à gauche.
         var box = new KcBox
         {
-            Top = new Color(ChronoInk, 0.82f), Bottom = new Color(ChronoInk, 0.9f), Slant = 10, BorderWidth = mine ? 3 : 0, BorderColor = UiKit.Cream,
+            Top = new Color(HudBack, 0.9f), Bottom = new Color(HudBack.Darkened(0.25f), 0.92f), Slant = 10, BorderWidth = mine ? 3 : 0, BorderColor = UiKit.Cream,
             AccentColor = mine ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7, ShadowOffset = new Vector2(4, 4), ShadowColor = new Color(0, 0, 0, 0.3f),
         };
         box.ContentMarginLeft = 22; box.ContentMarginRight = 20; box.ContentMarginTop = 2; box.ContentMarginBottom = 4;
@@ -1691,7 +1693,7 @@ public partial class DesktopHud : CanvasLayer
 
         // Score de manches au centre, façon tableau : « 1 – 0 », pastilles, KO de la manche, règle de la partie.
         var plate = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(ChronoInk, 0.95f), Bottom = new Color("0f0820", 0.97f), Slant = 0, BorderWidth = 5, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) });
+        plate.AddThemeStyleboxOverride("panel", new KcBox { Top = new Color(HudBack, 0.95f), Bottom = new Color(HudBack.Darkened(0.35f), 0.97f), Slant = 0, BorderWidth = 5, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) });
         plate.Position = new Vector2(960 - 250, 316); plate.Size = new Vector2(500, 400);
         c.AddChild(plate);
         plate.AddChild(Place(Italic(UiKit.Text("MANCHES", 30, UiKit.Cream, 0, HorizontalAlignment.Center)), 0, 16, 500, 40));
@@ -1732,7 +1734,7 @@ public partial class DesktopHud : CanvasLayer
         var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 760), Size = new Vector2(1920, 250) };
         c.AddChild(bottom);
         var nextPanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var nextBox = new KcBox { Top = new Color(ChronoInk, 0.95f), Bottom = new Color("0f0820", 0.97f), Slant = 22, BorderWidth = 5, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) };
+        var nextBox = new KcBox { Top = new Color(HudBack, 0.95f), Bottom = new Color(HudBack.Darkened(0.35f), 0.97f), Slant = 22, BorderWidth = 5, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f) };
         nextBox.ContentMarginLeft = 60; nextBox.ContentMarginRight = 40; nextBox.ContentMarginTop = 18; nextBox.ContentMarginBottom = 20;
         nextPanel.AddThemeStyleboxOverride("panel", nextBox);
         bottom.AddChild(nextPanel);
@@ -1915,7 +1917,7 @@ public partial class DesktopHud : CanvasLayer
     void BuildHelp()
     {
         help = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
-        var box = new KcBox { Top = new Color(ChronoInk, 0.82f), Bottom = new Color(ChronoInk, 0.88f), Slant = 10, ShadowColor = new Color(0, 0, 0, 0) };
+        var box = new KcBox { Top = new Color(HudBack, 0.82f), Bottom = new Color(HudBack.Darkened(0.25f), 0.88f), Slant = 10, ShadowColor = new Color(0, 0, 0, 0) };
         box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 12; box.ContentMarginBottom = 14;
         help.AddThemeStyleboxOverride("panel", box);
         help.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
@@ -1959,7 +1961,7 @@ public partial class DesktopHud : CanvasLayer
         hint.OffsetRight = -36; hint.OffsetBottom = -34; hint.OffsetLeft = -36; hint.OffsetTop = -34;
         hint.AddChild(KeyCap(InputSetup.KeyName("help"), 20));
         var words = UiKit.Text("COMMANDES", 22, Colors.White, 0);
-        var pill = new KcBox { Top = new Color(ChronoInk, 0.8f), Bottom = new Color(ChronoInk, 0.8f), Slant = 8 };
+        var pill = new KcBox { Top = new Color(HudBack, 0.8f), Bottom = new Color(HudBack.Darkened(0.25f), 0.8f), Slant = 8 };
         pill.ContentMarginLeft = pill.ContentMarginRight = 12; pill.ContentMarginTop = 0; pill.ContentMarginBottom = 2;
         words.AddThemeStyleboxOverride("normal", pill);
         if (UiKit.Italic is Font cit) words.AddThemeFontOverride("font", cit);
@@ -2170,6 +2172,7 @@ public partial class DesktopHud : CanvasLayer
         // Ce qui se cache sous la pause (annonces, compte à rebours, alerte, aide) et pendant l'entraînement (score, chrono).
         bool paused = PauseMenu.IsOpen;
         centerLayer.Visible = !paused;
+        root.Modulate = paused ? new Color(1, 1, 1, 0) : Colors.White;   // la pause est une page pleine (DA v3) : le HUD ne dépasse plus dessous
         helpLayer.Visible = !paused && prev.Phase != MatchView.Phase.MatchOver;
         board.Visible = !Tutorial.Running && prev.Phase != MatchView.Phase.MatchOver;
         if (paused) threat.Strength = 0f;
