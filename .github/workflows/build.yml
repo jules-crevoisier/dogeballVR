@@ -626,7 +626,7 @@ jobs:
           mkdir -p tuto-data quick-data
           # Entraînement : --tutorial-test passe une étape restée 8 s sans être faite ; la bombe de la dernière étape doit tomber.
           XDG_DATA_HOME="$PWD/tuto-data" "$GODOT" --headless --path . --max-fps 60 --quit-after 7800 -- --tutorial --tutorial-test --pc-autoplay > tuto.log 2>&1 || true
-          # Partie rapide seule : personne sur le réseau, la salle s'ouvre puis se lance avec des bots au bout de 20 s.
+          # Partie rapide seule : personne sur le réseau, la salle s'ouvre puis se lance avec des bots au bout de 20 s. La carte par défaut de la partie rapide est Toits du Marché.
           XDG_DATA_HOME="$PWD/quick-data" "$GODOT" --headless --path . --max-fps 60 --quit-after 2400 -- --lobby-quick --pc-autoplay --name=Seul > quick-solo.log 2>&1 || true
           # À deux : un joueur entre dans la salle rapide (sans --auto-ready : il est prêt d'office) et la partie part à deux.
           "$GODOT" --headless --path . --max-fps 60 --quit-after 2700 -- --lobby-quick --pc-autoplay --name=Premier --quit-file=quick-done > quick-host.log 2>&1 &
@@ -643,7 +643,7 @@ jobs:
           grep -q "\[Tuto\] Bombe lâchée près du joueur" tuto.log || { echo "Pas de bombe à l'étape de la balle spéciale"; FAIL=1; }
           grep -q "\[Tuto\] Fin de l'entraînement" tuto.log || { echo "Entraînement non terminé"; FAIL=1; }
           grep -q "Partie rapide : lancement à 1, les places libres vont aux bots" quick-solo.log || { echo "Partie rapide seule : pas de lancement avec des bots"; FAIL=1; }
-          grep -q "\[Lobby\] Lancement : croix_neon, 1 joueur(s)" quick-solo.log || { echo "Partie rapide seule : la partie n'a pas démarré"; FAIL=1; }
+          grep -q "\[Lobby\] Lancement : marche_suspendu, 1 joueur(s)" quick-solo.log || { echo "Partie rapide seule : la partie n'a pas démarré"; FAIL=1; }
           grep -q "Partie rapide : lancement à 2" quick-host.log || { echo "Partie rapide à deux : pas de lancement à deux"; FAIL=1; }
           grep -q "L'hôte lance la partie" quick-join.log || { echo "Partie rapide à deux : le second joueur n'est pas parti en partie"; FAIL=1; }
           exit $FAIL
