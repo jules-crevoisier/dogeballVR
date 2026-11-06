@@ -105,95 +105,139 @@ public partial class DesktopHud : CanvasLayer
     readonly List<Control>[] roundPips = { new(), new() };
     Label timer = null!, roundLabel = null!, overtime = null!;
     Panel timerBox = null!;
-    readonly StyleBoxFlat timerStyle = UiKit.Box(UiKit.Navy, 16, 0f, 0, null, 5);   // fond du chrono, rougit sous 10 s
+    readonly StyleBoxFlat timerStyle = UiKit.Box(new Color(UiKit.Navy, 0f), 0, 0f, 0, null, 0);   // fond du chrono : invisible, rougit sous 10 s
     int lastSecond = -1;
 
+    /// <summary>
+    /// Tableau de score compact (haut centre), dans les codes des HUD de jeux d'action en ligne : un bandeau d'encre translucide
+    /// qui s'efface sur les côtés, le chrono au milieu en chiffres blancs, de part et d'autre un petit pavé à la couleur de
+    /// chaque équipe avec ses KO, et dessous ses manches gagnées en traits. Mon équipe : un trait blanc sous son pavé.
+    /// </summary>
     void BuildScoreBoard()
     {
-        board = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(700, 140) };
+        // Plaque de 360×64 : case orange, chrono, case bleue ; manches gagnées en barres sous la plaque. Ma case porte un liseré blanc.
+        const float W = 360f, H = 64f, Box = 72f, BoxH = 56f, Mid = W / 2;
+        board = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(W, 110) };
         board.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        board.OffsetLeft = -350; board.OffsetRight = 350; board.OffsetTop = 18; board.OffsetBottom = 158;
+        board.OffsetLeft = -W / 2; board.OffsetRight = W / 2; board.OffsetTop = 14; board.OffsetBottom = 124;
         root.AddChild(board);
+        board.AddChild(Plate(PlateInk, Vector2.Zero, new Vector2(W, H), 12));
+
+        timerBox = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
+        timerBox.AddThemeStyleboxOverride("panel", timerStyle);
+        timerBox.Position = new Vector2(Mid - 70, 4);
+        timerBox.Size = new Vector2(140, BoxH);
+        timerBox.PivotOffset = timerBox.Size / 2;
+        board.AddChild(timerBox);
+        timer = Soft(UiKit.Text("2:00", 38, Colors.White, 0, HorizontalAlignment.Center), UiKit.Heavy);
+        timer.Position = new Vector2(0, -4);
+        timer.Size = new Vector2(140, 46);
+        timer.PivotOffset = timer.Size / 2;
+        timerBox.AddChild(timer);
+        roundLabel = Soft(UiKit.Text("MANCHE 1/5", 13, new Color(1, 1, 1, 0.7f), 0, HorizontalAlignment.Center), UiKit.Heavy);
+        roundLabel.Position = new Vector2(0, 37);
+        roundLabel.Size = new Vector2(140, 18);
+        timerBox.AddChild(roundLabel);
 
         for (int team = 0; team < 2; team++)
         {
             var color = team == 0 ? UiKit.Orange : UiKit.Blue;
             bool mine = team == View.LocalTeam;
-            var box = MakePanel(color, 0f, 0, 0, UiKit.Ink, 6);
-            box.Position = new Vector2(team == 0 ? 0 : 450, 0);
-            box.Size = new Vector2(250, 92);
+            float x = team == 0 ? 4 : W - 4 - Box;
+            var box = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 4), Size = new Vector2(Box, BoxH) };
+            var st = PlateBox(color, 0, 0, 9);
+            if (mine) { st.BorderColor = Colors.White; st.SetBorderWidthAll(3); }
+            box.AddThemeStyleboxOverride("panel", st);
             box.PivotOffset = box.Size / 2;
             board.AddChild(box);
             teamBoxes[team] = box;
-            // Mon équipe : une languette lime sous le bloc (seul repère « ton équipe »).
-            if (mine) box.AddChild(new ColorRect { Color = UiKit.Yellow, Position = new Vector2(0, 86), Size = new Vector2(250, 8), MouseFilter = Control.MouseFilterEnum.Ignore });
-
-            // Nom d'équipe seul (le liseré jaune dit déjà laquelle est la mienne), gros chiffre des KO et « KO » discret dessous.
-            var align = team == 0 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-            var name = UiKit.Text(team == 0 ? "ORANGE" : "BLEUE", 24, UiKit.Cream, 6, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
-            name.Position = new Vector2(team == 0 ? 26 : 18, 28);
-            name.Size = new Vector2(206, 32);
-            box.AddChild(name);
-
-            var ko = UiKit.Poster(UiKit.Text("0", 64, UiKit.Cream, 0, align), null, 4);
-            ko.Position = new Vector2(team == 0 ? 96 : 52, -8);
-            ko.Size = new Vector2(100, 92);
+            var ko = Soft(UiKit.Text("0", 40, Colors.White, 0, HorizontalAlignment.Center), UiKit.Heavy);
+            ko.Position = new Vector2(0, -2);
+            ko.Size = new Vector2(Box, BoxH);
+            ko.VerticalAlignment = VerticalAlignment.Center;
             ko.PivotOffset = ko.Size / 2;
             box.AddChild(ko);
             koLabels[team] = ko;
-            // « KO » et pastilles : 22 px du HUD de 1080 lignes, soit 14 px au moins en 720p.
-            // « KO » à côté du chiffre, côté chrono (à droite du chiffre orange, à gauche du chiffre bleu).
-            var koTag = UiKit.Text("KO", 22, UiKit.Cream, 0, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
-            koTag.Position = new Vector2(team == 0 ? 202 : 4, 48);
-            koTag.Size = new Vector2(44, 28);
-            box.AddChild(koTag);
 
-            // Pastilles des manches gagnées (22 px), du côté du chrono.
+            // Manches gagnées : 5 barres de 12×5 sous la case de l'équipe, remplies depuis le centre vers l'extérieur.
             for (int i = 0; i < 5; i++)
             {
-                var pip = new Pip { Color = color, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(22, 22) };
-                pip.Position = new Vector2(team == 0 ? 224 - i * 29 : 454 + i * 29, 101);
-                pip.PivotOffset = new Vector2(11, 11);
+                var pip = new Pip { Color = color, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(12, 5) };
+                float px = team == 0 ? x + Box - 12 - i * 15 : x + i * 15;
+                pip.Position = new Vector2(px, H + 6);
+                pip.PivotOffset = new Vector2(6, 2.5f);
                 board.AddChild(pip);
                 roundPips[team].Add(pip);
             }
         }
 
-        timerBox = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
-        timerBox.AddThemeStyleboxOverride("panel", timerStyle);
-        timerBox.Position = new Vector2(262, -4);
-        timerBox.Size = new Vector2(176, 104);
-        timerBox.PivotOffset = timerBox.Size / 2;
-        board.AddChild(timerBox);
-        timer = UiKit.Poster(UiKit.Text("2:00", 52, Colors.White, 0, HorizontalAlignment.Center), null, 3);
-        timer.Position = new Vector2(0, 2);
-        timer.Size = new Vector2(176, 70);
-        timer.PivotOffset = timer.Size / 2;
-        timerBox.AddChild(timer);
-        roundLabel = UiKit.Text("MANCHE 1/5", 21, UiKit.Sky, 5, HorizontalAlignment.Center);
-        roundLabel.Position = new Vector2(0, 68);
-        roundLabel.Size = new Vector2(176, 28);
-        timerBox.AddChild(roundLabel);
-
-        overtime = UiKit.Poster(UiKit.Text("PROLONGATION", 30, UiKit.Yellow, 0, HorizontalAlignment.Center));
-        overtime.Position = new Vector2(200, 104);
-        overtime.Size = new Vector2(300, 40);
+        overtime = Soft(UiKit.Text("PROLONGATION", 20, UiKit.Yellow, 0, HorizontalAlignment.Center), UiKit.Heavy);
+        overtime.Position = new Vector2(W / 2 - 150, H + 18);
+        overtime.Size = new Vector2(300, 26);
         overtime.PivotOffset = overtime.Size / 2;
         overtime.Visible = false;
         board.AddChild(overtime);
     }
 
-    /// <summary>Pastille de manche gagnée (pleine) ou à jouer (creuse) : pavé droit encré avec ombre dure, comme les cases d'une affiche. Le dessin suit la taille du contrôle.</summary>
+    /// <summary>Texte de HUD : la police donnée, sans contour, ombre portée douce (lisible sur le décor sans cadre).</summary>
+    static Label Soft(Label l, Font? font)
+    {
+        if (font != null) l.AddThemeFontOverride("font", font);
+        l.AddThemeConstantOverride("outline_size", 0);
+        l.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.55f));
+        l.AddThemeConstantOverride("shadow_offset_x", 0);
+        l.AddThemeConstantOverride("shadow_offset_y", 2);
+        l.AddThemeConstantOverride("shadow_outline_size", 4);
+        return l;
+    }
+
+    /// <summary>Gros titre du centre (décompte, éclats) : aplat net à contour d'encre de 4 px, sans ombre ni relief.</summary>
+    static Label Big(Label l)
+    {
+        l.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0));
+        l.AddThemeColorOverride("font_outline_color", UiKit.Navy);
+        l.AddThemeConstantOverride("outline_size", 8);
+        return l;
+    }
+
+    /// <summary>Encre des plaques du HUD : opaque à 82 %, le décor transparaît à peine.</summary>
+    static readonly Color PlateInk = new(UiKit.Navy, 0.82f);
+
+    /// <summary>
+    /// Plaque du HUD, la forme propre au jeu : aplat net, coins haut gauche et bas droit coupés en biseau (coin arrondi à un seul
+    /// segment), sans contour ni dégradé.
+    /// </summary>
+    static StyleBoxFlat PlateBox(Color bg, int marginX = 0, int marginY = 0, int bevel = 10)
+    {
+        var b = new StyleBoxFlat { BgColor = bg, CornerDetail = 1, AntiAliasing = true };
+        b.CornerRadiusTopLeft = b.CornerRadiusBottomRight = bevel;
+        b.ContentMarginLeft = b.ContentMarginRight = marginX;
+        b.ContentMarginTop = b.ContentMarginBottom = marginY;
+        return b;
+    }
+
+    static Panel Plate(Color bg, Vector2 pos, Vector2 size, int bevel = 10)
+    {
+        var p = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = pos, Size = size };
+        p.AddThemeStyleboxOverride("panel", PlateBox(bg, 0, 0, bevel));
+        return p;
+    }
+
+    /// <summary>Manche gagnée (barre pleine à la couleur de l'équipe) ou à jouer (contour blanc translucide, intérieur vide). Le dessin suit la taille du contrôle.</summary>
     sealed partial class Pip : Control
     {
         public Color Color;
         public bool On;
         public override void _Draw()
         {
-            float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, sh = Mathf.Max(2f, h * 0.18f);
-            DrawRect(new Rect2(sh, y + sh, w, h), UiKit.Ink);
-            DrawRect(new Rect2(0, y, w, h), On ? UiKit.Navy : new Color(UiKit.Cream, 0.85f));   // à jouer : cadre papier, case encre
-            DrawRect(new Rect2(2.5f, y + 2.5f, w - 5, h - 5), On ? Color : UiKit.NavySoft);
+            // Trait plein à la couleur de l'équipe (gagnée) ou blanc translucide (à jouer), ombre légère.
+            if (On)
+            {
+                DrawRect(new Rect2(0, 1, Size.X, Size.Y), new Color(0, 0, 0, 0.35f));
+                DrawRect(new Rect2(Vector2.Zero, Size), Color);
+                return;
+            }
+            DrawRect(new Rect2(Vector2.Zero, Size).Grow(-0.5f), new Color(1, 1, 1, 0.3f), false, 1f);
         }
     }
 
@@ -232,7 +276,7 @@ public partial class DesktopHud : CanvasLayer
         lastSecond = sec;
         float pulse = urgent ? 0.5f + 0.5f * Mathf.Sin((float)age * 10f) : 0f;
         timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(Urgent, 0.6f + 0.4f * pulse) : Colors.White);
-        timerStyle.BgColor = urgent ? UiKit.Navy.Lerp(new Color("8a2414"), pulse) : UiKit.Navy;
+        timerStyle.BgColor = urgent ? new Color(new Color("c0301c"), 0.35f + 0.45f * pulse) : new Color(UiKit.Navy, 0f);
         bool ot = s.Overtime && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         if (ot && !overtime.Visible) UiKit.Punch(overtime, 2f, 0.35);
         overtime.Visible = ot;
@@ -250,7 +294,7 @@ public partial class DesktopHud : CanvasLayer
 
     readonly List<Heart> hearts = new();
     int lastLives;
-    const float HeartSize = 80f;   // contrôle de 80 px : cœur dessiné d'environ 64 px, liseré compris
+    const float HeartSize = 58f;   // contrôle de 58 px : cœur dessiné d'environ 46 px, liseré compris
     Control heartsHolder = null!;
     HeartBreak heartBreak = null!;
 
@@ -285,33 +329,40 @@ public partial class DesktopHud : CanvasLayer
         {
             var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * Size.X * 0.12f, 0);
             float r = Size.X * 0.36f;
-            // Aplat d'affiche : ombre encre dure, liseré encre, cœur plein à la couleur d'équipe ; perdu : encre cerclée de papier.
-            DrawColoredPolygon(At(c + new Vector2(5, 5), r + 5), UiKit.Ink);
-            DrawColoredPolygon(At(c, r + 5), Full ? UiKit.Navy : new Color(UiKit.Cream, 0.35f));
-            DrawColoredPolygon(At(c, r), Full ? Fill : UiKit.Navy);
+            // Cœur plein à la couleur d'équipe, liseré encre fin, ombre douce ; perdu : simple contour blanc translucide.
+            if (Full)
+            {
+                DrawColoredPolygon(At(c + new Vector2(0, 2), r + 3), new Color(0, 0, 0, 0.35f));
+                DrawColoredPolygon(At(c, r + 2.5f), new Color(UiKit.Ink, 0.9f));
+                DrawColoredPolygon(At(c, r), Fill);
+                DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.22f), new Color(1, 1, 1, 0.28f));   // reflet
+            }
+            else
+            {
+                DrawColoredPolygon(At(c, r + 2.5f), new Color(1, 1, 1, 0.3f));
+                DrawColoredPolygon(At(c, r), new Color(UiKit.Ink, 0.75f));
+            }
         }
     }
 
     void BuildHearts()
     {
-        // Bas à gauche, à la Knockout City : mon nom (ou « Toi ») au-dessus de gros cœurs.
+        // Bas à gauche, collé au coin (marge 32 px) : plaque d'encre au biseau, mon nom en petit, puis les cœurs.
+        float w = 16 + View.MaxLives * (HeartSize + 2) + 12;
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        holder.OffsetLeft = 32; holder.OffsetTop = -158; holder.OffsetRight = 420; holder.OffsetBottom = -28;
+        holder.OffsetLeft = 32; holder.OffsetTop = -32 - 96; holder.OffsetRight = 32 + Mathf.Max(w, 180); holder.OffsetBottom = -32;
         root.AddChild(holder);
         heartsHolder = holder;
+        holder.AddChild(Plate(PlateInk, Vector2.Zero, new Vector2(Mathf.Max(w, 180), 96), 12));
         string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
-        var who = UiKit.Poster(UiKit.Text(me.ToUpperInvariant(), 30, UiKit.Cream, 0), null, 3);
-        who.Position = new Vector2(8, -8);   // 10 px d'air au-dessus du bloc des cœurs
-        who.Size = new Vector2(380, 36);
+        var who = Soft(UiKit.Text(me.ToUpperInvariant(), 16, new Color(1, 1, 1, 0.85f), 0), UiKit.Heavy);
+        who.Position = new Vector2(16, 7);
+        who.Size = new Vector2(w - 24, 22);
         holder.AddChild(who);
-        var back = MakePanel(new Color(UiKit.Navy, 0.82f), 0f, 0, 0, null, 0);
-        back.Position = new Vector2(0, 38);
-        back.Size = new Vector2(24 + (HeartSize + 8) * View.MaxLives, HeartSize + 12);
-        holder.AddChild(back);
         for (int i = 0; i < View.MaxLives; i++)
         {
-            var h = new Heart { Fill = View.LocalTeam == 1 ? UiKit.Blue : UiKit.Orange, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(14 + i * (HeartSize + 8), 44) };
+            var h = new Heart { Fill = View.LocalTeam == 1 ? UiKit.Blue : UiKit.Orange, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(10 + i * (HeartSize + 2), 32) };
             h.PivotOffset = h.Size / 2;
             holder.AddChild(h);
             hearts.Add(h);
@@ -323,8 +374,8 @@ public partial class DesktopHud : CanvasLayer
     }
 
     /// <summary>
-    /// Coup reçu : le cœur perdu jaillit de sa place, grossit (environ 2,6 fois) en blanchissant, se fend, puis ses deux moitiés
-    /// tombent en tournant au milieu d'éclats et disparaissent (environ 1 s). Temps piloté par le HUD.
+    /// Coup reçu : le cœur perdu éclate sur place, grossit (1,6 fois) en blanchissant, se fend, puis ses deux moitiés
+    /// tombent en tournant au milieu de petits éclats et disparaissent (0,7 s). Temps piloté par le HUD.
     /// </summary>
     sealed partial class HeartBreak : Control
     {
@@ -335,7 +386,7 @@ public partial class DesktopHud : CanvasLayer
         readonly Vector2[] shardVel = new Vector2[12];
         readonly float[] shardSpin = new float[12];
         readonly RandomNumberGenerator rng = new();
-        const float Grow = 0.24f, Life = 1.0f;
+        const float Grow = 0.18f, Life = 0.7f;
         static readonly Vector2[] Fissure = { new(0.06f, -0.08f), new(-0.1f, 0.14f), new(0.1f, 0.42f), new(-0.07f, 0.68f), new(0f, 0.88f) };   // de l'encoche vers la pointe (finit droit : le bas du cœur est trop fin pour zigzaguer)
         static Vector2[]? leftHalf, rightHalf;
 
@@ -345,7 +396,7 @@ public partial class DesktopHud : CanvasLayer
             for (int i = 0; i < shardVel.Length; i++)
             {
                 float a = -Mathf.Pi / 2 + rng.RandfRange(-1.4f, 1.4f);
-                shardVel[i] = Vector2.FromAngle(a) * rng.RandfRange(260f, 620f);
+                shardVel[i] = Vector2.FromAngle(a) * rng.RandfRange(120f, 300f);
                 shardSpin[i] = rng.RandfRange(-9f, 9f);
             }
         }
@@ -395,8 +446,8 @@ public partial class DesktopHud : CanvasLayer
             leftHalf ??= Half(false);
             rightHalf ??= Half(true);
             float k = Mathf.Min(1f, T / Grow);
-            var c = from + new Vector2(110f, -210f) * Mathf.Sin(k * Mathf.Pi * 0.5f);
-            float r = baseR * (1f + 2.3f * Mathf.Sin(k * Mathf.Pi * 0.5f));
+            var c = from + new Vector2(0f, -18f) * Mathf.Sin(k * Mathf.Pi * 0.5f);   // éclate sur place, à peine soulevé
+            float r = baseR * (1f + 0.6f * Mathf.Sin(k * Mathf.Pi * 0.5f));
             if (T < Grow)
             {
                 var col = fill.Lerp(UiKit.Cream, Mathf.Clamp((k - 0.45f) / 0.55f, 0f, 1f));   // blanchit juste avant de casser
@@ -415,13 +466,13 @@ public partial class DesktopHud : CanvasLayer
             float t = T - Grow;
             float u = t / (Life - Grow);
             float a = 1f - u * u;
-            float fall = 560f * u * u;
-            Body(leftHalf, c + new Vector2(-100f * u, fall), -0.9f * u, r, fill, a);
-            Body(rightHalf, c + new Vector2(100f * u, fall * 0.9f), 0.8f * u, r, fill, a);
+            float fall = 220f * u * u;
+            Body(leftHalf, c + new Vector2(-40f * u, fall), -0.9f * u, r, fill, a);
+            Body(rightHalf, c + new Vector2(40f * u, fall * 0.9f), 0.8f * u, r, fill, a);
             // Éclats : petits triangles qui fusent puis retombent.
             for (int i = 0; i < shardVel.Length; i++)
             {
-                var p = c + shardVel[i] * t + new Vector2(0, 1400f * t * t);
+                var p = c + shardVel[i] * t + new Vector2(0, 900f * t * t);
                 float s = r * (i % 3 == 0 ? 0.22f : 0.14f) * (1f - 0.5f * u);
                 float rot = shardSpin[i] * t;
                 var tri = new[] { p + Vector2.FromAngle(rot) * s, p + Vector2.FromAngle(rot + 2.3f) * s, p + Vector2.FromAngle(rot + 4.1f) * s * 0.8f };
@@ -468,7 +519,7 @@ public partial class DesktopHud : CanvasLayer
     BallSlot ballSlot = null!;
     RoundGauge catchGauge = null!, dashGauge = null!;
 
-    /// <summary>Emplacement de la balle tenue : vide (cercle pointillé) ou balle colorée avec son palier.</summary>
+    /// <summary>Emplacement de la balle tenue : rond sombre translucide ; vide (pictogramme pâle) ou balle colorée, palier en anneau et en points.</summary>
     sealed partial class BallSlot : Control
     {
         public bool Holding;
@@ -478,37 +529,35 @@ public partial class DesktopHud : CanvasLayer
         public override void _Draw()
         {
             var c = Size / 2;
-            float r = 46f;
-            // Case d'affiche : carré encre, ombre dure ; vide : simple cadre papier pâle.
-            var tile = new Rect2(c - new Vector2(r + 6, r + 6), new Vector2(2 * r + 12, 2 * r + 12));
-            DrawRect(new Rect2(tile.Position + new Vector2(7, 7), tile.Size), UiKit.Ink);
-            DrawRect(tile, UiKit.Navy);
+            const float r = 37f;
+            DrawCircle(c, r + 2, PlateInk);
             if (!Holding)
             {
-                // Pas de balle : le pictogramme de la balle, en papier pâle (l'action existe, elle attend une balle).
-                DrawArc(c, r - 14, 0, Mathf.Tau, 40, new Color(UiKit.Cream, 0.35f), 6f, true);
-                DrawArc(c, (r - 14) * 0.55f, -2.4f, -0.7f, 16, new Color(UiKit.Cream, 0.35f), 5f, true);
+                DrawArc(c, r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.3f), 2.5f, true);
+                DrawArc(c, r - 14, 0, Mathf.Tau, 40, new Color(1, 1, 1, 0.5f), 4f, true);
+                DrawArc(c, (r - 14) * 0.55f, -2.4f, -0.7f, 16, new Color(1, 1, 1, 0.5f), 3.5f, true);
                 return;
             }
-            float rr = r - 6 + Pop * 8f;
+            float rr = r - 7 + Pop * 5f;
+            DrawCircle(c + new Vector2(0, 2), rr, new Color(0, 0, 0, 0.35f));
             DrawCircle(c, rr, BallColor);
-            DrawArc(c, rr * 0.72f, -2.4f, -0.7f, 16, new Color(1, 1, 1, 0.35f), 5f, true);
+            DrawArc(c, rr * 0.72f, -2.4f, -0.7f, 16, new Color(1, 1, 1, 0.35f), 4f, true);
             DrawCircle(c + new Vector2(-rr * 0.35f, -rr * 0.38f), rr * 0.18f, new Color(1, 1, 1, 0.6f));
-            if (Tier > 0)
+            var ring = Tier > 0 ? BallTierColors[Mathf.Clamp(Tier, 0, 3)] : UiKit.Yellow;   // balle en main : anneau lime
+            DrawArc(c, r, 0, Mathf.Tau, 48, ring, 4f, true);
+            for (int i = 0; i < Tier; i++)   // points de palier au-dessus du rond
             {
-                var col = BallTierColors[Mathf.Clamp(Tier, 0, 3)];
-                DrawRect(tile.Grow(-3), col, false, 6f);
-                for (int i = 0; i < Tier; i++)   // pastilles carrées de palier au-dessus de la case
-                {
-                    var p = c + new Vector2((i - (Tier - 1) / 2f) * 20f, -r - 20);
-                    DrawRect(new Rect2(p - new Vector2(8, 8), new Vector2(16, 16)), UiKit.Navy);
-                    DrawRect(new Rect2(p - new Vector2(6, 6), new Vector2(12, 12)), col);
-                }
+                var p = c + new Vector2((i - (Tier - 1) / 2f) * 12f, -r - 9);
+                DrawCircle(p + new Vector2(0, 1), 4.5f, new Color(0, 0, 0, 0.4f));
+                DrawCircle(p, 4f, ring);
             }
         }
     }
 
-    /// <summary>Jauge carrée (attrape, esquive) : case d'affiche encre, remplissage montant pendant la recharge, aplat plein quand l'action est prête, charges en pastilles carrées.</summary>
+    /// <summary>
+    /// Jauge ronde (attrape, esquive) : rond sombre translucide, anneau fin qui se remplit dans le sens horaire pendant la recharge,
+    /// anneau plein et pictogramme blanc quand l'action est prête ; charges d'esquive en points sous le pictogramme.
+    /// </summary>
     sealed partial class RoundGauge : Control
     {
         public float Fill = 1f;
@@ -518,42 +567,34 @@ public partial class DesktopHud : CanvasLayer
         public float Glow;
         public override void _Draw()
         {
-            var c = new Vector2(Size.X / 2, 40);
-            float r = 34f;
-            var outer = new Rect2(c - new Vector2(r + 5, r + 5), new Vector2(2 * r + 10, 2 * r + 10));
-            var inner = outer.Grow(-5);
-            DrawRect(new Rect2(outer.Position + new Vector2(6, 6), outer.Size), UiKit.Ink);
-            DrawRect(outer, UiKit.Navy);
-            DrawRect(inner, UiKit.NavySoft);
-            if (Fill > 0.001f)
-            {
-                float h = inner.Size.Y * Mathf.Clamp(Fill, 0f, 1f);   // monte du bas vers le haut
-                DrawRect(new Rect2(inner.Position.X, inner.End.Y - h, inner.Size.X, h), new Color(Color, Fill >= 1f ? 1f : 0.55f));
-            }
-            if (Glow > 0) DrawRect(outer.Grow(5), new Color(UiKit.Yellow, Glow), false, 5f);
-            // Pictogramme encre sur la case pleine, papier sur la case vide.
-            var ink = Fill >= 1f ? UiKit.Navy : new Color(UiKit.Cream, 0.7f);
+            var c = Size / 2;
+            const float r = 30f;
+            bool ready = Fill >= 1f;
+            DrawCircle(c, r + 2, PlateInk);
+            DrawArc(c, r, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.18f), 3f, true);
+            if (Fill > 0.001f) DrawArc(c, r, -Mathf.Pi / 2, -Mathf.Pi / 2 + Mathf.Tau * Mathf.Clamp(Fill, 0f, 1f), 48, new Color(Color, ready ? 1f : 0.8f), 3f, true);
+            if (Glow > 0) DrawArc(c, r + 5, 0, Mathf.Tau, 48, new Color(UiKit.Yellow, Glow), 3f, true);
+            var ink = ready ? Colors.White : new Color(1, 1, 1, 0.4f);
             if (Dash)
             {
                 for (int k = 0; k < 2; k++)   // deux chevrons : élan
                 {
-                    float x = -9 + k * 14;
-                    DrawPolyline(new[] { c + new Vector2(x - 6, -12), c + new Vector2(x + 6, 0), c + new Vector2(x - 6, 12) }, ink, 6f, true);
+                    float x = -7 + k * 11;
+                    DrawPolyline(new[] { c + new Vector2(x - 5, -13), c + new Vector2(x + 5, -3), c + new Vector2(x - 5, 7) }, ink, 4f, true);
                 }
                 for (int i = 0; i < MaxCharges; i++)
                 {
-                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 20f, r + 18);
-                    DrawRect(new Rect2(p - new Vector2(8, 8), new Vector2(16, 16)), UiKit.Navy);
-                    DrawRect(new Rect2(p - new Vector2(6, 6), new Vector2(12, 12)), i < Charges ? UiKit.Cream : new Color(UiKit.Cream, 0.18f));
+                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 10f, 16);
+                    DrawCircle(p, 3f, i < Charges ? Colors.White : new Color(1, 1, 1, 0.22f));
                 }
             }
             else
             {
-                // Main ouverte stylisée : paume et trois doigts, une balle au-dessus.
-                DrawArc(c + new Vector2(0, 2), 13f, 0.1f, Mathf.Pi - 0.1f, 16, ink, 6f, true);
-                DrawLine(c + new Vector2(-13, 2), c + new Vector2(-15, -10), ink, 5f, true);
-                DrawLine(c + new Vector2(13, 2), c + new Vector2(15, -10), ink, 5f, true);
-                DrawCircle(c + new Vector2(0, -8), 7f, ink);
+                // Main ouverte stylisée : paume et deux doigts, une balle au-dessus.
+                DrawArc(c + new Vector2(0, 3), 10f, 0.1f, Mathf.Pi - 0.1f, 16, ink, 4f, true);
+                DrawLine(c + new Vector2(-10, 3), c + new Vector2(-12, -7), ink, 3.5f, true);
+                DrawLine(c + new Vector2(10, 3), c + new Vector2(12, -7), ink, 3.5f, true);
+                DrawCircle(c + new Vector2(0, -6), 5.5f, ink);
             }
         }
     }
@@ -561,57 +602,48 @@ public partial class DesktopHud : CanvasLayer
     Label catchKey = null!, dashKey = null!, fireKey = null!;
 
     Control bottomHolder = null!;
-    Label fireAction = null!;
-    // Bloc d'actions compact en bas à droite (au-dessus du rappel « F1 commandes ») : loin des pieds du personnage, que la caméra
-    // d'épaule place à gauche du centre, et des cœurs en bas à gauche. Icônes à 60 % (IconScale) ; nom de l'action et touche
-    // en petit dessous. Les icônes sont dans un parent réduit : UiKit.Punch remet leur propre échelle à 1.
-    const float IconScale = 0.6f;
-    const float ActionsWidth = 300f, ActionsHeight = 140f;
+    // Bloc d'actions compact en bas à droite (au-dessus du rappel « F1 commandes ») : trois ronds (attraper, balle tenue,
+    // esquive) avec leur touche dessous (blanc sur encre), sans nom d'action ni fond général : des pictogrammes.
+    const float ActionsWidth = 300f, ActionsHeight = 116f;
+    const float ActionColumn = 90f;   // écart entre deux ronds
 
     void BuildBottomCenter()
     {
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        holder.OffsetRight = -30; holder.OffsetLeft = -30 - ActionsWidth; holder.OffsetBottom = -84; holder.OffsetTop = -84 - ActionsHeight;
+        holder.OffsetRight = -14; holder.OffsetLeft = -14 - ActionsWidth; holder.OffsetBottom = -78; holder.OffsetTop = -78 - ActionsHeight;
         root.AddChild(holder);
         bottomHolder = holder;
-        var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
-        holder.AddChild(icons);
-        catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(10, 30), Size = new Vector2(110, 110) };
-        catchGauge.PivotOffset = new Vector2(55, 40);
-        icons.AddChild(catchGauge);
-        ballSlot = new BallSlot { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(170, 4), Size = new Vector2(120, 120) };
+        float y = 50f;
+        float[] cx = { ActionsWidth - 30 - ActionColumn * 2.5f, ActionsWidth - 30 - ActionColumn * 1.5f, ActionsWidth - 30 - ActionColumn * 0.5f };
+        catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(76, 76), Position = new Vector2(cx[0] - 38, y - 38) };
+        catchGauge.PivotOffset = catchGauge.Size / 2;
+        holder.AddChild(catchGauge);
+        ballSlot = new BallSlot { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(90, 90), Position = new Vector2(cx[1] - 45, y - 45) };
         ballSlot.PivotOffset = ballSlot.Size / 2;
-        icons.AddChild(ballSlot);
-        dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(340, 30), Size = new Vector2(110, 110) };
-        dashGauge.PivotOffset = new Vector2(55, 40);
-        icons.AddChild(dashGauge);
-        // Sous chaque icône, centrés sur elle : le nom de l'action puis sa touche (attraper, lancer la balle tenue, esquive).
-        float Center(float x, float w) => icons.Position.X + (x + w / 2) * IconScale;
-        ActionUnder(holder, Center(10, 110), 84, "Attraper");
-        fireAction = ActionUnder(holder, Center(170, 120), 84, "Lancer");
-        ActionUnder(holder, Center(340, 110), 84, "Esquive");
-        catchKey = KeyUnder(holder, Center(10, 110), 108);
-        fireKey = KeyUnder(holder, Center(170, 120), 108);
-        dashKey = KeyUnder(holder, Center(340, 110), 108);
+        holder.AddChild(ballSlot);
+        dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(76, 76), Position = new Vector2(cx[2] - 38, y - 38) };
+        dashGauge.PivotOffset = dashGauge.Size / 2;
+        holder.AddChild(dashGauge);
+        catchKey = KeyUnder(holder, cx[0], 90);
+        fireKey = KeyUnder(holder, cx[1], 90);
+        dashKey = KeyUnder(holder, cx[2], 90);
     }
 
-    const float ActionColumn = 98f;   // largeur d'une colonne (nom, touche) : écart entre deux icônes
-
-    Label ActionUnder(Control parent, float centerX, float y, string text)
+    /// <summary>Touche du HUD en jeu : lettres blanches sur une petite plaque d'encre biseautée (les touches crème restent celles du panneau d'aide).</summary>
+    static Label HudKey(string text, int size)
     {
-        var l = UiKit.Text(text, 17, Colors.White, 6, HorizontalAlignment.Center);
-        l.Position = new Vector2(centerX - ActionColumn / 2, y);
-        l.Size = new Vector2(ActionColumn, 22);
-        parent.AddChild(l);
+        var l = Soft(UiKit.Text(text, size, Colors.White, 0, HorizontalAlignment.Center), UiKit.Heavy);
+        l.VerticalAlignment = VerticalAlignment.Center;
+        l.AddThemeStyleboxOverride("normal", PlateBox(PlateInk, size / 2 + 2, 1, 5));
         return l;
     }
 
     Label KeyUnder(Control parent, float centerX, float y)
     {
-        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(centerX - ActionColumn / 2, y), Size = new Vector2(ActionColumn, 30) };
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(centerX - ActionColumn / 2, y), Size = new Vector2(ActionColumn, 24) };
         parent.AddChild(center);
-        var l = KeyCap("", 15);
+        var l = HudKey("", 13);
         center.AddChild(l);
         return l;
     }
@@ -637,8 +669,8 @@ public partial class DesktopHud : CanvasLayer
         bool holding = ball != null;
         if (holding != lastHolding)
         {
-            ballSlot.Scale = Vector2.One * (holding ? 1.3f : 0.85f);
-            ballSlot.CreateTween().TweenProperty(ballSlot, "scale", Vector2.One, 0.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+            ballSlot.Scale = Vector2.One * (holding ? 1.15f : 0.9f);
+            ballSlot.CreateTween().TweenProperty(ballSlot, "scale", Vector2.One, 0.15).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         }
         lastHolding = holding;
         ballSlot.Holding = holding;
@@ -652,7 +684,7 @@ public partial class DesktopHud : CanvasLayer
         // Attrape : papier prête, lime pendant la fenêtre, grise qui se remplit pendant la recharge ; éteinte balle en main.
         int cs = Player.CatchState;
         catchGauge.Fill = holding ? 0f : Player.CatchCooldown01;
-        catchGauge.Color = cs == 1 ? UiKit.Yellow : cs == 2 ? UiKit.Lavender : UiKit.Cream;
+        catchGauge.Color = cs == 1 ? UiKit.Yellow : cs == 2 ? UiKit.Lavender : Colors.White;
         catchGauge.Glow = cs == 1 ? 0.9f : Mathf.Max(0, catchGauge.Glow - 0.05f);
         if (cs == 1 && lastCatchState != 1) UiKit.Punch(catchGauge, 1.25f, 0.2);
         if (cs == 0 && lastCatchState == 2) UiKit.Punch(catchGauge, 1.15f, 0.2);   // de nouveau prête
@@ -664,7 +696,7 @@ public partial class DesktopHud : CanvasLayer
         dashGauge.Charges = charges;
         dashGauge.MaxCharges = Player.DashMax;
         dashGauge.Fill = charges >= 1 ? 1f : Player.DashRecharge01;
-        dashGauge.Color = charges >= 1 ? UiKit.Cream : UiKit.Lavender;
+        dashGauge.Color = charges >= 1 ? Colors.White : UiKit.Lavender;
         dashGauge.Glow = Player.Dashing ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.05f);
         if (lastDashCharges >= 0 && charges > lastDashCharges) UiKit.Punch(dashGauge, 1.2f, 0.2);
         lastDashCharges = charges;
@@ -673,7 +705,7 @@ public partial class DesktopHud : CanvasLayer
         catchKey.Text = InputSetup.KeyName("catch");
         fireKey.Text = InputSetup.KeyName("fire");
         dashKey.Text = InputSetup.KeyName("dash");
-        fireKey.Modulate = fireAction.Modulate = new Color(1, 1, 1, holding ? 1f : 0.6f);   // lancer : utile balle en main seulement
+        fireKey.Modulate = new Color(1, 1, 1, holding ? 1f : 0.6f);   // lancer : utile balle en main seulement
     }
 
     // ------------------------------------------------------------------ viseur, charge en arc, marqueur de touche
@@ -832,57 +864,65 @@ public partial class DesktopHud : CanvasLayer
     // ------------------------------------------------------------------ bandeau « KO ! » / « TOUCHÉ ! » du joueur (haut gauche)
 
     Control koBanner = null!;
-    Panel koBand = null!;
-    Label koBannerName = null!;
+    PanelContainer koWordPlate = null!, koNamePlate = null!;
+    Label koBannerName = null!, koBannerWord = null!;
     Tween? koBannerTween;
 
     /// <summary>
-    /// Bandeau incliné à la Knockout City : « KO ! » et le nom de la victime à la couleur de mon équipe quand je mets un adversaire KO,
-    /// « TOUCHÉ ! » et le nom du tireur à la couleur de son équipe quand je perds un cœur sans être KO.
+    /// Annonce sous le viseur, comme dans les jeux d'action en ligne : « KO ! » sur plaque lime et le nom de la victime quand je mets
+    /// un adversaire KO ; « TOUCHÉ ! » sur plaque rouge et le nom du tireur (couleur de son équipe) quand je perds un cœur.
+    /// Centrée 80 px sous le viseur, 40 px de haut.
     /// </summary>
     void BuildKoBanner()
     {
-        koBanner = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false, Rotation = -0.06f };
-        koBanner.Position = new Vector2(0, 54);
-        koBanner.Size = new Vector2(660, 150);
+        koBanner = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        koBanner.SetAnchorsPreset(Control.LayoutPreset.Center);
+        koBanner.OffsetLeft = -300; koBanner.OffsetRight = 300; koBanner.OffsetTop = 60; koBanner.OffsetBottom = 100;
+        koBanner.PivotOffset = new Vector2(300, 20);
         root.AddChild(koBanner);
-        koBand = MakePanel(View.LocalTeam == 0 ? UiKit.Orange : UiKit.Blue, -0.3f, 0, 5, UiKit.Navy, 6);
-        koBand.Position = new Vector2(-80, 10);
-        koBand.Size = new Vector2(590, 130);   // s'arrête avant le tableau de score (x = 610)
-        koBanner.AddChild(koBand);
-        var ko = UiKit.Poster(UiKit.Text("KO !", 92, Colors.White, 0), null, 6);
-        ko.Position = new Vector2(40, -6);
-        ko.Size = new Vector2(440, 110);   // assez large pour « TOUCHÉ ! »
-        ko.VerticalAlignment = VerticalAlignment.Center;
-        koBanner.AddChild(ko);
-        koBannerWord = ko;
-        koBannerName = UiKit.Text("", 40, UiKit.Cream, 10);
-        koBannerName.Position = new Vector2(46, 90);
-        koBannerName.Size = new Vector2(440, 50);
-        koBanner.AddChild(koBannerName);
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(600, 40) };
+        koBanner.AddChild(center);
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 0);
+        center.AddChild(row);
+        koWordPlate = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, 40) };
+        row.AddChild(koWordPlate);
+        koBannerWord = UiKit.Text("KO !", 30, Colors.White, 0, HorizontalAlignment.Center);
+        koBannerWord.AddThemeFontOverride("font", UiKit.Display);
+        koBannerWord.VerticalAlignment = VerticalAlignment.Center;
+        koWordPlate.AddChild(koBannerWord);
+        koNamePlate = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, 40) };
+        koNamePlate.AddThemeStyleboxOverride("panel", PlateBox(PlateInk, 16, 0, 0));
+        row.AddChild(koNamePlate);
+        koBannerName = Soft(UiKit.Text("", 20, Colors.White, 0), UiKit.Heavy);
+        koBannerName.VerticalAlignment = VerticalAlignment.Center;
+        koNamePlate.AddChild(koBannerName);
     }
 
-    Label koBannerWord = null!;
+    static readonly Color HitRed = new("e8333a");
 
     void ShowSideBanner(string word, string name, Color band, int size)
     {
+        // band : couleur de l'équipe du joueur nommé. Bonne nouvelle (mon KO) : plaque lime, lettres encre ; mauvaise : plaque rouge.
+        bool good = word.StartsWith("KO") && band == (View.LocalTeam == 0 ? UiKit.Orange : UiKit.Blue);
+        koWordPlate.AddThemeStyleboxOverride("panel", PlateBox(good ? UiKit.Yellow : new Color(HitRed, 0.9f), 16, 0, 10));
         koBannerWord.Text = word;
-        koBannerWord.AddThemeFontSizeOverride("font_size", size);
-        koBannerName.Text = name;
-        koBand.AddThemeStyleboxOverride("panel", UiKit.Box(band, 0, -0.3f, 5, UiKit.Navy, 6));
+        koBannerWord.AddThemeColorOverride("font_color", good ? UiKit.Navy : Colors.White);
+        koBannerName.Text = name.ToUpperInvariant();
+        koBannerName.AddThemeColorOverride("font_color", good ? Palette.Team(1 - View.LocalTeam).Lightened(0.25f) : band.Lightened(0.25f));
+        koNamePlate.Visible = name != "";
         koBannerTween?.Kill();
-        // Bandeau déjà en place (« TOUCHÉ ! » suivi du KO) : le texte change sur place, sans ressortir de l'écran.
-        bool shown = koBanner.Visible && koBanner.Position.X > -200;
+        // Annonce déjà affichée (« TOUCHÉ ! » suivi du KO) : le texte change sur place.
+        bool shown = koBanner.Visible && koBanner.Modulate.A > 0.5f;
         koBanner.Visible = true;
-        koBanner.Modulate = Colors.White;
-        if (!shown) koBanner.Position = koBanner.Position with { X = -720 };
+        if (!shown) koBanner.Modulate = new Color(1, 1, 1, 0);
+        koBanner.Scale = Vector2.One * 1.15f;
         var tw = koBannerTween = koBanner.CreateTween();
-        tw.TweenProperty(koBanner, "position:x", 0.0, shown ? 0.1 : 0.22).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
-        tw.TweenInterval(1.05);
-        tw.TweenProperty(koBanner, "position:x", -720.0, 0.23).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.In);
-        tw.Parallel().TweenProperty(koBanner, "modulate:a", 0.0, 0.23);
+        tw.TweenProperty(koBanner, "scale", Vector2.One, 0.16).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        tw.Parallel().TweenProperty(koBanner, "modulate:a", 1.0, 0.08);
+        tw.TweenInterval(1.0);
+        tw.TweenProperty(koBanner, "modulate:a", 0.0, 0.2);
         tw.TweenCallback(Callable.From(() => koBanner.Visible = false));
-        UiKit.Punch(koBannerWord, 1.6f, 0.3);
     }
 
     // ------------------------------------------------------------------ fil des KO (haut droite)
@@ -890,7 +930,7 @@ public partial class DesktopHud : CanvasLayer
     // Placement à la main (pas de conteneur) : un conteneur replace ses enfants à chaque mise en page et se battait avec
     // l'animation d'entrée, d'où des lignes qui sautaient d'une image à l'autre. Ici, chaque ligne est collée au bord droit,
     // à 24 px du coin, et ne bouge que pour entrer (glissé) ou monter d'un cran quand la plus ancienne part.
-    const float FeedMargin = 24f, FeedGap = 8f;
+    const float FeedMargin = 32f, FeedGap = 6f;
     const double FeedHold = 4.0;
     Control feed = null!;
     sealed class FeedEntry { public PanelContainer Panel = null!; public double Born; public float Y = -1; }
@@ -933,19 +973,21 @@ public partial class DesktopHud : CanvasLayer
         if (victim == View.LocalId) LocalKoBanner(by);
         bool mine = by == View.LocalId || victim == View.LocalId;
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var box = UiKit.Box(new Color(UiKit.Navy, 0.82f), 10, -0.15f, mine ? 3 : 0, UiKit.Yellow, 3);
-        box.ContentMarginLeft = 18; box.ContentMarginRight = 18; box.ContentMarginTop = 4; box.ContentMarginBottom = 4;
+        // Ligne fine et translucide ; seules mes lignes (je tire ou je tombe) portent un filet blanc à droite.
+        var box = PlateBox(new Color(UiKit.Navy, mine ? 0.88f : 0.65f), 14, 2, 8);
+        box.BorderColor = Colors.White; box.BorderWidthRight = mine ? 4 : 0;
         panel.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        line.AddThemeConstantOverride("separation", 12);
+        line.AddThemeConstantOverride("separation", 10);
         panel.AddChild(line);
+        Label Name(int id) => Soft(UiKit.Text(View.NameOf(id), 20, Palette.Team(View.TeamOf(id)).Lightened(0.25f), 0), UiKit.Heavy);
         if (by >= 0)
         {
-            line.AddChild(UiKit.Text(View.NameOf(by), 32, Palette.Team(View.TeamOf(by)).Lightened(0.1f), 6));
-            line.AddChild(new FeedBall { CustomMinimumSize = new Vector2(58, 40), MouseFilter = Control.MouseFilterEnum.Ignore });
+            line.AddChild(Name(by));
+            line.AddChild(new FeedBall { CustomMinimumSize = new Vector2(40, 28), MouseFilter = Control.MouseFilterEnum.Ignore });
         }
-        else line.AddChild(UiKit.Text("KO", 32, UiKit.Yellow, 7));
-        line.AddChild(UiKit.Text(View.NameOf(victim), 32, Palette.Team(View.TeamOf(victim)).Lightened(0.1f), 6));
+        else line.AddChild(Soft(UiKit.Text("KO", 20, UiKit.Yellow, 0), UiKit.Heavy));
+        line.AddChild(Name(victim));
         panel.Modulate = new Color(1, 1, 1, 0);   // UpdateFeed le place et le fait apparaître (entrée par la droite, départ après 4 s)
         feed.AddChild(panel);
         feedEntries.Add(new FeedEntry { Panel = panel, Born = age });
@@ -957,10 +999,10 @@ public partial class DesktopHud : CanvasLayer
     {
         public override void _Draw()
         {
-            var c = new Vector2(Size.X - 14, Size.Y / 2);
-            for (int i = 0; i < 3; i++) DrawLine(c + new Vector2(-40 + i * 4, -7 + i * 7), c + new Vector2(-16, -7 + i * 7), new Color(1, 1, 1, 0.55f), 3f);
-            DrawCircle(c, 12f, UiKit.Navy);
-            DrawCircle(c, 9f, Palette.BallCore);
+            var c = new Vector2(Size.X - 10, Size.Y / 2);
+            for (int i = 0; i < 3; i++) DrawLine(c + new Vector2(-28 + i * 3, -5 + i * 5), c + new Vector2(-11, -5 + i * 5), new Color(1, 1, 1, 0.5f), 2f);
+            DrawCircle(c + new Vector2(0, 1), 8f, new Color(0, 0, 0, 0.4f));
+            DrawCircle(c, 7f, Palette.BallCore);
         }
     }
 
@@ -970,17 +1012,18 @@ public partial class DesktopHud : CanvasLayer
     SpeedLines speedLines = null!;
 
     /// <summary>
-    /// Coup reçu (0,45 s) : liseré orange vif et saturé collé aux bords de l'écran (plus épais du côté du coup), dégradé court vers
-    /// l'intérieur, sans voile blanc ni rouge plein écran ; et un arc épais près du bord, pointé vers le tireur (direction en repère
-    /// écran vue de dessus : x à droite, y vers le bas = derrière ; nulle = pas d'arc, liseré égal partout).
+    /// Coup reçu (0,45 s) : voile rouge doux depuis les bords de l'écran (jusqu'à 30 %, sans arête nette, plus fort du côté du coup),
+    /// et un arc fin autour du viseur (rayon 260 px), pointé vers le tireur (direction en repère écran vue de dessus : x à droite,
+    /// y vers le bas = derrière ; nulle = pas d'arc, voile égal partout).
     /// </summary>
     sealed partial class Vignette : Control
     {
         public float Strength;
         public Vector2 From;
-        /// <summary>Intensité globale (liseré, dégradé et arc) : un seul facteur à multiplier pour un réglage d'atténuation.</summary>
+        /// <summary>Intensité globale (voile et arc) : un seul facteur à multiplier pour un réglage d'atténuation.</summary>
         public float Intensity = 1f;
-        static readonly Color Hot = new("ff7a00");   // orange franc, plus saturé que l'orange d'équipe
+        static readonly Color Hot = HitRed;
+        const float ArcRadius = 260f;
         public override void _Draw()
         {
             if (Strength <= 0.01f || Intensity <= 0.01f) return;
@@ -989,39 +1032,30 @@ public partial class DesktopHud : CanvasLayer
             void Edge(Vector2 a, Vector2 b, Vector2 inward, Vector2 normal)
             {
                 float k = From == Vector2.Zero ? 0.75f : Mathf.Clamp(0.35f + 0.9f * normal.Dot(From), 0.35f, 1f);
-                float band = 10f + 12f * k;                       // liseré plein
-                float w = band + 50f + 90f * k;                   // dégradé court : le centre de l'écran reste net
-                var solid = new Color(Hot, Mathf.Min(1f, e * (0.6f + 0.4f * k)));
-                var outer = new Color(Hot, Mathf.Min(0.7f, e * 0.7f * k));
+                float w = 80f + 80f * k;   // le centre de l'écran reste net
+                var outer = new Color(Hot, Mathf.Min(0.3f, e * 0.3f * (0.5f + 0.5f * k)));
+                var mid = new Color(Hot, outer.A * 0.35f);
                 var inner = new Color(Hot, 0f);
-                DrawPolygon(new[] { a, b, b + inward * band, a + inward * band }, new[] { solid, solid, solid, solid });
-                DrawPolygon(new[] { a + inward * band, b + inward * band, b + inward * w, a + inward * w }, new[] { outer, outer, inner, inner });
+                DrawPolygon(new[] { a, b, b + inward * w * 0.4f, a + inward * w * 0.4f }, new[] { outer, outer, mid, mid });
+                DrawPolygon(new[] { a + inward * w * 0.4f, b + inward * w * 0.4f, b + inward * w, a + inward * w }, new[] { mid, mid, inner, inner });
             }
             Edge(Vector2.Zero, new Vector2(s.X, 0), Vector2.Down, Vector2.Up);
             Edge(new Vector2(0, s.Y), s, Vector2.Up, Vector2.Down);
             Edge(Vector2.Zero, new Vector2(0, s.Y), Vector2.Right, Vector2.Left);
             Edge(new Vector2(s.X, 0), s, Vector2.Left, Vector2.Right);
 
-            // Arc vers le tireur, sur une ellipse proche des bords (dans le dégradé), contour marine pour se détacher du décor.
+            // Arc fin vers le tireur, autour du viseur, souligné d'encre pour se détacher du décor.
             if (From == Vector2.Zero) return;
             var c = s / 2;
-            var r = new Vector2(s.X * 0.5f - 110f, s.Y * 0.5f - 90f);
-            float mid = Mathf.Atan2(From.Y, From.X), half = 0.32f;
-            const int N = 24;
-            var pts = new Vector2[N + 1];
-            for (int i = 0; i <= N; i++)
-            {
-                float a = mid - half + 2f * half * i / N;
-                pts[i] = c + new Vector2(Mathf.Cos(a) * r.X, Mathf.Sin(a) * r.Y);
-            }
-            DrawPolyline(pts, new Color(UiKit.Navy, Mathf.Min(1f, e * 1.2f)), 26f, true);
-            DrawPolyline(pts, new Color(Hot.Lightened(0.15f), Mathf.Min(1f, e * 1.3f)), 16f, true);
+            float midA = Mathf.Atan2(From.Y, From.X), half = 0.38f;
+            float a1 = Mathf.Min(1f, e * 1.2f);
+            DrawArc(c, ArcRadius, midA - half, midA + half, 32, new Color(UiKit.Ink, 0.35f * a1), 12f, true);
+            DrawArc(c, ArcRadius, midA - half, midA + half, 32, new Color(Hot, 0.7f * a1 + 0.3f * a1 * a1), 8f, true);
             // Pointe au milieu de l'arc, tournée vers l'extérieur (vers le tireur).
-            var tip = c + new Vector2(Mathf.Cos(mid) * r.X, Mathf.Sin(mid) * r.Y);
-            var d = new Vector2(Mathf.Cos(mid), Mathf.Sin(mid));
+            var d = new Vector2(Mathf.Cos(midA), Mathf.Sin(midA));
             var n = new Vector2(-d.Y, d.X);
-            DrawColoredPolygon(new[] { tip + d * 34f, tip + n * 30f, tip - n * 30f }, new Color(UiKit.Navy, Mathf.Min(1f, e * 1.2f)));
-            DrawColoredPolygon(new[] { tip + d * 24f, tip + n * 20f + d * 2f, tip - n * 20f + d * 2f }, new Color(Hot.Lightened(0.15f), Mathf.Min(1f, e * 1.3f)));
+            var tip = c + d * (ArcRadius + 6f);
+            DrawColoredPolygon(new[] { tip + d * 16f, tip + n * 12f, tip - n * 12f }, new Color(Hot, a1));
         }
     }
 
@@ -1252,27 +1286,21 @@ public partial class DesktopHud : CanvasLayer
     {
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
-        countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
-        // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
-        var roundBox = UiKit.PanelBox(16, 4);
-        roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
-        countdownRound.AddThemeStyleboxOverride("normal", roundBox);
-        UiKit.Poster(countdownRound);
-        countdown = UiKit.Poster(CenterLabel("", 220, UiKit.Yellow, 0, 240, 230), null, 10);
+        // Lettres blanches à ombre douce sur une plaque d'encre au biseau (PlateBox), comme le reste du HUD.
+        countdownRound = Soft(CenterLabel("", 42, Colors.White, 0, 170, 62), UiKit.Display);
+        countdownRound.AddThemeStyleboxOverride("normal", PlateBox(PlateInk, 0, 0, 12));
+        countdown = Big(Soft(CenterLabel("", 140, Colors.White, 0, 260, 180), UiKit.Display));
         // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
         // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
         notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var noticeBox = UiKit.PanelBox(14, 18);
-        noticeBox.BorderWidth = 4; noticeBox.BorderColor = UiKit.Yellow; noticeBox.ShadowOffset = new Vector2(7, 7); noticeBox.StripOffset = new Vector2(12, 12);
-        noticeBox.ContentMarginTop = noticeBox.ContentMarginBottom = 6;
-        notice.AddThemeStyleboxOverride("panel", noticeBox);
+        notice.AddThemeStyleboxOverride("panel", PlateBox(PlateInk, 28, 6, 12));
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         notice.GrowHorizontal = Control.GrowDirection.Both;
         notice.OffsetLeft = 0; notice.OffsetRight = 0; notice.OffsetTop = 186; notice.OffsetBottom = 186;
         var noticeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         noticeRow.AddThemeConstantOverride("separation", 12);
-        noticeMain = UiKit.Text("", 34, Colors.White, 10);
-        noticeTime = UiKit.Text("", 34, UiKit.Yellow, 10);
+        noticeMain = Soft(UiKit.Text("", 28, Colors.White, 0), UiKit.Heavy);
+        noticeTime = Soft(UiKit.Text("", 28, UiKit.Yellow, 0), UiKit.Heavy);
         noticeRow.AddChild(noticeMain);
         noticeRow.AddChild(noticeTime);
         notice.AddChild(noticeRow);
@@ -1280,16 +1308,12 @@ public partial class DesktopHud : CanvasLayer
         notice.Visible = false;
         // Messages du joueur (réglage, terrasse, pas d'allié) : même langage que les autocollants (« PRISE ! », « PASSE ! ») :
         // lettres blanches, contour bleu nuit épais, liseré extérieur à la couleur de l'équipe, légère inclinaison.
-        toast = CenterLabel("", 36, Colors.White, 14, 250, 56);
-        toast.AddThemeColorOverride("font_shadow_color", Palette.Team(View.LocalTeam).Lerp(Colors.White, 0.1f));
-        toast.AddThemeConstantOverride("shadow_outline_size", 26);
-        toast.AddThemeConstantOverride("shadow_offset_x", 0);
-        toast.AddThemeConstantOverride("shadow_offset_y", 0);
-        toast.Rotation = Mathf.DegToRad(-4f);
-        pop = UiKit.Poster(CenterLabel("", 96, UiKit.Yellow, 0, 600, 120), null, 6);
+        toast = Soft(CenterLabel("", 28, Colors.White, 0, 250, 50), UiKit.Heavy);
+        toast.AddThemeStyleboxOverride("normal", PlateBox(PlateInk, 0, 0, 10));
+        pop = Big(Soft(CenterLabel("", 72, UiKit.Yellow, 0, 600, 100), UiKit.Display));
         // Titre du joueur KO à la couleur de l'équipe adverse : il ressort net sur le monde désaturé (Feedback, calque sous le HUD).
-        koTitle = UiKit.Poster(CenterLabel("KO !", 150, Palette.Team(1 - View.LocalTeam).Lightened(0.1f), 0, 330, 180), null, 9);
-        koSub = CenterLabel("", 40, Colors.White, 10, 500, 60);
+        koTitle = Big(Soft(CenterLabel("KO !", 120, Palette.Team(1 - View.LocalTeam).Lightened(0.1f), 0, 340, 150), UiKit.Display));
+        koSub = Soft(CenterLabel("", 30, Colors.White, 0, 494, 50), UiKit.Heavy);
         resume = CenterLabel("Souris libérée : clique pour reprendre", 34, Colors.White, 10, 700, 60, root);
         foreach (var l in new[] { countdown, countdownRound, toast, pop, koTitle, koSub }) l.Visible = false;
 
@@ -1392,9 +1416,9 @@ public partial class DesktopHud : CanvasLayer
             if (roundTitle != "")
             {
                 // Bandeau à la largeur du texte (posée avant le glissé, qui part de la position courante).
-                float w = (UiKit.Font?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 50).X ?? 900f) + 96f;
+                float w = (UiKit.Display?.GetStringSize(roundTitle, HorizontalAlignment.Left, -1, 42).X ?? 700f) + 80f;
                 countdownRound.OffsetLeft = -w / 2; countdownRound.OffsetRight = w / 2;
-                countdownRound.PivotOffset = new Vector2(w / 2, 38);
+                countdownRound.PivotOffset = new Vector2(w / 2, 31);
                 countdownRound.Text = roundTitle;
                 countdownRound.Visible = true;
                 countdownRound.Modulate = Colors.White;
@@ -1404,7 +1428,7 @@ public partial class DesktopHud : CanvasLayer
             countdown.Text = text;
             countdown.Visible = true;
             countdown.Modulate = Colors.White;
-            countdown.AddThemeColorOverride("font_color", go ? UiKit.Green : UiKit.Yellow);
+            countdown.AddThemeColorOverride("font_color", go ? UiKit.Yellow : Colors.White);
             UiKit.Punch(countdown, go ? 2.6f : 2.1f, 0.32);
             // Opaque pendant toute la tenue, puis sortie brève : pas de long fondu translucide posé sur le décor.
             var tw = AnnTween(countdown);
@@ -1459,7 +1483,7 @@ public partial class DesktopHud : CanvasLayer
         if (prev.Phase == MatchView.Phase.Countdown && s.Phase == MatchView.Phase.Playing) ShowCountdown("GO !", true);
         if (s.Phase == MatchView.Phase.RoundOver && prev.Phase != MatchView.Phase.RoundOver) ShowBanner(s, false);
         if (s.Phase == MatchView.Phase.MatchOver && prev.Phase != MatchView.Phase.MatchOver) ShowBanner(s, true);
-        if (s.Overtime && !prev.Overtime && s.Phase == MatchView.Phase.Playing) { ShowCenterPop("MORT SUBITE !", UiKit.Yellow, 90); Sfx.Play(this, SfxKind.Whistle, null, 0.8f); }
+        if (s.Overtime && !prev.Overtime && s.Phase == MatchView.Phase.Playing) { ShowCenterPop("MORT SUBITE !", UiKit.Yellow, 72); Sfx.Play(this, SfxKind.Whistle, null, 0.8f); }
         if (Tutorial.Running && (countdown.Visible || countdownRound.Visible || bannerBox.Visible) && annPrio >= PrioCountdown) ClearCenter();
 
         // Annonces (balle spéciale, échange de plaques) et messages du joueur.
@@ -1485,6 +1509,10 @@ public partial class DesktopHud : CanvasLayer
             lastToast = t;
             toast.Text = t;
             toast.Visible = t != "";
+            // Plaque à la largeur du texte.
+            float tw = (UiKit.Heavy?.GetStringSize(t, HorizontalAlignment.Left, -1, 28).X ?? 600f) + 60f;
+            toast.OffsetLeft = -tw / 2; toast.OffsetRight = tw / 2;
+            toast.PivotOffset = new Vector2(tw / 2, 25);
             if (toast.Visible) UiKit.Punch(toast, 1.4f, 0.25);
         }
 
@@ -1881,8 +1909,8 @@ public partial class DesktopHud : CanvasLayer
         hint.GrowHorizontal = Control.GrowDirection.Begin;
         hint.GrowVertical = Control.GrowDirection.Begin;
         hint.OffsetRight = -36; hint.OffsetBottom = -40; hint.OffsetLeft = -36; hint.OffsetTop = -40;
-        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 19));
-        var words = UiKit.Text("commandes", 22, new Color(1, 1, 1, 0.9f), 6);
+        hint.AddChild(HudKey(InputSetup.KeyName("help"), 17));
+        var words = Soft(UiKit.Text("commandes", 20, new Color(1, 1, 1, 0.9f), 0), UiKit.Heavy);
         words.VerticalAlignment = VerticalAlignment.Center;
         hint.AddChild(words);
         helpLayer.AddChild(hint);

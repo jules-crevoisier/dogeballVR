@@ -67,7 +67,14 @@ public partial class PlayerTag : Node3D
         return new Rect2(p.X - half, p.Y - TopEm * unitPx, 2f * half, (TopEm + BottomEm) * unitPx);
     }
 
-    const float TopEm = 2.6f, BottomEm = 0.35f;   // du pied des cœurs au haut du nom (contours compris)
+    /// <summary>Hauteur du nom en pixels d'une image de 720 lignes (cœurs : HeartsScale fois plus).</summary>
+    const float NamePx = 12f;
+    const float FarFade = 25f, FarName = 40f;
+    /// <summary>Cœurs par rapport au nom : le glyphe ♥ est petit dans sa case, d'où 1,6 em.</summary>
+    const float HeartsScale = 1.6f;
+    const float TopEm = 2.95f, BottomEm = 0.35f;   // du pied des cœurs au haut du nom (contours compris)
+    /// <summary>Hauteur du pied du nom au-dessus du pied des cœurs (en em), au-dessus des cœurs agrandis.</summary>
+    const float NameLift = 1.4f;
 
     public override void _Ready()
     {
@@ -78,14 +85,14 @@ public partial class PlayerTag : Node3D
         var ink = UI.UiKit.Ink;
         nameLabel = new Label3D
         {
-            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 36, Modulate = color, OutlineModulate = ink,
-            VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, 1.05f, 0), RenderPriority = 1, OutlineRenderPriority = 0,
+            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 16, Modulate = color, OutlineModulate = ink,
+            VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, NameLift, 0), RenderPriority = 1, OutlineRenderPriority = 0,
         };
         // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Barlow).
         hearts = new Label3D
         {
-            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 44, Modulate = color, OutlineModulate = ink,
-            VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * (28f / 24f),
+            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 14, Modulate = color, OutlineModulate = ink,
+            VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * HeartsScale,
         };
         symbol = new Sprite3D
         {
@@ -119,10 +126,12 @@ public partial class PlayerTag : Node3D
             throughWalls = walls;
             nameLabel.NoDepthTest = hearts.NoDepthTest = walls;
         }
-        // Taille : nom 24 px, cœurs 28 px (image 720 lignes) ; coéquipiers aux trois quarts et plus pâles.
+        // Taille : nom 12 px, cœurs à 1,6 em (image 720 lignes ; nom de 18 px en 1080), discrets comme dans les jeux d'action en ligne ;
+        // coéquipiers aux trois quarts et plus pâles ; au-delà de 25 m tout pâlit, au-delà de 40 m le nom disparaît (cœurs seuls).
         float k = mate ? 0.75f : 1f;
-        float alpha = mate ? 0.7f : 1f;
-        float em = 24f * k * mpp;   // 1 unité locale = 1 em de 24 px
+        float alpha = (mate ? 0.7f : 1f) * (dist > FarFade ? 0.6f : 1f);
+        nameLabel.Visible = dist <= FarName;
+        float em = NamePx * k * mpp;   // 1 unité locale = 1 em de NamePx pixels
         var basis = cam.GlobalTransform.Basis.Orthonormalized();
         var anchor = head + basis.Y * (6f * mpp);
         // Étiquettes qui se chevauchent : la plus proche garde sa place, les autres montent au-dessus (lissé, sans saut).
@@ -139,9 +148,9 @@ public partial class PlayerTag : Node3D
             nameLabel.Text = n;
             lastName = n;
             nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.65f;
-            widthEm = Mathf.Max(nameEm, Max * 0.85f * (28f / 24f) + 0.7f);
+            widthEm = Mathf.Max(nameEm, Max * 0.85f * HeartsScale + 0.7f);
         }
-        unitPx = 24f * k * GetViewport().GetVisibleRect().Size.Y / 720f;
+        unitPx = NamePx * k * GetViewport().GetVisibleRect().Size.Y / 720f;
         int lives = Mathf.Clamp(Lives(), 0, Max);
         var t = new string('♥', lives) + new string('♡', Max - lives);
         if (t != lastHearts) { hearts.Text = t; lastHearts = t; }
@@ -150,7 +159,7 @@ public partial class PlayerTag : Node3D
         symbol.Visible = UI.GameSettings.TeamSymbols;
         if (symbol.Visible)
         {
-            symbol.Position = new Vector3(-(nameEm / 2f + 0.5f), 1.05f + 0.45f, 0);
+            symbol.Position = new Vector3(-(nameEm / 2f + 0.5f), NameLift + 0.45f, 0);
             symbol.NoDepthTest = nameLabel.NoDepthTest;
             var sm = symbol.Modulate; sm.A = alpha; symbol.Modulate = sm;
         }
