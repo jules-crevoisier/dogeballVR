@@ -78,7 +78,7 @@ public partial class OptionsMenu : Control
     static KcBox RowBox(bool on)
     {
         var fill = on ? new Color(UiKit.Violet, 0.55f) : new Color(0, 0, 0, 0);
-        var b = new KcBox { Top = fill, Bottom = on ? new Color(UiKit.VioletMid, 0.55f) : fill, Slant = 8, AccentColor = on ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7 };
+        var b = new KcBox { Top = fill, Bottom = on ? new Color(UiKit.VioletMid, 0.55f) : fill, Slant = 0, AccentColor = on ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7 };
         b.ContentMarginLeft = 22; b.ContentMarginRight = 12; b.ContentMarginTop = 2; b.ContentMarginBottom = 2;
         return b;
     }
@@ -326,7 +326,7 @@ public partial class OptionsMenu : Control
         var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 16);
         var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
-        if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+        UiKit.Poster(l);
         h.AddChild(l);
         var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
         h.AddChild(rule);

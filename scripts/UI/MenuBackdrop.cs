@@ -5,7 +5,7 @@ using DogeballVR.Visual;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Décor 3D derrière le menu principal : la carte Toit, deux joueurs posés comme sur une jaquette (l'orange arme un tir,
+/// Décor 3D derrière le menu principal : Toits du Marché (l'arène de lancement), deux joueurs posés comme sur une jaquette (l'orange arme un tir,
 /// le bleu se prépare à attraper), une balle en vol, et une caméra qui dérive lentement. Libéré quand la partie commence.
 /// </summary>
 public partial class MenuBackdrop : Node3D
@@ -16,12 +16,14 @@ public partial class MenuBackdrop : Node3D
     Vector3 ballFrom, ballTo;
     Avatar? hero, rival;
 
-    static readonly Vector3 CamPos = new(-0.6f, 1.5f, -13.0f);
-    static readonly Vector3 LookTarget = new(-2.0f, 1.3f, -5.0f);
+    // Toits du Marché, toit orange : la caméra est devant le muret de la terrasse, le héros devant le conteneur, le rival
+    // et les échanges de l'autre côté de la rue.
+    static readonly Vector3 CamPos = new(2.2f, 1.75f, -12.6f);
+    static readonly Vector3 LookTarget = new(-4.5f, 1.3f, -1.0f);
 
     public override void _Ready()
     {
-        var path = "res://maps/croix_neon.json";
+        var path = "res://maps/marche_suspendu.json";
         if (FileAccess.FileExists(path))
         {
             var map = MapData.Load(path);
@@ -42,10 +44,10 @@ public partial class MenuBackdrop : Node3D
         // Coéquipiers flous au fond.
         var mate = Avatar.Create(0, false);
         AddChild(mate);
-        mate.Pose(new Vector3(-5.4f, 1.6f, 1.6f), Mathf.DegToRad(165), new Vector3(-5.8f, 1.0f, 1.3f), new Vector3(-5.0f, 1.1f, 1.2f));
+        mate.Pose(new Vector3(-5.4f, 1.6f, -5.0f), Mathf.DegToRad(165), new Vector3(-5.8f, 1.0f, -5.3f), new Vector3(-5.0f, 1.1f, -5.4f));
         var other = Avatar.Create(1, false);
         AddChild(other);
-        other.Pose(new Vector3(5.0f, 1.6f, 4.5f), Mathf.DegToRad(150), new Vector3(4.6f, 1.0f, 4.3f), new Vector3(5.4f, 1.0f, 4.4f));
+        other.Pose(new Vector3(3.5f, 1.6f, 6.5f), Mathf.DegToRad(150), new Vector3(3.1f, 1.0f, 6.3f), new Vector3(3.9f, 1.0f, 6.4f));
 
         ball = ModelLibrary.Instance("balle_normale");
         if (ball == null)
@@ -57,8 +59,8 @@ public partial class MenuBackdrop : Node3D
         held = ModelLibrary.Instance("balle_normale") ?? new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.15f, Height = 0.3f }, MaterialOverride = Materials.Flat(Palette.BallCore) };
         AddChild(held);
         // Au fond, le rival et un coéquipier orange s'échangent des tirs.
-        ballFrom = new Vector3(-5.2f, 1.5f, 1.0f);
-        ballTo = new Vector3(-6.3f, 1.4f, -3.4f);
+        ballFrom = new Vector3(-5.2f, 1.5f, -4.6f);
+        ballTo = new Vector3(-7.3f, 1.4f, 5.8f);
 
         // Personnages animés (modèles riggés) : le héros célèbre en boucle ; la balle jonglée ne sert qu'aux anciens modèles sans squelette.
         if (hero.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation("Celebration"))
@@ -130,7 +132,7 @@ public partial class MenuBackdrop : Node3D
             held.GlobalPosition = rightHand + Vector3.Up * (0.18f + 0.55f * air);
             held.Rotation = new Vector3((float)time * 5f, (float)time * 2f, 0);
         }
-        var rivalHead = new Vector3(-6.3f, 1.5f + 0.03f * Mathf.Sin((float)time * 1.7f + 1f), -3.6f);
+        var rivalHead = new Vector3(-7.3f, 1.5f + 0.03f * Mathf.Sin((float)time * 1.7f + 1f), 6.0f);
         rival!.Pose(rivalHead, Mathf.DegToRad(-20), rivalHead + new Vector3(-0.3f, -0.35f, 0.45f), rivalHead + new Vector3(0.3f, -0.35f, 0.45f));
     }
 

@@ -140,8 +140,8 @@ public partial class EndScreen : CanvasLayer
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
-        // Victoire : rayons dorés festifs. Défaite : pas de rayons, juste un halo gris-bleu éteint derrière le titre.
-        burst = new Sunburst { Color = win ? UiKit.Yellow : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Victoire : rayons papier en aplats francs (affiche). Défaite : pas de rayons, juste un disque gris-bleu éteint.
+        burst = new Sunburst { Color = win ? UiKit.Cream : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
         burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         host.AddChild(burst);
 
@@ -149,12 +149,12 @@ public partial class EndScreen : CanvasLayer
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
         bool compact = host.GetViewportRect().Size.Y < 960f;
-        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -12 : -40;
+        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -96 : -118;   // bas : place du bandeau d'XP (XpBanner), les boutons restent visibles
         col.AddThemeConstantOverride("separation", compact ? 8 : 14);
         host.AddChild(col);
 
-        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
-        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
+        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 96 : 136, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
+        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 196);   // Anton : capitales hautes, interligne large
         col.AddChild(title);
 
         // Score des manches, aux couleurs des équipes, avec son unité sous les chiffres.
@@ -163,7 +163,7 @@ public partial class EndScreen : CanvasLayer
         Label Team(string name, Color c)
         {
             var l = UiKit.Text(name, 40, c, 10);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+            UiKit.Poster(l);
             l.CustomMinimumSize = new Vector2(0, 80);   // hauteur des chiffres : le nom reste aligné sur eux, pas sur l'unité
             l.VerticalAlignment = VerticalAlignment.Center;
             l.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
@@ -417,8 +417,8 @@ public partial class EndScreen : CanvasLayer
         panel.AddChild(col);
         star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(star);
-        col.AddChild(UiKit.Title("MVP", 64));
-        col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("MVP", 64, HorizontalAlignment.Center, UiKit.Cream));
+        col.AddChild(UiKit.Poster(UiKit.Text(View.NameOf(id), 46, Colors.White, 0, HorizontalAlignment.Center)));
         col.AddChild(UiKit.Spacer(6));
         col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
@@ -473,7 +473,7 @@ public partial class EndScreen : CanvasLayer
         // Couleurs pleines et vives par équipe (orange / bleu) ; ma ligne plus claire, cerclée de jaune avec un halo.
         var bg = header ? new Color(0, 0, 0, 0) : TeamRow(p!.Team, local);
         // Lignes penchées comme la barre du menu ; la mienne cerclée de jaune.
-        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 8, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
         box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -498,8 +498,8 @@ public partial class EndScreen : CanvasLayer
 
     /// <summary>Fond de ligne du tableau (et de la carte MVP) : orange ou bleu vifs et opaques, plus clairs pour le joueur local.</summary>
     static Color TeamRow(int team, bool bright) => team == 0
-        ? (bright ? new Color("ff7a1f") : new Color("d9520c"))
-        : (bright ? new Color("2f8fff") : new Color("1f63c9"));
+        ? (bright ? UiKit.Orange : UiKit.Orange.Darkened(0.22f))
+        : (bright ? UiKit.Blue : UiKit.Blue.Darkened(0.22f));
 
     /// <summary>Rayons lumineux qui tournent lentement derrière le titre, avec un halo au centre (animés par l'écran).</summary>
     sealed partial class Sunburst : Control
@@ -517,9 +517,10 @@ public partial class EndScreen : CanvasLayer
                 float a = Angle + Mathf.Tau * i / n;
                 var tip0 = c + Vector2.FromAngle(a) * r;
                 var tip1 = c + Vector2.FromAngle(a + Mathf.Tau / n * 0.5f) * r;
-                DrawPolygon(new[] { c, tip0, tip1 }, new[] { new Color(Color, 0.28f), new Color(Color, 0.04f), new Color(Color, 0.04f) });
+                var ray = new Color(Color, 0.07f);   // rayons d'affiche : aplats francs, sans dégradé
+                DrawPolygon(new[] { c, tip0, tip1 }, new[] { ray, ray, ray });
             }
-            for (int k = 6; k >= 1; k--) DrawCircle(c, 70f * k, new Color(Color, 0.035f));   // halo doux derrière le titre
+            if (!Rays) DrawCircle(c, 300f, new Color(Color, 0.05f));   // défaite : un disque éteint derrière le titre
         }
     }
 

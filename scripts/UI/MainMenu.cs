@@ -6,10 +6,10 @@ using DogeballVR.Net;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Menu principal du mode PC, par-dessus le décor 3D : grand bandeau diagonal plein à gauche (~40 % de l'écran, les
-/// personnages occupent la droite), logo, items en grosses lettres penchées surlignés par une barre jaune inclinée qui
-/// glisse de l'un à l'autre, comme le menu de Knockout City ; pages Jouer en ligne, Options et Crédits. À la toute
-/// première partie, on propose le tutoriel.
+/// Menu principal du mode PC, DA « Affiche », par-dessus le décor 3D (une arène vivante) : colonne d'encre droite à gauche
+/// (un tiers de l'écran, les personnages occupent la droite), logo en double tirage décalé, items en grandes capitales Anton
+/// surlignés par une bande de papier à languette vert acide qui glisse de l'un à l'autre ; pages Jouer en ligne, Options et
+/// Crédits. À la toute première partie, on propose le tutoriel.
 /// </summary>
 public partial class MainMenu : CanvasLayer
 {
@@ -57,38 +57,36 @@ public partial class MainMenu : CanvasLayer
         compact = root.GetViewportRect().Size.Y < 960f;
         float top = compact ? -44f : 0f;
 
-        // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
+        // Colonne d'encre à gauche : elle porte le logo et les items.
         band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
         band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         band.Resized += band.QueueRedraw;
         root.AddChild(band);
-        UiKit.SlideIn(band, 0f, -260f);
+        UiKit.SlideIn(band, 0f, -200f);
 
-        // Logo penché, en autocollant : ombre marine, contour crème épais, puis le texte orange cerné de marine.
-        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.82f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
+        // Logo d'affiche : DOGEBALL en capitales Anton, trois tirages décalés (bleu, orange, papier) comme une sérigraphie mal
+        // calée ; dessous, la devise en vert acide sur un filet.
+        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.8f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
         root.AddChild(logoScale);
-        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(72, compact ? 30 : 42), Size = new Vector2(700, 210), RotationDegrees = -6f };
+        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(64, compact ? 18 : 34), Size = new Vector2(600, 240) };
         logoScale.AddChild(logoBox);
-        void LogoLayer(Color color, int outline, Color outlineColor, Vector2 at)
+        void LogoLayer(Color color, Vector2 at)
         {
-            var l = UiKit.Text("DOGEBALL", 138, color, outline);
-            l.AddThemeColorOverride("font_outline_color", outlineColor);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+            var l = UiKit.Text("DOGEBALL", 150, color, 0);
+            if (UiKit.Display is Font d) l.AddThemeFontOverride("font", d);
             l.Position = at;
             logoBox.AddChild(l);
         }
-        LogoLayer(new Color("0a0f22"), 60, new Color("0a0f22"), new Vector2(9, 12));
-        LogoLayer(UiKit.Cream, 60, UiKit.Cream, Vector2.Zero);
-        LogoLayer(UiKit.Orange, 30, UiKit.Navy, Vector2.Zero);
-        var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 30, UiKit.Yellow, 10);
-        if (UiKit.Italic is Font ti) tag.AddThemeFontOverride("font", ti);
-        tag.Position = new Vector2(22, 170);
+        LogoLayer(UiKit.Blue, new Vector2(-6, 7));
+        LogoLayer(UiKit.Orange, new Vector2(7, 7));
+        LogoLayer(UiKit.Cream, Vector2.Zero);
+        var rule = new ColorRect { Color = UiKit.Yellow, Position = new Vector2(4, 214), Size = new Vector2(548, 5), MouseFilter = Control.MouseFilterEnum.Ignore };
+        logoBox.AddChild(rule);
+        var tag = UiKit.Text("ESQUIVE  ·  ATTRAPE  ·  RENVOIE", 26, UiKit.Yellow, 0);
+        if (UiKit.Heavy is Font hv) tag.AddThemeFontOverride("font", hv);
+        tag.Position = new Vector2(4, 222);
         logoBox.AddChild(tag);
-        UiKit.Punch(logoBox, 1.3f, 0.45);
-        // Le logo respire doucement.
-        var bob = logoBox.CreateTween().SetLoops();
-        bob.TweenProperty(logoBox, "rotation_degrees", -4.5f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        bob.TweenProperty(logoBox, "rotation_degrees", -6f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        UiKit.Punch(logoBox, 1.15f, 0.35);
 
         // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -106,12 +104,12 @@ public partial class MainMenu : CanvasLayer
         bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         root.AddChild(bar);
 
-        column = new VBoxContainer { Position = new Vector2(110, 300 + top) };
+        column = new VBoxContainer { Position = new Vector2(96, 318 + top) };
         column.AddThemeConstantOverride("separation", compact ? 10 : 14);
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"Accès anticipé · v{(ver == "" ? "0.1" : ver)}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
+        var version = UiKit.Text($"ACCÈS ANTICIPÉ · V{(ver == "" ? "0.1" : ver)}", 18, new Color(UiKit.Cream, 0.85f), 5, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
         root.AddChild(version);
@@ -180,13 +178,13 @@ public partial class MainMenu : CanvasLayer
         bar.QueueRedraw();
     }
 
-    /// <summary>Rectangle de la barre pour un item : du texte jusqu'un peu au-delà du liseré du bandeau, comme dans KC.</summary>
+    /// <summary>Rectangle de la bande de sélection pour un item : du bord gauche de l'écran jusqu'au filet de la colonne.</summary>
     Rect2 BarRect(Control item)
     {
         float y = column.Position.Y + item.Position.Y;
-        float x0 = column.Position.X - BarLead;
-        float x1 = band.EdgeX(y + item.Size.Y / 2f) + 44f;
-        return new Rect2(x0, y + 3, x1 - x0, item.Size.Y - 6);
+        float x0 = 0f;
+        float x1 = band.EdgeX(y + item.Size.Y / 2f) + 30f;
+        return new Rect2(x0, y + 4, x1 - x0, item.Size.Y - 8);
     }
 
     void Fill(params Control[] items)
@@ -197,7 +195,7 @@ public partial class MainMenu : CanvasLayer
         int i = 0;
         foreach (var c in items)
         {
-            // Items en lettres penchées et grasses, comme les menus de Knockout City.
+            // Items en capitales d'affiche (Anton).
             if (UiKit.Italic is Font it && c is Button or Label) c.AddThemeFontOverride("font", it);
             column.AddChild(c);
             UiKit.SlideIn(c, 0.05f * i++);
@@ -213,14 +211,14 @@ public partial class MainMenu : CanvasLayer
     Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
     {
         var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
-        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 84 : 52) };
+        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 80 : 50) };
         b.SetMeta(ItemMeta, true);
         foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        b.AddThemeFontSizeOverride("font_size", main ? 70 : 38);
+        b.AddThemeFontSizeOverride("font_size", main ? 64 : 34);
         if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
         b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
-        var rest = restColor ?? (main ? Colors.White : UiKit.Lavender);   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
-        int restOutline = main ? 12 : 8;
+        var rest = restColor ?? (main ? UiKit.Cream : UiKit.Lavender);   // gris chaud : 3e niveau de hiérarchie
+        int restOutline = 0;
         void Paint(Color c, int outline)
         {
             foreach (var k in FontColors) b.AddThemeColorOverride(k, c);
@@ -234,7 +232,7 @@ public partial class MainMenu : CanvasLayer
             slide = b.CreateTween();
             slide.TweenProperty(pad, "content_margin_left", to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 2); Shift(main ? 36f : 30f); };
+        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 0); Shift(main ? 30f : 24f); };
         b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
@@ -398,7 +396,7 @@ public partial class MainMenu : CanvasLayer
         {
             ("Conception et direction", "jules"),
             ("Moteur", "Godot Engine 4.3 (MIT)"),
-            ("Police", "Lilita One, Juan Montoreano (SIL OFL)"),
+            ("Polices", "Anton (The Anton Project Authors), Barlow (Jeremy Tribby), Lilita One (Juan Montoreano), SIL OFL"),
             ("Modèles 3D", "faits maison avec Blender"),
             ("Sons", "voir assets/audio/CREDITS.md"),
             ("Inspiration", "Knockout City (Velan Studios), hommage"),
@@ -479,23 +477,16 @@ public partial class MainMenu : CanvasLayer
         tw.TweenCallback(Callable.From(then));
     }
 
-    /// <summary>Barre de sélection jaune inclinée, qui vire à l'or vers le bas, avec l'étoile marine devant le texte (« ✦ JUGAR »).</summary>
+    /// <summary>Bande de sélection : papier, ombre d'encre franche, languette vert acide à gauche du texte.</summary>
     sealed partial class SelectBar : Control
     {
-        static readonly Color Gold = new("ffb21f");
-
         public override void _Draw()
         {
             float w = Size.X, h = Size.Y;
             if (w < 2f) return;
-            float s = Mathf.Min(h * 0.3f, w);   // biais : le haut part vers la droite, comme le texte penché
-            Vector2[] Quad(Vector2 o) => new[] { o + new Vector2(s, 0), o + new Vector2(w, 0), o + new Vector2(w - s, h), o + new Vector2(0, h) };
-            DrawColoredPolygon(Quad(new Vector2(7, 7)), new Color(0.02f, 0.03f, 0.1f, 0.55f));
-            DrawPolygon(Quad(Vector2.Zero), new[] { UiKit.Yellow, UiKit.Yellow, Gold, Gold });
-            if (w < BarLead + 24f) return;
-            var c = new Vector2(BarLead + 10f, h / 2f);
-            float r = Mathf.Min(h * 0.24f, 15f), k = r * 0.3f;
-            DrawColoredPolygon(new[] { c + new Vector2(0, -r), c + new Vector2(k, -k), c + new Vector2(r, 0), c + new Vector2(k, k), c + new Vector2(0, r), c + new Vector2(-k, k), c + new Vector2(-r, 0), c + new Vector2(-k, -k) }, UiKit.Navy);
+            DrawRect(new Rect2(8, 8, w, h), new Color(0, 0, 0, 0.55f));
+            DrawRect(new Rect2(0, 0, w, h), UiKit.Cream);
+            if (w > BarLead + 40f) DrawRect(new Rect2(BarLead + 16f, h * 0.2f, 14f, h * 0.6f), UiKit.Yellow.Darkened(0.12f));
         }
     }
 }

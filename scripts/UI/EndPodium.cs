@@ -210,7 +210,7 @@ public partial class EndPodium : Control
     void BuildTeamBanner()
     {
         teamLabel = UiKit.Text(TeamLabel, 50, Colors.White, 10, HorizontalAlignment.Right);
-        if (UiKit.Italic is Font it) teamLabel.AddThemeFontOverride("font", it);
+        UiKit.Poster(teamLabel);
         AddChild(teamLabel);
         teamLabel.Modulate = new Color(1, 1, 1, 0);
         teamLabel.CreateTween().TweenProperty(teamLabel, "modulate:a", 1.0, 0.25).SetDelay(0.15);
@@ -222,7 +222,7 @@ public partial class EndPodium : Control
         bool local = id == View.LocalId;
         var plate = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
         // Plaque crème penchée, ombre encre décalée (comme les items du menu) ; la mienne cerclée de jaune.
-        var box = new KcBox { Top = UiKit.Cream, Bottom = new Color("efe2c8"), Slant = 12, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.6f) };
+        var box = new KcBox { Top = UiKit.Cream, Bottom = new Color("efe2c8"), Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.6f) };
         box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 6; box.ContentMarginBottom = 8;
         plate.AddThemeStyleboxOverride("panel", box);
         plate.CustomMinimumSize = new Vector2(mvp ? 320 : 280, 0);
