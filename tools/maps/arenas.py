@@ -71,7 +71,7 @@ class Arena:
             if color_b: m["color"] = color_b
             self.decor.append(m)
 
-    def skyline(self, bounds, seed, colors, ring=10, base=-14):
+    def skyline(self, bounds, seed, colors, ring=10, base=-14, brick=True, max_h=30):
         """Immeubles autour de l'arène (décor sans collision) : fenêtres, hauteurs variées, à 8-30 m des bords."""
         import random
         rnd = random.Random(seed)
@@ -88,10 +88,10 @@ class Arena:
                 spots.append((x, z, far))
         for i, (x, z, far) in enumerate(spots):
             w, d = rnd.uniform(6, 11), rnd.uniform(6, 11)
-            h = rnd.uniform(4, 12) if far < 22 else rnd.uniform(10, 30)   # proches : bas (ne cachent pas l'arène) ; loin : la silhouette
+            h = rnd.uniform(4, 12) if far < 22 else rnd.uniform(10, max_h)   # proches : bas (ne cachent pas l'arène) ; loin : la silhouette
             c1, c2 = colors[i % len(colors)]
             self.decor.append({"x": round(x, 1), "y": base, "z": round(z, 1), "sx": round(w, 1), "sy": round(h - base, 1), "sz": round(d, 1),
-                               "color": c1, "color2": c2, "pattern": 5 if i % 3 else 1})
+                               "color": c1, "color2": c2, "pattern": 5 if (i % 3 or not brick) else 1})
 
     def check_heights(self):
         """Règle de lecture : un couvert bas s'enjambe (1,2 m ou moins), un couvert haut est un mur (1,65 m ou plus).
@@ -151,8 +151,11 @@ def marche_suspendu():
     a.ramp("rampe_terrasse_d", 7.5, -16, 3, 3, 0, 1.2, "-x")
     a.block("muret_terrasse", "low", 0, -13.2, 5, 0.4, 2.2, 1.2)
     # Château d'eau : repère visible de partout, couvert plein (4,5 m).
-    a.block("chateau_eau", "tower", -13, -15, 3.2, 3.2, 4.5, 0)
-    a.deco(model="bidon", x=-13, y=4.5, z=-15, scale=2.2)
+    a.block("chateau_eau", "tower", -13, -15, 3.2, 3.2, 4.5, 0, color="#7A5A3A")   # réservoir en bois cerclé, toit conique
+    for yy in (1.2, 2.4, 3.6):
+        a.deco(x=-13, y=yy, z=-15, sx=3.3, sy=0.12, sz=3.3, color="#3A3F4A", pattern=0)
+    for yy, w in ((4.5, 2.8), (4.9, 1.8), (5.3, 0.7)):
+        a.deco(x=-13, y=yy, z=-15, sx=w, sy=0.4, sz=w, color="#5A6180", pattern=0)
     a.block("cheminee", "wall", 14, -15, 1.6, 2.4, 2.4, 0)
     # Front : deux couverts pleins à moins de 3 m du bord (conteneur, cage d'escalier), demi-couverts par-dessus lesquels on tire.
     a.block("conteneur", "container", -7, -8, 6, 2.4, 2.6, 0, color=ORANGE, color_b=BLEU)
@@ -198,7 +201,8 @@ def marche_suspendu():
         a.deco(x=x, y=-3.5, z=-3.0, sx=4.5, sy=0.5, sz=0.05, color=c, color_b=cb, pattern=0)   # lambrequin : se lit comme du tissu, pas comme un rebord
     a.deco(model="enseigne_bulle", x=-16.6, y=1.6, z=-10, rotY=90, scale=1.0)
     a.deco(model="lampadaire", x=8, y=1.2, z=-17.6, scale=1.0)
-    a.skyline((-19, 19, -20, 20), 7, [("#B5533C", "#F6C56A"), ("#5A6180", "#F6C56A"), ("#D9A441", "#232A4D"), ("#8E95AD", "#F6C56A")], base=-20)
+    a.skyline((-19, 19, -20, 20), 7, [("#4A4E6A", "#F6C56A"), ("#5B4A5E", "#FFB070"), ("#3A3F5C", "#F6C56A"), ("#6B5A50", "#F6C56A")], base=-20,
+              brick=False, max_h=22)   # ville sourde et plus basse : l'aire de jeu reste ce qui attire l'œil
     a.write("marche_suspendu", {
         "ambiance": "chantier",
         "info": {"title": "Toits du Marché", "tagline": "Deux toits, une rue, trois ponts.",
@@ -235,9 +239,14 @@ def piscine():
     # Couverts du bassin : chaise de maître-nageur (pleine) et bouées empilées (mi-hauteur).
     a.block("chaise_maitre_nageur", "tower", -6.5, -1.5, 1.2, 1.2, 2.4, 0, color="#F4F4F4")
     a.deco(x=-6.5, y=2.4, z=-1.5, sx=1.4, sy=0.15, sz=1.4, color="#F4F4F4", pattern=0)
+    a.deco(x=-6.5, y=2.55, z=-2.05, sx=1.4, sy=0.8, sz=0.1, color="#F4F4F4", pattern=0)   # dossier
+    for dx in (-0.45, 0.45):   # montants de l'échelle
+        a.deco(x=-6.5 + dx, y=0, z=-0.85, sx=0.08, sy=2.4, sz=0.08, color="#C9D2DA", pattern=0)
+    a.deco(x=0, y=2.6, z=0, sx=2.26, sy=0.3, sz=2.26, color="#2FB4CF", pattern=2, mirror=False)   # carreaux du plongeoir
     for k, x in enumerate((6.6, 7.8)):   # bouées empilées : couvert de poitrine (1,7 m), on ne monte pas dessus
         a.block(f"bouees_{k + 1}", "cover", x, -5, 1.2, 1.2, 1.7, 0, color="#F4F4F4")
-        a.deco(x=x, y=0.7, z=-5, sx=1.24, sy=0.3, sz=1.24, color=ORANGE, color_b=BLEU, pattern=0)
+        for yy, c, cb in ((0.1, ORANGE, BLEU), (0.7, "#F4EDE0", "#F4EDE0"), (1.3, ORANGE, BLEU)):   # anneaux empilés
+            a.deco(x=x, y=yy, z=-5, sx=1.24, sy=0.3, sz=1.24, color=c, color_b=cb, pattern=0)
     # Couverts de la plage : cabines (pleines, 2,6 m) en porte vers les bandes latérales, bar, transats, jardinières.
     for nom, x in (("cabine_g", -13), ("cabine_d", 13)):   # cabines blanches, bande d'équipe face au bassin
         a.block(nom, "stall", x, -8.5, 3, 3, D + 2.6, D, color="#EDEFF5")
@@ -270,7 +279,7 @@ def piscine():
     a.deco(model="lampadaire", x=-15.3, y=D, z=-16)
     a.skyline((-19, 19, -19, 19), 11, [("#3A3F5C", "#F6C56A"), ("#4A4E6A", "#FFB070"), ("#5B4A5E", "#F6C56A"), ("#2E3350", "#F6C56A")], base=-14)   # ville froide et sombre : le club se détache
     a.write("piscine", {
-        "ambiance": "coucher",
+        "ambiance": "soiree",
         "info": {"title": "La Piscine", "tagline": "Un bassin vide, un plongeoir, deux camps.",
                  "idea": "Le bas contre le haut : on plonge dans le bassin pour couper la route, le plongeoir voit tout mais ne cache rien.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},

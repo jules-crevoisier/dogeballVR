@@ -63,6 +63,9 @@ public static class ArenaBuilder
         ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
         // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
         ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.011f, 0.55f, 0.6f, 1.25f, 0.95f),
+        // La Piscine : heure dorée, soleil encore haut et ciel bleu profond ; moins de rose que « coucher », le cyan du bassin et le
+        // bois de la plage gardent leurs couleurs
+        ["soiree"] = new("34509C", "FFB070", "C9A88A", "FFD9A8", 1.45f, new Vector3(-24, 140, 0), "F2B48C", 0.009f, 0.6f, 0.55f, 1.05f, 0.95f),
         // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
         ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
         // La Fosse, port : matin brumeux, lumière blanche et douce
