@@ -1664,7 +1664,10 @@ public partial class DesktopHud : CanvasLayer
     /// <summary>Lettres penchées : Black Italic pour les gros titres (48 px et plus), ExtraBold Italic pour le reste.</summary>
     static Label Italic(Label l)
     {
-        var f = l.GetThemeFontSize("font_size") >= 48 ? UiKit.Display : UiKit.Italic;
+        int size = l.GetThemeFontSize("font_size");
+        // Décompte, GO, titre de fin de manche : la grasse large de KC (Heavy), réduite d'autant qu'elle est plus large.
+        if (size >= 120 && UiKit.Heavy is Font heavy) { l.AddThemeFontOverride("font", heavy); l.AddThemeFontSizeOverride("font_size", Mathf.RoundToInt(size * 0.8f)); return l; }
+        var f = size >= 48 ? UiKit.Display : UiKit.Italic;
         if (f != null) l.AddThemeFontOverride("font", f);
         return l;
     }
@@ -1734,7 +1737,8 @@ public partial class DesktopHud : CanvasLayer
             var align = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             float x = left ? 60 : 1240;
             // Nom d'équipe sur un cartouche penché à sa couleur, cerclé de crème (DA v3), au lieu de lettres posées sur le fond.
-            var teamName = Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 96, Colors.White, 0, HorizontalAlignment.Center));
+            var teamName = UiKit.Text(left ? "ORANGE" : "BLEUE", 74, Colors.White, 0, HorizontalAlignment.Center);
+            if (UiKit.Heavy is Font tf) teamName.AddThemeFontOverride("font", tf);
             var tc = left ? UiKit.Orange : UiKit.Blue;
             var tbox = new KcBox { Top = tc.Lightened(0.1f), Bottom = tc.Darkened(0.15f), Slant = left ? 24 : -24, BorderWidth = 6, BorderColor = UiKit.Cream, ShadowOffset = new Vector2(10, 12), ShadowColor = new Color(0, 0, 0, 0.4f), StripOffset = new Vector2(left ? -14 : 14, 14), StripColor = UiKit.Teal };
             teamName.AddThemeStyleboxOverride("normal", tbox);

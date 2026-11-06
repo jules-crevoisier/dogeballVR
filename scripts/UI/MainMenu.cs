@@ -84,10 +84,10 @@ public partial class MainMenu : CanvasLayer
         // à fin liseré encre. Condensée : le mot tient en 150 px de haut sur la largeur du bandeau.
         void LogoLayer(Color color, int outline, Color outlineColor, Vector2 at)
         {
-            var l = UiKit.Text("DOGEBALL", 158, color, 0);
+            var l = UiKit.Text("DOGEBALL", 124, color, 0);
             l.AddThemeConstantOverride("outline_size", outline);
             l.AddThemeColorOverride("font_outline_color", outlineColor);
-            if (UiKit.Display is Font d) l.AddThemeFontOverride("font", d);
+            if (UiKit.Heavy is Font d) l.AddThemeFontOverride("font", d);
             l.Position = at;
             logoBox.AddChild(l);
         }
@@ -97,7 +97,7 @@ public partial class MainMenu : CanvasLayer
         var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 34, UiKit.Yellow, 6);
         if (UiKit.Italic is Font ti) tag.AddThemeFontOverride("font", ti);
         tag.AddThemeConstantOverride("outline_size", 0);
-        tag.Position = new Vector2(26, 178);
+        tag.Position = new Vector2(26, 150);
         logoBox.AddChild(tag);
         UiKit.Punch(logoBox, 1.3f, 0.45);
         // Le logo respire doucement.
@@ -308,7 +308,7 @@ public partial class MainMenu : CanvasLayer
         foreach (var c in items)
         {
             // Items en lettres penchées et grasses, comme les menus de Knockout City.
-            var f = c.HasMeta(FontMeta) && c.GetMeta(FontMeta).AsString() == "display" ? UiKit.Display : UiKit.Italic;
+            var f = c.HasMeta(FontMeta) && c.GetMeta(FontMeta).AsString() == "display" ? UiKit.Heavy : UiKit.Italic;
             if (f != null && (c is Button || (c is Label && !c.HasThemeFontOverride("font")))) c.AddThemeFontOverride("font", f);
             column.AddChild(c);
             UiKit.SlideIn(c, 0.05f * i++);
@@ -327,7 +327,7 @@ public partial class MainMenu : CanvasLayer
         var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 76 : 50) };
         b.SetMeta(ItemMeta, true);
         foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        int size = main ? 70 : 38;
+        int size = main ? 56 : 38;   // la grasse large (Heavy) : 56 px font la largeur des 70 px de la condensée
         b.AddThemeFontSizeOverride("font_size", size);
         b.SetMeta(FontMeta, main ? "display" : "italic");
         b.AddThemeColorOverride("font_outline_color", UiKit.InkText);
@@ -361,7 +361,7 @@ public partial class MainMenu : CanvasLayer
     /// <summary>Item principal (JOUER) plus gros que les autres : l'action du menu se voit d'abord (revue de la refonte).</summary>
     static Button Hero(Button b)
     {
-        b.AddThemeFontSizeOverride("font_size", 96);
+        b.AddThemeFontSizeOverride("font_size", 76);
         b.CustomMinimumSize = new Vector2(b.CustomMinimumSize.X, 100);
         b.AddThemeConstantOverride("shadow_offset_x", 4);
         b.AddThemeConstantOverride("shadow_offset_y", 6);

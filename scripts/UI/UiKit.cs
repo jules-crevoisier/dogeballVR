@@ -97,8 +97,9 @@ public static class UiKit
     /// <summary>Titre : lettres Black Italic blanches (ou de la couleur donnée), ombre portée encre décalée, sans contour.</summary>
     public static Label Title(string text, int size = 54, HorizontalAlignment align = HorizontalAlignment.Center, Color? color = null)
     {
-        var l = Text(text, size, color ?? Colors.White, 0, align);
-        if (Display is Font d) l.AddThemeFontOverride("font", d);
+        bool huge = size >= 100;   // très gros titre : la grasse large (Heavy), réduite d'autant qu'elle est plus large
+        var l = Text(text, huge ? Mathf.RoundToInt(size * 0.78f) : size, color ?? Colors.White, 0, align);
+        if ((huge ? Heavy : Display) is Font d) l.AddThemeFontOverride("font", d);
         // Ombre portée nette décalée en bas à droite, sans flou ni contour : le relief des titres de KC.
         l.AddThemeColorOverride("font_shadow_color", new Color(Ink, 0.85f));
         l.AddThemeConstantOverride("shadow_offset_x", Mathf.Max(2, size / 18));
@@ -128,6 +129,12 @@ public static class UiKit
     static Font? body;
     /// <summary>Titres, logo, gros chiffres du HUD : Barlow Condensed Black Italic (vraie italique, la plus grasse).</summary>
     public static Font? Display => display ??= Load("BarlowCondensed-BlackItalic");
+    /// <summary>
+    /// Très gros titres (logo, items du menu, PAUSE, VICTOIRE, décompte) : Rubik Black Italic (OFL), large et ronde comme la
+    /// police de Knockout City ; la condensée garde les chiffres et les libellés (DA v3, 06/11). Plus large : ~0,8 × la taille.
+    /// </summary>
+    public static Font? Heavy => heavy ??= Load("Rubik-BlackItalic") ?? Display;
+    static Font? heavy;
     static Font? display;
 
     static Font? Load(string name)
