@@ -46,6 +46,9 @@ public partial class Main : Node3D
     /// <summary>Partie d'entraînement guidée (tutoriel) : hors ligne, bots qui lancent doucement, consignes pas à pas.</summary>
     public static bool Tutorial { get; private set; }
 
+    /// <summary>Carte de l'entraînement : une arène libre (tremplins, vide autour pour apprendre l'éjection).</summary>
+    public const string TutorialMap = "marche_suspendu";
+
     static bool PlayOfflineOnLoad;
 
     void PlayForReal()
@@ -167,7 +170,7 @@ public partial class Main : Node3D
                 FadeIn();
             }
             menu.Chosen += (mode, address) => Begin(mode, address, false);
-            menu.TutorialChosen += () => Begin(NetMode.Offline, "", true);
+            menu.TutorialChosen += () => Begin(NetMode.Offline, "", true, TutorialMap);
             // En ligne : la salle (Steam si disponible, sinon réseau local / code) remplace le menu, le décor reste derrière.
             void Room(System.Action<Online.OnlineLobby> start) { menu.QueueFree(); ShowLobbyScreen(start); }
             menu.QuickMatch += () => Room(l => l.QuickMatch());

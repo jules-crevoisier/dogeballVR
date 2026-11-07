@@ -621,11 +621,11 @@ jobs:
 
       - uses: ./.github/actions/godot-setup
 
-      - name: Test entraînement et partie rapide (11 étapes jusqu'à la bombe ; salle rapide seule puis à deux, complétée par des bots)
+      - name: Test entraînement et partie rapide (13 étapes sur Toits du Marché jusqu'à la bombe ; salle rapide seule puis à deux, complétée par des bots)
         run: |
           mkdir -p tuto-data quick-data
           # Entraînement : --tutorial-test passe une étape restée 8 s sans être faite ; la bombe de la dernière étape doit tomber.
-          XDG_DATA_HOME="$PWD/tuto-data" "$GODOT" --headless --path . --max-fps 60 --quit-after 7800 -- --tutorial --tutorial-test --pc-autoplay > tuto.log 2>&1 || true
+          XDG_DATA_HOME="$PWD/tuto-data" "$GODOT" --headless --path . --max-fps 60 --quit-after 9600 -- --tutorial --tutorial-test --pc-autoplay > tuto.log 2>&1 || true
           # Partie rapide seule : personne sur le réseau, la salle s'ouvre puis se lance avec des bots au bout de 20 s. La carte par défaut de la partie rapide est Toits du Marché.
           XDG_DATA_HOME="$PWD/quick-data" "$GODOT" --headless --path . --max-fps 60 --quit-after 2400 -- --lobby-quick --pc-autoplay --name=Seul > quick-solo.log 2>&1 || true
           # À deux : un joueur entre dans la salle rapide (sans --auto-ready : il est prêt d'office) et la partie part à deux.
@@ -639,7 +639,7 @@ jobs:
           grep -E "\[Lobby\]" quick-solo.log quick-host.log quick-join.log
           if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" tuto.log quick-solo.log quick-host.log quick-join.log; then echo "Erreur à l'exécution"; exit 1; fi
           FAIL=0
-          [ "$(grep -c "^\[Tuto\] [0-9]*/11 " tuto.log)" = 11 ] || { echo "L'entraînement n'a pas parcouru ses 11 étapes"; FAIL=1; }
+          [ "$(grep -c "^\[Tuto\] [0-9]*/13 " tuto.log)" = 13 ] || { echo "L'entraînement n'a pas parcouru ses 13 étapes"; FAIL=1; }
           grep -q "\[Tuto\] Bombe lâchée près du joueur" tuto.log || { echo "Pas de bombe à l'étape de la balle spéciale"; FAIL=1; }
           grep -q "\[Tuto\] Fin de l'entraînement" tuto.log || { echo "Entraînement non terminé"; FAIL=1; }
           grep -q "Partie rapide : lancement à 1, les places libres vont aux bots" quick-solo.log || { echo "Partie rapide seule : pas de lancement avec des bots"; FAIL=1; }

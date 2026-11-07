@@ -91,7 +91,9 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
     public bool Dashing => dodgeLeft > 0 && FreeRoam;
     /// <summary>Compteurs d'actions du joueur (tutoriel, statistiques locales).</summary>
-    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups;
+    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups, Pads, Tackles;
+    /// <summary>La carte a des tremplins utilisables par le joueur (arène libre, ou plaques PC de son camp).</summary>
+    public bool MapHasPads => Zones.Map.Arena is { } arena ? arena.Pads.Count > 0 : Zones.Map.Pc?.JumpPads.Count > 0;
     /// <summary>Rotation cumulée de la vue (radians) et distance parcourue (m) : tutoriel.</summary>
     public float LookTravel, WalkTravel;
     /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
@@ -659,6 +661,7 @@ public partial class DesktopPlayer : Node3D
         var (h, vy, _) = Maps.ArenaGeometry.PadLaunch(pad, worldPos, feet, PadGravity);
         padVel = h; jumpVel = vy; padFlight = true;
         padReadyAt = time + pad.CooldownSeconds;
+        Pads++;
         Sfx.Play(this, SfxKind.Jump, null, 0.8f, -2f);
         CameraFx.FovPunch(6f);
         GD.Print($"[PC] Tremplin {pad.Id}");
@@ -679,6 +682,7 @@ public partial class DesktopPlayer : Node3D
             padVel = (new Vector2(terrace.X, terrace.Z) - worldPos) / flight;
             jumpVel = vy; padFlight = true;
             padReadyAt = time + pad.CooldownSeconds;
+            Pads++;
             GD.Print($"[PC] Tremplin {pad.Id}");
             return;
         }
@@ -694,6 +698,7 @@ public partial class DesktopPlayer : Node3D
             var hp = h.GlobalPosition;
             if (new Vector2(hp.X - worldPos.X, hp.Z - worldPos.Y).Length() > TackleRadius || Mathf.Abs(hp.Y - (Elevation + jumpY + 0.85f)) > 1.2f) continue;
             tackledDash = dashCount;
+            Tackles++;
             BallActions.Tackle(Hurtbox.PlayerId, h.PlayerId, dodgeDir);
             GD.Print($"[PC] Tacle sur le joueur {h.PlayerId}");
             ShowSticker("TACLE !");

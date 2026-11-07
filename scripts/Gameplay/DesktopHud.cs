@@ -201,13 +201,13 @@ public partial class DesktopHud : CanvasLayer
     }
 
     /// <summary>Encre des plaques du HUD : opaque à 82 %, le décor transparaît à peine.</summary>
-    static readonly Color PlateInk = new(UiKit.Navy, 0.82f);
+    public static readonly Color PlateInk = new(UiKit.Navy, 0.82f);
 
     /// <summary>
     /// Plaque du HUD, la forme propre au jeu : aplat net, coins haut gauche et bas droit coupés en biseau (coin arrondi à un seul
     /// segment), sans contour ni dégradé.
     /// </summary>
-    static StyleBoxFlat PlateBox(Color bg, int marginX = 0, int marginY = 0, int bevel = 10)
+    public static StyleBoxFlat PlateBox(Color bg, int marginX = 0, int marginY = 0, int bevel = 10)
     {
         var b = new StyleBoxFlat { BgColor = bg, CornerDetail = 1, AntiAliasing = true };
         b.CornerRadiusTopLeft = b.CornerRadiusBottomRight = bevel;
