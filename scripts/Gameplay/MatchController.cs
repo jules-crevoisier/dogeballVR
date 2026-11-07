@@ -743,7 +743,8 @@ public partial class MatchController : Node3D
 
     /// <summary>
     /// Test de capture (--end-screen-test, ou --end-screen-test=defaite) : une manche gagnée d'office à 5 s (bandeau),
-    /// puis la partie finie à 14 s (3-2 pour l'équipe orange, ou pour la bleue avec « defaite ») : écran de fin.
+    /// puis la partie finie à 14 s ou à la manche suivante (2-1 au format en ligne, 3-2 sinon, pour l'équipe orange, ou pour la bleue
+    /// avec « defaite ») : écran de fin.
     /// </summary>
     void EndScreenTest()
     {
@@ -757,7 +758,9 @@ public partial class MatchController : Node3D
         {
             endTestStep = 2;
             GD.Print("[Match] Test de fin : partie terminée d'office");
-            Rules.RoundsWon[team] = 2; Rules.RoundsWon[1 - team] = 2;
+            // Score final crédible pour le format joué : 2-1 en deux manches gagnantes (en ligne), 3-2 en cinq manches (VR).
+            int before = Rules.RoundsToWin > 0 ? Rules.RoundsToWin - 1 : 2;
+            Rules.RoundsWon[team] = before; Rules.RoundsWon[1 - team] = before;
             round = Rules.MaxRounds;
             FinishRound(team);
         }

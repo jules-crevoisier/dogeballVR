@@ -141,7 +141,7 @@ def main():
         "small_capsule_462x174.png": with_logo(crop_to(main_img, 462, 174), 0.86, tagline=False),
         "main_capsule_1232x706.png": with_logo(crop_to(main_img, 1232, 706), 0.6, "top"),
         "vertical_capsule_748x896.png": with_logo(crop_to(main_img, 748, 896), 0.88, "top"),
-        "library_capsule_600x900.png": with_logo(crop_to(hero_img, 600, 900), 0.9, "top", tagline=False),
+        "library_capsule_600x900.png": with_logo(crop_to(hero_img, 600, 900), 0.8, "top", tagline=False),
         "library_header_920x430.png": with_logo(crop_to(main_img, 920, 430), 0.62),
         "page_background_1438x810.png": vignette(crop_to(hero_img, 1438, 810), 0.75),
         # Héros de bibliothèque : aucun texte, l'action dans la zone sûre centrale (860x380).

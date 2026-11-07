@@ -17,7 +17,7 @@ accessibilité, Steam Deck et correction de tous les bugs remontés par les test
 - [ ] 60 i/s stables sur la configuration minimale annoncée, 60 i/s sur Steam Deck (réglage Deck)
 - [ ] Aucun bug S1 ou S2 ouvert
 - [ ] Accessibilité : sous-titres, daltonisme (couleurs d'équipe + motifs), réduction des secousses
-- [ ] Animations du mannequin (UAL) : course, saut, lancer, attrape, esquive, chute
+- [x] Animations du mannequin (UAL) : course, saut, lancer, attrape, esquive, chute — plus marche, recul et réception (`tools/blender/mannequin.py`, `--avatar-test` en CI), PR #34
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
 - [ ] Build stable for 5 consecutive days

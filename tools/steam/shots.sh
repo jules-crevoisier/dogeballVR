@@ -16,18 +16,19 @@ RUN=()
 DRIVER=(${DRIVER---rendering-driver vulkan})
 shoot() { # nom carte instants options...
   local name=$1 map=$2 at=$3; shift 3
-  "${RUN[@]}" "$GODOT" --path . "${DRIVER[@]}" --resolution "$RES" -- --map="$map" --pc-autoplay --format=online --shots="$OUT" \
+  "${RUN[@]}" "$GODOT" --path . "${DRIVER[@]}" --resolution "$RES" -- --map="$map" --format=online --shots="$OUT" \
     --shots-name="$name" --shots-at="$at" --lang=en "$@" 2>&1 | grep -E "\[Captures\]|ERROR: (System|Unhandled)" || true
 }
 # Page Steam : les trois arènes PC (la VR n'est pas vendue sur Steam), en anglais (langue de repli du store), au format
 # en ligne (3 manches) comme une vraie partie. La balle spéciale est annoncée à 40 s et posée à 45 s.
-shoot toits marche_suspendu 9,14,19,24,29,34,42,47,52
-shoot piscine piscine 9,14,19,24,29,34,42,47,52
-shoot depot depot 9,14,19,24,29,34,42,47,52
+shoot toits marche_suspendu 9,14,19,24,29,34,42,47,52 --pc-autoplay
+shoot piscine piscine 9,14,19,24,29,34,42,47,52 --pc-autoplay
+shoot depot depot 9,14,19,24,29,34,42,47,52 --pc-autoplay
 # Fonds des capsules : caméra de plateau (vue d'ensemble de l'arène, partie en cours), sans HUD ni étiquettes.
-shoot capsule-toits marche_suspendu 20,35,47 --shots-clean --shots-cam=15,9,-21,0,-1,0,55
-shoot capsule-piscine piscine 20,35,47 --shots-clean --shots-cam=13,8,-15,0,0,0,58
-shoot capsule-depot depot 20,35,47 --shots-clean --shots-cam=15,9,-19,0,0,0,55
+shoot capsule-toits marche_suspendu 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-21,0,-1,0,55
+shoot capsule-piscine piscine 20,35,47 --pc-autoplay --shots-clean --shots-cam=13,8,-15,0,0,0,58
+shoot capsule-depot depot 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-19,0,0,0,55
+# Écran de fin : sans joueur automatique (il relancerait une partie aussitôt la précédente finie).
 shoot fin-de-partie marche_suspendu 28 --end-screen-test
-shoot menu marche_suspendu 6 --menu
+shoot menu marche_suspendu 6 --menu --pc-autoplay
 python3 "$(dirname "$0")/capsules.py" "$OUT"

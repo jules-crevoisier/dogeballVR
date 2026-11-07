@@ -254,13 +254,18 @@ Exigences : 1920x1080 au moins, 16:9, au moins 5 sur la page, au moins 4 marqué
 
 Les captures se refont d'une commande dans le vrai jeu, joueur automatique, interface en anglais : `GODOT=godot tools/steam/shots.sh DOSSIER` (puis `capsules.py` pour les capsules). Jeu du 07/11 : `/mnt/project-files/steam/captures-0711/` (rendu logiciel lavapipe sans carte graphique : les ombres et l'anticrénelage seront meilleurs sur une vraie machine, refaire la série sur le PC de jules avant de publier).
 
-1. **Toits du Marché, plan large** : les deux toits, la rue en contrebas, balles en vol (`toits-*`).
-2. **Attrape parfaite** : caméra proche, anneau d'attrape parfaite, adversaire derrière (à capturer à la main pendant une partie : l'instant est trop court pour un horodatage fixe).
-3. **La Piscine** : le bassin vide, le plongeoir, joueurs en haut et en bas (`piscine-*`).
-4. **Le Dépôt** : les trams, la fosse, un joueur sur le toit du tram (`depot-*`).
-5. **Tacle au bord du vide** : un adversaire bousculé près d'un bord, traînée de dash (à la main, comme la 2).
-6. **Fin de partie** : podium et tableau des scores (`fin-de-partie-*`).
-7. **Menu** : le menu « Affiche » avec les personnages (`menu-*`).
-8. **Vestiaire** : profil, onglet Vestiaire, un couvre-chef porté (`--profile-wardrobe`, à ajouter à shots.sh si la capture plaît).
+Sélection du 07/11 (dans `/mnt/project-files/steam/captures-0711/`, ordre conseillé pour la page) :
 
-Ordre conseillé sur la page : 1, 2, 3, 4, 5, 6, 8, 7 (la première capture sert aussi de fond de page si on ne fournit pas de « page background »).
+1. `01-toits-03` : Toits du Marché, le joueur sur un pont, balle en main, la rue en contrebas.
+2. `02-toits-touche` : un adversaire touché (« BAM! », « HIT! BY MISTRAL »), trois joueurs dans le cadre.
+3. `03-piscine-02` : La Piscine, le bassin vide et le plongeoir vus du bord.
+4. `04-depot-03` : Le Dépôt, trams et plaque tournante, faisceaux des plots.
+5. `05-toits-08` : tir chargé qui part (halo de la balle).
+6. `06-piscine-04` : feinte d'un bot (« FEINT! ») au bord du bassin.
+7. `07-toits-07` : annonce « SPECIAL BALL: BOUNCE IN 4 s ».
+8. `08-fin-de-partie` : écran de fin, MVP, tableau, XP gagnée.
+9. `09-menu` : menu « Affiche » (à garder pour la fin, ou pour une capture marketing hors page).
+
+Manquent encore, à capturer à la main sur le PC de jules (l'instant est trop court pour le joueur automatique) : une **attrape parfaite** en gros plan et un **tacle au bord du vide**. Le **vestiaire** (profil, un couvre-chef porté : `--profile-wardrobe`) peut remplacer le menu.
+
+La première capture sert aussi de fond de page si on ne fournit pas de « page background ». Les capsules (fond : vues d'ensemble à la caméra de plateau, logo du menu sur un aplat d'encre) sont dans `captures-0711/capsules/` ; une illustration dessinée (personnages en gros plan) les remplacera avantageusement avant la sortie.

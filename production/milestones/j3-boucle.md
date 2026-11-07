@@ -18,7 +18,7 @@ complètes et son de qualité. À la fin, un inconnu peut installer le jeu et y 
 - [x] Tutoriel guidé sur une arène (déplacement, ramasser, lancer, attraper, esquive, tremplin, éjection) — Toits du Marché, 13 étapes, PR #34 (testé en CI)
 - [ ] Partie en ligne de bout en bout : créer, inviter, rejoindre, jouer, revanche
 - [x] Progression sauvegardée (niveau de joueur, récompenses cosmétiques) et Steam Cloud — couvre-chefs et vestiaire, PR #34
-- [ ] Options : graphismes, son, contrôles réassignables, sensibilité, langue, accessibilité de base
+- [x] Options : graphismes, son, contrôles réassignables, sensibilité, langue, accessibilité de base — onglets Contrôles, Clavier, Audio, Vidéo ; Langue ; secousses, flashs, symboles d'équipe, taille du texte (captures `production/qa/evidence/langue/options-*`), PR #34
 - [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés (ambiances et musiques de match par arène faites, PR #34 ; sons d'impact et d'attrape restent)
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
