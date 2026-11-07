@@ -70,6 +70,8 @@ public static class ArenaBuilder
         ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
         // La Fosse, port : matin brumeux, lumière blanche et douce
         ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.013f, 0.6f, 0.35f, 0.95f, 0.95f),
+        // Le Dépôt : aube sur le faisceau de voies, soleil bas et rasant, horizon rose orangé, brume légère et chaude
+        ["aube"] = new("6A80B4", "FFB08E", "C9A493", "FFD09A", 1.35f, new Vector3(-16, -120, 0), "E9C1AE", 0.010f, 0.6f, 0.5f, 1.08f, 0.95f),
     };
 
     /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>

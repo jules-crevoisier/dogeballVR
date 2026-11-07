@@ -187,7 +187,7 @@ public partial class MatchController : Node3D
                     respawnAt[id] = now + 1.5;
                     fallReturn.Add(id);
                 }
-                GD.Print($"[Match] Chute dans la fosse : le joueur {id} perd un cœur ({Rules.LivesOf(id)} restant) en {hp.X:0.0} / {hp.Z:0.0} à t={Engine.GetPhysicsFrames() / 60.0:0.0} s");
+                GD.Print($"[Match] Chute dans la fosse : le joueur {id} perd un cœur ({Rules.LivesOf(id)} restant) en {hp.X:0.0} / {hp.Y:0.0} / {hp.Z:0.0} à t={Engine.GetPhysicsFrames() / 60.0:0.0} s");
             }
             lastPush.Remove(id);
         }

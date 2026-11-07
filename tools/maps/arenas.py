@@ -321,7 +321,7 @@ def depot():
     a.deco(x=-9, y=0.55, z=-6.5, sx=2.68, sy=0.35, sz=8.02, color=ORANGE, color_b=BLEU, pattern=0)   # bande d'équipe
     for zz in (-10.4, -2.6):   # nez arrondis suggérés : feux
         a.deco(x=-9, y=0.9, z=zz, sx=1.6, sy=0.25, sz=0.1, color="#FFE9B0", glow=1.4, pattern=0)
-    a.deco(x=-9, y=3.0, z=-6.5, sx=0.5, sy=1.2, sz=0.5, color="#3A3F4A", pattern=0)   # pantographe
+    a.block("pantographe", "low", -9, -6.5, 1.4, 0.6, 3.8, 3.0, color="#3A3F4A")   # demi-couvert sur le toit (bloque balles et joueurs)
     a.pad("tremplin_tram", -13.2, -12.5, 0, -9, -8.5, 3.0, apex=1.5)
     # Balle sur le toit, côté nez avant (z -4) : la récompense est au bout exposé, à un tacle de la fosse.
     a.ball("balle_toit_tram", -9, -4.0, 3.0 + 0.9, interval=14)
@@ -343,8 +343,9 @@ def depot():
     a.block("traverses", "crate", 4, -9.5, 3, 1.2, 0.8, 0)
     # Wagon plat chargé : le grand couvert plein de la moitié (4,4 × 2,2 m, 2,4 m).
     a.block("wagon", "container", 4.5, -5.2, 4.4, 2.2, 2.4, 0, color="#5A6B5A")
-    a.deco(x=4.5, y=0, z=-5.2, sx=4.8, sy=0.35, sz=2.4, color="#2E3350", pattern=0)   # châssis du wagon
+    a.deco(x=4.5, y=0, z=-5.2, sx=4.4, sy=0.35, sz=2.2, color="#2E3350", pattern=0)   # châssis du wagon, dans la boîte de collision
     a.block("bidons", "cover", 13.6, -4.6, 1.4, 1.4, 1.0, 0, color="#2F6F8F")
+    a.block("armoire", "container", 15.2, -10.5, 1.2, 1.2, 2.4, 0, color="#5A6B5A")   # repli du couloir extérieur droit
     a.block("caisses_quai", "crate", -14.2, -9.5, 1.6, 1.6, 1.1, 0, model="caisse_bois")
     # Plaque tournante au centre (0,4 m, se monte en marchant) et poste d'aiguillage : coupe la vue d'un camp à l'autre.
     a.block("plaque_tournante", "deck", 0, 0, 8, 8, 0.4, -0.6, mirror=False, color="#4E5262")
@@ -353,10 +354,13 @@ def depot():
     # Poste d'aiguillage : le repère de la carte (4,6 m), cabine vitrée éclairée en haut, feux rouge et vert.
     a.block("poste_aiguillage", "tower", 0, 0, 2.2, 2.2, 4.6, 0.4, mirror=False, color="#C9A27A")
     a.deco(x=0, y=0.4, z=0, sx=7.6, sy=0.03, sz=0.14, color="#B9BFCC", pattern=0, mirror=False)   # rails de la plaque
-    a.deco(x=0, y=3.2, z=0, sx=2.32, sy=1.0, sz=2.32, color="#A9C4D6", glow=0.6, pattern=0, mirror=False)   # cabine vitrée
-    a.deco(x=0, y=4.6, z=0, sx=2.8, sy=0.3, sz=2.8, color="#5A6180", pattern=0, mirror=False)    # toit du poste
-    for x, z, c in ((1.17, 0.7, "#FF3B30"), (1.17, -0.7, "#3BE07A"), (-1.17, -0.7, "#FF3B30"), (-1.17, 0.7, "#3BE07A")):
-        a.deco(mirror=False, x=x, y=2.6, z=z, sx=0.12, sy=0.3, sz=0.3, color=c, glow=1.5, pattern=0)
+    a.deco(x=0, y=3.2, z=0, sx=2.32, sy=1.0, sz=2.32, color="#2A3550", glow=0.3, pattern=0, mirror=False)   # cabine vitrée
+    a.deco(x=0, y=3.9, z=0, sx=2.34, sy=0.15, sz=2.34, color="#FFC46A", glow=1.2, pattern=0, mirror=False)  # lumière chaude de la cabine
+    a.deco(x=0, y=4.6, z=0, sx=3.2, sy=0.3, sz=3.2, color="#5A6180", pattern=0, mirror=False)    # toit du poste, débordant
+    # Mâts de signal (décor) de part et d'autre : feux rouge et vert lisibles de loin.
+    a.deco(x=1.4, y=0.4, z=0, sx=0.15, sy=5.6, sz=0.15, color="#2E3350", pattern=0)
+    a.deco(x=1.4, y=5.2, z=0, sx=0.4, sy=0.4, sz=0.4, color="#FF3B30", glow=2.0, pattern=0)
+    a.deco(x=1.4, y=5.7, z=0, sx=0.4, sy=0.4, sz=0.4, color="#3BE07A", glow=2.0, pattern=0)
     # Places : 4 par équipe sur le quai.
     for x, z in [(-2, -16.6), (2, -16.6), (-5.5, -16.2), (5.5, -16.2)]:
         a.spawn(x, z)
@@ -368,7 +372,7 @@ def depot():
     # Décor : la halle (arches), le faisceau de voies plus bas avec des trams garés, caténaires, lampes.
     for x in (-12, 0, 12):
         a.deco(x=x, y=4.0, z=-18.2, sx=8, sy=3.5, sz=0.5, color="#8E7A6A", pattern=1)
-        a.deco(x=x, y=4.0, z=-18.0, sx=6, sy=2.8, sz=0.3, color="#A9C4D6", pattern=5, color2="#F6E6C0")
+        a.deco(x=x, y=4.0, z=-18.0, sx=6, sy=2.8, sz=0.3, color="#F6C56A", glow=0.8, pattern=5, color2="#FFE2A8")   # verrières éclairées
     for k, z in enumerate((-14, -6, 2, 10)):
         a.deco(mirror=False, x=-24, y=-14, z=z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
         a.deco(mirror=False, x=-24, y=-12.8, z=z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
@@ -377,16 +381,16 @@ def depot():
     for x in (-9, 9):
         a.deco(mirror=False, x=x, y=6.5, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, tenu par les consoles
     # Lampadaires au sodium : deux par moitié.
-    a.deco(model="lampadaire", x=-15.5, y=0, z=-12.6, scale=1.0)
-    a.deco(model="lampadaire", x=15.8, y=0, z=-1.5, scale=1.0)
-    a.skyline((-19, 19, -19, 19), 23, [("#4E5568", "#FFC46A"), ("#5A5A66", "#F2E2C4"), ("#46506A", "#FFC46A"), ("#5E5650", "#E9E4D8")], base=-14,
+    for x, z in ((-15.5, -12.6), (15.8, -1.5)):
+        a.deco(model="lampadaire", x=x, y=0, z=z, scale=1.0)
+    a.skyline((-19, 19, -19, 19), 23, [("#4E5568", "#FFC46A"), ("#5A5A66", "#3A4258"), ("#46506A", "#FFC46A"), ("#5E5650", "#3A4258")], base=-14,
               brick=True, max_h=24, near_h=(-5, 2))
     a.write("depot", {
-        "ambiance": "brume",
+        "ambiance": "aube",
         "info": {"title": "Le Dépôt", "tagline": "Deux fosses, deux trams, trois couloirs.",
                  "idea": "Choisir son couloir : le centre est court et couvert, les côtés longent la fosse et le vide ; le toit du tram domine, à un tacle de la chute.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},
-        "arena": {"killY": -3, "stepUp": 0.45, "floorBelowY": -14, "floorBelowColor": "#4A4D58", "fogScale": 0.35},
+        "arena": {"killY": -3, "stepUp": 0.45, "floorBelowY": -14, "floorBelowColor": "#4A4D58", "fogScale": 0.25},
     })
 
 
