@@ -67,4 +67,28 @@ Corrigé après la revue indépendante :
 
 - Steam Deck : les mouvements du pavé tactile ne repassent plus les aides au clavier.
 
+## Troisième tour (après revue : 7/10)
+
+- réassignation : pendant l'attente du nouveau bouton, ni la répétition du stick ni un nouveau mouvement de stick ne
+  bougent la sélection (plus de « Croix bas » enregistré par erreur) ; A pressé stick tenu valide la ligne visée ;
+- salon : à la manette, B ne fait que sélectionner QUITTER LA SALLE, il faut A pour partir (B ×3 : on reste dans la salle) ;
+- pause : Y ouvre et referme l'aide complète ; fin de partie : Entrée valide le bouton sélectionné, comme A ;
+- Steam Deck : à la fin de partie, le tableau passait sous la barre d'XP et cachait la moitié des boutons
+  (`deck/avant-fin-1280x800.png`) ; la colonne laisse la place de la barre et se réduit si besoin (`deck/fin-1280x800.png`) ;
+- couvert translucide : verre gris-bleu (ni voile laiteux, ni presque invisible la nuit),
+  `couvert-transparent-avant-apres.png` (avant, deuxième tour, maintenant).
+
+```
+[Manette] 9 s-bas+ → « Stick G »        (stick tenu…)
+[Manette] 11 a → « Appuie… »            (A stick tenu : la ligne Sauter attend)
+[Manette] 13 pause → « Appuie… »        (stick toujours tenu : rien ne bouge)
+[Manette] 17 s-bas → « Appuie… »        (nouveau mouvement : avalé)
+[Manette] 3 b → « QUITTER LA SALLE »  /  5 b, 7 b → « QUITTER LA SALLE »   (on reste dans la salle)
+[Manette] 7 y → « RETOUR »  /  10 y → « REPRENDRE »                         (aide ouverte puis refermée)
+[Manette] 52 s-droite → « Menu »  /  entree → menu principal                (Entrée suit la sélection)
+```
+
+Captures au format Deck : `deck/pause-1280x800.png`, `deck/pause-aide-1280x800.png`, `deck/fin-1280x800.png`,
+`deck/hud-1280x800.png`, `deck/options-reassignation-1280x800.png`.
+
 Restent à vérifier sur un vrai Deck : stick physique, pavé tactile, clavier de Steam pour le code de salle.

@@ -580,7 +580,8 @@ void fragment() {
             var buttons = new List<Button>();
             Collect(content, buttons);
             var quit = buttons.FirstOrDefault(b => b.Text == "QUITTER LA SALLE");
-            if (quit != null && GetViewport().GuiGetFocusOwner() != quit) { quit.GrabFocus(); return; }
+            // Manette : B est aussi l'esquive (deux charges, on l'enchaîne) ; il ne quitte jamais seul, A confirme sur le bouton.
+            if (quit != null && (GetViewport().GuiGetFocusOwner() != quit || e is InputEventJoypadButton)) { quit.GrabFocus(); return; }
             Sfx.Play(this, SfxKind.UiBack);
             BackToMenu();
         }

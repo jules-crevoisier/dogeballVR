@@ -1437,7 +1437,7 @@ public partial class DesktopPlayer : Node3D
         ghostMat ??= new StandardMaterial3D
         {
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            AlbedoColor = new Color(0.08f, 0.08f, 0.11f, 0.2f), CullMode = BaseMaterial3D.CullModeEnum.Back,   // encre légère : le couvert assombrit un peu au lieu de voiler le joueur de blanc
+            AlbedoColor = new Color(0.32f, 0.35f, 0.45f, 0.3f), CullMode = BaseMaterial3D.CullModeEnum.Back,   // gris-bleu moyen : le couvert reste lisible de jour comme de nuit sans voiler le joueur de blanc
         };
         var keep = new System.Collections.Generic.HashSet<MeshInstance3D>();
         var roots = new System.Collections.Generic.List<Node3D>(coversThrough);

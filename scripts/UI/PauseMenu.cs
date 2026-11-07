@@ -265,7 +265,8 @@ public partial class PauseMenu : CanvasLayer
 
         public override void _Input(InputEvent e)
         {
-            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel") && !e.IsActionPressed("help") && !e.IsActionPressed("scoreboard")) return;
+            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel") && !e.IsActionPressed("help") && !e.IsActionPressed("scoreboard")
+                && e is not InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.Y }) return;   // Y l'ouvre, Y la referme
             GetViewport().SetInputAsHandled();
             Close();
         }

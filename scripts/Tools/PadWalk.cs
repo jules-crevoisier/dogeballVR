@@ -7,7 +7,7 @@ namespace DogeballVR.Tools;
 /// Parcours des écrans à la manette, sans manette : <c>--pad-walk=bas,bas,a,shot,b</c> envoie un appui toutes les
 /// 0,4 s (après 2 s d'attente) et écrit à chaque fois le contrôle qui a le focus (« [Manette] 3 bas → … »).
 /// Appuis : <c>haut bas gauche droite</c> (croix), <c>s-haut s-bas s-gauche s-droite</c> (stick gauche),
-/// <c>a b x y lb rb start back</c>, <c>pause</c> (rien pendant 0,4 s), <c>APPUI+</c> (tenu jusqu'à <c>lache</c>),
+/// <c>a b x y lb rb start back</c>, <c>entree echap</c> (clavier), <c>pause</c> (rien pendant 0,4 s), <c>APPUI+</c> (tenu jusqu'à <c>lache</c>),
 /// <c>flot-bas</c>… (rafale de valeurs comme un vrai stick), <c>shot</c> (capture PNG dans
 /// <c>--pad-walk-shots=DOSSIER</c>, nommée <c>pad-NN.png</c>). Le jeu se ferme à la fin du parcours.
 /// Outil de développement (preuve que chaque écran se parcourt à la manette).
@@ -85,6 +85,9 @@ public partial class PadWalk : Node
         ["lb"] = JoyButton.LeftShoulder, ["rb"] = JoyButton.RightShoulder, ["start"] = JoyButton.Start, ["back"] = JoyButton.Back,
     };
 
+    /// <summary>Touches clavier, pour vérifier qu'elles suivent le même focus que la manette.</summary>
+    static readonly Dictionary<string, Key> Keys = new() { ["entree"] = Key.Enter, ["echap"] = Key.Escape };
+
     static readonly Dictionary<string, (JoyAxis axis, float sign)> Sticks = new()
     {
         ["s-haut"] = (JoyAxis.LeftY, -1f), ["s-bas"] = (JoyAxis.LeftY, 1f), ["s-gauche"] = (JoyAxis.LeftX, -1f), ["s-droite"] = (JoyAxis.LeftX, 1f),
@@ -94,6 +97,8 @@ public partial class PadWalk : Node
     {
         if (Buttons.TryGetValue(step, out var b))
             Input.ParseInputEvent(new InputEventJoypadButton { ButtonIndex = b, Pressed = down, Device = 0 });
+        else if (Keys.TryGetValue(step, out var k))
+            Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = down });
         else if (Sticks.TryGetValue(step, out var s))
             Input.ParseInputEvent(new InputEventJoypadMotion { Axis = s.axis, AxisValue = down ? s.sign : 0f, Device = 0 });
         else return false;

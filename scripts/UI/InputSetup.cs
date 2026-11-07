@@ -200,6 +200,9 @@ public static class InputSetup
     /// <summary>Dernier appareil utilisé : manette (aides en boutons de manette) ou clavier-souris. Manette d'emblée sur Steam Deck.</summary>
     public static bool UsingPad { get; private set; } = GameSettings.OnSteamDeck;
 
+    /// <summary>Écran qui attend un nouveau bouton (réassignation) : pas de répétition de la croix, elle serait prise pour le bouton choisi.</summary>
+    public static bool Capturing { get; set; }
+
     public static void Track(InputEvent e)
     {
         if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f) UsingPad = true;
@@ -314,7 +317,9 @@ public partial class InputDeviceWatch : Node
     public override void _Process(double delta)
     {
         bool any = stick[0] != 0 || stick[1] != 0 || dpad != null;
-        if (!any || !Focused()) { held = 0; nextRepeat = RepeatDelay; return; }
+        // Pas de répétition pendant une réassignation, ni tant qu'un bouton d'action est enfoncé : A pressé stick tenu
+        // valide la ligne visée au lieu de laisser le focus filer avant le relâché (le bouton agit au relâché).
+        if (!any || !Focused() || InputSetup.Capturing || FaceHeld()) { held = 0; nextRepeat = RepeatDelay; return; }
         held += delta;
         if (held < nextRepeat) return;
         nextRepeat += RepeatEvery;
@@ -329,4 +334,14 @@ public partial class InputDeviceWatch : Node
     }
 
     bool Focused() => GetViewport().GuiGetFocusOwner() != null;
+
+    static bool FaceHeld()
+    {
+        var pads = Input.GetConnectedJoypads();
+        if (pads.Count == 0) pads.Add(0);   // manette simulée (--pad-walk) : appareil 0
+        foreach (var d in pads)
+            foreach (var b in new[] { JoyButton.A, JoyButton.B, JoyButton.X, JoyButton.Y })
+                if (Input.IsJoyButtonPressed((int)d, b)) return true;
+        return false;
+    }
 }

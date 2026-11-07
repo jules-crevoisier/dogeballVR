@@ -153,7 +153,7 @@ public partial class OptionsMenu : Control
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
         col.AddChild(bottom);
-        var hints = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
+        hints = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
         hints.AddThemeConstantOverride("separation", 32);
         hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 20, "A"));
         hints.AddChild(UiKit.KeyHint("Échap", "Retour", 20, "B"));
@@ -193,6 +193,7 @@ public partial class OptionsMenu : Control
     public override void _Process(double delta)
     {
         FitHeight();
+        hints.Visible = listening == null;   // pendant une réassignation, B serait pris comme nouveau bouton : pas de « B Retour »
         string bindings = InputSetup.UsingPad ? "MANETTE" : TabNames[1];   // l'onglet montre les boutons de la manette
         if (tabs[1].Text != bindings) tabs[1].Text = bindings;
         var bar = scroll.GetVScrollBar();
@@ -228,6 +229,8 @@ public partial class OptionsMenu : Control
                 RebuildAfterRebind();
                 return;
             }
+            // Stick pendant l'attente : avalé, sinon le focus quitterait la ligne qui attend son bouton.
+            if (e is InputEventJoypadMotion) { GetViewport().SetInputAsHandled(); return; }
             if (!key && !mouse) return;
             GetViewport().SetInputAsHandled();
             if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { RebuildAfterRebind(); return; }   // remet la touche affichée
@@ -272,8 +275,13 @@ public partial class OptionsMenu : Control
             if (c is Button b) { b.CallDeferred(Control.MethodName.GrabFocus); break; }
     }
 
+    HBoxContainer hints = null!;
+
+    public override void _ExitTree() => InputSetup.Capturing = false;
+
     void StopListening()
     {
+        InputSetup.Capturing = false;
         listening = null;
         listeningButton = null;
     }
@@ -465,6 +473,7 @@ public partial class OptionsMenu : Control
         b.Pressed += () =>
         {
             listening = a.Name;
+            InputSetup.Capturing = true;
             listeningButton = b;
             b.Text = "Appuie…";
             UiKit.Tint(b, UiKit.Pink, UiKit.Pink.Darkened(0.35f));

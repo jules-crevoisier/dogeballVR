@@ -114,6 +114,7 @@ public partial class EndScreen : CanvasLayer
     /// </summary>
     /// <summary>Fin de la garde des appuis (voir <see cref="_Input"/>), en secondes depuis le lancement.</summary>
     double guardUntil;
+    Button? replayButton;
 
     void ShowStats()
     {
@@ -153,9 +154,21 @@ public partial class EndScreen : CanvasLayer
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
         bool compact = host.GetViewportRect().Size.Y < 960f;
-        col.OffsetTop = compact ? 12 : 24; col.OffsetBottom = compact ? -112 : -160;   // bas : place du bandeau d'XP (XpBanner), les boutons restent visibles
+        col.OffsetTop = compact ? 12 : 24; col.OffsetBottom = compact ? -140 : -160;   // bas : place du bandeau d'XP (XpBanner, ~96 px de haut à 34 px du bord), les boutons restent visibles
         col.AddThemeConstantOverride("separation", compact ? 6 : 8);
         host.AddChild(col);
+        // Steam Deck (1280×800, interface ×1,3) : le tableau est plus haut que la place libre et passait sous le bandeau d'XP,
+        // par-dessus les boutons. La colonne est réduite d'un bloc, depuis le haut, pour finir au-dessus du bandeau.
+        void Fit()
+        {
+            if (!IsInstanceValid(col)) return;
+            float avail = host.GetViewportRect().Size.Y - col.OffsetTop + col.OffsetBottom;
+            float need = col.GetCombinedMinimumSize().Y;
+            col.PivotOffset = new Vector2(col.Size.X / 2, 0);
+            col.Scale = Vector2.One * (need > avail && need > 0 ? avail / need : 1f);
+        }
+        col.Resized += Fit;
+        Callable.From(Fit).CallDeferred();
 
         var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 90 : 112, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
         title.CustomMinimumSize = new Vector2(0, compact ? 136 : 166);   // Anton : capitales hautes, interligne large
@@ -214,7 +227,7 @@ public partial class EndScreen : CanvasLayer
             if (BackToRoom && View.CanRestart)
                 buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76), ""));
         }
-        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), ""));   // à la manette A valide le bouton sélectionné : pas de touche dessinée
+        else if (View.CanRestart) buttons.AddChild(replayButton = first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), ""));   // à la manette A valide le bouton sélectionné : pas de touche dessinée
         else
         {
             var wait = UiKit.Text("En attente de l'hôte…", 32, UiKit.Sky, 8, HorizontalAlignment.Center);
@@ -316,6 +329,8 @@ public partial class EndScreen : CanvasLayer
         if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
         {
             if (!replayKey) return;
+            // Un autre bouton sélectionné (MENU PRINCIPAL) : Entrée le valide lui, comme A à la manette.
+            if (GetViewport().GuiGetFocusOwner() is Button other && other != replayButton) return;
             GetViewport().SetInputAsHandled();
             Replay();
         }
