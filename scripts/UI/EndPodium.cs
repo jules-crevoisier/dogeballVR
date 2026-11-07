@@ -67,7 +67,7 @@ public partial class EndPodium : Control
 
         // Les cartouches suivent les personnages : placés à chaque image d'après la caméra (voir _Process).
         foreach (var s in slots) AddChild(s.card);
-        hint = UiKit.KeyHint("Entrée", "PASSER", 22);
+        hint = UiKit.KeyHint("Entrée", "PASSER", 22, "A");
         hint.Modulate = new Color(1, 1, 1, 0.75f);
         AddChild(hint);
         Layout();
@@ -82,10 +82,11 @@ public partial class EndPodium : Control
     /// sans toucher au reste. Renvoie un socle à poser (pieds à l'origine, regard vers -Z) ; le MVP célèbre en boucle,
     /// ses coéquipiers tiennent « Victoire » si le modèle l'a, sinon « Celebration » décalée dans le temps.
     /// </summary>
-    internal static Node3D SpawnPodiumHero(int team, int playerId, bool mvp)
+    internal static Node3D SpawnPodiumHero(int team, int playerId, bool mvp, string? headwear = null)
     {
         var socle = new Node3D { Name = $"Heros{playerId}" };
         var avatar = Avatar.Create(team, false, playerId);
+        avatar.SetHeadwear(headwear);
         // Hors jeu : l'avatar ne réagit plus aux balles ni ne revient au repos ; seule son animation tourne.
         avatar.ProcessMode = ProcessModeEnum.Disabled;
         socle.AddChild(avatar);
@@ -151,7 +152,7 @@ public partial class EndPodium : Control
                 world.AddChild(new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.7f, OuterRadius = 0.78f, Rings = 48 }, Position = pos + new Vector3(0, 0.28f, 0), MaterialOverride = Materials.Glow(UiKit.Yellow, 1.2f) });
                 pos.Y = 0.28f;
             }
-            var hero = SpawnPodiumHero(Winner, id, center);
+            var hero = SpawnPodiumHero(Winner, id, center, View.HeadwearOf(id));
             hero.Position = pos;
             // Tous regardent un point juste derrière la caméra : de face au centre, de trois quarts sur les côtés.
             var dir = new Vector3(0, 0, 9f) - pos;
@@ -195,7 +196,7 @@ public partial class EndPodium : Control
         title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", 150, win ? UiKit.Yellow : new Color("9fb4d8"), 28, HorizontalAlignment.Center);
         AddChild(title);
         var s = View.State;
-        sub = UiKit.Text($"MANCHES  {s.Rounds(Winner)} - {s.Rounds(1 - Winner)}", 34, UiKit.Cream, 10, HorizontalAlignment.Center);
+        sub = UiKit.Text(L.F("MANCHES  {0} - {1}", s.Rounds(Winner), s.Rounds(1 - Winner)), 34, UiKit.Cream, 10, HorizontalAlignment.Center);
         AddChild(sub);
         title.Scale = Vector2.One * 2.2f;
         title.Modulate = new Color(1, 1, 1, 0);
@@ -210,7 +211,7 @@ public partial class EndPodium : Control
     void BuildTeamBanner()
     {
         teamLabel = UiKit.Text(TeamLabel, 50, Colors.White, 10, HorizontalAlignment.Right);
-        if (UiKit.Italic is Font it) teamLabel.AddThemeFontOverride("font", it);
+        UiKit.Poster(teamLabel);
         AddChild(teamLabel);
         teamLabel.Modulate = new Color(1, 1, 1, 0);
         teamLabel.CreateTween().TweenProperty(teamLabel, "modulate:a", 1.0, 0.25).SetDelay(0.15);
@@ -222,11 +223,11 @@ public partial class EndPodium : Control
         bool local = id == View.LocalId;
         var plate = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
         // Plaque crème penchée, ombre encre décalée (comme les items du menu) ; la mienne cerclée de jaune.
-        var box = new KcBox { Top = UiKit.Cream, Bottom = new Color("efe2c8"), Slant = 12, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.6f) };
+        var box = new KcBox { Top = UiKit.Cream, Bottom = new Color("efe2c8"), Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(6, 6), ShadowColor = new Color("0a0f22", 0.6f) };
         box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 6; box.ContentMarginBottom = 8;
         plate.AddThemeStyleboxOverride("panel", box);
         plate.CustomMinimumSize = new Vector2(mvp ? 320 : 280, 0);
-        var name = UiKit.Text(View.NameOf(id), mvp ? 42 : 36, UiKit.Navy, 0, HorizontalAlignment.Center);
+        var name = UiKit.Raw(UiKit.Text(View.NameOf(id), mvp ? 42 : 36, UiKit.Navy, 0, HorizontalAlignment.Center));
         if (UiKit.Italic is Font it) name.AddThemeFontOverride("font", it);
         plate.AddChild(name);
         Control card = plate;
@@ -251,7 +252,7 @@ public partial class EndPodium : Control
             col.AddChild(head);
             col.AddChild(plate);
             if (Stats != null && Stats.TryGetValue(id, out var st))
-                col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {st.Hits} {(st.Hits > 1 ? "touches" : "touche")}", 28, UiKit.Cream, 6, HorizontalAlignment.Center));
+                col.AddChild(UiKit.Text(L.F("{0} KO   ·   {1}", st.Kos, L.Plural(st.Hits, "{0} touche", "{0} touches")), 28, UiKit.Cream, 6, HorizontalAlignment.Center));
             card = frame;
         }
         card.Modulate = new Color(1, 1, 1, 0);

@@ -89,10 +89,26 @@ public static class Music
         SetAmbience(false, fade);
     }
 
-    /// <summary>Boucle de match (plus énergique) et ambiance de toit en fond.</summary>
+    static string matchFile = "music/match.ogg";
+
+    /// <summary>
+    /// Musique de match de la carte (assets/audio/music/match_&lt;nom&gt;.ogg, une par arène) ; absente ou introuvable : la boucle commune.
+    /// Si une musique de match joue déjà, fondu enchaîné vers la nouvelle.
+    /// </summary>
+    public static void SetMatchTrack(string? name)
+    {
+        string file = string.IsNullOrEmpty(name) ? "music/match.ogg" : $"music/match_{name}.ogg";
+        if (!ResourceLoader.Exists(Dir + file)) file = "music/match.ogg";
+        if (file == matchFile) return;
+        bool playing = currentTrack == matchFile && current != null && GodotObject.IsInstanceValid(current);
+        matchFile = file;
+        if (playing) CrossfadeTo(matchFile, MatchDb, 1.5f);
+    }
+
+    /// <summary>Boucle de match de la carte (plus énergique que le menu) et son ambiance en fond.</summary>
     public static void PlayMatch(float fade = 1.5f)
     {
-        CrossfadeTo("music/match.ogg", MatchDb, fade);
+        CrossfadeTo(matchFile, MatchDb, fade);
         SetAmbience(true, fade * 2f);
     }
 
@@ -132,11 +148,26 @@ public static class Music
         SetAmbience(false, fade);
     }
 
+    static string ambienceFile = "ambience/rooftop.ogg";
+
+    /// <summary>
+    /// Ambiance sonore de la carte (assets/audio/ambience/&lt;nom&gt;.ogg) : la circulation lointaine par défaut, le marché, la piscine,
+    /// le dépôt sur les arènes. Si une autre ambiance joue déjà, fondu enchaîné vers la nouvelle.
+    /// </summary>
+    public static void SetAmbienceTrack(string? name)
+    {
+        string file = $"ambience/{(string.IsNullOrEmpty(name) ? "rooftop" : name)}.ogg";
+        if (!ResourceLoader.Exists(Dir + file)) file = "ambience/rooftop.ogg";
+        if (file == ambienceFile) return;
+        ambienceFile = file;
+        if (ambience != null && GodotObject.IsInstanceValid(ambience)) { FadeOutAndFree(ambience, 1.5f); ambience = null; SetAmbience(true, 1.5f); }
+    }
+
     static void SetAmbience(bool on, float fade)
     {
         bool playing = ambience != null && GodotObject.IsInstanceValid(ambience);
         if (on == playing) return;
-        if (on) ambience = Start("ambience/rooftop.ogg", "SFX", AmbienceDb, true, fade);
+        if (on) ambience = Start(ambienceFile, "SFX", AmbienceDb, true, fade);
         else { FadeOutAndFree(ambience, fade); ambience = null; }
     }
 }

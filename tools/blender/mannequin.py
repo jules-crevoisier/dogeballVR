@@ -7,8 +7,8 @@ Squelette type Unreal (pelvis, spine_01..03, neck_01, Head, upperarm_l, lowerarm
 Sortie, dans DOSSIER (assets/models par défaut) :
   avatar_{orange,bleu}_rig.glb (homme), avatar_{orange,bleu}2_rig.glb (femme), et leurs *_quest.glb (8k triangles).
 Matériaux : « mannequin » (gris) et « neon_equipe » (articulations, couleur d'équipe émissive) ; KcShaders les reconnaît.
-Animations au nom du jeu : Repos, Course, Lancer, Passe, Armer, Attrape, Esquive, Touche, KO, Saut, Ramasser,
-Celebration, Victoire, Defaite.
+Animations au nom du jeu : Repos, Course, Marche, Lancer, Passe, Armer, Attrape, Esquive, Touche, KO, Saut, Chute,
+Reception, Ramasser, Celebration, Victoire, Defaite.
 
 Usage : python mannequin.py [DOSSIER]   (bpy, Blender 4.2+ en module Python)
 """
@@ -45,6 +45,9 @@ GAME = {
     "Touche": ("Hit_Chest", False),
     "KO": ("Death01", False),
     "Saut": ("Jump_Start", False),
+    "Chute": ("Jump_Loop", True),         # en l'air après l'impulsion (saut, tremplin, chute dans le vide)
+    "Reception": ("Jump_Land", False),    # pieds au sol après une chute
+    "Marche": ("Walk_Loop", True),        # déplacement lent (touche marcher, approche)
     "Ramasser": ("PickUp_Table", False),
     "Celebration": ("Dance_Loop", True),
     "Victoire": ("Dance_Loop", True),

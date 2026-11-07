@@ -14,6 +14,10 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Vrai tant que le menu (ou un de ses sous-écrans) est affiché : le joueur ne reprend pas la souris au clic.</summary>
     public static bool IsOpen { get; private set; }
 
+    /// <summary>Nombre de fermetures de la pause : le joueur ignore les boutons encore tenus en sortant (B qui referme la
+    /// pause ne déclenche pas d'esquive, A ne fait pas sauter).</summary>
+    public static int CloseCount { get; private set; }
+
     /// <summary>Hors ligne : le monde se fige pendant la pause.</summary>
     public bool CanFreeze { get; set; } = true;
     public Action? Restart { get; set; }
@@ -52,7 +56,9 @@ public partial class PauseMenu : CanvasLayer
     public override void _UnhandledInput(InputEvent e)
     {
         // F1 pendant la pause : l'aide complète (le HUD, lui, ignore F1 tant que la pause est ouverte).
-        if (e.IsActionPressed("help") && IsOpen && sub == null) { GetViewport().SetInputAsHandled(); ShowHelp(); return; }
+        if ((e.IsActionPressed("help") || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.Y }) && IsOpen && sub == null) { GetViewport().SetInputAsHandled(); ShowHelp(); return; }
+        // B (retour) referme aussi la pause ouverte ; hors pause, B reste l'esquive.
+        if (IsOpen && sub == null && e is InputEventJoypadButton && e.IsActionPressed("ui_cancel")) { GetViewport().SetInputAsHandled(); Close(); return; }
         if (!e.IsActionPressed("pause")) return;
         GetViewport().SetInputAsHandled();
         if (sub != null) return;   // le sous-écran gère son propre retour
@@ -79,6 +85,7 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!IsOpen) return;
         IsOpen = false;
+        CloseCount++;
         root?.QueueFree();
         if (CanFreeze) GetTree().Paused = false;
         Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -109,13 +116,14 @@ public partial class PauseMenu : CanvasLayer
         if (!CanFreeze) col.AddChild(UiKit.Text("La partie continue en ligne", 22, UiKit.Sky, 6));
         col.AddChild(UiKit.Spacer(10));
         // Items du menu principal : texte penché, barre jaune sur la sélection ; « Quitter le jeu » à part, plus bas.
-        var resume = UiKit.ListButton("REPRENDRE", Close);
+        var resume = UiKit.ListButton("REPRENDRE", Close, 42, new Vector2(520, 66));
+        resumeButton = resume;
         col.AddChild(resume);
-        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu())));
+        col.AddChild(UiKit.ListButton("OPTIONS", () => OpenSub(new OptionsMenu()), 42, new Vector2(520, 66)));
         if (Restart != null) col.AddChild(Confirmed("RECOMMENCER LA PARTIE", () => { Close(); Restart(); }));
         if (QuitToMenu != null) col.AddChild(Confirmed("MENU PRINCIPAL", () => { IsOpen = false; if (CanFreeze) GetTree().Paused = false; QuitToMenu(); }));
         col.AddChild(UiKit.Spacer(26));
-        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 24, new Vector2(440, 56), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
+        col.AddChild(Confirmed("QUITTER LE JEU", () => GetTree().Quit(), 30, new Vector2(520, 54), UiKit.Lavender));   // secondaire : lavande, comme QUITTER au menu
 
         // À droite : toutes les commandes en touches dessinées (la carte remplace l'ancien bouton « Commandes ») ; F1 = aide complète.
         var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -130,9 +138,12 @@ public partial class PauseMenu : CanvasLayer
         card.AddChild(list);
         list.AddChild(UiKit.Title("COMMANDES", 38, HorizontalAlignment.Left));
         list.AddChild(CommandGrid(24, 12));
-        var hint = UiKit.KeyHint(InputSetup.KeyName("help"), "Aide complète", 22);
+        var hint = UiKit.KeyHint(InputSetup.KeyboardName("help"), "Aide complète", 22, "Y");   // à la manette : Y (Vue est le tableau des scores)
         hint.Modulate = new Color(1, 1, 1, 0.8f);
         list.AddChild(hint);
+        // Largeur réelle avant le glissement d'entrée (qui retient la position) : la carte s'étend vers la gauche,
+        // jamais hors de l'écran (libellés plus longs en anglais, touches de manette plus larges).
+        card.OffsetLeft = card.OffsetRight - Mathf.Max(560f, card.GetCombinedMinimumSize().X);
         UiKit.SlideIn(card, 0.1f, 80f);
         int i = 0;
         foreach (var c in col.GetChildren()) if (c is Control ctl) UiKit.SlideIn(ctl, 0.03f * i++);
@@ -140,7 +151,7 @@ public partial class PauseMenu : CanvasLayer
     }
 
     /// <summary>Bouton à confirmer : un premier appui demande « SÛR ? », le second agit (3 s pour confirmer).</summary>
-    static Button Confirmed(string text, Action act, int fontSize = 28, Vector2? minSize = null, Color? rest = null)
+    static Button Confirmed(string text, Action act, int fontSize = 42, Vector2? minSize = null, Color? rest = null)
     {
         Button? b = null;
         double armedUntil = 0;
@@ -157,7 +168,7 @@ public partial class PauseMenu : CanvasLayer
                 b.Text = text;
                 b.AddThemeColorOverride("font_color", rest ?? Colors.White);
             };
-        }, fontSize, minSize);
+        }, fontSize, minSize ?? new Vector2(520, 66));
         if (rest is Color c) b.AddThemeColorOverride("font_color", c);
         return b;
     }
@@ -181,7 +192,8 @@ public partial class PauseMenu : CanvasLayer
         }
         var move = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
         move.AddThemeConstantOverride("separation", 4);
-        foreach (var a in new[] { "move_forward", "move_left", "move_back", "move_right" }) move.AddChild(UiKit.KeyCap(InputSetup.KeyName(a), size - 3));
+        if (InputSetup.UsingPad) move.AddChild(UiKit.KeyCap(InputSetup.KeyName("move_forward"), size - 3, 140));   // un seul stick, pas quatre fois « Stick G »
+        else foreach (var a in new[] { "move_forward", "move_left", "move_back", "move_right" }) move.AddChild(UiKit.KeyCap(InputSetup.KeyName(a), size - 3));
         Row(move, "Se déplacer");
         foreach (var a in InputSetup.Actions)
         {
@@ -201,10 +213,20 @@ public partial class PauseMenu : CanvasLayer
         AddChild(screen);
     }
 
+    Button? resumeButton;
+
     void ShowHelp()
     {
         var panel = new HelpPanel { Text = HelpText?.Invoke() ?? "" };
-        panel.Closed += () => { sub = null; root.Visible = true; };
+        var from = GetViewport().GuiGetFocusOwner();
+        panel.Closed += () =>
+        {
+            sub = null;
+            root.Visible = true;
+            // Manette : le focus revient où il était (sinon REPRENDRE), la croix et A restent utilisables.
+            var to = from != null && IsInstanceValid(from) && from.IsVisibleInTree() ? from : resumeButton;
+            to?.CallDeferred(Control.MethodName.GrabFocus);
+        };
         root.Visible = false;
         sub = panel;
         AddChild(panel);
@@ -236,6 +258,9 @@ public partial class PauseMenu : CanvasLayer
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
             back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
             col.AddChild(back);
+            var hint = UiKit.KeyHint(InputSetup.KeyboardName("help"), "Refermer", 20, "B / Y");
+            hint.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+            col.AddChild(hint);
             back.CallDeferred(Control.MethodName.GrabFocus);
         }
 
@@ -243,7 +268,8 @@ public partial class PauseMenu : CanvasLayer
 
         public override void _Input(InputEvent e)
         {
-            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel") && !e.IsActionPressed("help")) return;
+            if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel") && !e.IsActionPressed("help") && !e.IsActionPressed("scoreboard")
+                && e is not InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.Y }) return;   // Y l'ouvre, Y la referme
             GetViewport().SetInputAsHandled();
             Close();
         }

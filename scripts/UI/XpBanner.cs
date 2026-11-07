@@ -64,7 +64,7 @@ public partial class XpBanner : CanvasLayer
         panel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         panel.GrowHorizontal = Control.GrowDirection.Both;
         panel.GrowVertical = Control.GrowDirection.Begin;
-        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -98; panel.OffsetBottom = -20;   // marge : l'ombre penchée reste dans l'écran
+        panel.OffsetLeft = -500; panel.OffsetRight = 500; panel.OffsetTop = -112; panel.OffsetBottom = -34;   // marge : l'ombre dure reste dans l'écran, 32 px du bord
         root.AddChild(panel);
 
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -126,15 +126,18 @@ public partial class XpBanner : CanvasLayer
         var (level, into, need) = Progression.LevelOf(totalXp);
         if (level > shownLevel)
         {
+            int from = shownLevel;
             shownLevel = level;
             UiKit.Punch(badge, 1.5f, 0.35);
             Sfx.Play(this, SfxKind.Tier);
-            titleLabel.Text = $"NIVEAU {level} !";
+            // Couvre-chef débloqué à ce niveau : annoncé dans le titre (il se porte depuis le vestiaire du Profil).
+            var gained = Cosmetics.UnlockedBetween(from, level);   // plusieurs niveaux d'un coup : aucun déblocage oublié
+            titleLabel.Text = gained.Count > 0 ? L.F("NIVEAU {0} !  NOUVEAU : {1}", level, L.T(gained[0].Name).ToUpper()) : L.F("NIVEAU {0} !", level);
         }
         else if (level == award?.LevelBefore)
-            titleLabel.Text = Progression.TitleOf(level).ToUpper();
+            titleLabel.Text = L.T(Progression.TitleOf(level)).ToUpper();
         levelLabel.Text = level.ToString();
-        progressLabel.Text = need > 0 ? $"{Spaced(into)} / {Spaced(need)} XP" : "NIVEAU MAX";
+        progressLabel.Text = need > 0 ? $"{Spaced(into)} / {Spaced(need)} XP" : L.T("NIVEAU MAX");
         fill = need > 0 ? (float)into / need : 1f;
         bar.QueueRedraw();
     }
@@ -147,5 +150,10 @@ public partial class XpBanner : CanvasLayer
     }
 
     /// <summary>1 240 plutôt que 1240 (espace simple : la police n'a pas l'espace fine insécable).</summary>
-    public static string Spaced(int n) => n.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', ' ');
+    public static string Spaced(int n)
+    {
+        // Séparateur des milliers : espace en français (2 800), virgule en anglais (2,800).
+        string s = n.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture);
+        return L.English ? s : s.Replace(',', ' ');
+    }
 }

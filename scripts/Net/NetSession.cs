@@ -15,7 +15,7 @@ public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     /// <summary>Version du protocole réseau : l'hôte refuse un client d'une autre version (snapshots et RPC incompatibles).</summary>
-    public const int ProtocolVersion = 3;   // 3 : le Hello porte la carte jouée
+    public const int ProtocolVersion = 4;   // 3 : le Hello porte la carte jouée ; 4 : couvre-chefs dans la salle (SetLookRpc)
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
@@ -50,7 +50,9 @@ public partial class NetSession : Node
     float MoveSpeedCap => FreeRoam ? FreeRunCap : MaxMoveSpeed;
     /// <summary>Carte à tremplins : les vols vont plus haut (sommet à 3 m des pieds) et les pieds peuvent être sur une terrasse.</summary>
     public Maps.MapData? Map { get; set; }
-    bool PadMap => FreeRoam && Map?.Pc?.JumpPads.Count > 0;
+    bool PadMap => FreeRoam && (Map?.Pc?.JumpPads.Count > 0 || Map?.Geometry?.Def.Pads.Count > 0);
+    /// <summary>Arène libre (cartes PC à étages) : l'hôte juge le sol avec la même géométrie que les clients.</summary>
+    Maps.ArenaGeometry? Geo => FreeRoam ? Map?.Geometry : null;
     float VerticalSpeedCap => FreeRoam ? 5.5f : 4f;
     float HeadCeiling => FreeRoam ? 2.9f : 2.3f;
     const float FlightVerticalCap = 6.5f, FlightCeiling = 5.0f;   // seulement pendant un vol de tremplin ou sur une terrasse
@@ -611,6 +613,28 @@ public partial class NetSession : Node
         remote.CrouchOnPadSince = crouchedOnPad ? (remote.CrouchOnPadSince > 0 ? remote.CrouchOnPadSince : now) : 0;
         elevation = ValidateElevation(remote, head, elevation);
         // Jeu libre : la hauteur de tête est absolue (la terrasse ne la décale pas) ; au-dessus de la fosse elle peut descendre (chute).
+        if (Geo is { } geo)
+        {
+            // Arène : la tête reste entre le sol (accroupi) et un saut au-dessus du sol, plus haut pendant un vol de tremplin ;
+            // au-dessus du vide elle peut descendre (chute). Vitesse verticale bornée en absolu (chute plus rapide que la montée).
+            bool flying = Time.GetTicksMsec() / 1000.0 < remote.FlightUntil;
+            bool overVoid = geo.IsVoid(head.X, head.Z, 0.3f);
+            float low = overVoid ? geo.KillY - 4f : elevation + 0.8f;
+            float high = flying ? geo.MaxPadApex + 2.2f : elevation + HeadCeiling;
+            float dtA = (float)Mathf.Clamp(remote.LastPoseAt > 0 ? now - remote.LastPoseAt : 0.1, MinPoseInterval, 0.5);
+            var lastA = remote.TargetPose.Head;
+            head.Y = Mathf.Clamp(Mathf.Clamp(head.Y, low, high), lastA.Y - 18f * dtA, lastA.Y + (flying ? 10f : 7f) * dtA);
+            remote.LastPoseAt = now;
+            left = head + (left - head).LimitLength(MaxHandReach);
+            right = head + (right - head).LimitLength(MaxHandReach);
+            remote.SetPose(new PoseData(head, yaw, left, right, elevation));
+            if (remote.PendingTackle is { } ptA)
+            {
+                remote.PendingTackle = null;
+                if (now <= ptA.until && now <= remote.DashUntil + 0.1) Gameplay.MatchController.RequestTackle(remote.PlayerId, ptA.victim, ptA.dir);
+            }
+            return;
+        }
         float lowY = FreeRoam ? (Map != null && Map.OverPit(head.X, head.Z, 0.1f) ? -8f : 0.8f) : 0.8f + elevation;
         bool airborne = FreeRoam && PadMap && (Time.GetTicksMsec() / 1000.0 < remote.FlightUntil || elevation > 0f);
         head.Y = Mathf.Clamp(head.Y, lowY, FreeRoam ? (airborne ? FlightCeiling : HeadCeiling) : HeadCeiling + elevation);
@@ -640,6 +664,17 @@ public partial class NetSession : Node
     /// <summary>Tremplin (PC) : le vol n'est accordé que tête au-dessus d'un tremplin de son camp, hors recharge ; il relève le plafond de tête 2,2 s.</summary>
     void ArmFlight(RemotePlayer remote, Vector3 head, double now)
     {
+        if (Geo is { } geo)
+        {
+            if (IsEliminated(remote.PlayerId)) return;
+            foreach (var pad in geo.Def.Pads)
+                if (new Vector2(head.X - pad.X, head.Z - pad.Z).Length() <= pad.Radius + 1.0f && Mathf.Abs(head.Y - 1.6f - pad.Y) < 1.2f)
+                {
+                    remote.FlightUntil = now + 2.8;   // vol de tremplin d'arène (≈ 2,2 s) : plafond et vitesse verticale relevés
+                    return;
+                }
+            return;
+        }
         if (!PadMap || head.Y > 2.3f || IsEliminated(remote.PlayerId) || Map?.Pc == null) return;
         int team = Map.Zones.Find(z => z.Id == remote.PlayerId)?.Team ?? -1;
         foreach (var pad in Map.Pc.JumpPads)
@@ -654,6 +689,14 @@ public partial class NetSession : Node
     float ValidateElevation(RemotePlayer remote, Vector3 head, float requested)
     {
         double t = Time.GetTicksMsec() / 1000.0;
+        if (Geo is { } geo)
+        {
+            // Arène : l'hôte prend le sol sous la tête acceptée (pieds à 1,6 m sous la tête, marge d'un saut) ; vide = 0.
+            float ground = geo.GroundAt(head.X, head.Z, head.Y - 1.6f + 0.3f, 0.3f);
+            float onGround = float.IsNegativeInfinity(ground) ? 0f : Mathf.Max(0f, ground);
+            remote.HostElevation = onGround;
+            return onGround;
+        }
         if (FreeRoam) return ValidateTerrace(remote, head, requested, t);
         var lift = LiftOf(remote.PlayerId);
         float accepted = remote.HostElevation;
@@ -854,7 +897,7 @@ public partial class NetSession : Node
         foreach (var remote in Remotes.Values)
             if (remote.Hurtbox.CatchLock.Update(clock)) GD.Print($"[Net] Attrape ratée par la zone {remote.Hurtbox.PlayerId} : prises refusées {KcRules.Def.VrMissedCatchLockSeconds:0.##} s");
         // Terrasse (PC) : reprise à l'expiration ou à l'élimination même si le client ne dit plus rien.
-        if (FreeRoam)
+        if (FreeRoam && Map?.Geometry == null)
             foreach (var remote in Remotes.Values)
             {
                 if (remote.HostElevation <= 0f) continue;

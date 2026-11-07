@@ -9,6 +9,8 @@ namespace DogeballVR.Visual;
 public partial class PickupBeacon : Node3D
 {
     public float TopY { get; set; }
+    /// <summary>Couleur du faisceau et des anneaux : turquoise des distributeurs, rose du socle de balle spéciale.</summary>
+    public Color Tint { get; set; } = Palette.Beacon;
     MeshInstance3D beam = null!, ring = null!;
     readonly MeshInstance3D[] spiral = new MeshInstance3D[3];
     bool loaded;
@@ -26,7 +28,7 @@ public partial class PickupBeacon : Node3D
         beam = new MeshInstance3D
         {
             Mesh = new CylinderMesh { TopRadius = 0.06f, BottomRadius = 0.16f, Height = 5f, RadialSegments = 8 },
-            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.30f)), Position = new Vector3(0, 2.5f + TopY, 0),
+            MaterialOverride = Materials.Additive(new Color(Tint, 0.30f)), Position = new Vector3(0, 2.5f + TopY, 0),
         };
         AddChild(beam);
         for (int i = 0; i < spiral.Length; i++)
@@ -34,14 +36,14 @@ public partial class PickupBeacon : Node3D
             spiral[i] = new MeshInstance3D
             {
                 Mesh = new TorusMesh { InnerRadius = 0.22f, OuterRadius = 0.26f, Rings = 24, RingSegments = 6 },
-                MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.7f)),
+                MaterialOverride = Materials.Additive(new Color(Tint, 0.7f)),
             };
             AddChild(spiral[i]);
         }
         ring = new MeshInstance3D
         {
             Mesh = new TorusMesh { InnerRadius = 0.5f, OuterRadius = 0.58f, Rings = 36, RingSegments = 4 },
-            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.8f)), Position = new Vector3(0, 0.07f, 0), Scale = new Vector3(1, 0.1f, 1),
+            MaterialOverride = Materials.Additive(new Color(Tint, 0.8f)), Position = new Vector3(0, 0.07f, 0), Scale = new Vector3(1, 0.1f, 1),
         };
         AddChild(ring);
     }
