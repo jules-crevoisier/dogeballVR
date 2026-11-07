@@ -150,5 +150,10 @@ public partial class XpBanner : CanvasLayer
     }
 
     /// <summary>1 240 plutôt que 1240 (espace simple : la police n'a pas l'espace fine insécable).</summary>
-    public static string Spaced(int n) => n.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', ' ');
+    public static string Spaced(int n)
+    {
+        // Séparateur des milliers : espace en français (2 800), virgule en anglais (2,800).
+        string s = n.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture);
+        return L.English ? s : s.Replace(',', ' ');
+    }
 }

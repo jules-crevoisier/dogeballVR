@@ -227,7 +227,7 @@ public partial class EndPodium : Control
         box.ContentMarginLeft = 30; box.ContentMarginRight = 30; box.ContentMarginTop = 6; box.ContentMarginBottom = 8;
         plate.AddThemeStyleboxOverride("panel", box);
         plate.CustomMinimumSize = new Vector2(mvp ? 320 : 280, 0);
-        var name = UiKit.Text(View.NameOf(id), mvp ? 42 : 36, UiKit.Navy, 0, HorizontalAlignment.Center);
+        var name = UiKit.Raw(UiKit.Text(View.NameOf(id), mvp ? 42 : 36, UiKit.Navy, 0, HorizontalAlignment.Center));
         if (UiKit.Italic is Font it) name.AddThemeFontOverride("font", it);
         plate.AddChild(name);
         Control card = plate;

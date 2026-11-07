@@ -417,7 +417,7 @@ public partial class EndScreen : CanvasLayer
         star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(star);
         col.AddChild(UiKit.Title("MVP", 64, HorizontalAlignment.Center, UiKit.Cream));
-        col.AddChild(UiKit.Poster(UiKit.Text(View.NameOf(id), 46, Colors.White, 0, HorizontalAlignment.Center)));
+        col.AddChild(UiKit.Poster(UiKit.Raw(UiKit.Text(View.NameOf(id), 46, Colors.White, 0, HorizontalAlignment.Center))));
         col.AddChild(UiKit.Spacer(6));
         col.AddChild(UiKit.Text(L.F("{0} KO   ·   {1}", st.Kos, Plural(st.Hits, "touche", "touches")), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
@@ -426,7 +426,7 @@ public partial class EndScreen : CanvasLayer
         return panel;
     }
 
-    static string Plural(int n, string one, string many) => $"{n} {L.T(n > 1 ? many : one)}";
+    static string Plural(int n, string one, string many) => $"{n} {L.T(L.IsOne(n) ? one : many)}";
 
     Control StatsTable()
     {
@@ -480,7 +480,8 @@ public partial class EndScreen : CanvasLayer
         row.AddChild(line);
         int size = header ? 20 : 30;
         var color = header ? UiKit.Sky : Colors.White;
-        var n = UiKit.Text(name, size, color, local ? 9 : 6);   // blanc : le jaune ne se lit pas sur l'orange
+        var n = UiKit.Text(name, size, color, local ? 9 : 6);
+        if (p != null) UiKit.Raw(n);   // nom de joueur   // blanc : le jaune ne se lit pas sur l'orange
         n.CustomMinimumSize = new Vector2(220, 0);
         n.VerticalAlignment = VerticalAlignment.Center;
         line.AddChild(n);

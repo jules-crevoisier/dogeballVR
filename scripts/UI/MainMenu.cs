@@ -126,7 +126,7 @@ public partial class MainMenu : CanvasLayer
         Music.PlayMenu();
         ShowMain();
         if (Tools.DevFlags.Has("--profile-test")) ShowProfile();   // captures
-        if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1 });
+        if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1, ShiftRight = OptionsShift });
         // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--menu-page="))
@@ -250,7 +250,7 @@ public partial class MainMenu : CanvasLayer
             Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
             Item("EN LIGNE", ShowOnline),
             Item("PROFIL", ShowProfile),
-            Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
+            Item("OPTIONS", () => OpenOverlay(new OptionsMenu { ShiftRight = OptionsShift })),
             UiKit.Spacer(14),
             Item("CRÉDITS", ShowCredits, false),
             Item("QUITTER", () => GetTree().Quit(), false));
@@ -448,7 +448,10 @@ public partial class MainMenu : CanvasLayer
             var a = UiKit.Text(who, 24, UiKit.Sky, 6, HorizontalAlignment.Right);
             a.CustomMinimumSize = new Vector2(330, 0);
             row.AddChild(a);
-            row.AddChild(UiKit.Text(what, 24, Colors.White, 6));
+            var b = UiKit.Text(what, 24, Colors.White, 6);
+            b.AutowrapMode = TextServer.AutowrapMode.WordSmart;   // la ligne des polices passe sur deux lignes au lieu de sortir de l'écran
+            b.CustomMinimumSize = new Vector2(620, 0);
+            row.AddChild(b);
             col.AddChild(row);
         }
         var back = UiKit.Button("RETOUR", UiKit.Orange, CloseOverlay, 26, new Vector2(300, 58));
@@ -472,6 +475,8 @@ public partial class MainMenu : CanvasLayer
         UiKit.Punch(card, 0.85f, 0.22);
         return holder;
     }
+
+    const float OptionsShift = 160f;   // options : panneau décalé de 80 px, l'aide « Échap Retour » ne touche plus son cadre
 
     void OpenOverlay(Control c)
     {

@@ -87,6 +87,7 @@ public partial class PlayerTag : Node3D
         {
             Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 20, Modulate = color, OutlineModulate = ink,
             VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, NameLift, 0), RenderPriority = 1, OutlineRenderPriority = 0,
+            AutoTranslateMode = AutoTranslateModeEnum.Disabled,   // nom de joueur : jamais traduit
         };
         // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Barlow).
         hearts = new Label3D

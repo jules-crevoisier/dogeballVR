@@ -272,7 +272,7 @@ public static class ArenaBuilder
             // DesktopPlayer cache le groupe « zone_label ».
             var label = new Label3D
             {
-                Text = $"ÉQUIPE {zone.Team + 1}",
+                Text = DogeballVR.UI.L.F("ÉQUIPE {0}", zone.Team + 1),
                 Position = zone.Center + new Vector3(0, 0.03f, 0),
                 RotationDegrees = new Vector3(-90, zone.FacingDegrees, 0),
                 FontSize = 96,

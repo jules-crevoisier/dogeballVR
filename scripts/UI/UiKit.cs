@@ -100,6 +100,16 @@ public static class UiKit
     }
 
     /// <summary>Titre de fenêtre : capitales Anton en papier, double tirage vert acide décalé en bas à droite (impression mal calée).</summary>
+    /// <summary>
+    /// Texte à ne jamais traduire (nom de joueur) : sans cela un joueur nommé « Bob » s'afficherait « Bucket hat » en anglais,
+    /// les Label et Label3D traduisant seuls leur texte.
+    /// </summary>
+    public static T Raw<T>(T node) where T : Node
+    {
+        node.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+        return node;
+    }
+
     public static Label Title(string text, int size = 54, HorizontalAlignment align = HorizontalAlignment.Center, Color? color = null)
     {
         var l = Text(L.T(text).ToUpperInvariant(), size, color ?? Cream, 0, align);   // traduit avant les capitales (la clé est le texte d'origine)

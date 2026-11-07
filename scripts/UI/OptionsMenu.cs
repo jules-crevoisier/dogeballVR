@@ -28,6 +28,9 @@ public partial class OptionsMenu : Control
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
+    /// <summary>Décalage du panneau vers la droite (px) : au menu principal, il laisse la place aux aides de touches du coin bas gauche.</summary>
+    public float ShiftRight { get; set; }
+
     /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre CLAVIER).</summary>
     public int FirstTab { get; set; }
 
@@ -96,6 +99,7 @@ public partial class OptionsMenu : Control
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
         center.SetAnchorsAndOffsetsPreset(LayoutPreset.TopWide);
         center.OffsetTop = center.OffsetBottom = TopMargin;
+        center.OffsetLeft = ShiftRight;
         AddChild(center);
         panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 0) };
         panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(22, 34));   // opaque : la fenêtre du menu principal
@@ -268,8 +272,8 @@ public partial class OptionsMenu : Control
                 Section("Caméra et visée");
                 Choice("Vue", new[] { "Épaule (3e personne)", "Première personne" }, GameSettings.FirstPerson ? 1 : 0, k => GameSettings.FirstPerson = k == 1);
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
-                Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : $"{v * 100:0} %");
-                Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
+                Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : L.F("{0:0} %", v * 100));
+                Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : L.F("{0:0} %", v * 100));
                 Toggle("Arrêt sur image aux impacts", GameSettings.HitStop, v => GameSettings.HitStop = v);
                 Toggle("Marqueur de touche", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
                 Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
@@ -278,7 +282,7 @@ public partial class OptionsMenu : Control
                 Toggle("Symboles d'équipe (daltonisme)", GameSettings.TeamSymbols, v => GameSettings.TeamSymbols = v);
                 Toggle("Sons importants à l'écran", GameSettings.SoundCues, v => GameSettings.SoundCues = v);
                 Section("Casque VR");
-                Slider("Vibrations des manettes", GameSettings.Haptics, 0f, 1f, 0.05f, v => GameSettings.Haptics = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
+                Slider("Vibrations des manettes", GameSettings.Haptics, 0f, 1f, 0.05f, v => GameSettings.Haptics = v, v => v < 0.01f ? "Aucune" : L.F("{0:0} %", v * 100));
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
@@ -303,7 +307,7 @@ public partial class OptionsMenu : Control
     /// <summary>Réglages de langue proposés, dans l'ordre de la liste (voir L.Apply).</summary>
     static readonly string[] Languages = { "auto", "fr", "en" };
 
-    static string Pct(float v) => $"{v * 100:0} %";
+    static string Pct(float v) => L.F("{0:0} %", v * 100);
 
     void ResetTab()
     {

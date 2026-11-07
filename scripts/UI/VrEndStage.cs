@@ -111,7 +111,7 @@ public partial class VrEndStage : Node3D
             tw.TweenInterval(i == 0 ? 0.5 : 0.15 + 0.12 * i);
             tw.TweenProperty(hero, "scale", Vector3.One, 0.35).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
             string star = ids[i] == mvp ? "★ MVP  " : "";
-            var tag = AddText(star + View.NameOf(ids[i]), pos + new Vector3(0, h + 2.0f, -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium);
+            var tag = UiKit.Raw(AddText(star + View.NameOf(ids[i]), pos + new Vector3(0, h + 2.0f, -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium));
             tag.Billboard = BaseMaterial3D.BillboardModeEnum.FixedY;
         }
 
@@ -179,9 +179,10 @@ public partial class VrEndStage : Node3D
                 RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
             },
         });
-        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52)
+        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52, bool raw = false)
         {
             var l = AddText(text, new Vector3(x, y, 0), 0.0032f, size, c, board);
+            if (raw) UiKit.Raw(l);   // nom de joueur
             l.HorizontalAlignment = align;
         }
         Cell("JOUEUR", ColumnName, top, UiKit.Lavender, HorizontalAlignment.Left, 40);
@@ -207,7 +208,7 @@ public partial class VrEndStage : Node3D
             var c = Palette.Team(p.Team);
             string name = (p.Id == mvp ? "★ " : "") + View.NameOf(p.Id);
             if (name.Length > 12) name = name[..11] + "…";   // la colonne KO commence 1,15 m plus loin
-            Cell(name, ColumnName, y, p.Id == View.LocalId ? UiKit.Yellow : c, HorizontalAlignment.Left);
+            Cell(name, ColumnName, y, p.Id == View.LocalId ? UiKit.Yellow : c, HorizontalAlignment.Left, raw: true);
             Cell($"{st?.Kos ?? 0}", ColumnKo, y, c);
             Cell($"{st?.Hits ?? 0}", ColumnHits, y, c);
             Cell($"{st?.Catches ?? 0}", ColumnCatches, y, c);

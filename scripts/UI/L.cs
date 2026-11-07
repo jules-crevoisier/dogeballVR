@@ -22,8 +22,11 @@ public static class L
     /// <summary>Gabarit traduit puis rempli : <c>L.F("NIVEAU {0} !", n)</c>.</summary>
     public static string F(string fr, params object[] args) => string.Format(System.Globalization.CultureInfo.InvariantCulture, T(fr), args);
 
-    /// <summary>Accord simple : <paramref name="one"/> pour 0 ou 1, sinon <paramref name="many"/> (gabarits avec {0}).</summary>
-    public static string Plural(int n, string one, string many) => F(n > 1 ? many : one, n);
+    /// <summary>Accord : <paramref name="one"/> pour 0 ou 1 en français, pour 1 seulement en anglais (« 0 hits »), sinon <paramref name="many"/> (gabarits avec {0}).</summary>
+    public static string Plural(int n, string one, string many) => F(IsOne(n) ? one : many, n);
+
+    /// <summary>Le nombre prend-il le singulier ? Français : 0 et 1 ; anglais : 1.</summary>
+    public static bool IsOne(int n) => English ? n == 1 : n <= 1;
 
     /// <summary>
     /// Applique le réglage : "fr", "en", ou "auto" (langue du système si c'est le français, l'anglais sinon). Sans effet si la langue

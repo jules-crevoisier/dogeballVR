@@ -357,7 +357,7 @@ public partial class DesktopHud : CanvasLayer
         heartsHolder = holder;
         holder.AddChild(Plate(PlateInk, Vector2.Zero, new Vector2(Mathf.Max(w, 180), 96), 12));
         string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
-        var who = Soft(UiKit.Text(me.ToUpperInvariant(), 16, new Color(1, 1, 1, 0.85f), 0), UiKit.Heavy);
+        var who = UiKit.Raw(Soft(UiKit.Text(me.ToUpperInvariant(), 16, new Color(1, 1, 1, 0.85f), 0), UiKit.Heavy));
         who.Position = new Vector2(16, 7);
         who.Size = new Vector2(w - 24, 22);
         holder.AddChild(who);
@@ -895,7 +895,7 @@ public partial class DesktopHud : CanvasLayer
         koNamePlate = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, 40) };
         koNamePlate.AddThemeStyleboxOverride("panel", PlateBox(PlateInk, 16, 0, 0));
         row.AddChild(koNamePlate);
-        koBannerName = Soft(UiKit.Text("", 20, Colors.White, 0), UiKit.Heavy);
+        koBannerName = UiKit.Raw(Soft(UiKit.Text("", 20, Colors.White, 0), UiKit.Heavy));
         koBannerName.VerticalAlignment = VerticalAlignment.Center;
         koNamePlate.AddChild(koBannerName);
     }
@@ -981,7 +981,7 @@ public partial class DesktopHud : CanvasLayer
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 10);
         panel.AddChild(line);
-        Label Name(int id) => Soft(UiKit.Text(View.NameOf(id), 20, Palette.Team(View.TeamOf(id)).Lightened(0.25f), 0), UiKit.Heavy);
+        Label Name(int id) => UiKit.Raw(Soft(UiKit.Text(View.NameOf(id), 20, Palette.Team(View.TeamOf(id)).Lightened(0.25f), 0), UiKit.Heavy));
         if (by >= 0)
         {
             line.AddChild(Name(by));
@@ -1723,7 +1723,7 @@ public partial class DesktopHud : CanvasLayer
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 22);
         row.AddChild(line);
-        var name = UiKit.Text(View.NameOf(p.Id), 50, me ? UiKit.Yellow : Colors.White, 12, left ? HorizontalAlignment.Right : HorizontalAlignment.Left);
+        var name = UiKit.Raw(UiKit.Text(View.NameOf(p.Id), 50, me ? UiKit.Yellow : Colors.White, 12, left ? HorizontalAlignment.Right : HorizontalAlignment.Left));
         name.VerticalAlignment = VerticalAlignment.Center;
         name.CustomMinimumSize = new Vector2(230, 0);
         var ko = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = View.HasStats };
@@ -2062,6 +2062,7 @@ public partial class DesktopHud : CanvasLayer
         row.AddChild(line);
         int size = header ? 20 : 28;
         var n = UiKit.Text(name, size, header ? UiKit.Sky : Colors.White, 6);
+        if (p != null) UiKit.Raw(n);   // nom de joueur
         n.CustomMinimumSize = new Vector2(240, 0);
         n.VerticalAlignment = VerticalAlignment.Center;
         line.AddChild(n);

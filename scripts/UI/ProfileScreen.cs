@@ -48,7 +48,8 @@ public partial class ProfileScreen : Control
         var who = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
         who.AddThemeConstantOverride("separation", 4);
         var nameRow = new HBoxContainer();
-        var name = UiKit.Title(Identity.Name.ToUpper(), 50, HorizontalAlignment.Left);
+        var name = UiKit.Raw(UiKit.Title("", 50, HorizontalAlignment.Left));
+        name.Text = Identity.Name.ToUpper();
         name.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         nameRow.AddChild(name);
         nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : L.T("NIVEAU MAX"), 22, UiKit.Sky, 6, HorizontalAlignment.Right));
@@ -86,7 +87,7 @@ public partial class ProfileScreen : Control
         stats.AddChild(Heading("STATISTIQUES"));
         int matches = Achievements.GetStat(AchievementDefs.StatMatches), wins = Achievements.GetStat(AchievementDefs.StatWins);
         StatRow(stats, "Matchs joués", matches.ToString());
-        StatRow(stats, "Victoires", matches > 0 ? $"{wins}  ({100 * wins / matches} %)" : wins.ToString());
+        StatRow(stats, "Victoires", matches > 0 ? $"{wins}  ({L.F("{0} %", 100 * wins / matches)})" : wins.ToString());
         StatRow(stats, "KO infligés", Achievements.GetStat(AchievementDefs.StatKos).ToString());
         StatRow(stats, "Balles attrapées", Achievements.GetStat(AchievementDefs.StatCatches).ToString());
         StatRow(stats, "Arrêts parfaits", Achievements.GetStat(AchievementDefs.StatPerfects).ToString());
