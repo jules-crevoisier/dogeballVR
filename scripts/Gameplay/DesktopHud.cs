@@ -1569,7 +1569,7 @@ public partial class DesktopHud : CanvasLayer
     /// (le texte blanc reste lisible), trame de points d'affiche contre le bord, séparation droite. La moitié bleue porte la
     /// bande marine de la séparation. Dessinée à la taille de l'écran ; elle glisse en entier (Position.X).
     /// </summary>
-    sealed partial class InterHalf : Control
+    internal sealed partial class InterHalf : Control
     {
         public int Team;
         public const float Slant = 0f;   // séparation verticale (DA « Affiche » : rien de penché)
