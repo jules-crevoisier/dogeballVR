@@ -90,6 +90,7 @@ public partial class EndScreen : CanvasLayer
         root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
+        guardUntil = Time.GetTicksMsec() / 1000.0 + 0.8;
         TestKeys();
 
         // Podium d'abord, s'il y a une équipe gagnante à montrer (toujours le cas en fin de partie, client compris).
@@ -111,9 +112,13 @@ public partial class EndScreen : CanvasLayer
     /// Deuxième phase : le tableau. Après le podium, il arrive de la droite pendant que le podium sort par la gauche,
     /// puis le podium (sa scène 3D) est libéré ; sa cascade d'apparition démarre au milieu du glissement.
     /// </summary>
+    /// <summary>Fin de la garde des appuis (voir <see cref="_Input"/>), en secondes depuis le lancement.</summary>
+    double guardUntil;
+
     void ShowStats()
     {
         if (root == null || page != null) return;
+        guardUntil = Time.GetTicksMsec() / 1000.0 + 0.8;
         page = new Control { Name = "Tableau", MouseFilter = Control.MouseFilterEnum.Ignore };
         page.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(page);
@@ -207,9 +212,9 @@ public partial class EndScreen : CanvasLayer
             buttons.AddChild(autoLabel);
             // Hôte de la salle : tout le monde a lu, on y retourne sans attendre la fin du compte à rebours.
             if (BackToRoom && View.CanRestart)
-                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76), "A"));
+                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76), ""));
         }
-        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), "A"));
+        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), ""));   // à la manette A valide le bouton sélectionné : pas de touche dessinée
         else
         {
             var wait = UiKit.Text("En attente de l'hôte…", 32, UiKit.Sky, 8, HorizontalAlignment.Center);
@@ -289,6 +294,13 @@ public partial class EndScreen : CanvasLayer
     public override void _Input(InputEvent e)
     {
         if (root == null || PauseMenu.IsOpen || Autoplay) return;
+        // Garde : un joueur qui enchaîne sauts (A) ou esquives quand la partie se termine ne passe pas le podium et ne
+        // relance pas la partie par mégarde. Les appuis des premières 0,8 s de chaque page sont avalés.
+        if (Time.GetTicksMsec() / 1000.0 < guardUntil)
+        {
+            if (e is InputEventKey { Pressed: true } or InputEventJoypadButton { Pressed: true } or InputEventMouseButton { Pressed: true }) GetViewport().SetInputAsHandled();
+            return;
+        }
         if (page == null)
         {
             bool skip = e is InputEventKey { Pressed: true, Echo: false } sk && sk.Keycode is Key.Enter or Key.KpEnter or Key.Space
@@ -301,9 +313,7 @@ public partial class EndScreen : CanvasLayer
             ShowStats();
             return;
         }
-        // A à la manette = Entrée : rejouer quel que soit le bouton sélectionné (la touche est dessinée sur REJOUER).
-        if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter
-            || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A })
+        if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
         {
             if (!replayKey) return;
             GetViewport().SetInputAsHandled();

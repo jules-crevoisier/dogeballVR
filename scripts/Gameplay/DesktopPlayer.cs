@@ -169,6 +169,7 @@ public partial class DesktopPlayer : Node3D
     public float DashRecharge01 => dashCharges >= MaxCharges ? 1f : (float)(1 - dashRechargeLeft / RechargeTime);
     bool padActive;
     bool prevJump, prevDodge, prevCatch, prevPass, prevLob, prevFeint, prevCrouch, crouchToggled;
+    int seenPauseCloses = PauseMenu.CloseCount;
     double catchOpenedAt = -10, feintUntil, perfectClaimAt = -10;
     bool ignoreClicksUntilRelease, fireLatch;
     float fov = 100f;   // champ horizontal (Knockout City : large, réglable) ; cadré sur la largeur pour ne pas être en fisheye en 16:9
@@ -436,6 +437,12 @@ public partial class DesktopPlayer : Node3D
         var m = Input.GetVector("move_left", "move_right", "move_forward", "move_back");   // stick analogique ou touches
         bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
         bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
+        if (PauseMenu.CloseCount != seenPauseCloses)
+        {
+            // Sortie de la pause : un bouton encore tenu (B qui l'a refermée, A qui a validé REPRENDRE) ne compte pas comme un appui.
+            seenPauseCloses = PauseMenu.CloseCount;
+            prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
+        }
         if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }
         else crouchToggled = false;
         var input = new PcInput
@@ -1430,7 +1437,7 @@ public partial class DesktopPlayer : Node3D
         ghostMat ??= new StandardMaterial3D
         {
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            AlbedoColor = new Color(0.78f, 0.84f, 0.95f, 0.12f), CullMode = BaseMaterial3D.CullModeEnum.Back,
+            AlbedoColor = new Color(0.08f, 0.08f, 0.11f, 0.2f), CullMode = BaseMaterial3D.CullModeEnum.Back,   // encre légère : le couvert assombrit un peu au lieu de voiler le joueur de blanc
         };
         var keep = new System.Collections.Generic.HashSet<MeshInstance3D>();
         var roots = new System.Collections.Generic.List<Node3D>(coversThrough);

@@ -7,7 +7,8 @@ namespace DogeballVR.Tools;
 /// Parcours des écrans à la manette, sans manette : <c>--pad-walk=bas,bas,a,shot,b</c> envoie un appui toutes les
 /// 0,4 s (après 2 s d'attente) et écrit à chaque fois le contrôle qui a le focus (« [Manette] 3 bas → … »).
 /// Appuis : <c>haut bas gauche droite</c> (croix), <c>s-haut s-bas s-gauche s-droite</c> (stick gauche),
-/// <c>a b x y lb rb start back</c>, <c>pause</c> (rien pendant 0,4 s), <c>shot</c> (capture PNG dans
+/// <c>a b x y lb rb start back</c>, <c>pause</c> (rien pendant 0,4 s), <c>APPUI+</c> (tenu jusqu'à <c>lache</c>),
+/// <c>flot-bas</c>… (rafale de valeurs comme un vrai stick), <c>shot</c> (capture PNG dans
 /// <c>--pad-walk-shots=DOSSIER</c>, nommée <c>pad-NN.png</c>). Le jeu se ferme à la fin du parcours.
 /// Outil de développement (preuve que chaque écran se parcourt à la manette).
 /// </summary>
@@ -55,6 +56,21 @@ public partial class PadWalk : Node
         }
         string step = steps[next++].Trim();
         if (step == "shot") Shot();
+        else if (step == "lache")
+        {
+            foreach (var axis in new[] { JoyAxis.LeftX, JoyAxis.LeftY }) Input.ParseInputEvent(new InputEventJoypadMotion { Axis = axis, AxisValue = 0f, Device = 0 });
+            foreach (var b in Buttons.Values) Input.ParseInputEvent(new InputEventJoypadButton { ButtonIndex = b, Pressed = false, Device = 0 });
+        }
+        else if (step.StartsWith("flot-") && Sticks.TryGetValue("s-" + step[5..], out var fl))
+        {
+            // Comme un vrai stick : une rafale de valeurs croissantes au-delà du seuil, puis retour au centre.
+            foreach (float v in new[] { 0.3f, 0.55f, 0.7f, 0.85f, 1f, 1f }) Input.ParseInputEvent(new InputEventJoypadMotion { Axis = fl.axis, AxisValue = v * fl.sign, Device = 0 });
+            release = "s-" + step[5..];
+        }
+        else if (step.EndsWith("+"))
+        {
+            if (!Send(step[..^1], true)) GD.PrintErr($"[Manette] appui inconnu : « {step} »");   // tenu jusqu'à « lache »
+        }
         else if (step != "pause")
         {
             if (!Send(step, true)) GD.PrintErr($"[Manette] appui inconnu : « {step} »");

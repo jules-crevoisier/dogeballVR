@@ -203,7 +203,10 @@ public static class InputSetup
     public static void Track(InputEvent e)
     {
         if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f) UsingPad = true;
-        else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true } || e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 25f) UsingPad = false;
+        // Sur Steam Deck, le pavé tactile et l'écran envoient des mouvements de souris : seuls un clic ou une touche repassent
+        // les aides au clavier.
+        else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }
+            || e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 25f && !GameSettings.OnSteamDeck) UsingPad = false;
     }
 
     /// <summary>Boutons à la façon d'une manette Xbox (disposition reprise par Steam Input et le Steam Deck).</summary>
@@ -278,6 +281,52 @@ public static class InputSetup
 /// <summary>Suit le dernier appareil utilisé (manette ou clavier-souris) pour les aides de touches.</summary>
 public partial class InputDeviceWatch : Node
 {
+    // Menus à la manette (quand un contrôle a le focus) :
+    // - un vrai stick envoie un flot d'événements au-delà du seuil : seul le franchissement du seuil passe à l'interface,
+    //   le reste est avalé (l'état des actions, lu par le jeu, n'est pas touché ; Godot 4.3 filtre déjà, c'est une sûreté) ;
+    // - stick ou croix maintenus : répétition après 0,4 s, toutes les 0,09 s (listes, curseurs).
+    const float Threshold = 0.5f, RepeatDelay = 0.4f, RepeatEvery = 0.09f;
+    readonly int[] stick = new int[2];   // direction tenue par axe (LeftX, LeftY) : -1, 0, 1
+    JoyButton? dpad;
+    double held, nextRepeat;
+    bool pushing;
+
     public override void _Ready() => ProcessMode = ProcessModeEnum.Always;
-    public override void _Input(InputEvent e) => InputSetup.Track(e);
+
+    public override void _Input(InputEvent e)
+    {
+        InputSetup.Track(e);
+        if (pushing) return;
+        if (e is InputEventJoypadMotion { Axis: JoyAxis.LeftX or JoyAxis.LeftY } m)
+        {
+            int axis = m.Axis == JoyAxis.LeftX ? 0 : 1;
+            int dir = m.AxisValue >= Threshold ? 1 : m.AxisValue <= -Threshold ? -1 : 0;
+            if (dir != 0 && dir == stick[axis] && Focused()) { GetViewport().SetInputAsHandled(); return; }   // même direction encore tenue
+            if (dir != stick[axis]) { stick[axis] = dir; held = 0; nextRepeat = RepeatDelay; }
+        }
+        else if (e is InputEventJoypadButton { ButtonIndex: JoyButton.DpadUp or JoyButton.DpadDown or JoyButton.DpadLeft or JoyButton.DpadRight } b)
+        {
+            if (b.Pressed) { dpad = b.ButtonIndex; held = 0; nextRepeat = RepeatDelay; }
+            else if (dpad == b.ButtonIndex) dpad = null;
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        bool any = stick[0] != 0 || stick[1] != 0 || dpad != null;
+        if (!any || !Focused()) { held = 0; nextRepeat = RepeatDelay; return; }
+        held += delta;
+        if (held < nextRepeat) return;
+        nextRepeat += RepeatEvery;
+        // Répétition : le même appui renvoyé à l'interface seulement (PushInput ne passe pas par l'état des actions).
+        // Le stick est répété comme la croix : Godot ne déplace le focus sur un mouvement de stick qu'au moment où l'action
+        // vient d'être enfoncée, jamais sur un mouvement renvoyé.
+        JoyButton button = dpad ?? (stick[1] < 0 ? JoyButton.DpadUp : stick[1] > 0 ? JoyButton.DpadDown : stick[0] < 0 ? JoyButton.DpadLeft : JoyButton.DpadRight);
+        InputEvent again = new InputEventJoypadButton { ButtonIndex = button, Pressed = true, Device = 0 };
+        pushing = true;
+        GetViewport().PushInput(again);
+        pushing = false;
+    }
+
+    bool Focused() => GetViewport().GuiGetFocusOwner() != null;
 }

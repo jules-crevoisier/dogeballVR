@@ -214,10 +214,10 @@ public partial class MainMenu : CanvasLayer
     Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
     {
         var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
-        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 80 : 50) };
+        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? (compact ? 66 : 80) : (compact ? 44 : 50)) };   // petit écran (Steam Deck) : la colonne tient au-dessus des aides
         b.SetMeta(ItemMeta, true);
         foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        b.AddThemeFontSizeOverride("font_size", main ? 64 : 34);
+        b.AddThemeFontSizeOverride("font_size", main ? (compact ? 56 : 64) : (compact ? 30 : 34));
         if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
         b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
         var rest = restColor ?? (main ? UiKit.Cream : UiKit.Lavender);   // gris chaud : 3e niveau de hiérarchie

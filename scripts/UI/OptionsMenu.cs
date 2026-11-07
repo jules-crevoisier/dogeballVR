@@ -153,6 +153,12 @@ public partial class OptionsMenu : Control
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
         col.AddChild(bottom);
+        var hints = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
+        hints.AddThemeConstantOverride("separation", 32);
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 20, "A"));
+        hints.AddChild(UiKit.KeyHint("Échap", "Retour", 20, "B"));
+        hints.Modulate = new Color(1, 1, 1, 0.8f);
+        col.AddChild(hints);
         col.AddChild(UiKit.Spacer(4));
         bottom.AddChild(UiKit.Button("PAR DÉFAUT", UiKit.Grey, ResetTab, 24, new Vector2(260, 56)));
         var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
@@ -219,17 +225,15 @@ public partial class OptionsMenu : Control
                 GetViewport().SetInputAsHandled();
                 if (InputSetup.RebindPad(listening, e)) Sfx.Play(this, SfxKind.UiClick);
                 else Sfx.Play(this, SfxKind.UiBack);
-                StopListening();
-                ShowTab(1);
+                RebuildAfterRebind();
                 return;
             }
             if (!key && !mouse) return;
             GetViewport().SetInputAsHandled();
-            if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { StopListening(); ShowTab(1); return; }   // remet la touche affichée
+            if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { RebuildAfterRebind(); return; }   // remet la touche affichée
             InputSetup.Rebind(listening, e);
             Sfx.Play(this, SfxKind.UiClick);
-            StopListening();
-            ShowTab(1);
+            RebuildAfterRebind();
             return;
         }
         if (e.IsActionPressed("pause") || e.IsActionPressed("ui_cancel"))
@@ -254,6 +258,18 @@ public partial class OptionsMenu : Control
         var cap = UiKit.KeyCap(pad, 20, 52);
         UiKit.FollowDevice(cap, "", pad);
         return cap;
+    }
+
+    /// <summary>Fin d'une réassignation : la liste est reconstruite et le focus revient sur la même ligne (sinon la manette
+    /// n'a plus rien de sélectionné).</summary>
+    void RebuildAfterRebind()
+    {
+        int index = listeningButton == null ? -1 : rows.FindIndex(r => IsInstanceValid(r.row) && r.row.IsAncestorOf(listeningButton));
+        StopListening();
+        ShowTab(1);
+        if (index < 0 || index >= rows.Count) return;
+        foreach (var c in rows[index].row.FindChildren("*", "Button", true, false))
+            if (c is Button b) { b.CallDeferred(Control.MethodName.GrabFocus); break; }
     }
 
     void StopListening()

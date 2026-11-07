@@ -50,6 +50,7 @@ public partial class LobbyScreen : CanvasLayer
         content = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         content.SetAnchorsPreset(Control.LayoutPreset.Center);
         content.OffsetLeft = -W / 2; content.OffsetRight = W / 2; content.OffsetTop = -H / 2; content.OffsetBottom = H / 2;
+        content.PivotOffset = new Vector2(W / 2, H / 2);
         root.AddChild(content);
         lobby.Changed += MarkDirty;
         Input.MouseMode = Input.MouseModeEnum.Visible;
@@ -61,6 +62,11 @@ public partial class LobbyScreen : CanvasLayer
 
     public override void _Process(double delta)
     {
+        // Écran plus petit que la maquette 1920×1080 (Steam Deck en « Très grande » interface) : tout est réduit d'un bloc,
+        // centré, au lieu d'être coupé sur les bords.
+        var view = content.GetViewportRect().Size;
+        float fit = Mathf.Min(1f, Mathf.Min(view.X / W, view.Y / H));
+        if (!Mathf.IsEqualApprox(content.Scale.X, fit)) content.Scale = new Vector2(fit, fit);
         if (rematchLabel != null && IsInstanceValid(rematchLabel))
             rematchLabel.Text = Mathf.CeilToInt((float)lobby.RematchIn).ToString();
         if (quickLabel != null && IsInstanceValid(quickLabel))
@@ -150,7 +156,7 @@ public partial class LobbyScreen : CanvasLayer
         hints.AddThemeConstantOverride("separation", 40);
         hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 22, "A"));
         if (lobby.IsHost) hints.AddChild(UiKit.KeyHint("Q / E", "Carte", 22, "LB / RB"));
-        hints.AddChild(UiKit.KeyHint(InputSetup.KeyboardName("pause"), "Quitter la salle", 22, "B"));
+        hints.AddChild(UiKit.KeyHint("Échap", "Quitter la salle", 22, "B"));   // ui_cancel : Échap, pas la touche de pause
         c.AddChild(hints);
     }
 
@@ -566,10 +572,15 @@ void fragment() {
 
     public override void _Input(InputEvent e)
     {
-        // Échap / B : quitter la salle (comme l'aide de bas d'écran l'annonce).
+        // Échap / B : le premier appui sélectionne QUITTER LA SALLE, le second quitte. Un joueur qui esquive encore (B)
+        // au retour d'un match ne quitte pas son groupe par mégarde.
         if (lobby.State == LobbyState.InRoom && e.IsActionPressed("ui_cancel"))
         {
             GetViewport().SetInputAsHandled();
+            var buttons = new List<Button>();
+            Collect(content, buttons);
+            var quit = buttons.FirstOrDefault(b => b.Text == "QUITTER LA SALLE");
+            if (quit != null && GetViewport().GuiGetFocusOwner() != quit) { quit.GrabFocus(); return; }
             Sfx.Play(this, SfxKind.UiBack);
             BackToMenu();
         }

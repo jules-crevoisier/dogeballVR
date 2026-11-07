@@ -42,3 +42,29 @@ fois, B sans effet sur la pause. Captures : `avant-profil-aide-clavier.png`, `av
 
 Captures : `menu-a-valider.png`, `cartes-manette.png`, `options-onglet-manette.png`, `salon-manette.png`,
 `pause-manette.png`, `fin-manette.png`.
+
+## Deuxième tour (après revue : 6/10)
+
+Corrigé après la revue indépendante :
+
+- fin de partie : A valide le bouton sélectionné (plus de raccourci A caché vers REJOUER), et les appuis des 0,8 premières
+  secondes du podium et du tableau sont avalés : enchaîner les sauts au coup de sifflet ne relance plus la partie ;
+- salon : B (ou Échap) sélectionne d'abord QUITTER LA SALLE, le second appui quitte ;
+- pause : en sortant, un bouton encore tenu ne compte pas comme un appui (B qui referme la pause ne fait plus esquiver) ;
+  aide complète sur Y (Vue reste le tableau des scores) ;
+- options : le focus revient sur la ligne après une réassignation ; barre « A Valider · B Retour » ;
+- stick ou croix maintenus : la sélection défile (0,4 s puis toutes les 0,09 s), une rafale de stick ne saute qu'une ligne :
+
+```
+[Manette] 2 flot-bas → « ENTRAÎNEMENT »      (rafale 0,3 → 1,0 : une seule ligne)
+[Manette] 2 s-bas+ → « ENTRAÎNEMENT »        (stick tenu…)
+[Manette] 3 pause → « OPTIONS »              (… la sélection descend)
+[Manette] 1 pause → « LANCER LA PARTIE »
+[Manette] 2 b → « QUITTER LA SALLE »         (premier B : sélection)
+[Lobby] Salle quittée                        (second B)
+[Manette] 17 y → « Y »  /  19 s-bas → « L3 »  (réassignation : le focus reste dans la liste)
+```
+
+- Steam Deck : les mouvements du pavé tactile ne repassent plus les aides au clavier.
+
+Restent à vérifier sur un vrai Deck : stick physique, pavé tactile, clavier de Steam pour le code de salle.

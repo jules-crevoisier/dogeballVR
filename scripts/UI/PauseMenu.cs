@@ -14,6 +14,10 @@ public partial class PauseMenu : CanvasLayer
     /// <summary>Vrai tant que le menu (ou un de ses sous-écrans) est affiché : le joueur ne reprend pas la souris au clic.</summary>
     public static bool IsOpen { get; private set; }
 
+    /// <summary>Nombre de fermetures de la pause : le joueur ignore les boutons encore tenus en sortant (B qui referme la
+    /// pause ne déclenche pas d'esquive, A ne fait pas sauter).</summary>
+    public static int CloseCount { get; private set; }
+
     /// <summary>Hors ligne : le monde se fige pendant la pause.</summary>
     public bool CanFreeze { get; set; } = true;
     public Action? Restart { get; set; }
@@ -52,7 +56,7 @@ public partial class PauseMenu : CanvasLayer
     public override void _UnhandledInput(InputEvent e)
     {
         // F1 pendant la pause : l'aide complète (le HUD, lui, ignore F1 tant que la pause est ouverte).
-        if ((e.IsActionPressed("help") || e.IsActionPressed("scoreboard")) && IsOpen && sub == null) { GetViewport().SetInputAsHandled(); ShowHelp(); return; }
+        if ((e.IsActionPressed("help") || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.Y }) && IsOpen && sub == null) { GetViewport().SetInputAsHandled(); ShowHelp(); return; }
         // B (retour) referme aussi la pause ouverte ; hors pause, B reste l'esquive.
         if (IsOpen && sub == null && e is InputEventJoypadButton && e.IsActionPressed("ui_cancel")) { GetViewport().SetInputAsHandled(); Close(); return; }
         if (!e.IsActionPressed("pause")) return;
@@ -81,6 +85,7 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!IsOpen) return;
         IsOpen = false;
+        CloseCount++;
         root?.QueueFree();
         if (CanFreeze) GetTree().Paused = false;
         Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -133,7 +138,7 @@ public partial class PauseMenu : CanvasLayer
         card.AddChild(list);
         list.AddChild(UiKit.Title("COMMANDES", 38, HorizontalAlignment.Left));
         list.AddChild(CommandGrid(24, 12));
-        var hint = UiKit.KeyHint(InputSetup.KeyboardName("help"), "Aide complète", 22, InputSetup.PadName("scoreboard"));   // à la manette : Vue
+        var hint = UiKit.KeyHint(InputSetup.KeyboardName("help"), "Aide complète", 22, "Y");   // à la manette : Y (Vue est le tableau des scores)
         hint.Modulate = new Color(1, 1, 1, 0.8f);
         list.AddChild(hint);
         // Largeur réelle avant le glissement d'entrée (qui retient la position) : la carte s'étend vers la gauche,
