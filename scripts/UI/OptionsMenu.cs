@@ -28,9 +28,6 @@ public partial class OptionsMenu : Control
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
-    /// <summary>Décalage du panneau vers la droite (px) : au menu principal, il laisse la place aux aides de touches du coin bas gauche.</summary>
-    public float ShiftRight { get; set; }
-
     /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre CLAVIER).</summary>
     public int FirstTab { get; set; }
 
@@ -99,7 +96,6 @@ public partial class OptionsMenu : Control
         var center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
         center.SetAnchorsAndOffsetsPreset(LayoutPreset.TopWide);
         center.OffsetTop = center.OffsetBottom = TopMargin;
-        center.OffsetLeft = ShiftRight;
         AddChild(center);
         panel = new PanelContainer { CustomMinimumSize = new Vector2(1120, 0) };
         panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(22, 34));   // opaque : la fenêtre du menu principal

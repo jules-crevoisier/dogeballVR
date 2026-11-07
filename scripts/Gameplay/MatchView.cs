@@ -157,7 +157,7 @@ public sealed class MatchView
     public string NameOf(int id) => id == LocalId ? DogeballVR.UI.L.T("Toi") : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? BotName(id) : DogeballVR.UI.L.F("Joueur {0}", id + 1);
 
     /// <summary>Surnoms des bots, à la façon des joueurs de rue : un par numéro de zone (toujours le même d'une partie à l'autre).</summary>
-    static readonly string[] BotNames = { "Rafale", "Mistral", "Bolt", "Turbo", "Comète", "Ricochet", "Zigzag", "Volt" };
+    static readonly string[] BotNames = { "Rafale", "Mistral", "Bolt", "Turbo", "Nova", "Ricochet", "Zigzag", "Volt" };
     /// <summary>Surnom du bot qui tient la zone <paramref name="id"/> (étiquettes, fil des KO, tableaux, bandeaux).</summary>
     public static string BotName(int id) => BotNames[((id % BotNames.Length) + BotNames.Length) % BotNames.Length];
     public int TeamOf(int id) { foreach (var p in Players) if (p.Id == id) return p.Team; return -1; }

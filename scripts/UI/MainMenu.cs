@@ -126,7 +126,7 @@ public partial class MainMenu : CanvasLayer
         Music.PlayMenu();
         ShowMain();
         if (Tools.DevFlags.Has("--profile-test")) ShowProfile();   // captures
-        if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1, ShiftRight = OptionsShift });
+        if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1 });
         // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--menu-page="))
@@ -250,7 +250,7 @@ public partial class MainMenu : CanvasLayer
             Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
             Item("EN LIGNE", ShowOnline),
             Item("PROFIL", ShowProfile),
-            Item("OPTIONS", () => OpenOverlay(new OptionsMenu { ShiftRight = OptionsShift })),
+            Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
             UiKit.Spacer(14),
             Item("CRÉDITS", ShowCredits, false),
             Item("QUITTER", () => GetTree().Quit(), false));
@@ -476,14 +476,14 @@ public partial class MainMenu : CanvasLayer
         return holder;
     }
 
-    const float OptionsShift = 160f;   // options : panneau décalé de 80 px, l'aide « Échap Retour » ne touche plus son cadre
-
     void OpenOverlay(Control c)
     {
         CloseOverlay();
         column.Visible = false;
         overlay = c;
-        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; ShowMain(); };
+        // Options : leur panneau a son bouton RETOUR et sa ligne d'aide ; l'aide du coin bas gauche toucherait son cadre.
+        hintBar.Visible = c is not OptionsMenu;
+        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; hintBar.Visible = true; ShowMain(); };
         root.AddChild(c);
         root.MoveChild(hintBar, -1);
         root.MoveChild(fade, -1);
