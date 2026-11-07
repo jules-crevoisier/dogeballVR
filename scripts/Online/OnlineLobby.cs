@@ -4,6 +4,7 @@ using System.Linq;
 using Godot;
 using DogeballVR.Maps;
 using DogeballVR.Net;
+using DogeballVR.UI;
 
 namespace DogeballVR.Online;
 
@@ -51,6 +52,32 @@ public partial class OnlineLobby : Node
     public bool CodeIsInternet { get; private set; }
     /// <summary>Dernier message d'état ou d'erreur, pour l'écran du lobby et le menu.</summary>
     public string Status { get; private set; } = "";
+
+    static readonly (System.Text.RegularExpressions.Regex Re, string Template)[] StatusForms =
+    {
+        (new(@"^Connexion à (.+)…$"), "Connexion à {0}…"),
+        (new(@"^Connexion perdue : reconnexion… \((\d+) s\)$"), "Connexion perdue : reconnexion… ({0} s)"),
+        (new(@"^Version différente \(hôte (.+), vous (.+)\) : mettez le jeu à jour$"), "Version différente (hôte {0}, vous {1}) : mettez le jeu à jour"),
+        (new(@"^(.+) est en casque$"), "{0} est en casque"),
+        (new(@"^Impossible d'ouvrir la partie \(port (\d+) : (.+)\)$"), "Impossible d'ouvrir la partie (port {0} : {1})"),
+        (new(@"^Connexion impossible : (.+)$"), "Connexion impossible : {0}"),
+    };
+
+    /// <summary>
+    /// <see cref="Status"/> dans la langue du joueur. Le statut reste en français (journaux, tests de la CI) ; on ne le traduit qu'à
+    /// l'affichage, gabarits compris (« Connexion à {0}… »).
+    /// </summary>
+    public static string Display(string status)
+    {
+        foreach (var (re, template) in StatusForms)
+            if (re.Match(status) is { Success: true } m)
+            {
+                var args = new object[m.Groups.Count - 1];
+                for (int i = 1; i < m.Groups.Count; i++) args[i - 1] = m.Groups[i].Value;
+                return L.F(template, args);
+            }
+        return L.T(status);
+    }
     /// <summary>Après une partie : secondes avant la revanche automatique (0 = aucune). Annulée dès que quelqu'un n'est plus prêt.</summary>
     public double RematchIn { get; private set; }
     public const double RematchSeconds = 10.0;

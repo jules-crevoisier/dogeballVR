@@ -196,7 +196,7 @@ public partial class EndPodium : Control
         title = UiKit.Text(win ? "VICTOIRE !" : "DÉFAITE", 150, win ? UiKit.Yellow : new Color("9fb4d8"), 28, HorizontalAlignment.Center);
         AddChild(title);
         var s = View.State;
-        sub = UiKit.Text($"MANCHES  {s.Rounds(Winner)} - {s.Rounds(1 - Winner)}", 34, UiKit.Cream, 10, HorizontalAlignment.Center);
+        sub = UiKit.Text(L.F("MANCHES  {0} - {1}", s.Rounds(Winner), s.Rounds(1 - Winner)), 34, UiKit.Cream, 10, HorizontalAlignment.Center);
         AddChild(sub);
         title.Scale = Vector2.One * 2.2f;
         title.Modulate = new Color(1, 1, 1, 0);
@@ -252,7 +252,7 @@ public partial class EndPodium : Control
             col.AddChild(head);
             col.AddChild(plate);
             if (Stats != null && Stats.TryGetValue(id, out var st))
-                col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {st.Hits} {(st.Hits > 1 ? "touches" : "touche")}", 28, UiKit.Cream, 6, HorizontalAlignment.Center));
+                col.AddChild(UiKit.Text(L.F("{0} KO   ·   {1}", st.Kos, L.Plural(st.Hits, "{0} touche", "{0} touches")), 28, UiKit.Cream, 6, HorizontalAlignment.Center));
             card = frame;
         }
         card.Modulate = new Color(1, 1, 1, 0);

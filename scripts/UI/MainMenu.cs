@@ -112,7 +112,7 @@ public partial class MainMenu : CanvasLayer
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"ACCÈS ANTICIPÉ · V{(ver == "" ? "0.1" : ver)}", 18, new Color(UiKit.Cream, 0.85f), 5, HorizontalAlignment.Right);
+        var version = UiKit.Text(L.F("ACCÈS ANTICIPÉ · V{0}", ver == "" ? "0.1" : ver), 18, new Color(UiKit.Cream, 0.85f), 5, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
         root.AddChild(version);
@@ -409,8 +409,9 @@ public partial class MainMenu : CanvasLayer
         {
             var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(400, 60));
             // « 3 contre 3. Deux toits… » : le format en accent, la description dessous.
-            int dot = text.IndexOf(". ", StringComparison.Ordinal);
-            string head = dot > 0 ? text[..dot].ToUpperInvariant() : "", body = dot > 0 ? text[(dot + 2)..] : text;
+            string tr = L.T(text);   // traduit avant d'être coupé en format + description
+            int dot = tr.IndexOf(". ", StringComparison.Ordinal);
+            string head = dot > 0 ? tr[..dot].ToUpperInvariant() : "", body = dot > 0 ? tr[(dot + 2)..] : tr;
             string path = $"res://assets/ui/cartes/{map}.jpg";
             b.FocusEntered += () =>
             {

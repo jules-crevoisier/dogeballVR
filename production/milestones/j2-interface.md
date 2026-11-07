@@ -19,7 +19,7 @@ artistique, que jules n'aime pas en l'état.
 - [ ] Direction artistique de l'interface validée sur planches (captures du vrai jeu) avant intégration
 - [ ] Tous les écrans du PC refaits : titre, menu, solo, en ligne, salon, options, HUD, pause, fin de manche, fin de partie
 - [ ] Navigation complète à la souris et à la manette
-- [ ] Textes FR et EN (aucune chaîne en dur hors tables de traduction)
+- [x] Textes FR et EN (aucune chaîne en dur hors tables de traduction) : `assets/i18n/textes.csv`, langue dans les options, contrôle en CI (`tools/i18n/extract.py --check`) ; les journaux restent en français
 - [ ] Revue indépendante ≥ 8/10 sur chaque écran
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware

@@ -28,10 +28,10 @@ public partial class OptionsMenu : Control
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
-    /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre TOUCHES).</summary>
+    /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre CLAVIER).</summary>
     public int FirstTab { get; set; }
 
-    static readonly string[] TabNames = { "CONTRÔLES", "TOUCHES", "AUDIO", "VIDÉO" };
+    static readonly string[] TabNames = { "CONTRÔLES", "CLAVIER", "AUDIO", "VIDÉO" };
     /// <summary>Texte du bas quand aucune ligne n'est survolée.</summary>
     static readonly string[] TabHints =
     {
@@ -44,6 +44,7 @@ public partial class OptionsMenu : Control
     /// <summary>Description de chaque option (en bas du panneau), par libellé : une ligne ajoutée ailleurs y met la sienne.</summary>
     static readonly System.Collections.Generic.Dictionary<string, string> Help = new()
     {
+        ["Langue / Language"] = "Langue des textes du jeu. Automatique : celle du système (anglais si elle n'est pas le français).",
         ["Difficulté des bots"] = "Niveau des bots qui complètent les équipes, hors ligne comme en ligne.",
         ["Aides contextuelles (premières parties)"] = "Pendant tes premières parties, rappelle la bonne touche au bon moment (attraper, esquiver, charger).",
         ["Ouvrir le port sur ma box (UPnP)"] = "Pour héberger par Internet sans Steam : demande à ta box d'ouvrir le port UDP 7777 tant que ta salle est ouverte. Le code de salle contient alors ton adresse IP publique. NON : jeu en réseau local ou par Steam seulement.",
@@ -256,6 +257,8 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 Section("Partie", true);
+                Choice("Langue / Language", new[] { "Automatique", "Français", "English" }, System.Array.IndexOf(Languages, GameSettings.Language) is int li and >= 0 ? li : 0,
+                    k => GameSettings.Language = Languages[k]);
                 Choice("Difficulté des bots", new[] { "Facile", "Normal", "Difficile" }, GameSettings.BotLevel, k => GameSettings.BotLevel = k);
                 Toggle("Aides contextuelles (premières parties)", GameSettings.ContextHints, v => GameSettings.ContextHints = v);
                 Toggle("Ouvrir le port sur ma box (UPnP)", GameSettings.Upnp, v => GameSettings.Upnp = v);
@@ -297,6 +300,9 @@ public partial class OptionsMenu : Control
         }
     }
 
+    /// <summary>Réglages de langue proposés, dans l'ordre de la liste (voir L.Apply).</summary>
+    static readonly string[] Languages = { "auto", "fr", "en" };
+
     static string Pct(float v) => $"{v * 100:0} %";
 
     void ResetTab()
@@ -325,7 +331,7 @@ public partial class OptionsMenu : Control
         if (!first) list.AddChild(UiKit.Spacer(8));
         var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 16);
-        var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
+        var l = UiKit.Text(L.T(text).ToUpperInvariant(), 30, UiKit.Cream, 8);
         UiKit.Poster(l);
         h.AddChild(l);
         var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
@@ -412,7 +418,7 @@ public partial class OptionsMenu : Control
     void KeyRow(InputSetup.ActionDef a)
     {
         string help = a.Secondary != null
-            ? $"Clique puis appuie sur la nouvelle touche. {InputSetup.Describe(a.Secondary)} marche aussi (touche fixe)."
+            ? L.F("Clique puis appuie sur la nouvelle touche. {0} marche aussi (touche fixe).", InputSetup.Describe(a.Secondary))
             : "Clique puis appuie sur la nouvelle touche. Échap annule.";
         if (InputSetup.UsingPad)
             help = InputSetup.PadRemappable(a)

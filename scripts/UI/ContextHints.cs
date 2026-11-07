@@ -48,15 +48,15 @@ public partial class ContextHints : CanvasLayer
     public override void _Ready()
     {
         Layer = 31;   // au-dessus du HUD et de la carte de l'entraînement, sous l'écran de fin
-        hints.Add(new("catch", () => $"{K("catch")}  ATTRAPE !", () => Incoming && !Holding && Player.CatchState == 0,
+        hints.Add(new("catch", () => L.F("{0}  ATTRAPE !", K("catch")), () => Incoming && !Holding && Player.CatchState == 0,
             () => Stat(AchievementDefs.StatCatches) >= 5, 3, 3, InTutorial: true));
-        hints.Add(new("dodge", () => $"Mains prises : {K("dash")} pour ESQUIVER", () => Incoming && Holding && Player.DashCharges > 0,
+        hints.Add(new("dodge", () => L.F("Mains prises : {0} pour ESQUIVER", K("dash")), () => Incoming && Holding && Player.DashCharges > 0,
             () => Stat(AchievementDefs.StatMatches) >= 4, 2, 8));
         hints.Add(new("special", () => Player.HeldBall?.Kind == Ball.KindBomb
                 ? "BOMBE : elle explose à l'impact et touche tout autour"
                 : "REBOND : elle ricoche sur les murs, vise à côté d'eux",
             () => Player.HeldBall?.Kind is Ball.KindBomb or Ball.KindBounce, () => Stat(AchievementDefs.StatMatches) >= 5, 2, 20));
-        hints.Add(new("charge", () => $"Maintiens {K("fire")} pour charger  ·  {K("pass")} passe à un allié", () => Holding && heldSince >= 0 && age - heldSince > 3.5 && Player.ThrowCharge01 <= 0f,
+        hints.Add(new("charge", () => L.F("Maintiens {0} pour charger  ·  {1} passe à un allié", K("fire"), K("pass")), () => Holding && heldSince >= 0 && age - heldSince > 3.5 && Player.ThrowCharge01 <= 0f,
             () => Stat(AchievementDefs.StatPasses) >= 10 && Stat(AchievementDefs.StatMatches) >= 3, 2, 30));
         hints.Add(new("pickup", () => "Pas de balle ? Cours sur une balle jaune ou sur le plot de ton camp", () => !Holding && emptySince >= 0 && age - emptySince > 9,
             () => Stat(AchievementDefs.StatMatches) >= 2, 1, 60));

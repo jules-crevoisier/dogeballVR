@@ -333,7 +333,7 @@ public partial class DesktopPlayer : Node3D
     {
         GameSettings.Sensitivity = Mathf.Clamp(GameSettings.Sensitivity * factor, 0.0005f, 0.01f);
         GameSettings.Save();
-        ShowToast($"Sensibilité : {GameSettings.Sensitivity / GameSettings.DefaultSensitivity:0.00}x");
+        ShowToast(L.F("Sensibilité : {0:0.00}x", GameSettings.Sensitivity / GameSettings.DefaultSensitivity));
     }
 
     public override void _Process(double delta)

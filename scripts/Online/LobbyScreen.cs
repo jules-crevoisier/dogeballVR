@@ -50,7 +50,7 @@ public partial class LobbyScreen : CanvasLayer
     public override void _Process(double delta)
     {
         if (rematchLabel != null && IsInstanceValid(rematchLabel))
-            rematchLabel.Text = $"Revanche dans {Mathf.CeilToInt((float)lobby.RematchIn)} s : mêmes équipes, même carte";
+            rematchLabel.Text = L.F("Revanche dans {0} s : mêmes équipes, même carte", Mathf.CeilToInt((float)lobby.RematchIn));
         if (quickLabel != null && IsInstanceValid(quickLabel))
             quickLabel.Text = QuickText();
         if (!dirty) return;
@@ -65,12 +65,12 @@ public partial class LobbyScreen : CanvasLayer
             case LobbyState.InMatch: root.AddChild(Title("LANCEMENT…")); break;
             case LobbyState.Idle:
                 root.AddChild(Title("PARTIE EN LIGNE"));
-                root.AddChild(Text(lobby.Status == "" ? "Salle fermée." : lobby.Status, 24));
+                root.AddChild(Text(lobby.Status == "" ? "Salle fermée." : OnlineLobby.Display(lobby.Status), 24));
                 root.AddChild(MakeButton("RETOUR AU MENU", Gray, BackToMenu));
                 break;
             default:
                 root.AddChild(Title(lobby.State == LobbyState.Reconnecting ? "RECONNEXION" : "CONNEXION"));
-                root.AddChild(Text(lobby.Status, 24));
+                root.AddChild(Text(OnlineLobby.Display(lobby.Status), 24));
                 root.AddChild(MakeButton("ANNULER", Gray, BackToMenu));
                 break;
         }
@@ -83,7 +83,7 @@ public partial class LobbyScreen : CanvasLayer
         {
             var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             row.AddThemeConstantOverride("separation", 12);
-            row.AddChild(Inline(Text(lobby.CodeIsInternet ? $"Code : {lobby.Code}" : $"Code (réseau local) : {lobby.Code}", 28)));
+            row.AddChild(Inline(Text(L.F(lobby.CodeIsInternet ? "Code : {0}" : "Code (réseau local) : {0}", lobby.Code), 28)));
             row.AddChild(MakeButton("COPIER", Gray, () => DisplayServer.ClipboardSet(lobby.Code), 160));
             if (SteamBridge.Available && lobby.IsHost) row.AddChild(MakeButton("INVITER DES AMIS", Blue, SteamBridge.OpenInvite, 280));
             root.AddChild(row);
@@ -127,7 +127,7 @@ public partial class LobbyScreen : CanvasLayer
             var inTeam = lobby.Members.Where(m => m.Team == t).ToList();
             foreach (var m in inTeam)
             {
-                string tags = (m.Host ? " · hôte" : "") + (m.Vr ? " · VR" : " · PC");
+                string tags = (m.Host ? L.T(" · hôte") : "") + (m.Vr ? " · VR" : " · PC");
                 var line = Text($"{(m.Ready ? "✔" : "…")}  {m.Name}{tags}", 22, HorizontalAlignment.Left);
                 col.AddChild(line);
             }
@@ -173,7 +173,7 @@ public partial class LobbyScreen : CanvasLayer
         }
         else if (lobby.IsHost && !lobby.CanStart) root.AddChild(Text("En attente que tout le monde soit prêt", 20));
         else if (!lobby.IsHost) root.AddChild(Text("L'hôte lance la partie quand tout le monde est prêt", 20));
-        if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(lobby.Status, 20));
+        if (lobby.Status != "" && lobby.Status.StartsWith("Trop")) root.AddChild(Text(OnlineLobby.Display(lobby.Status), 20));
         root.AddChild(MakeButton("QUITTER LA SALLE", Gray, BackToMenu));
         if (lobby.IsHost && lobby.Members.Count == 1)
             root.AddChild(Text(SteamBridge.Available ? "Invite tes amis avec Steam ou donne-leur le code."
@@ -182,8 +182,8 @@ public partial class LobbyScreen : CanvasLayer
     }
 
     string QuickText() => lobby.Members.All(m => m.Ready)
-        ? $"Lancement dans {Mathf.CeilToInt((float)lobby.QuickStartIn)} s · {lobby.Members.Count}/{lobby.MaxPlayers} joueurs"
-        : "Lancement en pause : un joueur n'est pas prêt";
+        ? L.F("Lancement dans {0} s · {1}/{2} joueurs", Mathf.CeilToInt((float)lobby.QuickStartIn), lobby.Members.Count, lobby.MaxPlayers)
+        : L.T("Lancement en pause : un joueur n'est pas prêt");
 
     // Manette (Steam Deck) : l'écran est reconstruit à chaque changement de la salle ; le focus revient sur le même bouton,
     // sinon sur l'action principale, pour que la croix et A marchent toujours.

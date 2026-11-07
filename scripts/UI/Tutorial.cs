@@ -58,22 +58,22 @@ public partial class Tutorial : CanvasLayer
         Bot.Calm = true;   // dès la première image : pas de tir pendant « REGARDE AUTOUR DE TOI » (Next arrive en différé)
         MatchController.HitScored += OnHit;
         steps.Add(new("REGARDE AUTOUR DE TOI", () => Pad("Le [color=#ffd23f]stick droit[/color] tourne la caméra.", "Bouge la souris pour tourner la caméra."), p => p.LookTravel - start["look"] > 3.5f));
-        steps.Add(new("DÉPLACE-TOI", () => Pad("Le [color=#ffd23f]stick gauche[/color] fait courir sur le toit.", $"{K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")} pour courir sur le toit."), p => p.WalkTravel - start["walk"] > 8f));
-        steps.Add(new("SAUTE", () => $"{K("jump")} pour sauter par-dessus un muret.", p => p.Jumps > start["jumps"]));
+        steps.Add(new("DÉPLACE-TOI", () => Pad("Le [color=#ffd23f]stick gauche[/color] fait courir sur le toit.", L.F("{0} {1} {2} {3} pour courir sur le toit.", K("move_forward"), K("move_left"), K("move_back"), K("move_right"))), p => p.WalkTravel - start["walk"] > 8f));
+        steps.Add(new("SAUTE", () => L.F("{0} pour sauter par-dessus un muret.", K("jump")), p => p.Jumps > start["jumps"]));
         if (Player.MapHasPads)
             steps.Add(new("TREMPLIN", () => "Marche sur un [color=#d2f53c]tremplin[/color] (le disque lumineux au sol) : il te lance vers une plateforme plus haute, d'où l'on tire en plongée.", p => p.Pads > start["pads"]));
-        steps.Add(new("ESQUIVE", () => $"{K("dash")} : un bond éclair, invulnérable pendant l'élan. Tu as deux charges : enchaîne-en deux.", p => p.Dashes - start["dashes"] >= 2));
+        steps.Add(new("ESQUIVE", () => L.F("{0} : un bond éclair, invulnérable pendant l'élan. Tu as deux charges : enchaîne-en deux.", K("dash")), p => p.Dashes - start["dashes"] >= 2));
         steps.Add(new("RAMASSE UNE BALLE", () => "Cours sur une balle pour la prendre. Les balles réapparaissent sur les plots lumineux.", p => p.HeldBall != null));
-        steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger (la jauge se remplit), relâche pour lancer.", p => p.ChargedThrows > start["charged"]));
-        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un bleu (le viseur prend sa couleur) et lance avec {K("fire")}. L'aide à la visée corrige les presque-touches.", _ => hitsByMe > 0));
-        steps.Add(new(CatchTitle, () => $"Quand un bleu te vise (liseré bleu au bord de l'écran, chevron près du viseur), appuie sur {K("catch")} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", p => p.Catches > start["catches"]));
-        steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main, {K("pass")} l'envoie à ton coéquipier orange : une passe charge la balle.", p => p.Passes > start["passes"]));
-        steps.Add(new("FEINTE", () => $"Balle en main, {K("feint")} fait mine de lancer : l'adversaire attrape dans le vide.", p => p.Feints > start["feints"]));
+        steps.Add(new("LANCER CHARGÉ", () => L.F("Maintiens {0} pour charger (la jauge se remplit), relâche pour lancer.", K("fire")), p => p.ChargedThrows > start["charged"]));
+        steps.Add(new("TOUCHE UN ADVERSAIRE", () => L.F("Vise un bleu (le viseur prend sa couleur) et lance avec {0}. L'aide à la visée corrige les presque-touches.", K("fire")), _ => hitsByMe > 0));
+        steps.Add(new(CatchTitle, () => L.F("Quand un bleu te vise (liseré bleu au bord de l'écran, chevron près du viseur), appuie sur {0} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", K("catch")), p => p.Catches > start["catches"]));
+        steps.Add(new("PASSE À UN ALLIÉ", () => L.F("Balle en main, {0} l'envoie à ton coéquipier orange : une passe charge la balle.", K("pass")), p => p.Passes > start["passes"]));
+        steps.Add(new("FEINTE", () => L.F("Balle en main, {0} fait mine de lancer : l'adversaire attrape dans le vide.", K("feint")), p => p.Feints > start["feints"]));
         if (Player.FreeRoam)
-            steps.Add(new("TACLE", () => $"Fonce sur un bleu avec {K("dash")} : il est bousculé et lâche sa balle. Au bord du vide, il tombe : [color=#d2f53c]éjecté[/color], c'est un KO pour toi. Attention, ça marche aussi contre toi.", p => p.Tackles > start["tackles"]));
+            steps.Add(new("TACLE", () => L.F("Fonce sur un bleu avec {0} : il est bousculé et lâche sa balle. Au bord du vide, il tombe : [color=#d2f53c]éjecté[/color], c'est un KO pour toi. Attention, ça marche aussi contre toi.", K("dash")), p => p.Tackles > start["tackles"]));
         if (Match != null)
-            steps.Add(new("BALLE SPÉCIALE", () => "Une [color=#ffd23f]bombe[/color] tombe près de toi : elle explose à l'impact et touche tout autour. "
-                + $"Ramasse-la (lance d'abord la balle que tu tiens) et envoie-la sur les bleus avec {K("fire")}.", SpecialDone, DropSpecial));
+            steps.Add(new("BALLE SPÉCIALE", () => L.F("Une [color=#ffd23f]bombe[/color] tombe près de toi : elle explose à l'impact et touche tout autour. "
+                + "Ramasse-la (lance d'abord la balle que tu tiens) et envoie-la sur les bleus avec {0}.", K("fire")), SpecialDone, DropSpecial));
 
         var root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -155,7 +155,7 @@ public partial class Tutorial : CanvasLayer
         if (index >= steps.Count) { Finish(); return; }
         Snapshot();
         var s = steps[index];
-        counter.Text = $"ENTRAÎNEMENT  ·  {index + 1}/{steps.Count}";
+        counter.Text = L.F("ENTRAÎNEMENT  ·  {0}/{1}", index + 1, steps.Count);
         title.Text = s.Title;
         s.Enter?.Invoke();
         RefreshTexts();
@@ -246,7 +246,7 @@ public partial class Tutorial : CanvasLayer
         col.AddChild(UiKit.Title("TU ES PRÊT !", 76));
         var rules = Match?.Rules;
         int koTarget = KcRules.Def.KoTarget > 0 ? KcRules.Def.KoTarget : rules?.KoTarget ?? 3;   // seuil de la carte (6 sur Croix Néon), sinon celui de la partie
-        col.AddChild(UiKit.Text($"Première équipe à {koTarget} KO gagne la manche. {rules?.MaxRounds ?? 5} manches, prolongation en mort subite.\n1 cœur par coup, et attraper ne soigne pas.", 24, Colors.White, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(L.F("Première équipe à {0} KO gagne la manche. {1} manches, prolongation en mort subite.\n1 cœur par coup, et attraper ne soigne pas.", koTarget, rules?.MaxRounds ?? 5), 24, Colors.White, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text("En ligne, PARTIE RAPIDE te trouve des joueurs, et complète avec des bots.", 22, UiKit.Sky, 6, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         row.AddThemeConstantOverride("separation", 16);

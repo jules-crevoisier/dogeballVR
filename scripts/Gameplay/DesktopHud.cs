@@ -267,7 +267,7 @@ public partial class DesktopHud : CanvasLayer
         bool live = s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         int sec = live ? s.Seconds : Mathf.Max(0, lastSecond);
         timer.Text = Clock(sec);
-        roundLabel.Text = s.Round > s.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {Mathf.Max(1, s.Round)}/{s.MaxRounds}";
+        roundLabel.Text = s.Round > s.MaxRounds ? L.T("MANCHE DÉCISIVE") : L.F("MANCHE {0}/{1}", Mathf.Max(1, s.Round), s.MaxRounds);
         bool urgent = s.Phase == MatchView.Phase.Playing && sec <= 10;
         if (urgent && sec != lastSecond)
         {
@@ -826,7 +826,7 @@ public partial class DesktopHud : CanvasLayer
         // Touché sans KO : bandeau « TOUCHÉ ! » à la couleur du tireur, avec son nom (le KO du joueur a son grand titre central).
         if (target == View.LocalId && shooter >= 0 && shooter != View.LocalId) lastHurtBy = (shooter, age);
         if (target == View.LocalId && !kill && shooter >= 0 && shooter != View.LocalId)
-            ShowSideBanner("TOUCHÉ !", $"par {View.NameOf(shooter)}", Palette.Team(View.TeamOf(shooter)), 80);
+            ShowSideBanner("TOUCHÉ !", L.F("par {0}", View.NameOf(shooter)), Palette.Team(View.TeamOf(shooter)), 80);
         if (shooter != View.LocalId) return;
         if (GameSettings.HitMarkers) { hitMarkerLeft = 0.35; hitMarkerKill = kill; }
         Sfx.Play(this, kill ? SfxKind.KoConfirm : SfxKind.Click, null, kill ? 1f : 1.15f);
@@ -846,7 +846,7 @@ public partial class DesktopHud : CanvasLayer
     void LocalKoBanner(int by)
     {
         if ((by < 0 || by == View.LocalId) && age - lastHurtBy.at < 2.0) by = lastHurtBy.by;
-        if (by >= 0 && by != View.LocalId) ShowSideBanner("KO !", $"par {View.NameOf(by)}", Palette.Team(View.TeamOf(by)), 92);
+        if (by >= 0 && by != View.LocalId) ShowSideBanner("KO !", L.F("par {0}", View.NameOf(by)), Palette.Team(View.TeamOf(by)), 92);
         else if (koBanner.Visible) ShowSideBanner("KO !", "", Palette.Team(1 - View.LocalTeam), 92);
     }
 
@@ -1447,7 +1447,7 @@ public partial class DesktopHud : CanvasLayer
         string title = matchOver ? (w == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE")
             : w < 0 ? "MANCHE NULLE" : w == View.LocalTeam ? "MANCHE GAGNÉE !" : "MANCHE PERDUE";
         int mine = s.Rounds(View.LocalTeam), theirs = s.Rounds(1 - View.LocalTeam);
-        string sub = $"Manches   {mine}  –  {theirs}";
+        string sub = L.F("Manches   {0}  –  {1}", mine, theirs);
         var color = w < 0 ? UiKit.Grey : w == 0 ? UiKit.Orange : UiKit.Blue;
         double hold = matchOver ? 1.4 : 2.2;
         Announce(PrioBanner, 0.3 + hold + 0.35, () =>
@@ -1477,8 +1477,8 @@ public partial class DesktopHud : CanvasLayer
         if (s.Phase == MatchView.Phase.Countdown && (prev.Phase != MatchView.Phase.Countdown || s.Countdown != prev.Countdown) && s.Countdown > 0)
         {
             // Chaque manche est annoncée avec son objectif : « MANCHE 2 · Premier à 3 KO ».
-            string goal = s.KoTarget > 0 ? $"  ·  Premier à {s.KoTarget} KO" : "";
-            string title = prev.Phase != MatchView.Phase.Countdown ? (s.Overtime ? "PROLONGATION" : (s.Round > s.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {s.Round}") + goal) : "";
+            string goal = s.KoTarget > 0 ? L.F("  ·  Premier à {0} KO", s.KoTarget) : "";
+            string title = prev.Phase != MatchView.Phase.Countdown ? (s.Overtime ? L.T("PROLONGATION") : (s.Round > s.MaxRounds ? L.T("MANCHE DÉCISIVE") : L.F("MANCHE {0}", s.Round)) + goal) : "";
             ShowCountdown(s.Countdown.ToString(), false, title);
         }
         if (prev.Phase == MatchView.Phase.Countdown && s.Phase == MatchView.Phase.Playing) ShowCountdown("GO !", true);
@@ -1495,8 +1495,8 @@ public partial class DesktopHud : CanvasLayer
             lastNotice = s.Notice;
             // Décompte (« DANS 4 s ») en jaune, le reste en blanc.
             int cut = s.Notice.LastIndexOf(" DANS ", System.StringComparison.Ordinal);
-            noticeMain.Text = cut > 0 ? s.Notice[..cut] : s.Notice;
-            noticeTime.Text = cut > 0 ? s.Notice[(cut + 1)..] : "";
+            noticeMain.Text = NoticeText(cut > 0 ? s.Notice[..cut] : s.Notice);
+            noticeTime.Text = cut > 0 ? L.F("DANS {0}", s.Notice[(cut + 6)..]) : "";
             noticeTime.Visible = noticeTime.Text != "";
             notice.Visible = s.Notice != "";
             notice.OffsetLeft = notice.OffsetRight = 0;
@@ -1531,7 +1531,7 @@ public partial class DesktopHud : CanvasLayer
         if (ko)
         {
             int left = Mathf.CeilToInt(View.RespawnSeconds - (float)(age - koSince));
-            koSub.Text = left > 0 ? $"Retour dans {left}" : "Retour imminent…";
+            koSub.Text = left > 0 ? L.F("Retour dans {0}", left) : L.T("Retour imminent…");
         }
         PumpAnnouncements();
 
@@ -1753,10 +1753,20 @@ public partial class DesktopHud : CanvasLayer
     int RoundKosOf(int id) =>
         View.Stats != null && View.Stats.TryGetValue(id, out var st) ? Mathf.Max(0, st.Kos - (roundStartKos.TryGetValue(id, out int k) ? k : 0)) : 0;
 
+    /// <summary>
+    /// Annonce de l'hôte (texte du réseau, en français) traduite pour l'affichage : « BALLE SPÉCIALE : BOMBE », « ÉCHANGE DE PLAQUES »,
+    /// « PROLONGATION : PREMIER KO »… Une annonce inconnue passe telle quelle.
+    /// </summary>
+    static string NoticeText(string notice)
+    {
+        const string special = "BALLE SPÉCIALE : ";
+        return notice.StartsWith(special, System.StringComparison.Ordinal) ? L.F("BALLE SPÉCIALE : {0}", L.T(notice[special.Length..])) : L.T(notice);
+    }
+
     void FillIntermission(MatchView.Snapshot s)
     {
         int w = s.Winner;
-        interHead.Text = s.Round > s.MaxRounds ? "FIN DE LA MANCHE DÉCISIVE" : $"FIN DE LA MANCHE {Mathf.Max(1, s.Round)}/{s.MaxRounds}";
+        interHead.Text = s.Round > s.MaxRounds ? L.T("FIN DE LA MANCHE DÉCISIVE") : L.F("FIN DE LA MANCHE {0}/{1}", Mathf.Max(1, s.Round), s.MaxRounds);
         interTitle.Text = w < 0 ? "ÉGALITÉ" : w == View.LocalTeam ? "MANCHE GAGNÉE !" : "MANCHE PERDUE";
         interTitle.AddThemeColorOverride("font_color", w < 0 ? UiKit.Cream : w == View.LocalTeam ? UiKit.Yellow : Colors.White);
         for (int t = 0; t < 2; t++)
@@ -1781,8 +1791,8 @@ public partial class DesktopHud : CanvasLayer
                 CustomMinimumSize = new Vector2(48, 48), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore,
             });
         }
-        interRule.Text = $"Partie en {s.MaxRounds} manches  ·  égalité = manche décisive";
-        interSpecial.Text = View.SpecialBall != "" ? $"Balle spéciale : {View.SpecialBall.ToUpper()}" : "";
+        interRule.Text = L.F("Partie en {0} manches  ·  égalité = manche décisive", s.MaxRounds);
+        interSpecial.Text = View.SpecialBall != "" ? L.F("Balle spéciale : {0}", L.T(View.SpecialBall).ToUpper()) : "";
         interSpecial.Visible = interSpecial.Text != "";
     }
 
@@ -1836,12 +1846,12 @@ public partial class DesktopHud : CanvasLayer
         interLayer.Visible = !EndScreen.IsOpen;
         if (!want) return;
         interScore[0].Text = s.Rounds0.ToString(); interScore[1].Text = s.Rounds1.ToString();
-        interKoLine.Text = $"KO de la manche   {s.Kos0} – {s.Kos1}";
+        interKoLine.Text = L.F("KO de la manche   {0} – {1}", s.Kos0, s.Kos1);
         foreach (var (id, label) in interPlayerKos) label.Text = RoundKosOf(id).ToString();
         bool known = s.NextRoundIn > 0;
         interNextRow.Visible = known;
         int nextRound = s.Round + 1;
-        interNextTitle.Text = nextRound > s.MaxRounds ? "MANCHE DÉCISIVE DANS" : $"MANCHE {nextRound} DANS";
+        interNextTitle.Text = nextRound > s.MaxRounds ? L.T("MANCHE DÉCISIVE DANS") : L.F("MANCHE {0} DANS", nextRound);
         if (known && s.NextRoundIn != interShownNext)
         {
             interShownNext = s.NextRoundIn;
@@ -2176,7 +2186,7 @@ public partial class DesktopHud : CanvasLayer
         UpdateHelp();
 
         fps.Visible = GameSettings.ShowFps;
-        if (fps.Visible) fps.Text = $"{Engine.GetFramesPerSecond():0} IPS";
+        if (fps.Visible) fps.Text = L.F("{0:0} IPS", Engine.GetFramesPerSecond());
         // Fin de partie : seul le bandeau « VICTOIRE ! » / « DÉFAITE » reste, puis l'écran de fin remplace tout le HUD.
         bool matchOver = s.Phase == MatchView.Phase.MatchOver;
         board.Visible = !Tutorial.Running && !matchOver;

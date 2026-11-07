@@ -154,7 +154,7 @@ public sealed class MatchView
     public string? HeadwearOf(int id) => id == LocalId ? Online.Cosmetics.Equipped
         : isBot?.Invoke(id) == true ? Online.Cosmetics.ForBot(id) : HumanLook?.Invoke(id);
 
-    public string NameOf(int id) => id == LocalId ? "Toi" : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? BotName(id) : $"Joueur {id + 1}";
+    public string NameOf(int id) => id == LocalId ? DogeballVR.UI.L.T("Toi") : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? BotName(id) : DogeballVR.UI.L.F("Joueur {0}", id + 1);
 
     /// <summary>Surnoms des bots, à la façon des joueurs de rue : un par numéro de zone (toujours le même d'une partie à l'autre).</summary>
     static readonly string[] BotNames = { "Rafale", "Mistral", "Bolt", "Turbo", "Comète", "Ricochet", "Zigzag", "Volt" };

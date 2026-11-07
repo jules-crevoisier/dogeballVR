@@ -51,9 +51,9 @@ public partial class ProfileScreen : Control
         var name = UiKit.Title(Identity.Name.ToUpper(), 50, HorizontalAlignment.Left);
         name.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         nameRow.AddChild(name);
-        nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : "NIVEAU MAX", 22, UiKit.Sky, 6, HorizontalAlignment.Right));
+        nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : L.T("NIVEAU MAX"), 22, UiKit.Sky, 6, HorizontalAlignment.Right));
         who.AddChild(nameRow);
-        who.AddChild(UiKit.Text($"{Progression.TitleOf(level)}  ·  {XpBanner.Spaced(xp)} XP au total", 24, UiKit.Cream, 6));
+        who.AddChild(UiKit.Text(L.F("{0}  ·  {1} XP au total", L.T(Progression.TitleOf(level)), XpBanner.Spaced(xp)), 24, UiKit.Cream, 6));
         float fill = need > 0 ? (float)into / need : 1f;
         var bar = new Control { CustomMinimumSize = new Vector2(0, 18) };
         bar.Draw += () =>
@@ -69,7 +69,7 @@ public partial class ProfileScreen : Control
         tabRow.AddThemeConstantOverride("separation", 6);
         col.AddChild(tabRow);
         tabButtons[0] = UiKit.Button("CARRIÈRE", UiKit.NavySoft, () => ShowTab(0), 22, new Vector2(220, 48));
-        tabButtons[1] = UiKit.Button($"VESTIAIRE  {Cosmetics.OwnedCount(level)} / {Cosmetics.Headwear.Count - 1}", UiKit.NavySoft, () => ShowTab(1), 22, new Vector2(260, 48));
+        tabButtons[1] = UiKit.Button(L.F("VESTIAIRE  {0} / {1}", Cosmetics.OwnedCount(level), Cosmetics.Headwear.Count - 1), UiKit.NavySoft, () => ShowTab(1), 22, new Vector2(260, 48));
         foreach (var t in tabButtons) tabRow.AddChild(t);
         var tabHint = UiKit.Text("Q / E  ·  LB / RB", 18, UiKit.Sky, 0, HorizontalAlignment.Right);
         tabHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -99,7 +99,7 @@ public partial class ProfileScreen : Control
         right.AddThemeConstantOverride("separation", 6);
         int unlocked = 0;
         foreach (var a in AchievementDefs.All) if (Achievements.IsUnlocked(a.Id)) unlocked++;
-        right.AddChild(Heading($"SUCCÈS  {unlocked} / {AchievementDefs.All.Count}"));
+        right.AddChild(Heading(L.F("SUCCÈS  {0} / {1}", unlocked, AchievementDefs.All.Count)));
         // Manette et Deck : chaque succès prend le focus (croix haut/bas) et la liste défile pour le suivre.
         var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, PageH - 50), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
         var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -204,7 +204,8 @@ public partial class ProfileScreen : Control
         side.AddChild(grid);
         row.AddChild(side);
         var next = Cosmetics.NextAfter(level);
-        wearNext.Text = next == null ? "Tous les couvre-chefs sont à toi." : $"Prochain : {next.Name}, au niveau {next.Level} (encore {next.Level - level} niveau{(next.Level - level > 1 ? "x" : "")}).";
+        wearNext.Text = next == null ? L.T("Tous les couvre-chefs sont à toi.")
+            : L.F(next.Level - level > 1 ? "Prochain : {0}, au niveau {1} (encore {2} niveaux)." : "Prochain : {0}, au niveau {1} (encore {2} niveau).", L.T(next.Name), next.Level, next.Level - level);
         return row;
     }
 
@@ -287,7 +288,7 @@ public partial class ProfileScreen : Control
         b.AddThemeStyleboxOverride("focus", lit);
         title.AddThemeColorOverride("font_color", worn ? UiKit.Navy : open ? Colors.White : new Color("8a857c"));
         sub.AddThemeColorOverride("font_color", worn ? UiKit.Navy : next ? UiKit.Yellow : open ? UiKit.Cream : new Color("8a857c"));
-        sub.Text = worn ? "PORTÉ" : open ? "DISPONIBLE" : next ? $"NIV. {h.Level} · encore {h.Level - level}" : $"NIV. {h.Level}";
+        sub.Text = worn ? L.T("PORTÉ") : open ? L.T("DISPONIBLE") : next ? L.F("NIV. {0} · encore {1}", h.Level, h.Level - level) : L.F("NIV. {0}", h.Level);
     }
 
     /// <summary>Essaie un couvre-chef sur l'aperçu et met à jour le nom et l'état affichés à côté.</summary>
@@ -295,9 +296,9 @@ public partial class ProfileScreen : Control
     {
         if (Cosmetics.Find(id) is not { } h) return;
         if (shown != id) { shown = id; model?.SetHeadwear(id); Reset(); }
-        wearName.Text = h.Name.ToUpper();
+        wearName.Text = L.T(h.Name).ToUpper();
         bool open = Cosmetics.IsUnlocked(h, Cosmetics.Level);
-        wearState.Text = Cosmetics.Equipped == id ? "PORTÉ" : open ? "PORTER" : $"VERROUILLÉ · NIVEAU {h.Level}";
+        wearState.Text = Cosmetics.Equipped == id ? L.T("PORTÉ") : open ? L.T("PORTER") : L.F("VERROUILLÉ · NIVEAU {0}", h.Level);
         wearState.AddThemeColorOverride("font_color", Cosmetics.Equipped == id ? UiKit.Yellow : open ? UiKit.Cream : UiKit.Sky);
     }
 
@@ -346,8 +347,8 @@ public partial class ProfileScreen : Control
         var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         text.AddThemeConstantOverride("separation", -2);
         bool secret = a.Hidden && !unlocked;
-        text.AddChild(UiKit.Text(secret ? "Succès caché" : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
-        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
+        text.AddChild(UiKit.Text(secret ? "Succès caché" : L.English ? a.NameEn : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
+        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : L.English ? a.DescEn : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
         h.AddChild(text);
         if (!unlocked && a.Stat != null && a.Threshold > 1)
             h.AddChild(UiKit.Text($"{Mathf.Min(Achievements.GetStat(a.Stat), a.Threshold)} / {a.Threshold}", 20, UiKit.Sky, 4, HorizontalAlignment.Right));

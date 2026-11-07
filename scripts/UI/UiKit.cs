@@ -102,7 +102,7 @@ public static class UiKit
     /// <summary>Titre de fenêtre : capitales Anton en papier, double tirage vert acide décalé en bas à droite (impression mal calée).</summary>
     public static Label Title(string text, int size = 54, HorizontalAlignment align = HorizontalAlignment.Center, Color? color = null)
     {
-        var l = Text(text.ToUpperInvariant(), size, color ?? Cream, 0, align);
+        var l = Text(L.T(text).ToUpperInvariant(), size, color ?? Cream, 0, align);   // traduit avant les capitales (la clé est le texte d'origine)
         if (Display is Font d) l.AddThemeFontOverride("font", d);
         // Ombre lime réservée aux grands titres (logo, PAUSE) ; en dessous de 80 px elle baverait : ombre encre plus franche.
         bool lime = color == null && size >= 80;

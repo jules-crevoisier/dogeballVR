@@ -152,18 +152,18 @@ public static class InputSetup
         {
             case InputEventKey k:
                 var shown = DisplayServer.GetName() == "headless" ? k.PhysicalKeycode : DisplayServer.KeyboardGetKeycodeFromPhysical(k.PhysicalKeycode);
-                return shown switch
+                return L.T(shown switch
                 {
                     Key.Space => "Espace", Key.Shift => "Maj", Key.Ctrl => "Ctrl", Key.Escape => "Échap", Key.Tab => "Tab",
                     Key.Up => "↑", Key.Down => "↓", Key.Left => "←", Key.Right => "→", Key.Enter => "Entrée", Key.Alt => "Alt",
                     _ => OS.GetKeycodeString(shown),
-                };
+                });
             case InputEventMouseButton m:
-                return m.ButtonIndex switch
+                return L.T(m.ButtonIndex switch
                 {
                     MouseButton.Left => "Clic G", MouseButton.Right => "Clic D", MouseButton.Middle => "Molette",
-                    MouseButton.Xbutton1 => "Souris 4", MouseButton.Xbutton2 => "Souris 5", _ => $"Souris {(int)m.ButtonIndex}",
-                };
+                    MouseButton.Xbutton1 => "Souris 4", MouseButton.Xbutton2 => "Souris 5", _ => L.F("Souris {0}", (int)m.ButtonIndex),
+                });
             default: return "?";
         }
     }
@@ -186,7 +186,9 @@ public static class InputSetup
     }
 
     /// <summary>Boutons à la façon d'une manette Xbox (disposition reprise par Steam Input et le Steam Deck).</summary>
-    static string DescribePad(InputEvent e) => e switch
+    static string DescribePad(InputEvent e) => L.T(DescribePadFr(e));
+
+    static string DescribePadFr(InputEvent e) => e switch
     {
         InputEventJoypadButton b => b.ButtonIndex switch
         {
@@ -194,7 +196,7 @@ public static class InputSetup
             JoyButton.LeftShoulder => "LB", JoyButton.RightShoulder => "RB", JoyButton.LeftStick => "L3", JoyButton.RightStick => "R3",
             JoyButton.Back => "Vue", JoyButton.Start => "Menu",
             JoyButton.DpadUp => "Croix ↑", JoyButton.DpadDown => "Croix ↓", JoyButton.DpadLeft => "Croix ←", JoyButton.DpadRight => "Croix →",
-            _ => $"Bouton {(int)b.ButtonIndex}",
+            _ => L.F("Bouton {0}", (int)b.ButtonIndex),
         },
         InputEventJoypadMotion m => m.Axis switch
         {

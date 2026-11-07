@@ -75,7 +75,7 @@ public static class Identity
             {
                 name = OS.GetEnvironment("USERNAME");
                 if (name == "") name = OS.GetEnvironment("USER");
-                if (name == "" || name == "root") name = $"Joueur {Token[^4..].ToUpperInvariant()}";
+                if (name == "" || name == "root") name = DogeballVR.UI.L.F("Joueur {0}", Token[^4..].ToUpperInvariant());
             }
             return name = Clean(name);
         }

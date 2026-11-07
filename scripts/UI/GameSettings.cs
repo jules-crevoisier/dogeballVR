@@ -50,6 +50,8 @@ public static class GameSettings
     public static bool TutorialDone;
     // Profil : couvre-chef choisi (Online.Cosmetics vérifie qu'il est débloqué)
     public static string Headwear = "aucun";
+    // Langue de l'interface : "auto" (celle du système, sinon l'anglais), "fr" ou "en" (voir L)
+    public static string Language = "auto";
 
     public static event Action? Changed;
     static bool loaded;
@@ -95,6 +97,8 @@ public static class GameSettings
         UiVolume = Mathf.Clamp(F(cfg, "audio", "ui", UiVolume), 0f, 1f);
         TutorialDone = B(cfg, "pc", "tutorial_done", TutorialDone);
         Headwear = (string)cfg.GetValue("profile", "headwear", Headwear);
+        Language = (string)cfg.GetValue("profile", "language", Language);
+        L.Apply(Language);
         InputSetup.LoadBindings(cfg);
     }
 
@@ -105,6 +109,7 @@ public static class GameSettings
         cfg.SetValue("pc", "sensitivity", Sensitivity);
         cfg.SetValue("pc", "tutorial_done", TutorialDone);
         cfg.SetValue("profile", "headwear", Headwear);
+        cfg.SetValue("profile", "language", Language);
         cfg.SetValue("controls", "invert_y", InvertY);
         cfg.SetValue("controls", "fov", Fov);
         cfg.SetValue("controls", "aim_assist", AimAssist);
@@ -144,6 +149,7 @@ public static class GameSettings
     /// <summary>Applique au moteur : bus audio, fenêtre, synchronisation verticale, qualité, échelle de rendu.</summary>
     public static void Apply(Viewport? viewport = null)
     {
+        L.Apply(Language);
         AudioBuses.Ensure();
         // Le bus Master reste à plein : le volume général est reporté sur chaque bus, pour que l'alerte de sécurité
         // (bus Safety, gain fixe) passe même volume coupé.

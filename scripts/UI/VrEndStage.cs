@@ -55,7 +55,7 @@ public partial class VrEndStage : Node3D
         if (stage != null && footer != null)
         {
             double left = HoldSeconds - (clock - shownAt);
-            footer.Text = HoldSeconds > 0 ? $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)left))} s" : "En attente de l'opérateur";
+            footer.Text = HoldSeconds > 0 ? L.F("Nouvelle partie dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)left))) : L.T("En attente de l'opérateur");
         }
     }
 
@@ -75,7 +75,7 @@ public partial class VrEndStage : Node3D
         string title = winner < 0 ? "ÉGALITÉ" : winner == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE";
         AddText(title, new Vector3(0, 3.3f, 0), 0.012f, 120, teamColor);
         string teamName = winner == 0 ? "ÉQUIPE ORANGE" : winner == 1 ? "ÉQUIPE BLEUE" : "PERSONNE";
-        AddText($"{teamName} GAGNE  {View.State.Rounds(0)} - {View.State.Rounds(1)}", new Vector3(0, 2.7f, 0), 0.006f, 64, Palette.Lines);
+        AddText(L.F("{0} GAGNE  {1} - {2}", L.T(teamName), View.State.Rounds(0), View.State.Rounds(1)), new Vector3(0, 2.7f, 0), 0.006f, 64, Palette.Lines);
 
         // Podium : l'équipe gagnante (sans vainqueur, l'équipe du joueur), le MVP au centre sur le socle haut.
         int shown = winner >= 0 ? winner : View.LocalTeam;

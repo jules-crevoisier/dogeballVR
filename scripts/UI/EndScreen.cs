@@ -69,8 +69,8 @@ public partial class EndScreen : CanvasLayer
         // Le menu pause refermé reprend la souris : sur l'écran de fin, il faut la rendre pour cliquer.
         if (root != null && !Autoplay && !PauseMenu.IsOpen && Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
         if (autoLabel != null) autoLabel.Text = BackToRoom
-            ? $"Retour à la salle dans {Mathf.Max(0, Mathf.CeilToInt((float)(BackToRoomAfter - overFor)))} s"
-            : $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor)))} s";
+            ? L.F("Retour à la salle dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)(BackToRoomAfter - overFor))))
+            : L.F("Nouvelle partie dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor))));
     }
 
     /// <summary>Statistiques affichées : celles de l'hôte, ou celles du test de capture (voir <see cref="TestStats"/>).</summary>
@@ -419,14 +419,14 @@ public partial class EndScreen : CanvasLayer
         col.AddChild(UiKit.Title("MVP", 64, HorizontalAlignment.Center, UiKit.Cream));
         col.AddChild(UiKit.Poster(UiKit.Text(View.NameOf(id), 46, Colors.White, 0, HorizontalAlignment.Center)));
         col.AddChild(UiKit.Spacer(6));
-        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(L.F("{0} KO   ·   {1}", st.Kos, Plural(st.Hits, "touche", "touches")), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "attrape parfaite", "attrapes parfaites"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }
 
-    static string Plural(int n, string one, string many) => $"{n} {(n > 1 ? many : one)}";
+    static string Plural(int n, string one, string many) => $"{n} {L.T(n > 1 ? many : one)}";
 
     Control StatsTable()
     {

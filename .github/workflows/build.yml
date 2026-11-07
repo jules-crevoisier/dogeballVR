@@ -85,6 +85,9 @@ jobs:
           if [ -n "$hors" ]; then echo "::error title=Option de test hors de DevFlags::${hors//$'\n'/ }"; exit 1; fi
           echo "Lectures de la ligne de commande : toutes dans DevFlags ou les modes de lancement."
 
+      - name: Table de traduction (chaque texte passé par L.T / L.F a sa version anglaise)
+        run: python3 tools/i18n/extract.py --check
+
   solo:
     name: Partie solo, aides VR, fin VR, rotor, caméra, IK, clavier-souris
     needs: changes
