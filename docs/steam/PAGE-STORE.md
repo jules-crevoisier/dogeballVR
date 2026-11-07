@@ -37,12 +37,12 @@ FR (271 caractères) :
 ### EN
 
 ```
-[h2]Catch it. Charge it. Send it back.[/h2]
+[h2]Dodge. Catch. Throw it back.[/h2]
 Dogeball is a fast, team-based dodgeball game played 3 vs 3 in third person: run, dash, jump, aim and throw with keyboard and mouse or a gamepad. Every ball that comes at you is a chance: time your catch and it's yours to throw back.
 
 [h2]Catching is everything[/h2]
 [list]
-[*][b]Catch[/b] incoming throws, or dodge them if you can't. Nail the timing for a [b]perfect catch[/b]: the ball keeps its charge and goes up one level in your hands.
+[*][b]Catch[/b] incoming throws whenever you can. Nail the timing for a [b]perfect catch[/b]: the ball keeps its charge and goes up one level in your hands.
 [*][b]Pass to power up[/b]: a pass from a teammate charges the ball. Every charge level makes the next throw faster and harder to catch.
 [*][b]Trick shots[/b]: curve your throw around cover, lob it over a wall, or fake a throw to bait a catch into thin air.
 [*][b]Two hearts each[/b]: a hit costs one, the second one sends you out for a few seconds. Catching never heals, so every hit counts.
@@ -90,12 +90,12 @@ Every match earns XP. Climb from level 1 to 100 and unlock [b]17 hats and masks[
 ### FR
 
 ```
-[h2]Attrape. Charge. Renvoie.[/h2]
+[h2]Esquive. Attrape. Renvoie.[/h2]
 Dogeball est un dodgeball en équipe, rapide, en 3 contre 3 à la troisième personne : cours, dash, saute, vise et lance au clavier-souris ou à la manette. Chaque balle qui arrive sur toi est une occasion : attrape-la au bon moment et renvoie-la.
 
 [h2]Tout se joue à l'attrape[/h2]
 [list]
-[*][b]Attrape[/b] les tirs, ou esquive-les si tu ne peux pas. Au bon moment, c'est une [b]attrape parfaite[/b] : la balle garde sa charge et monte d'un palier dans tes mains.
+[*][b]Attrape[/b] les tirs dès que tu peux. Au bon moment, c'est une [b]attrape parfaite[/b] : la balle garde sa charge et monte d'un palier dans tes mains.
 [*][b]Passe pour charger[/b] : une passe d'un coéquipier charge la balle. Chaque palier rend le tir suivant plus rapide et plus dur à attraper.
 [*][b]Coups spéciaux[/b] : courbe ton tir autour d'un abri, lobe par-dessus un mur, ou feinte pour faire attraper le vide.
 [*][b]Deux cœurs chacun[/b] : une touche en coûte un, la deuxième te sort quelques secondes. Attraper ne soigne jamais : chaque touche compte.
@@ -259,7 +259,7 @@ Les captures se refont d'une commande dans le vrai jeu, joueur automatique, inte
 
 Sélection du 07/11 (dans `/mnt/project-files/steam/captures-0711/`, ordre conseillé pour la page) :
 
-1. `01-toits-pont` : Toits du Marché, trois joueurs se disputent la bombe sur le pont central (caméra de plateau, sans HUD).
+1. `01-toits-pont` : Toits du Marché, l'équipe bleue vient de prendre la bombe sur le pont central (caméra de plateau, sans HUD).
 2. `02-toits-touche` : le joueur se fait toucher (« BAM! », « HIT! BY MISTRAL », un cœur perdu), trois joueurs dans le cadre.
 3. `03-piscine-02` : La Piscine, le bassin vide et le plongeoir vus du bord.
 4. `04-depot-03` : Le Dépôt, trams et plaque tournante, faisceaux des plots.
@@ -272,4 +272,4 @@ Toutes datent de la première manche : refaire la série sur une partie entière
 
 Manquent encore, à capturer à la main sur le PC de jules (l'instant est trop court pour le joueur automatique) : une **attrape parfaite** en gros plan et un **tacle au bord du vide**. Le **vestiaire** (profil, un couvre-chef porté : `--profile-wardrobe`) peut remplacer le menu.
 
-La première capture sert aussi de fond de page si on ne fournit pas de « page background ». Les capsules (fond : vues d'ensemble à la caméra de plateau, logo du menu sur un aplat d'encre) sont dans `captures-0711/capsules/` ; une illustration dessinée (personnages en gros plan) les remplacera avantageusement avant la sortie.
+La première capture sert aussi de fond de page si on ne fournit pas de « page background ». Les capsules (fond : vues d'ensemble à la caméra de plateau, logo du menu sur un aplat d'encre) sont dans `captures-0711/capsules/` ; une illustration dessinée (personnages en gros plan, deux équipes, la balle au centre) doit les remplacer avant la sortie : les plans de jeu cadrent mal un sujet à cette taille.

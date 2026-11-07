@@ -68,7 +68,7 @@ class Arena:
         b = {"id": id, "kind": "special", "zone": -1, "x": x, "y": round(ground + 0.35, 2), "z": z, "intervalSeconds": 45, "maxStored": 1, "startBalls": 0}
         self.balls.append(b)
         # Le socle est aussi un bloc bas de la géométrie (joueurs et bots montent dessus au lieu de le traverser), sans dessin propre.
-        self.block(id + "_socle", "plinth", x, z, 1.2, 1.2, round(ground + 0.35, 2), y0=ground, mirror=mirror)
+        self.block(id + "_socle", "plinth", x, z, 1.0, 1.0, round(ground + 0.35, 2), y0=ground, mirror=mirror)
         if mirror:
             self.balls.append({**b, "id": id + "_b", "x": -x, "z": -z})
 
