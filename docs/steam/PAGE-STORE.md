@@ -259,15 +259,16 @@ Les captures se refont d'une commande dans le vrai jeu, joueur automatique, inte
 
 Sélection du 07/11 (dans `/mnt/project-files/steam/captures-0711/`, ordre conseillé pour la page) :
 
-1. `01-toits-03` : Toits du Marché, le joueur sur un pont, balle en main, la rue en contrebas.
-2. `02-toits-touche` : un adversaire touché (« BAM! », « HIT! BY MISTRAL »), trois joueurs dans le cadre.
+1. `01-toits-pont` : Toits du Marché, trois joueurs se disputent la bombe sur le pont central (caméra de plateau, sans HUD).
+2. `02-toits-touche` : le joueur se fait toucher (« BAM! », « HIT! BY MISTRAL », un cœur perdu), trois joueurs dans le cadre.
 3. `03-piscine-02` : La Piscine, le bassin vide et le plongeoir vus du bord.
 4. `04-depot-03` : Le Dépôt, trams et plaque tournante, faisceaux des plots.
-5. `05-toits-08` : tir chargé qui part (halo de la balle).
-6. `06-piscine-04` : feinte d'un bot (« FEINT! ») au bord du bassin.
-7. `07-toits-07` : annonce « SPECIAL BALL: BOUNCE IN 4 s ».
-8. `08-fin-de-partie` : écran de fin, MVP, tableau, XP gagnée.
-9. `09-menu` : menu « Affiche » (à garder pour la fin, ou pour une capture marketing hors page).
+5. `05-piscine-feinte` : feinte d'un bot (« FEINT! ») au bord du bassin.
+6. `06-balle-speciale` : la bombe posée sur son socle rose au fond du bassin, faisceau allumé.
+7. `07-fin-de-partie` : écran de fin, MVP, tableau, XP gagnée.
+8. `08-menu` : menu « Affiche » (à garder pour la fin, ou pour une capture marketing hors page).
+
+Toutes datent de la première manche : refaire la série sur une partie entière (score serré, prolongation) sur le PC de jules.
 
 Manquent encore, à capturer à la main sur le PC de jules (l'instant est trop court pour le joueur automatique) : une **attrape parfaite** en gros plan et un **tacle au bord du vide**. Le **vestiaire** (profil, un couvre-chef porté : `--profile-wardrobe`) peut remplacer le menu.
 

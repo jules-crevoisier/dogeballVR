@@ -83,14 +83,6 @@ def monogram(size):
     return icon
 
 
-def ink_plate(lg, margin=0.06):
-    """Aplat d'encre derrière le logo, comme la colonne du menu : le logo se lit sur n'importe quelle capture."""
-    m = int(lg.width * margin)
-    plate = Image.new("RGBA", (lg.width + m * 2, lg.height + m * 2), INK + (228,))
-    plate.alpha_composite(lg, (m, m))
-    return plate
-
-
 def vignette(img, strength=0.55):
     """Assombrit les bords et le bas pour que le logo se lise sur la capture."""
     img = img.convert("RGB")
@@ -103,17 +95,30 @@ def vignette(img, strength=0.55):
     return Image.composite(img, Image.blend(img, dark, strength), mask)
 
 
-def with_logo(bg, logo_width_ratio, anchor="center", tagline=True):
-    """Capture assombrie sur les bords, logo posé sur un aplat d'encre (la colonne du menu) pour rester lisible sur tout fond."""
-    bg = vignette(bg.convert("RGB"), 0.4)
-    lg = ink_plate(logo(int(bg.width * logo_width_ratio), tagline))
-    if lg.height > bg.height * 0.8:
-        lg = lg.resize((int(lg.width * bg.height * 0.8 / lg.height), int(bg.height * 0.8)), Image.LANCZOS)
-    x = (bg.width - lg.width) // 2
-    y = {"center": (bg.height - lg.height) // 2, "top": int(bg.height * 0.06), "bottom": bg.height - lg.height - int(bg.height * 0.06)}[anchor]
-    out = bg.convert("RGBA")
-    out.alpha_composite(lg, (x, y))
-    return out.convert("RGB")
+def with_logo(bg, logo_width_ratio, anchor="left", tagline=True):
+    """
+    Mise en page du menu : une colonne d'encre porte le logo (à gauche pour les formats larges, en haut pour les formats
+    hauts), la capture occupe le reste. Le logo ne couvre jamais l'action, comme la colonne du menu ne couvre pas les persos.
+    """
+    bg = vignette(bg.convert("RGB"), 0.3).convert("RGBA")
+    w, h = bg.size
+    if anchor == "left":
+        band_w = int(w * logo_width_ratio)
+        band = Image.new("RGBA", (band_w, h), INK + (238,))
+        bg.alpha_composite(band, (0, 0))
+        edge = Image.new("RGBA", (max(2, w // 220), h), LIME + (255,))   # filet vert acide au bord de la colonne (menu)
+        bg.alpha_composite(edge, (band_w, 0))
+        lg = logo(int(band_w * 0.84), tagline)
+        if lg.height > h * 0.8:
+            lg = lg.resize((int(lg.width * h * 0.8 / lg.height), int(h * 0.8)), Image.LANCZOS)
+        bg.alpha_composite(lg, ((band_w - lg.width) // 2, (h - lg.height) // 2))
+    else:   # « top » : bandeau d'encre en haut
+        lg = logo(int(w * logo_width_ratio), tagline)
+        band_h = lg.height + int(w * 0.12)
+        bg.alpha_composite(Image.new("RGBA", (w, band_h), INK + (238,)), (0, 0))
+        bg.alpha_composite(Image.new("RGBA", (w, max(2, h // 220)), LIME + (255,)), (0, band_h))
+        bg.alpha_composite(lg, ((w - lg.width) // 2, (band_h - lg.height) // 2))
+    return bg.convert("RGB")
 
 
 def detail(path):
@@ -136,16 +141,17 @@ def main():
     print(f"Capture principale : {os.path.basename(main_src)} ; héros de bibliothèque : {os.path.basename(hero_src)}")
     main_img, hero_img = Image.open(main_src), Image.open(hero_src)
 
+    # Fond : la colonne d'encre prend la gauche, l'action est recadrée vers la droite (focus x > 0,5).
     jobs = {
-        "header_capsule_920x430.png": with_logo(crop_to(main_img, 920, 430), 0.62),
-        "small_capsule_462x174.png": with_logo(crop_to(main_img, 462, 174), 0.86, tagline=False),
-        "main_capsule_1232x706.png": with_logo(crop_to(main_img, 1232, 706), 0.6, "top"),
-        "vertical_capsule_748x896.png": with_logo(crop_to(main_img, 748, 896), 0.88, "top"),
-        "library_capsule_600x900.png": with_logo(crop_to(hero_img, 600, 900), 0.8, "top", tagline=False),
-        "library_header_920x430.png": with_logo(crop_to(main_img, 920, 430), 0.62),
+        "header_capsule_920x430.png": with_logo(crop_to(main_img, 920, 430, (0.62, 0.45)), 0.44),
+        "small_capsule_462x174.png": with_logo(crop_to(main_img, 462, 174, (0.62, 0.45)), 0.56, tagline=False),
+        "main_capsule_1232x706.png": with_logo(crop_to(main_img, 1232, 706, (0.6, 0.45)), 0.42),
+        "vertical_capsule_748x896.png": with_logo(crop_to(main_img, 748, 896, (0.6, 0.5)), 0.84, "top"),
+        "library_capsule_600x900.png": with_logo(crop_to(main_img, 600, 900, (0.6, 0.5)), 0.84, "top", tagline=False),
+        "library_header_920x430.png": with_logo(crop_to(main_img, 920, 430, (0.62, 0.45)), 0.44),
         "page_background_1438x810.png": vignette(crop_to(hero_img, 1438, 810), 0.75),
         # Héros de bibliothèque : aucun texte, l'action dans la zone sûre centrale (860x380).
-        "library_hero_3840x1240.png": crop_to(hero_img, 3840, 1240, (0.5, 0.55)).convert("RGB"),
+        "library_hero_3840x1240.png": crop_to(hero_img, 3840, 1240, (0.5, 0.5)).convert("RGB"),
     }
     for name, img in jobs.items():
         img.save(os.path.join(out, name))

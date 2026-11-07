@@ -20,14 +20,17 @@ shoot() { # nom carte instants options...
     --shots-name="$name" --shots-at="$at" --lang=en "$@" 2>&1 | grep -E "\[Captures\]|ERROR: (System|Unhandled)" || true
 }
 # Page Steam : les trois arènes PC (la VR n'est pas vendue sur Steam), en anglais (langue de repli du store), au format
-# en ligne (3 manches) comme une vraie partie. La balle spéciale est annoncée à 40 s et posée à 45 s.
+# en ligne (3 manches) comme une vraie partie. La balle spéciale est annoncée à 40 s et posée à 45 s (horloge du jeu,
+# compte à rebours de début de manche compris).
 shoot toits marche_suspendu 9,14,19,24,29,34,42,47,52 --pc-autoplay
 shoot piscine piscine 9,14,19,24,29,34,42,47,52 --pc-autoplay
 shoot depot depot 9,14,19,24,29,34,42,47,52 --pc-autoplay
-# Fonds des capsules : caméra de plateau (vue d'ensemble de l'arène, partie en cours), sans HUD ni étiquettes.
-shoot capsule-toits marche_suspendu 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-21,0,-1,0,55
-shoot capsule-piscine piscine 20,35,47 --pc-autoplay --shots-clean --shots-cam=13,8,-15,0,0,0,58
-shoot capsule-depot depot 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-19,0,0,0,55
+# Fonds des capsules : caméra de plateau près des socles de balle spéciale, juste après la pose (45 s) quand les
+# joueurs s'y précipitent, sans HUD ni étiquettes. capsules.py garde le plan le plus riche (capsule) et le suivant (héros).
+shoot capsule-toits marche_suspendu 45.6,46.5,47.5 --pc-autoplay --special=bombe --shots-clean --shots-cam=6,2.4,0.01,0,0.6,0,60
+shoot capsule-piscine piscine 45.6,46.5,47.5 --pc-autoplay --special=bombe --shots-clean --shots-cam=7,2.8,0.01,0,0.5,0,60
+# Vues d'ensemble (page, presse) : même caméra de plateau, de haut.
+shoot vue-depot depot 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-19,0,0,0,55
 # Écran de fin : sans joueur automatique (il relancerait une partie aussitôt la précédente finie).
 shoot fin-de-partie marche_suspendu 28 --end-screen-test
 shoot menu marche_suspendu 6 --menu --pc-autoplay
