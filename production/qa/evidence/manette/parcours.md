@@ -100,4 +100,8 @@ Captures au format Deck : `deck/pause-1280x800.png`, `deck/pause-aide-1280x800.p
 - fin de partie : « A Valider » sous les boutons ; aide complète de la pause : « B / Y Refermer » ;
 - couvert translucide : alpha 0,22, le joueur garde ses accents orange.
 
+Revue : 8/10. Après coup : au salon, la plaque crème ne sert plus qu'à la sélection, comme partout ailleurs
+(l'action principale au repos a un contour épais), `deck/salon-1280x800.png` et `deck/salon-quitter-1280x800.png` ;
+l'aide « Valider » de la fin de partie n'apparaît qu'à la manette (au clavier, Entrée est déjà sur REJOUER).
+
 Restent à vérifier sur un vrai Deck : stick physique, pavé tactile, clavier de Steam pour le code de salle.

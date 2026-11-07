@@ -669,15 +669,19 @@ void fragment() {
         var b = UiKit.Button(text, color, onPress, font, new Vector2(width, height));
         b.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
         if (b.GetThemeStylebox("normal") is not KcBox baseBox) return b;
+        // Comme partout ailleurs (menu, pause, fin de partie) : la plaque crème à languette lime veut dire « sélectionné ».
+        // L'action principale se distingue au repos par un contour plus épais, pas par la plaque (au Deck, on la prenait
+        // pour le bouton sélectionné).
         var idle = baseBox.Copy();
-        idle.Top = idle.Bottom = primary ? UiKit.Cream : UiKit.Navy;
-        idle.BorderWidth = primary ? 0 : 2;
-        idle.BorderColor = new Color(UiKit.Cream, 0.85f);
+        idle.Top = idle.Bottom = UiKit.Navy;
+        idle.BorderWidth = primary ? 4 : 2;
+        idle.BorderColor = new Color(UiKit.Cream, primary ? 1f : 0.85f);
         idle.AccentColor = primary || color == Gray ? new Color(0, 0, 0, 0) : color;   // languette : seulement l'équipe d'arrivée
         idle.AccentWidth = 10;
         idle.ShadowOffset = new Vector2(6, 6); idle.ShadowColor = new Color(UiKit.Ink, 0.7f);
         var lit = idle.Copy();
-        lit.BorderWidth = 4; lit.BorderColor = UiKit.Yellow; lit.ShadowOffset = new Vector2(10, 10);
+        lit.Top = lit.Bottom = UiKit.Cream;
+        lit.BorderWidth = 0; lit.AccentColor = UiKit.Yellow; lit.ShadowOffset = new Vector2(10, 10);
         var down = lit.Copy();
         down.ShadowOffset = new Vector2(3, 3);
         var off = idle.Copy();
@@ -688,8 +692,9 @@ void fragment() {
         b.AddThemeStyleboxOverride("pressed", down);
         b.AddThemeStyleboxOverride("hover_pressed", down);
         b.AddThemeStyleboxOverride("disabled", off);
-        var rest = primary ? UiKit.Navy : color == Gray ? UiKit.Cream : Colors.White;
-        foreach (var k in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, rest);
+        var rest = color == Gray ? UiKit.Cream : Colors.White;
+        b.AddThemeColorOverride("font_color", rest);
+        foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, UiKit.Navy);
         b.AddThemeColorOverride("font_disabled_color", new Color(UiKit.Cream, 0.38f));
         return b;
     }

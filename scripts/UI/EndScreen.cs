@@ -238,7 +238,7 @@ public partial class EndScreen : CanvasLayer
         var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyboardName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76), InputSetup.PadName("pause"));
         buttons.AddChild(menu);
         // Le bouton sélectionné se valide avec A (ou Entrée) : dit sous les boutons, REJOUER n'ayant plus de touche dessinée.
-        var validate = UiKit.KeyHint("Entrée", "Valider", 22, "A");
+        var validate = UiKit.KeyHint("", "Valider", 22, "A");   // au clavier, Entrée est déjà dessinée sur REJOUER : aide masquée
         validate.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
         col.AddChild(validate);
         replayKey = first != null;
