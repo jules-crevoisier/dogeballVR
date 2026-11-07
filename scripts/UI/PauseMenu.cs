@@ -258,6 +258,9 @@ public partial class PauseMenu : CanvasLayer
             var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
             back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
             col.AddChild(back);
+            var hint = UiKit.KeyHint(InputSetup.KeyboardName("help"), "Refermer", 20, "B / Y");
+            hint.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+            col.AddChild(hint);
             back.CallDeferred(Control.MethodName.GrabFocus);
         }
 

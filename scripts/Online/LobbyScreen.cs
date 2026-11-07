@@ -26,6 +26,10 @@ public partial class LobbyScreen : CanvasLayer
     OnlineLobby lobby = null!;
     bool dirty = true;
     Label? rematchLabel, quickLabel, quickNumber;
+    // Arrivée dans la salle (au lancement ou au retour d'un match) : les appuis des 0,8 premières secondes sont avalés,
+    // un saut (A) encore enchaîné ne change pas l'état « prêt » et ne lance pas la partie.
+    ulong guardUntil;
+    LobbyState? builtState;
 
     public override void _Ready()
     {
@@ -86,6 +90,8 @@ public partial class LobbyScreen : CanvasLayer
         foreach (var c in content.GetChildren()) c.QueueFree();
         CallDeferred(MethodName.RestoreFocus, focused ?? "");
         bool room = lobby.State == LobbyState.InRoom;
+        if (room && builtState != LobbyState.InRoom) guardUntil = Time.GetTicksMsec() + 800;   // entrée dans la salle, ou retour d'un match
+        builtState = lobby.State;
         halves.Visible = room;
         plainBg.Visible = !room;
         switch (lobby.State)
@@ -156,7 +162,7 @@ public partial class LobbyScreen : CanvasLayer
         hints.AddThemeConstantOverride("separation", 40);
         hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 22, "A"));
         if (lobby.IsHost) hints.AddChild(UiKit.KeyHint("Q / E", "Carte", 22, "LB / RB"));
-        hints.AddChild(UiKit.KeyHint("Échap", "Quitter la salle", 22, "B"));   // ui_cancel : Échap, pas la touche de pause
+        hints.AddChild(UiKit.KeyHint("Échap", "Sortir", 22, "B"));   // ui_cancel : Échap, pas la touche de pause ; B sélectionne QUITTER LA SALLE, A confirme
         c.AddChild(hints);
     }
 
@@ -572,6 +578,11 @@ void fragment() {
 
     public override void _Input(InputEvent e)
     {
+        if (Time.GetTicksMsec() < guardUntil && (e is InputEventJoypadButton { Pressed: true } || e.IsActionPressed("ui_accept")))
+        {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // Échap / B : le premier appui sélectionne QUITTER LA SALLE, le second quitte. Un joueur qui esquive encore (B)
         // au retour d'un match ne quitte pas son groupe par mégarde.
         if (lobby.State == LobbyState.InRoom && e.IsActionPressed("ui_cancel"))

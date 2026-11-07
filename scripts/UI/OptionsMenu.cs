@@ -230,7 +230,11 @@ public partial class OptionsMenu : Control
                 return;
             }
             // Stick pendant l'attente : avalé, sinon le focus quitterait la ligne qui attend son bouton.
-            if (e is InputEventJoypadMotion) { GetViewport().SetInputAsHandled(); return; }
+            if (e is InputEventJoypadMotion { Axis: not (JoyAxis.TriggerLeft or JoyAxis.TriggerRight) } sm)
+            {
+                if (Mathf.Abs(sm.AxisValue) >= 0.5f) GetViewport().SetInputAsHandled();   // le retour au centre passe
+                return;
+            }
             if (!key && !mouse) return;
             GetViewport().SetInputAsHandled();
             if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { RebuildAfterRebind(); return; }   // remet la touche affichée

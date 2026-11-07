@@ -91,4 +91,13 @@ Corrigé après la revue indépendante :
 Captures au format Deck : `deck/pause-1280x800.png`, `deck/pause-aide-1280x800.png`, `deck/fin-1280x800.png`,
 `deck/hud-1280x800.png`, `deck/options-reassignation-1280x800.png`.
 
+## Quatrième tour (après revue : 7,5/10)
+
+- réassignation : la direction tenue est oubliée pendant l'attente et le retour du stick au centre n'est plus avalé, la
+  sélection ne repart plus seule ensuite (`19 pause → « X »` : le focus reste sur la ligne réassignée) ;
+- salon : aide « B Sortir » (B sélectionne QUITTER LA SALLE, A confirme) ; les appuis des 0,8 premières secondes dans la
+  salle, à l'arrivée ou au retour d'un match, sont avalés (vérifié à la lecture : pas simulable au bon instant) ;
+- fin de partie : « A Valider » sous les boutons ; aide complète de la pause : « B / Y Refermer » ;
+- couvert translucide : alpha 0,22, le joueur garde ses accents orange.
+
 Restent à vérifier sur un vrai Deck : stick physique, pavé tactile, clavier de Steam pour le code de salle.

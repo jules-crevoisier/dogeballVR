@@ -319,6 +319,9 @@ public partial class InputDeviceWatch : Node
         bool any = stick[0] != 0 || stick[1] != 0 || dpad != null;
         // Pas de répétition pendant une réassignation, ni tant qu'un bouton d'action est enfoncé : A pressé stick tenu
         // valide la ligne visée au lieu de laisser le focus filer avant le relâché (le bouton agit au relâché).
+        // Réassignation : les options avalent les mouvements de stick, le retour au centre peut nous échapper ; on oublie la
+        // direction tenue, sinon la sélection repartirait seule à la fin de l'attente.
+        if (InputSetup.Capturing) { stick[0] = stick[1] = 0; dpad = null; }
         if (!any || !Focused() || InputSetup.Capturing || FaceHeld()) { held = 0; nextRepeat = RepeatDelay; return; }
         held += delta;
         if (held < nextRepeat) return;

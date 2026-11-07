@@ -237,6 +237,10 @@ public partial class EndScreen : CanvasLayer
         }
         var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyboardName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76), InputSetup.PadName("pause"));
         buttons.AddChild(menu);
+        // Le bouton sélectionné se valide avec A (ou Entrée) : dit sous les boutons, REJOUER n'ayant plus de touche dessinée.
+        var validate = UiKit.KeyHint("Entrée", "Valider", 22, "A");
+        validate.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+        col.AddChild(validate);
         replayKey = first != null;
         (first ?? menu).CallDeferred(Control.MethodName.GrabFocus);
 
@@ -251,6 +255,7 @@ public partial class EndScreen : CanvasLayer
         int i = 0;
         foreach (var c in middle.GetChildren()) if (c is Control ctl) Appear(ctl, d0 + 0.35f + 0.15f * i++);
         Appear(buttons, d0 + 0.7f);
+        Appear(validate, d0 + 0.8f);
         if (mvpCard != null)
         {
             var t2 = mvpCard.CreateTween();
