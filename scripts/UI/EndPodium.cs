@@ -67,7 +67,7 @@ public partial class EndPodium : Control
 
         // Les cartouches suivent les personnages : placés à chaque image d'après la caméra (voir _Process).
         foreach (var s in slots) AddChild(s.card);
-        hint = UiKit.KeyHint("Entrée", "PASSER", 22);
+        hint = UiKit.KeyHint("Entrée", "PASSER", 22, "A");
         hint.Modulate = new Color(1, 1, 1, 0.75f);
         AddChild(hint);
         Layout();

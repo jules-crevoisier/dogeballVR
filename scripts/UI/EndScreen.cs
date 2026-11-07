@@ -207,9 +207,9 @@ public partial class EndScreen : CanvasLayer
             buttons.AddChild(autoLabel);
             // Hôte de la salle : tout le monde a lu, on y retourne sans attendre la fin du compte à rebours.
             if (BackToRoom && View.CanRestart)
-                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76)));
+                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76), "A"));
         }
-        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76)));
+        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), "A"));
         else
         {
             var wait = UiKit.Text("En attente de l'hôte…", 32, UiKit.Sky, 8, HorizontalAlignment.Center);
@@ -217,7 +217,7 @@ public partial class EndScreen : CanvasLayer
             wait.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(wait);
         }
-        var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76));
+        var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyboardName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76), InputSetup.PadName("pause"));
         buttons.AddChild(menu);
         replayKey = first != null;
         (first ?? menu).CallDeferred(Control.MethodName.GrabFocus);
@@ -293,6 +293,7 @@ public partial class EndScreen : CanvasLayer
         {
             bool skip = e is InputEventKey { Pressed: true, Echo: false } sk && sk.Keycode is Key.Enter or Key.KpEnter or Key.Space
                 || e.IsActionPressed("pause")
+                || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A }
                 || e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left or MouseButton.Right };
             if (!skip) return;
             GetViewport().SetInputAsHandled();
@@ -300,7 +301,9 @@ public partial class EndScreen : CanvasLayer
             ShowStats();
             return;
         }
-        if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
+        // A à la manette = Entrée : rejouer quel que soit le bouton sélectionné (la touche est dessinée sur REJOUER).
+        if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter
+            || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A })
         {
             if (!replayKey) return;
             GetViewport().SetInputAsHandled();

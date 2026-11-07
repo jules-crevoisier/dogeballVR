@@ -71,6 +71,21 @@ public static class InputSetup
             InputMap.ActionEraseEvents(name);
             InputMap.ActionAddEvent(name, e);
         }
+        // Menus à la manette. Godot 4.3 ne relie que la croix aux actions ui_* : A ne validait rien et B ne revenait
+        // pas en arrière. On ajoute A (valider), B (retour) et le stick gauche (c'est lui qu'on pousse d'abord).
+        AddUi("ui_accept", J(JoyButton.A));
+        AddUi("ui_cancel", J(JoyButton.B));
+        AddUi("ui_up", Ax(JoyAxis.LeftY, -1f));
+        AddUi("ui_down", Ax(JoyAxis.LeftY, 1f));
+        AddUi("ui_left", Ax(JoyAxis.LeftX, -1f));
+        AddUi("ui_right", Ax(JoyAxis.LeftX, 1f));
+    }
+
+    static void AddUi(string ui, InputEvent e)
+    {
+        foreach (var ev in InputMap.ActionGetEvents(ui))
+            if (SameInput(ev, e)) return;
+        InputMap.ActionAddEvent(ui, e);
     }
 
     static void Rebuild(ActionDef a)
@@ -175,6 +190,12 @@ public static class InputSetup
         if (UsingPad && pad.TryGetValue(action, out var p)) return DescribePad(p);
         return Describe(PrimaryOf(action));
     }
+
+    /// <summary>Touche clavier de l'action, quel que soit le dernier appareil utilisé.</summary>
+    public static string KeyboardName(string action) { Register(); return Describe(PrimaryOf(action)); }
+
+    /// <summary>Bouton de manette de l'action (« Menu » pour la pause), ou chaîne vide si elle n'en a pas.</summary>
+    public static string PadName(string action) { Register(); return pad.TryGetValue(action, out var p) ? DescribePad(p) : ""; }
 
     /// <summary>Dernier appareil utilisé : manette (aides en boutons de manette) ou clavier-souris. Manette d'emblée sur Steam Deck.</summary>
     public static bool UsingPad { get; private set; } = GameSettings.OnSteamDeck;

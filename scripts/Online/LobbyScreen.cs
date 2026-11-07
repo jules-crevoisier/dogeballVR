@@ -148,9 +148,9 @@ public partial class LobbyScreen : CanvasLayer
         // Aides de bas d'écran, centrées sous les boutons.
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 984), Size = new Vector2(W, 40) };
         hints.AddThemeConstantOverride("separation", 40);
-        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 22));
-        if (lobby.IsHost) hints.AddChild(UiKit.KeyHint("Q / E", "Carte", 22));
-        hints.AddChild(UiKit.KeyHint(InputSetup.KeyName("pause"), "Quitter la salle", 22));
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 22, "A"));
+        if (lobby.IsHost) hints.AddChild(UiKit.KeyHint("Q / E", "Carte", 22, "LB / RB"));
+        hints.AddChild(UiKit.KeyHint(InputSetup.KeyboardName("pause"), "Quitter la salle", 22, "B"));
         c.AddChild(hints);
     }
 

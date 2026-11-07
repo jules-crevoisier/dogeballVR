@@ -66,9 +66,9 @@ public static class Progression
         // Hors ligne, contre des bots faciles ou normaux, l'XP est réduite (le jeu en ligne et le niveau difficile rapportent le plus).
         if (!r.Online && r.BotLevel < 2)
         {
-            float k = r.BotLevel <= 0 ? 0.5f : 0.8f;
+            float k = r.BotLevel <= 0 ? 0.5f : 0.8f;   // « ×0,8 » : le format « 0,0 » de .NET lit la virgule comme séparateur de milliers (« ×01 »)
             int cut = Mathf.RoundToInt(xp * k) - xp;
-            lines.Add(new(L.F(r.BotLevel <= 0 ? "Bots faciles ×{0}" : "Bots normaux ×{0}", k.ToString(L.English ? "0.0" : "0,0", System.Globalization.CultureInfo.InvariantCulture)), cut));
+            lines.Add(new(L.F(r.BotLevel <= 0 ? "Bots faciles ×{0}" : "Bots normaux ×{0}", L.English ? k.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : k.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',')), cut));
             xp += cut;
         }
         int before = TotalXp;

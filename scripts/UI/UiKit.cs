@@ -11,7 +11,7 @@ namespace DogeballVR.UI;
 /// ombres franches décalées ; les titres ont un double tirage décalé (comme une impression mal calée).
 /// Les anciens noms (Navy, Yellow, Violet…) sont gardés pour ne pas réécrire chaque écran : seule leur valeur change.
 /// </summary>
-public static class UiKit
+public static partial class UiKit
 {
     /// <summary>Encre : contours de texte, texte sur papier.</summary>
     public static readonly Color Navy = new("15141a");
@@ -371,20 +371,53 @@ public static class UiKit
         return l;
     }
 
-    /// <summary>Aide de bas d'écran : [touche] action, à la Knockout City (« [Esc] FERMER »).</summary>
-    public static HBoxContainer KeyHint(string key, string label, int size = 22)
+    /// <summary>
+    /// Touche dessinée qui suit le dernier appareil utilisé : <paramref name="key"/> au clavier, <paramref name="pad"/> à la
+    /// manette (« A », « B », « LB / RB »). <paramref name="pad"/> vide : <paramref name="hide"/> est caché à la manette
+    /// (action sans bouton) ; <paramref name="key"/> vide : caché au clavier. <paramref name="pad"/> null : la touche ne change pas.
+    /// </summary>
+    public static void FollowDevice(Label cap, string key, string? pad, Control? hide = null)
+    {
+        if (pad == null) return;
+        cap.AddChild(new DeviceSwap { Cap = cap, Key = key, Pad = pad, Hide = hide ?? cap });
+    }
+
+    sealed partial class DeviceSwap : Node
+    {
+        public Label Cap = null!;
+        public Control Hide = null!;
+        public string Key = "", Pad = "";
+        bool? shown;
+
+        public override void _Ready() { ProcessMode = ProcessModeEnum.Always; _Process(0); }
+
+        public override void _Process(double delta)
+        {
+            bool p = InputSetup.UsingPad;
+            if (shown == p) return;
+            shown = p;
+            string t = p ? Pad : Key;
+            if (t.Length > 0) Cap.Text = t;
+            if (Pad.Length == 0 || Key.Length == 0) Hide.Visible = t.Length > 0;   // sinon la visibilité reste à l'écran
+        }
+    }
+
+    /// <summary>Aide de bas d'écran : [touche] action, à la Knockout City (« [Esc] FERMER ») ; <paramref name="pad"/> : voir <see cref="FollowDevice"/>.</summary>
+    public static HBoxContainer KeyHint(string key, string label, int size = 22, string? pad = null)
     {
         var h = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 10);
-        h.AddChild(KeyCap(key, size - 2));
+        var cap = KeyCap(key, size - 2);
+        h.AddChild(cap);
         var l = Text(label, size, Colors.White, 6);
         l.VerticalAlignment = VerticalAlignment.Center;
         h.AddChild(l);
+        FollowDevice(cap, key, pad, h);
         return h;
     }
 
     /// <summary>Gros bouton avec son raccourci dessiné à gauche du texte (« [Entrée] REJOUER »).</summary>
-    public static Button KeyButton(string text, string key, Color color, Action onPress, int fontSize = 30, Vector2? minSize = null)
+    public static Button KeyButton(string text, string key, Color color, Action onPress, int fontSize = 30, Vector2? minSize = null, string? pad = null)
     {
         var b = Button("", color, onPress, fontSize, minSize);
         var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -396,6 +429,7 @@ public static class UiKit
         center.AddChild(row);
         var cap = KeyCap(key, 20);
         row.AddChild(cap);
+        FollowDevice(cap, key, pad);
         var rest = color == Grey ? Cream : Colors.White;   // secondaire : papier plein, il ne doit pas sembler désactivé
         var l = Text(text, fontSize, rest, 0);
         if (Italic is Font it) l.AddThemeFontOverride("font", it);

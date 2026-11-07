@@ -108,12 +108,14 @@ public partial class OptionsMenu : Control
         var tabRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         tabRow.AddThemeConstantOverride("separation", 10);
         col.AddChild(tabRow);
+        tabRow.AddChild(PadCap("LB"));   // à la manette seulement : LB / RB changent d'onglet
         for (int i = 0; i < 4; i++)
         {
             int k = i;
             tabs[i] = UiKit.Button(TabNames[i], UiKit.NavySoft, () => ShowTab(k), 22, new Vector2(200, 50));
             tabRow.AddChild(tabs[i]);
         }
+        tabRow.AddChild(PadCap("RB"));
 
         // Zone de défilement à la hauteur de la liste, plafonnée par l'écran ; si la liste dépasse (onglet Touches, interface
         // agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
@@ -185,6 +187,8 @@ public partial class OptionsMenu : Control
     public override void _Process(double delta)
     {
         FitHeight();
+        string bindings = InputSetup.UsingPad ? "MANETTE" : TabNames[1];   // l'onglet montre les boutons de la manette
+        if (tabs[1].Text != bindings) tabs[1].Text = bindings;
         var bar = scroll.GetVScrollBar();
         moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
         PanelContainer? want = null;
@@ -234,6 +238,22 @@ public partial class OptionsMenu : Control
             Sfx.Play(this, SfxKind.UiBack);
             Close();
         }
+        else if (e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.LeftShoulder or JoyButton.RightShoulder } sh)
+        {
+            // LB / RB : onglet voisin, le focus sur son bouton (la liste est reconstruite, l'ancien focus disparaît).
+            GetViewport().SetInputAsHandled();
+            int next = (tab + (sh.ButtonIndex == JoyButton.RightShoulder ? 1 : 3)) % 4;
+            Sfx.Play(this, SfxKind.UiClick);
+            ShowTab(next);
+            tabs[next].GrabFocus();
+        }
+    }
+
+    static Label PadCap(string pad)
+    {
+        var cap = UiKit.KeyCap(pad, 20, 52);
+        UiKit.FollowDevice(cap, "", pad);
+        return cap;
     }
 
     void StopListening()

@@ -127,6 +127,7 @@ public partial class Main : Node3D
         GetTree().Paused = false;
         Tools.StoreShots.AttachIfAsked(this);   // captures de la page Steam (--shots=DOSSIER)
         Tools.PerfProbe.AttachIfAsked(this);    // bilan de performances (--perf-log)
+        Tools.PadWalk.AttachIfAsked(this);      // parcours des écrans à la manette (--pad-walk=…)
         AddChild(new UI.InputDeviceWatch { Name = "InputDeviceWatch" });   // aides en boutons de manette dès qu'on joue à la manette
         if (!Tools.DevFlags.Has("--gc-default")) AddChild(new Tools.GcPacer { Name = "GcPacer" });   // pas de longues pauses du ramasse-miettes
         pcProfile = !xrActive;

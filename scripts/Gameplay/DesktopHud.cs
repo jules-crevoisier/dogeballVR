@@ -1779,7 +1779,7 @@ public partial class DesktopHud : CanvasLayer
         {
             interScore[t].Text = s.Rounds(t).ToString();
             bool mine = t == View.LocalTeam;
-            interTeamTags[t].Text = mine ? "TON ÉQUIPE" : "ADVERSES";
+            interTeamTags[t].Text = mine ? "TON ÉQUIPE" : "ADVERSAIRES";
             interTeamTags[t].AddThemeColorOverride("font_color", mine ? UiKit.Yellow : UiKit.Cream);
             foreach (var row in interLists[t].GetChildren()) row.QueueFree();
         }

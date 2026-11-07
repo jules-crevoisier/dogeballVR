@@ -93,8 +93,8 @@ public partial class MainMenu : CanvasLayer
         // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         hints.AddThemeConstantOverride("separation", 36);
-        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
-        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24);   // sous-menus seulement : le menu racine n'a pas de retour
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24, "A"));
+        escHint = UiKit.KeyHint(InputSetup.KeyboardName("pause"), "Retour", 24, "B");   // sous-menus seulement : le menu racine n'a pas de retour
         escHint.Visible = false;
         hints.AddChild(escHint);
         hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
@@ -238,14 +238,15 @@ public partial class MainMenu : CanvasLayer
         b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 0); Shift(0f); };   // le texte reste aligné : la plaque papier et la languette lime suffisent
         b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
-        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
+        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); if (b.HasMeta(ItemMeta)) lastMain = text; onPress(); };
         return b;
     }
 
     void ShowMain()
     {
         back = null;
-        Fill(
+        var items = new Control[]
+        {
             Item("JOUER", PlayBots),
             Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
             Item("EN LIGNE", ShowOnline),
@@ -253,8 +254,15 @@ public partial class MainMenu : CanvasLayer
             Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
             UiKit.Spacer(14),
             Item("CRÉDITS", ShowCredits, false),
-            Item("QUITTER", () => GetTree().Quit(), false));
+            Item("QUITTER", () => GetTree().Quit(), false),
+        };
+        Fill(items);
+        // Retour d'une page (B, Échap) : le focus revient sur l'item qui l'avait ouverte, pas tout en haut.
+        if (Array.Find(items, c => c is Button bt && bt.Text == lastMain) is Button from) from.CallDeferred(Control.MethodName.GrabFocus);
     }
+
+    /// <summary>Dernier item du menu racine validé (le focus y revient au retour).</summary>
+    string? lastMain;
 
     /// <summary>
     /// Actions en ligne (Steam / salle) : branchées par Main sur le module Online quand il est présent.
