@@ -322,7 +322,14 @@ def depot():
     for zz in (-10.4, -2.6):   # nez arrondis suggérés : feux
         a.deco(x=-9, y=0.9, z=zz, sx=1.6, sy=0.25, sz=0.1, color="#FFE9B0", glow=1.4, pattern=0)
     a.block("pantographe", "low", -9, -6.5, 1.4, 0.6, 3.8, 3.0, color="#3A3F4A")   # demi-couvert sur le toit (bloque balles et joueurs)
+    a.deco(x=-9, y=3.8, z=-6.5, sx=0.08, sy=0.08, sz=1.6, color="#2E3350", pattern=0)            # bras
+    a.deco(x=-9, y=4.4, z=-6.5, sx=1.6, sy=0.08, sz=0.08, color="#2E3350", pattern=0)                    # archet sous le fil
+    a.deco(x=-9, y=3.8, z=-6.5, sx=0.08, sy=0.6, sz=0.08, color="#2E3350", pattern=0)                    # montant
     a.pad("tremplin_tram", -13.2, -12.5, 0, -9, -8.5, 3.0, apex=1.5)
+    # Plaque de fosse derrière le cul du tram : la fente que le tram cache depuis le quai est fermée (pas de chute invisible).
+    a.block("plaque_fosse", "bridge", -9, -11.25, 2.4, 1.5, 0, -0.4, color="#6E7487")
+    for dz in (-0.35, 0.35):
+        a.deco(x=-9, y=0.01, z=-11.25 + dz, sx=1.4, sy=0.02, sz=0.18, color="#F2C230", pattern=0)   # chevrons
     # Balle sur le toit, côté nez avant (z -4) : la récompense est au bout exposé, à un tacle de la fosse.
     a.ball("balle_toit_tram", -9, -4.0, 3.0 + 0.9, interval=14)
     # Passerelle sur la fosse droite (ouverte de ce côté-ci) : 2 m de large.
@@ -346,6 +353,7 @@ def depot():
     a.deco(x=4.5, y=0, z=-5.2, sx=4.4, sy=0.35, sz=2.2, color="#2E3350", pattern=0)   # châssis du wagon, dans la boîte de collision
     a.block("bidons", "cover", 13.6, -4.6, 1.4, 1.4, 1.0, 0, color="#2F6F8F")
     a.block("armoire", "container", 15.2, -10.5, 1.2, 1.2, 2.4, 0, color="#5A6B5A")   # repli du couloir extérieur droit
+    a.deco(x=15.2, y=1.6, z=-9.88, sx=0.4, sy=0.4, sz=0.03, color="#F2C230", pattern=0)   # plaque de danger, face au centre
     a.block("caisses_quai", "crate", -14.2, -9.5, 1.6, 1.6, 1.1, 0, model="caisse_bois")
     # Plaque tournante au centre (0,4 m, se monte en marchant) et poste d'aiguillage : coupe la vue d'un camp à l'autre.
     a.block("plaque_tournante", "deck", 0, 0, 8, 8, 0.4, -0.6, mirror=False, color="#4E5262")
@@ -358,9 +366,10 @@ def depot():
     a.deco(x=0, y=3.9, z=0, sx=2.34, sy=0.15, sz=2.34, color="#FFC46A", glow=1.2, pattern=0, mirror=False)  # lumière chaude de la cabine
     a.deco(x=0, y=4.6, z=0, sx=3.2, sy=0.3, sz=3.2, color="#5A6180", pattern=0, mirror=False)    # toit du poste, débordant
     # Mâts de signal (décor) de part et d'autre : feux rouge et vert lisibles de loin.
-    a.deco(x=1.4, y=0.4, z=0, sx=0.15, sy=5.6, sz=0.15, color="#2E3350", pattern=0)
-    a.deco(x=1.4, y=5.2, z=0, sx=0.4, sy=0.4, sz=0.4, color="#FF3B30", glow=2.0, pattern=0)
-    a.deco(x=1.4, y=5.7, z=0, sx=0.4, sy=0.4, sz=0.4, color="#3BE07A", glow=2.0, pattern=0)
+    a.deco(x=1.9, y=0.4, z=0, sx=0.15, sy=5.6, sz=0.15, color="#2E3350", pattern=0)
+    a.deco(x=1.9, y=4.95, z=0, sx=0.5, sy=1.1, sz=0.5, color="#1E2230", pattern=0)                  # tête de signal
+    a.deco(x=1.9, y=5.1, z=0, sx=0.52, sy=0.36, sz=0.36, color="#E0201A", glow=2.5, pattern=0)
+    a.deco(x=1.9, y=5.55, z=0, sx=0.52, sy=0.36, sz=0.36, color="#3BE07A", glow=2.0, pattern=0)
     # Places : 4 par équipe sur le quai.
     for x, z in [(-2, -16.6), (2, -16.6), (-5.5, -16.2), (5.5, -16.2)]:
         a.spawn(x, z)
