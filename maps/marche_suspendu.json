@@ -500,6 +500,28 @@
     "y0": -0.4,
     "y1": 0,
     "rotY": 0
+   },
+   {
+    "id": "speciale_pont_socle",
+    "kind": "plinth",
+    "x": 0,
+    "z": -3.0,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 0.35,
+    "rotY": 0
+   },
+   {
+    "id": "speciale_pont_socle_b",
+    "kind": "plinth",
+    "x": 0,
+    "z": 3.0,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 0.35,
+    "rotY": 0
    }
   ],
   "ramps": [

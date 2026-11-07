@@ -677,7 +677,9 @@ jobs:
       - name: Test solo des arènes (géométrie, grille des bots, manche complète)
         run: |
           for MAP in marche_suspendu piscine depot; do
-            "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 -- --map=$MAP --pc-autoplay 2>&1 | tee arene-$MAP.log
+            # Balle spéciale imposée pour couvrir les deux familles (Le Dépôt : tirage au sort, comme en vrai).
+            case $MAP in marche_suspendu) SPECIAL=--special=rebond ;; piscine) SPECIAL=--special=bombe ;; *) SPECIAL= ;; esac
+            "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 -- --map=$MAP --pc-autoplay $SPECIAL 2>&1 | tee arene-$MAP.log
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" arene-$MAP.log; then
               echo "Erreur à l'exécution ($MAP, solo)"; exit 1
             fi
@@ -689,6 +691,7 @@ jobs:
             if [ "${TIRS:-0}" -lt 20 ]; then echo "$MAP : les bots ne jouent pas (moins de 20 tirs)"; exit 1; fi
             grep -qE "MANCHE POUR|MANCHE NULLE" arene-$MAP.log || { echo "$MAP : aucune manche terminée"; exit 1; }
             grep -q "Balle spéciale posée" arene-$MAP.log || { echo "$MAP : aucune balle spéciale posée sur un socle"; exit 1; }
+            grep -q "Balle spéciale prise sur son socle" arene-$MAP.log || { echo "$MAP : balle spéciale jamais prise sur son socle"; exit 1; }
             grep "Balle spéciale p" arene-$MAP.log | head -6
           done
 

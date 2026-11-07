@@ -23,7 +23,6 @@ public partial class StoreShots : Node
     readonly System.Collections.Generic.List<GodotObject> hidden = new();
     float[]? camPose;
     Camera3D? stageCam, playerCam;
-    bool savedTagsHidden;
 
     /// <summary>Ajoute le preneur de captures si la ligne de commande le demande.</summary>
     public static void AttachIfAsked(Node parent)
@@ -101,7 +100,7 @@ public partial class StoreShots : Node
         bool staged = clean || camPose != null;
         if (staged && cleanFrames < 0)
         {
-            if (clean) { HideOverlays(GetTree().Root); savedTagsHidden = Visual.PlayerTag.HideAll; Visual.PlayerTag.HideAll = true; }
+            if (clean) { HideOverlays(GetTree().Root); Visual.PlayerTag.HiddenForShot = true; }
             if (camPose != null) UseStageCamera();
             cleanFrames = 0;
             return;
@@ -111,7 +110,7 @@ public partial class StoreShots : Node
         if (staged)
         {
             RestoreOverlays();
-            if (clean) Visual.PlayerTag.HideAll = savedTagsHidden;
+            if (clean) Visual.PlayerTag.HiddenForShot = false;
             if (playerCam != null && IsInstanceValid(playerCam)) playerCam.MakeCurrent();
             cleanFrames = -1;
         }

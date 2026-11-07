@@ -393,6 +393,28 @@
     "y0": 1.6,
     "y1": 3.2,
     "rotY": 0
+   },
+   {
+    "id": "speciale_bassin_socle",
+    "kind": "plinth",
+    "x": 0,
+    "z": -3.6,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 0.35,
+    "rotY": 0
+   },
+   {
+    "id": "speciale_bassin_socle_b",
+    "kind": "plinth",
+    "x": 0,
+    "z": 3.6,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0,
+    "y1": 0.35,
+    "rotY": 0
    }
   ],
   "ramps": [

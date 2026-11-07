@@ -80,6 +80,7 @@ public static class ArenaLevelBuilder
     {
         float h = b.Y1 - b.Y0;
         if (h <= 0.001f) return;
+        if (b.Kind == "plinth") return;   // socle de balle spéciale : sol pour les joueurs (ArenaGeometry), dessiné par AddPedestal
         var size = new Vector3(b.Sx, h, b.Sz);
         var body = new StaticBody3D
         {
@@ -285,11 +286,14 @@ public static class ArenaLevelBuilder
     /// sommet à la hauteur Y de la carte, faisceau turquoise. Socle de balle spéciale (« special ») : plus large et plus bas,
     /// cerclé de rose, faisceau rose quand la balle y attend.
     /// </summary>
+    /// <summary>Hauteur du socle de balle spéciale (bloc « plinth » de tools/maps/arenas.py) : une marche, on monte dessus sans sauter.</summary>
+    const float SpecialPlinthHeight = 0.35f;
+
     static void AddPedestal(Node3D root, BallSpawnDef def, ArenaGeometry geo)
     {
         if (def.Kind is not ("pedestal" or "dispenser" or "special")) return;
         bool special = def.Kind == "special";
-        float ground = geo.HighestAt(def.X, def.Z, 0f);
+        float ground = special ? def.Y - SpecialPlinthHeight : geo.HighestAt(def.X, def.Z, 0f);   // le socle spécial est lui-même un bloc de la géométrie
         if (float.IsNegativeInfinity(ground)) ground = 0f;
         float h = Mathf.Max(0.2f, def.Y - ground);
         float top = special ? 0.5f : 0.28f, bottom = special ? 0.62f : 0.34f;

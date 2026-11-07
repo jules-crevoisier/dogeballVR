@@ -40,6 +40,8 @@ public partial class PlayerTag : Node3D
 
     /// <summary>Toutes les étiquettes cachées (compte à rebours du joueur PC : le chiffre et « GO ! » ne les chevauchent pas ; intermission entre deux manches).</summary>
     public static bool HideAll { get; set; }
+    /// <summary>Captures sans étiquettes (StoreShots --shots-clean) : le HUD réécrit <see cref="HideAll"/> à chaque image, pas celui-ci.</summary>
+    public static bool HiddenForShot { get; set; }
 
     public override void _EnterTree() => all.Add(this);
     public override void _ExitTree() => all.Remove(this);
@@ -113,7 +115,7 @@ public partial class PlayerTag : Node3D
     public override void _Process(double delta)
     {
         if (!IsInstanceValid(Target)) { QueueFree(); return; }
-        if (Target.Eliminated || HideAll) { Visible = false; return; }
+        if (Target.Eliminated || HideAll || HiddenForShot) { Visible = false; return; }
         var head = Target.GlobalPosition + new Vector3(0, HeadAbove, 0);
         var cam = GetViewport().GetCamera3D();
         float mpp = ScreenSize.MetersPerPixel(cam, head);

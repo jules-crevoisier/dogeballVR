@@ -321,6 +321,9 @@ public partial class MatchController : Node3D
         foreach (var st in stats.Values) { st.Kos = st.Hits = st.Catches = st.Throws = st.PerfectCatches = 0; }
         MatchStarted?.Invoke();
         specialKind = SpecialTest ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        foreach (var a in Tools.DevFlags.Args)   // CI : --special=bombe ou --special=rebond impose la famille
+            if (a == "--special=bombe") specialKind = Ball.KindBomb;
+            else if (a == "--special=rebond") specialKind = Ball.KindBounce;
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
@@ -518,6 +521,11 @@ public partial class MatchController : Node3D
     readonly List<BallSpawnDef> specialSpots = new();
     readonly Vector2[] teamSide = new Vector2[2];   // centre des places de chaque équipe (côté du terrain)
     Ball? specialOnSpot;
+    Vector3 specialSpotAt;
+    int specialFlip;   // égalité au score : socles pris chacun son tour (compteur propre, neutralFlip sert aussi au recyclage)
+    /// <summary>Une balle spéciale attend sur son socle (ni prise, ni délogée).</summary>
+    bool SpecialWaiting => specialOnSpot != null && IsInstanceValid(specialOnSpot) && !specialOnSpot.IsQueuedForDeletion() && !specialOnSpot.IsHeld
+        && specialOnSpot.GlobalPosition.DistanceTo(specialSpotAt) <= 0.6f;
     bool HasSpecialBalls => hubLauncher != null || specialSpots.Count > 0;
     int specialKind;
     double specialClock;
@@ -653,6 +661,13 @@ public partial class MatchController : Node3D
         specialClock += delta;
         if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && SpecialTest) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
+        if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds && hubLauncher == null && SpecialWaiting)
+        {
+            // La précédente attend encore sur son socle : pas d'annonce sans balle, ce tour est sauté.
+            specialLaunched++;
+            GD.Print($"[Match] Balle spéciale : la précédente attend encore sur son socle, tour sauté (manche {round}, t={specialClock:0.0} s)");
+            return;
+        }
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
             specialAnnounced = true;
@@ -679,14 +694,11 @@ public partial class MatchController : Node3D
     /// </summary>
     void PlaceOnSpecialSpot()
     {
-        if (specialOnSpot != null && IsInstanceValid(specialOnSpot) && !specialOnSpot.IsQueuedForDeletion() && !specialOnSpot.IsHeld)
-        {
-            GD.Print("[Match] Balle spéciale : la précédente attend encore sur son socle");
-            return;
-        }
-        int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
+        if (SpecialWaiting) return;   // garde-fou : UpdateSpecialBalls saute déjà ce tour sans l'annoncer
+        int trailing = Rules.Kos[0] == Rules.Kos[1] ? specialFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
         var def = specialSpots.OrderBy(d => new Vector2(d.X, d.Z).DistanceSquaredTo(teamSide[trailing])).First();
-        specialOnSpot = SpawnBallAt(new Vector3(def.X, def.Y + 0.2f, def.Z));
+        specialSpotAt = new Vector3(def.X, def.Y + 0.2f, def.Z);
+        specialOnSpot = SpawnBallAt(specialSpotAt);
         specialOnSpot.Kind = specialKind;
         specialOnSpot.LinearVelocity = Vector3.Zero;
         if (ballsCached >= 0) ballsCached++;
@@ -715,6 +727,7 @@ public partial class MatchController : Node3D
     {
         Rules.InOvertime = true;
         swapNotice = "";
+        specialNotice = ""; specialAnnounced = false;   // pas de balle spéciale en mort subite : une annonce en cours s'efface
         roundTimeLeft = Rules.OvertimeSeconds;
         banner = roundBanner = "PROLONGATION : PREMIER KO";
         if (!UsesDispensers)
@@ -778,9 +791,10 @@ public partial class MatchController : Node3D
     void UpdateDispensers(double delta, double now)
     {
         ballsCached = -1;
-        if (specialOnSpot != null && (!IsInstanceValid(specialOnSpot) || specialOnSpot.IsHeld))   // prise : balle comme les autres
+        if (specialOnSpot != null && !SpecialWaiting)   // prise (ou délogée) : balle comme les autres
         {
-            if (IsInstanceValid(specialOnSpot)) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId}");
+            if (IsInstanceValid(specialOnSpot) && specialOnSpot.IsHeld) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId}");
+            else GD.Print("[Match] Balle spéciale délogée de son socle");
             specialOnSpot = null;
         }
         highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
@@ -806,7 +820,8 @@ public partial class MatchController : Node3D
         {
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
-            if (b == specialOnSpot && b.GlobalPosition.Y > -2f) continue;   // balle spéciale sur son socle : elle attend son preneur
+            if (b == specialOnSpot) continue;   // balle spéciale sur son socle : elle attend son preneur
+            if (b.Kind != Ball.KindNormal) { b.QueueFree(); continue; }   // balle spéciale perdue : elle disparaît, sans devenir une balle normale de plus
             if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);

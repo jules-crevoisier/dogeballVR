@@ -568,6 +568,28 @@
     "y1": 4.6,
     "rotY": 0,
     "color": "#C9A27A"
+   },
+   {
+    "id": "speciale_plaque_socle",
+    "kind": "plinth",
+    "x": 0,
+    "z": -2.8,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0.4,
+    "y1": 0.75,
+    "rotY": 0
+   },
+   {
+    "id": "speciale_plaque_socle_b",
+    "kind": "plinth",
+    "x": 0,
+    "z": 2.8,
+    "sx": 1.2,
+    "sz": 1.2,
+    "y0": 0.4,
+    "y1": 0.75,
+    "rotY": 0
    }
   ],
   "ramps": [

@@ -18,19 +18,19 @@ Trois propositions (à vérifier avant de choisir : recherche dans le store Stea
 | **Hurlstorm** | Un seul mot, inventé, facile à protéger et à trouver ; sonne compétitif | Ne dit pas « dodgeball » : la capsule et l'accroche doivent le montrer |
 | **Dodge Circuit** | Le genre est dans le nom (bon pour la recherche Steam) ; « circuit » évoque une ligue de quartier | Plus générique, moins mémorable |
 
-Les textes ci-dessous utilisent « DogeballVR » ; remplacer partout une fois le nom choisi (et `application/config/name`, `export_presets.cfg`, les noms de fichiers : voir la checklist, le chemin des sauvegardes en dépend).
+Le jeu affiche aujourd'hui « DOGEBALL » (logo du menu, capsules) : les textes ci-dessous utilisent donc « Dogeball », sans « VR ». Remplacer partout, capsules comprises (`GAME_NAME=… tools/steam/capsules.py`), une fois le nom choisi (et `application/config/name`, `export_presets.cfg`, les noms de fichiers : voir la checklist, le chemin des sauvegardes en dépend).
 
 ## 2. Accroche courte (≤ 300 caractères)
 
 Mise à jour du 07/11 : le jeu vendu sur Steam est celui de la PR #34 (trois arènes en 3 contre 3, interface « Affiche », anglais et français). Les anciennes cartes néon (Croix Néon, Fosse croisée, Tour 4v4) restent dans le dépôt pour la VR d'EVA et n'apparaissent plus sur la page.
 
-EN (247 caractères) :
+EN (244 caractères) :
 
-> Team dodgeball, 3 vs 3, for keyboard & mouse or gamepad. Catch a throw at the last instant and send it back faster, pass to charge your shot, tackle rivals off the rooftops. Three arenas, quick matches, bots in every empty slot, 17 hats to unlock.
+> Team dodgeball, 3 vs 3, for keyboard & mouse or gamepad. Catch a throw at the last instant and send it back faster, pass to charge your shot, tackle rivals off the rooftops. Three arenas, quick matches, play online with friends or against bots.
 
-FR (266 caractères) :
+FR (271 caractères) :
 
-> Du dodgeball en équipe, 3 contre 3, au clavier-souris ou à la manette. Attrape un tir au dernier moment et renvoie-le plus fort, fais des passes pour charger ton tir, pousse tes rivaux dans le vide. Trois arènes, des matchs courts, des bots partout, 17 couvre-chefs.
+> Du dodgeball en équipe, 3 contre 3, au clavier-souris ou à la manette. Attrape un tir au dernier moment et renvoie-le plus fort, fais des passes pour charger ton tir, pousse tes rivaux dans le vide. Trois arènes, des matchs courts, en ligne entre amis ou contre des bots.
 
 ## 3. Description longue (BBCode Steam)
 
@@ -38,11 +38,11 @@ FR (266 caractères) :
 
 ```
 [h2]Catch it. Charge it. Send it back.[/h2]
-DogeballVR is a fast, team-based dodgeball game played 3 vs 3 in third person: run, dash, jump, aim and throw with keyboard and mouse or a gamepad. Every ball that comes at you is a chance: time your catch and it's yours to throw back.
+Dogeball is a fast, team-based dodgeball game played 3 vs 3 in third person: run, dash, jump, aim and throw with keyboard and mouse or a gamepad. Every ball that comes at you is a chance: time your catch and it's yours to throw back.
 
 [h2]Catching is everything[/h2]
 [list]
-[*][b]Catch[/b] incoming throws instead of dodging them. Nail the timing for a [b]perfect catch[/b]: the ball keeps its charge and goes up one level in your hands.
+[*][b]Catch[/b] incoming throws, or dodge them if you can't. Nail the timing for a [b]perfect catch[/b]: the ball keeps its charge and goes up one level in your hands.
 [*][b]Pass to power up[/b]: a pass from a teammate charges the ball. Every charge level makes the next throw faster and harder to catch.
 [*][b]Trick shots[/b]: curve your throw around cover, lob it over a wall, or fake a throw to bait a catch into thin air.
 [*][b]Two hearts each[/b]: a hit costs one, the second one sends you out for a few seconds. Catching never heals, so every hit counts.
@@ -57,7 +57,7 @@ DogeballVR is a fast, team-based dodgeball game played 3 vs 3 in third person: r
 Charge into a rival to knock the ball out of their hands. Near an edge, they fall: [b]ring out[/b], and the KO is yours.
 
 [h2]Special balls[/h2]
-Every match draws one special ball. It appears on a pink plinth in the middle of the arena, on the side of the team that's behind, and both teams race for it:
+Each match draws one special ball type, Bomb or Bounce. Every 45 seconds one appears on a pink plinth in the middle of the arena, on the side of the team that's behind, and both teams race for it:
 [list]
 [*][b]Bomb[/b]: explodes on impact and hits every rival in the blast.
 [*][b]Bounce[/b]: ricochets off the walls, so bank it off one near your target.
@@ -73,7 +73,7 @@ Every match draws one special ball. It appears on a pink plinth in the middle of
 [h2]Play your way[/h2]
 [list]
 [*][b]Keyboard & mouse[/b]: over-the-shoulder camera with an optional first-person view, dash, jump, tackle and fully rebindable keys.
-[*][b]Gamepad[/b]: the whole game plays on a controller, menus included, with rebindable buttons.
+[*][b]Gamepad[/b]: matches and menus play on a controller, with rebindable buttons (room codes use Steam's on-screen keyboard).
 [*][b]English and French[/b], adjustable text size and team symbols for colour-blind players.
 [/list]
 
@@ -84,18 +84,18 @@ Every match draws one special ball. It appears on a pink plinth in the middle of
 [/list]
 
 [h2]Level up your look[/h2]
-Every match earns XP. Climb from level 1 to 100 and unlock [b]17 hats[/b], from a cap to a black crown, and wear them online.
+Every match earns XP. Climb from level 1 to 100 and unlock [b]17 hats and masks[/b], from a cap to a black crown, and wear them online.
 ```
 
 ### FR
 
 ```
 [h2]Attrape. Charge. Renvoie.[/h2]
-DogeballVR est un dodgeball en équipe, rapide, en 3 contre 3 à la troisième personne : cours, dash, saute, vise et lance au clavier-souris ou à la manette. Chaque balle qui arrive sur toi est une occasion : attrape-la au bon moment et renvoie-la.
+Dogeball est un dodgeball en équipe, rapide, en 3 contre 3 à la troisième personne : cours, dash, saute, vise et lance au clavier-souris ou à la manette. Chaque balle qui arrive sur toi est une occasion : attrape-la au bon moment et renvoie-la.
 
 [h2]Tout se joue à l'attrape[/h2]
 [list]
-[*][b]Attrape[/b] les tirs au lieu de les esquiver. Au bon moment, c'est une [b]attrape parfaite[/b] : la balle garde sa charge et monte d'un palier dans tes mains.
+[*][b]Attrape[/b] les tirs, ou esquive-les si tu ne peux pas. Au bon moment, c'est une [b]attrape parfaite[/b] : la balle garde sa charge et monte d'un palier dans tes mains.
 [*][b]Passe pour charger[/b] : une passe d'un coéquipier charge la balle. Chaque palier rend le tir suivant plus rapide et plus dur à attraper.
 [*][b]Coups spéciaux[/b] : courbe ton tir autour d'un abri, lobe par-dessus un mur, ou feinte pour faire attraper le vide.
 [*][b]Deux cœurs chacun[/b] : une touche en coûte un, la deuxième te sort quelques secondes. Attraper ne soigne jamais : chaque touche compte.
@@ -110,7 +110,7 @@ DogeballVR est un dodgeball en équipe, rapide, en 3 contre 3 à la troisième p
 Fonce sur un rival pour lui faire lâcher sa balle. Au bord du vide, il tombe : [b]éjecté[/b], le KO est pour toi.
 
 [h2]Balles spéciales[/h2]
-Chaque match tire au sort une balle spéciale. Elle apparaît sur un socle rose au milieu de l'arène, du côté de l'équipe menée, et les deux équipes se la disputent :
+Chaque match tire au sort un type de balle spéciale, bombe ou rebond. Toutes les 45 secondes, une balle apparaît sur un socle rose au milieu de l'arène, du côté de l'équipe menée, et les deux équipes se la disputent :
 [list]
 [*][b]Bombe[/b] : explose à l'impact et touche tous les adversaires dans le souffle.
 [*][b]Rebond[/b] : ricoche sur les murs, vise à côté d'eux.
@@ -126,7 +126,7 @@ Chaque match tire au sort une balle spéciale. Elle apparaît sur un socle rose 
 [h2]Joue comme tu veux[/h2]
 [list]
 [*][b]Clavier-souris[/b] : caméra à l'épaule, vue à la première personne en option, dash, saut, tacle et touches entièrement réassignables.
-[*][b]Manette[/b] : tout le jeu se joue à la manette, menus compris, boutons réassignables.
+[*][b]Manette[/b] : matchs et menus se jouent à la manette, boutons réassignables (le code de salle passe par le clavier virtuel de Steam).
 [*][b]Français et anglais[/b], taille du texte réglable et symboles d'équipe pour les daltoniens.
 [/list]
 
@@ -137,8 +137,10 @@ Chaque match tire au sort une balle spéciale. Elle apparaît sur un socle rose 
 [/list]
 
 [h2]Soigne ton look[/h2]
-Chaque match rapporte de l'XP. Monte du niveau 1 au niveau 100 et débloque [b]17 couvre-chefs[/b], de la casquette à la couronne noire, à porter en ligne.
+Chaque match rapporte de l'XP. Monte du niveau 1 au niveau 100 et débloque [b]17 couvre-chefs et masques[/b], de la casquette à la couronne noire, à porter en ligne.
 ```
+
+À ajouter avant publication : 2 ou 3 GIF courts dans la description (attrape parfaite, éjection, bombe), tirés de la bande-annonce.
 
 Noms anglais des arènes : ceux affichés en jeu (`assets/i18n/textes.csv`). Balles spéciales : une famille tirée au sort par match, posée toutes les 45 s sur le socle central le plus proche de l'équipe menée (`MatchController.PlaceOnSpecialSpot`, socles `special` de `tools/maps/arenas.py`).
 
@@ -150,8 +152,9 @@ Noms anglais des arènes : ceux affichés en jeu (`assets/i18n/textes.csv`). Bal
 | « Gamepad » / « Manette », « rebindable buttons » | Manette en mode écran, boutons réassignables | fait ; à essayer sur une vraie manette et sur Steam Deck avant de l'annoncer |
 | « Quick match, or a private room your friends join with a code » | Salons Steam (code dans `scripts/Online/Steam/`), relais P2P | écrit, jamais lancé avec un vrai Steam : premier essai avec l'AppID 480 (`ACTIONS-JULES.md`) ; sans Steam, le code demande le port UDP 7777 ouvert |
 | « team symbols for colour-blind players » | Option « Symboles d'équipe (daltonisme) » | fait |
-| « 17 hats » / « 17 couvre-chefs », « from a cap to a black crown » | Catalogue `scripts/Online/Cosmetics.cs` | fait ; recompter si le catalogue change |
+| « 17 hats and masks » / « 17 couvre-chefs et masques », « from a cap to a black crown » | Catalogue `scripts/Online/Cosmetics.cs` | fait ; recompter si le catalogue change |
 | « English and French » | Option Langue, table `assets/i18n/textes.csv` | fait ; cocher les deux langues (interface) dans Steamworks |
+| Tag « Online PvP », case Online PvP (section 6), carton « 3 VS 3 · ONLINE » de la bande-annonce | Jeu en ligne par Steam (salons, relais) | même état que la ligne « Quick match » : à garder seulement après un vrai match en ligne par Steam |
 | Toute mention de la VR | Hors Steam : la VR est pour les arènes EVA (décision du 22/10) | **ne jamais l'annoncer sur Steam** |
 | Achievements, Stats, Cloud (cases à cocher) | 22 succès et 8 stats (`achievements.csv`), Auto-Cloud | écrits ; à vérifier avec un vrai Steam |
 
@@ -173,7 +176,7 @@ Noms anglais des arènes : ceux affichés en jeu (`assets/i18n/textes.csv`). Bal
 12. Controller
 13. Stylized
 14. Colorful
-15. Character Customization
+15. Cartoony
 16. Bots
 17. 3D
 18. Party Game
@@ -193,7 +196,7 @@ Action, Sports, Indie. Ajouter **Early Access** si le jeu sort en accès anticip
 | Online PvP | oui | relais Steam / lobbies livrés (sinon le jeu ne marche en ligne que par IP) |
 | LAN PvP | oui | déjà fait (`--host`, `--join=IP`) ; à garder si le menu le propose |
 | Shared/Split Screen PvP | non | pas d'écran partagé |
-| Remote Play Together | **non** | ne sert qu'aux jeux multijoueurs en local (même machine) ; DogeballVR n'en a pas |
+| Remote Play Together | **non** | ne sert qu'aux jeux multijoueurs en local (même machine) ; le jeu n'en a pas |
 | Remote Play on TV / Phone / Tablet | à tester | clavier-souris ou manette en streaming : ça marche en théorie, à vérifier |
 | Steam Achievements | oui | succès livrés (fil réseau, `docs/steam/achievements.csv`) |
 | Stats | oui | si les stats Steam sont livrées |
@@ -202,7 +205,7 @@ Action, Sports, Indie. Ajouter **Early Access** si le jeu sort en accès anticip
 | Steam Workshop / Level editor | non | |
 | In-App Purchases | non | |
 | VR Supported / VR Only / Tracked Motion Controllers | **non** | la VR n'est pas vendue sur Steam (arènes EVA, hors Steam) : ne rien cocher ni remplir dans la partie VR de Steamworks |
-| Full Controller Support | à décider après essai | manette faite en mode écran, menus compris, sauf la saisie d'un code de salle ; après essai sur une vraie manette, « Partial », puis « Full » quand le code se saisit aussi à la manette |
+| Full Controller Support | à décider après essai | manette faite en mode écran, menus compris ; le code de salle passe par le clavier virtuel de Steam (`MainMenu.PadKeyboard`), donc seulement quand Steam tourne. Après essai sur une vraie manette et sur Steam Deck : « Full » |
 | Partial Controller Support | voir ligne au-dessus | le questionnaire « controller support » de Steamworks fixe ensuite l'étiquette |
 | Captions available | non | pas de dialogues |
 | Cross-Platform Multiplayer | non | la version VR d'EVA est hors Steam |
@@ -234,10 +237,10 @@ Durée visée : 70 s. Musique de match du jeu, coupes sur les temps.
 |---|---|---|---|---|
 | 1 | 0:00–0:04 | Gros plan à l'épaule | Une balle arrive vers la caméra, le joueur l'attrape au dernier moment (anneau d'attrape parfaite, son) | — |
 | 2 | 0:04–0:09 | Plan large | Toits du Marché : les deux toits, la rue, les trois ponts, six joueurs en mouvement | logo du jeu |
-| 3 | 0:09–0:15 | 3e personne | Course, dash, tir chargé qui touche un adversaire (flash, cœur perdu) | CATCH. |
-| 4 | 0:15–0:21 | 3e personne, caméra proche | Attrape parfaite, la balle monte d'un palier, renvoi immédiat qui touche | CHARGE. |
-| 5 | 0:21–0:27 | 3e personne | Passe d'un allié (palier 1), tir rapide qui met KO | SEND IT BACK. |
-| 6 | 0:27–0:33 | Plan latéral | Tir à effet autour d'une cheminée ; cloche par-dessus un mur | — |
+| 3 | 0:09–0:15 | 3e personne | Course, dash, tir chargé qui touche un adversaire (flash, cœur perdu) | — |
+| 4 | 0:15–0:21 | 3e personne, caméra proche | Attrape parfaite, la balle monte d'un palier, renvoi immédiat qui touche | CATCH. |
+| 5 | 0:21–0:27 | 3e personne | Passe d'un allié (palier 1), la balle s'illumine | CHARGE. |
+| 6 | 0:27–0:33 | Plan latéral | Le tir chargé part et met KO ; puis tir à effet autour d'une cheminée | SEND IT BACK. |
 | 7 | 0:33–0:39 | Toits du Marché | Tacle sur un pont, l'adversaire tombe dans la rue (éjecté) | — |
 | 8 | 0:39–0:45 | La Piscine | Saut du plongeoir, tir plongeant sur le bassin | — |
 | 9 | 0:45–0:51 | Le Dépôt | Annonce « SPECIAL BALL: BOMB », course vers le socle rose, la bombe explose sur deux adversaires | — |
