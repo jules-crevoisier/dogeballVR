@@ -26,6 +26,9 @@ public partial class Avatar : Node3D
     readonly System.Collections.Generic.Dictionary<Gameplay.Ball, (bool held, int owner, float speed)> seenBalls = new();
     readonly System.Collections.Generic.List<Gameplay.Ball> goneBalls = new();
     float climb;   // vitesse verticale de la tête (saut)
+    Vector3 velocity;   // déplacement au sol lissé (m/s, monde) : sens de la course
+    bool botAir;        // bot (sans pose) dont les pieds sont au-dessus du sol de l'arène
+    double airTime;     // temps passé en l'air (chute puis réception)
     bool dash;
     /// <summary>Le joueur charge un tir (clic maintenu) : pose « Armer » tenue jusqu'au lâcher, qui enchaîne sur « Lancer ».</summary>
     public bool Charging { get; set; }     // pointe de vitesse horizontale vue depuis la dernière image (dash ou esquive)
@@ -157,7 +160,7 @@ public partial class Avatar : Node3D
             avatar.modelName = $"avatar_{teamName}_rig";
             avatar.anim = rigged.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
             avatar.AddChild(rigged);
-            foreach (var loop in new[] { "Repos", "Course", "Armer" })
+            foreach (var loop in new[] { "Repos", "Course", "Marche", "Armer", "Chute" })
                 if (avatar.anim?.HasAnimation(loop) == true) avatar.anim.GetAnimation(loop).LoopMode = Animation.LoopModeEnum.Linear;
             if (avatar.anim != null) AddRecoil(avatar.anim);
             avatar.anim?.Play("Repos");
@@ -394,7 +397,12 @@ public partial class Avatar : Node3D
             var flat = bodyGlobal - lastBodyGlobal;
             flat.Y = 0;
             speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / (float)delta, 12f), 0.25f);
+            velocity = velocity.Lerp(flat / (float)delta, 0.25f);
+            climb = Mathf.Lerp(climb, (bodyGlobal.Y - lastBodyGlobal.Y) / (float)delta, 0.5f);   // saut, tremplin, chute
+            // En l'air : pieds à plus de 25 cm au-dessus du sol de l'arène (une rampe descendue en courant n'en est pas un).
+            botAir = Ground != null && bodyGlobal.Y - Ground.GroundAt(bodyGlobal.X, bodyGlobal.Z, bodyGlobal.Y) > 0.25f;
         }
+        else botAir = false;
         lastBodyGlobal = bodyGlobal;
         // Événements de balle déduits de l'état visible (hôte et clients) : prise puis lâcher par ce joueur.
         heldBall = null;
@@ -448,14 +456,49 @@ public partial class Avatar : Node3D
             foreach (var b in seenBalls.Keys) if (!IsInstanceValid(b)) goneBalls.Add(b);
             foreach (var b in goneBalls) seenBalls.Remove(b);
         }
-        if (actionLeft <= 0 && climb > 2.2f && (airborne || ik == null || !IkEnabled)) PlayAction("Saut", 0.7);   // pas en se relevant vite
+        if (actionLeft <= 0 && climb > 2.2f && (airborne || botAir || ik == null || !IkEnabled)) PlayAction("Saut", 0.7);   // pas en se relevant vite ; bot : pieds au-dessus du sol
         if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
         dash = false;
         UpdateIk((float)delta);
+        // Réception : pieds au sol après plus d'un tiers de seconde en l'air (saut, tremplin), avant les autres gestes.
+        // En l'air : tête au-dessus de la taille debout (pose reçue), ou pieds au-dessus du sol de l'arène (bots, sans pose).
+        bool inAir = airborne || botAir;
+        bool landed = !inAir && airTime > LandAfter;
+        airTime = inAir ? airTime + delta : 0;
+        if (landed && actionLeft <= 0 && anim.HasAnimation("Reception")) PlayAction("Reception", 0.3);
         if (actionLeft > 0) { actionLeft -= delta; return; }
-        string loop = Charging && anim.HasAnimation("Armer") ? "Armer" : speed > 1.0f ? "Course" : "Repos";
+        string loop = LoopFor();
+        // Recul : la course jouée à l'envers (les jambes reculent). De côté, la course avant suffit vue de loin.
+        bool backwards = loop is "Course" or "Marche" && Backwardness() > 0.35f;
         if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
-        anim.SpeedScale = loop == "Course" ? Mathf.Clamp(speed / 4.5f, 0.7f, 1.6f) : 1f;
+        float rate = loop == "Course" ? Mathf.Clamp(speed / 4.5f, 0.7f, 1.6f) : loop == "Marche" ? Mathf.Clamp(speed / 1.5f, 0.7f, 1.6f) : 1f;
+        anim.SpeedScale = backwards ? -rate : rate;
+    }
+
+    /// <summary>Sol de l'arène en cours (null hors arène) : en l'air ou non pour les bots, qui n'envoient pas de pose.</summary>
+    public static Maps.ArenaGeometry? Ground { get; set; }
+
+    const double LandAfter = 0.35;   // s en l'air avant une réception jouée (un pas sur une marche n'en est pas une)
+    const float WalkTop = 3.0f;      // m/s : en dessous, l'avatar marche (joueur VR qui se déplace, approche lente)
+
+    /// <summary>Boucle du corps : armé, en l'air, marche, course ou repos.</summary>
+    string LoopFor()
+    {
+        if (Charging && anim!.HasAnimation("Armer")) return "Armer";
+        if (airTime > 0.2 && anim!.HasAnimation("Chute")) return "Chute";
+        if (speed <= 1.0f) return "Repos";
+        return speed < WalkTop && anim!.HasAnimation("Marche") ? "Marche" : "Course";
+    }
+
+    /// <summary>De 0 (vers l'avant ou de côté) à 1 (droit en arrière) : part du déplacement contraire au regard du corps.</summary>
+    float Backwardness()
+    {
+        var flat = new Vector3(velocity.X, 0, velocity.Z);
+        if (flat.LengthSquared() < 0.25f) return 0f;
+        var forward = body!.GlobalBasis * Vector3.Forward;   // modèle tourné vers -Z (bots compris, qui n'appellent pas Pose)
+        forward.Y = 0;
+        if (forward.LengthSquared() < 1e-4f) return 0f;
+        return Mathf.Max(0f, -flat.Normalized().Dot(forward.Normalized()));
     }
 
     /// <summary>Place l'avatar dans le monde (positions globales : le parent doit être à l'origine, sans rotation).</summary>
@@ -469,6 +512,7 @@ public partial class Avatar : Node3D
             if (dt > 0 && lastHead != Vector3.Zero)
             {
                 speed = Mathf.Lerp(speed, Mathf.Min(flat.Length() / dt, 12f), 0.25f);
+                velocity = velocity.Lerp(flat / dt, 0.25f);
                 if (flat.Length() / dt > 13f && flat.Length() < 1.5f) dash = true;   // pas une téléportation (réapparition)
                 climb = (head.Y - lastHead.Y) / dt;
             }

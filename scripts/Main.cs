@@ -221,6 +221,7 @@ public partial class Main : Node3D
             map = fallback;
             localZoneId = mapped;
         }
+        Visual.Avatar.Ground = map.Geometry;   // arènes : les bots savent s'ils sont en l'air (saut, tremplin, chute)
         var localZone = map.Zones.Find(z => z.Id == localZoneId);
         if (localZone == null)
         {
