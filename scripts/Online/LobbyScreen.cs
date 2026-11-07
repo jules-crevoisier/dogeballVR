@@ -219,6 +219,7 @@ public partial class LobbyScreen : CanvasLayer
     {
         "marche_suspendu" => "Toits du Marché (arène, 3 contre 3)",
         "piscine" => "La Piscine (arène, 3 contre 3)",
+        "depot" => "Le Dépôt (arène, 3 contre 3)",
         "croix_neon" => "Croix Néon (jeu libre)",
         "fosse_croisee" => "Fosse croisée (jeu libre)",
         "tour_4v4" => "Tour 4 contre 4 (jeu libre)",

@@ -661,7 +661,7 @@ jobs:
           if-no-files-found: ignore
 
   arenes:
-    name: Arènes libres (Toits du Marché, La Piscine)
+    name: Arènes libres (Toits du Marché, La Piscine, Le Dépôt)
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -673,7 +673,7 @@ jobs:
 
       - name: Test solo des arènes (géométrie, grille des bots, manche complète)
         run: |
-          for MAP in marche_suspendu piscine; do
+          for MAP in marche_suspendu piscine depot; do
             "$GODOT" --headless --path . --fixed-fps 60 --quit-after 9000 -- --map=$MAP --pc-autoplay 2>&1 | tee arene-$MAP.log
             if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" arene-$MAP.log; then
               echo "Erreur à l'exécution ($MAP, solo)"; exit 1

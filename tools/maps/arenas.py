@@ -3,7 +3,7 @@
 
 Chaque carte est décrite pour l'équipe orange (côté -Z), puis copiée par symétrie centrale (x, z) -> (-x, -z) pour l'équipe
 bleue : les deux camps ont exactement le même terrain, tourné d'un demi-tour (même flanc fort de chaque côté).
-Usage : python3 tools/maps/arenas.py   (réécrit maps/marche_suspendu.json, maps/piscine.json)
+Usage : python3 tools/maps/arenas.py   (réécrit maps/marche_suspendu.json, maps/piscine.json, maps/depot.json)
 Les cotes sont en mètres ; le sol praticable le plus bas est à y = 0 (règle d'ArenaGeometry : pas de hauteur négative).
 """
 import json
@@ -287,6 +287,90 @@ def piscine():
     })
 
 
+def depot():
+    """
+    Le Dépôt : dépôt de tramways au petit matin, sur une dalle surélevée au-dessus du faisceau de voies. Deux fosses de visite
+    (1,6 m de large, ring-out) traversent toute la carte dans l'axe des camps, à x = -9 et x = 9 : elles découpent trois couloirs.
+    Chaque camp a un tram garé au-dessus d'une des fosses (couvert plein de 8 m, toit atteint par tremplin) ; l'autre fosse
+    est ouverte devant lui, franchie par une passerelle. Au centre, la plaque tournante (un peu plus haute) et son poste
+    d'aiguillage. Idée : choisir son couloir. Le couloir central est court et couvert, les couloirs extérieurs longent la fosse
+    et le bord ouvert sur le faisceau : un tacle y fait tomber. Environ 175 m² par joueur en 3 contre 3.
+    """
+    a = Arena()
+    TRAM, TRAM_B = "#E8E2D2", "#E8E2D2"   # caisse crème, bande d'équipe en décor
+    # Dalle du côté orange (z -18..0), percée par les deux fosses (x -9,8..-8,2 et 8,2..9,8) de z = -12 au centre.
+    a.block("dalle_fond", "floor", 0, -15, 34, 6, 0)
+    a.block("dalle_centre", "floor", 0, -6, 16.4, 12, 0)
+    a.block("dalle_g", "floor", -13.4, -6, 7.2, 12, 0)
+    a.block("dalle_d", "floor", 13.4, -6, 7.2, 12, 0)
+    # Quai du fond (départ, 1,2 m) et ses rampes, mur de la halle derrière.
+    a.block("quai", "deck", 0, -16, 16, 3.6, 1.2)
+    a.ramp("rampe_quai_g", -9.5, -16, 3, 3, 0, 1.2, "+x")
+    a.ramp("rampe_quai_d", 9.5, -16, 3, 3, 0, 1.2, "-x")
+    a.block("muret_quai", "low", 0, -14.0, 4, 0.4, 2.2, 1.2)
+    a.block("mur_halle", "parapet", 0, -18.2, 34.8, 0.4, 4.0, 0, color="#8E7A6A")
+    a.block("mur_g", "parapet", -17.2, -13.5, 0.4, 9.4, 1.6, 0)
+    a.block("mur_d", "parapet", 17.2, -13.5, 0.4, 9.4, 1.6, 0)
+    # Tram garé au-dessus de la fosse gauche : couvert plein (3 m), toit plat atteint par un tremplin, perché et exposé.
+    a.block("tram", "tower", -9, -6.5, 2.6, 8, 3.0, 0, color=TRAM, color_b=TRAM_B)
+    a.deco(x=-9, y=1.45, z=-6.5, sx=2.66, sy=0.9, sz=7.4, color="#2A3550", pattern=0)            # bandeau de vitres
+    a.deco(x=-9, y=0.55, z=-6.5, sx=2.68, sy=0.35, sz=8.02, color=ORANGE, color_b=BLEU, pattern=0)   # bande d'équipe
+    for zz in (-10.4, -2.6):   # nez arrondis suggérés : feux
+        a.deco(x=-9, y=0.9, z=zz, sx=1.6, sy=0.25, sz=0.1, color="#FFE9B0", glow=1.4, pattern=0)
+    a.deco(x=-9, y=3.0, z=-6.5, sx=0.5, sy=1.2, sz=0.5, color="#3A3F4A", pattern=0)   # pantographe
+    a.pad("tremplin_tram", -13.2, -12.5, 0, -9, -8.5, 3.0, apex=1.5)
+    # Passerelle sur la fosse droite (ouverte de ce côté-ci) : 2 m de large.
+    a.block("passerelle", "bridge", 9, -7.5, 2.4, 2.0, 0, -0.4)
+    # Rails le long des fosses (décor) et poteaux de caténaire (couverts fins, pleins).
+    for x in (-9, 9):
+        for dx in (-0.85, 0.85):
+            a.deco(x=x + dx, y=0, z=-6, sx=0.12, sy=0.08, sz=12, color="#B9BFCC", pattern=0)
+    for x, z in ((-11.2, -1.2), (11.2, -11.6)):
+        a.block(f"poteau_{'g' if x < 0 else 'd'}", "wall", x, z, 0.4, 0.4, 5.0, 0, color="#4A5170")
+    # Couverts du couloir central et des flancs.
+    a.block("draisine", "cover", -3.5, -4, 2.6, 1.4, 1.2, 0, color="#F2C230")          # jaune chantier, demi-couvert
+    a.block("traverses", "crate", 4, -9.5, 3, 1.2, 0.8, 0)
+    a.block("armoire", "container", 5.2, -3.6, 1.2, 1.2, 2.4, 0, color="#5A6B5A")   # armoire électrique (couvert plein)
+    a.block("bidons", "cover", 13.6, -3.5, 1.4, 1.4, 1.0, 0, color="#2F6F8F")
+    a.block("caisses_quai", "crate", -14.2, -9.5, 1.6, 1.6, 1.1, 0, model="caisse_bois")
+    a.block("touret", "cover", -2.5, -11.5, 1.6, 1.6, 1.2, 0, color="#A9773F")   # touret de câble
+    # Plaque tournante au centre (0,4 m, se monte en marchant) et poste d'aiguillage : coupe la vue d'un camp à l'autre.
+    a.block("plaque_tournante", "deck", 0, 0, 8, 8, 0.4, -0.6, mirror=False, color="#6E7487")
+    a.block("poste_aiguillage", "tower", 0, 0, 2.2, 2.2, 2.8, 0.4, mirror=False, color="#C9A27A")
+    a.deco(x=0, y=0.4, z=0, sx=7.6, sy=0.03, sz=0.14, color="#B9BFCC", pattern=0, mirror=False)   # rails de la plaque
+    a.deco(x=0, y=2.8, z=0, sx=2.6, sy=0.25, sz=2.6, color="#5A6180", pattern=0, mirror=False)    # toit du poste
+    # Places : 4 par équipe sur le quai.
+    for x, z in [(-2, -16.6), (2, -16.6), (-5.5, -16.2), (5.5, -16.2)]:
+        a.spawn(x, z)
+    # Balles : une près du tram (à découvert), une derrière l'armoire, une sur la plaque tournante (au centre, disputée).
+    a.ball("balle_tram", -6, -11.2, 1.0)
+    a.ball("balle_armoire", 7, -5.5, 1.0)
+    a.ball("balle_plaque", 2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
+    a.ball("balle_plaque_b", -2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
+    # Décor : la halle (arches), le faisceau de voies plus bas avec des trams garés, caténaires, lampes.
+    for x in (-12, 0, 12):
+        a.deco(x=x, y=4.0, z=-18.2, sx=8, sy=3.5, sz=0.5, color="#8E7A6A", pattern=1)
+        a.deco(x=x, y=4.0, z=-18.0, sx=6, sy=2.8, sz=0.3, color="#A9C4D6", pattern=5, color2="#F6E6C0")
+    for k, z in enumerate((-14, -6, 2, 10)):
+        a.deco(mirror=False, x=-24, y=-6, z=z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
+        a.deco(mirror=False, x=-24, y=-4.8, z=z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
+        a.deco(mirror=False, x=24, y=-6, z=-z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
+        a.deco(mirror=False, x=24, y=-4.8, z=-z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
+    for x in (-9, 9):
+        a.deco(mirror=False, x=x, y=5.2, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, d'un poteau à l'autre
+    a.deco(model="lampadaire", x=-15.5, y=0, z=-12.6, scale=1.0)
+    a.skyline((-19, 19, -19, 19), 23, [("#7A869A", "#E9E4D8"), ("#8E8A86", "#E9E4D8"), ("#6E7A8E", "#F2E2C4"), ("#9A8E80", "#E9E4D8")], base=-6,
+              brick=True, max_h=24)
+    a.write("depot", {
+        "ambiance": "brume",
+        "info": {"title": "Le Dépôt", "tagline": "Deux fosses, deux trams, trois couloirs.",
+                 "idea": "Choisir son couloir : le centre est court et couvert, les côtés longent la fosse et le vide ; le toit du tram domine, à un tacle de la chute.", "teamSize": 3},
+        "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},
+        "arena": {"killY": -3, "stepUp": 0.45, "floorBelowY": -6, "floorBelowColor": "#4A4D58", "fogScale": 0.35},
+    })
+
+
 if __name__ == "__main__":
     marche_suspendu()
     piscine()
+    depot()

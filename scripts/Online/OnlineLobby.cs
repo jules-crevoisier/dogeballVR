@@ -38,7 +38,7 @@ public partial class OnlineLobby : Node
 
     const double JoinRequestTimeout = 10.0, ConnectTimeout = 10.0, ReconnectWindow = 30.0, ReconnectEvery = 3.0;
     const int MaxLobbyMessagesPerSecond = 8;
-    static readonly string[] MapChoices = { "marche_suspendu", "piscine", "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
+    static readonly string[] MapChoices = { "marche_suspendu", "piscine", "depot", "croix_neon", "fosse_croisee", "tour_4v4", "neon_court", "la_fosse" };
 
     public LobbyState State { get; private set; } = LobbyState.Idle;
     public bool IsHost { get; private set; }

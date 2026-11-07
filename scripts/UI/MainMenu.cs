@@ -23,6 +23,7 @@ public partial class MainMenu : CanvasLayer
     {
         ("marche_suspendu", "TOITS DU MARCHÉ", "3 contre 3. Deux toits au-dessus d'une rue : tenir les ponts, un tacle et c'est la chute."),
         ("piscine", "LA PISCINE", "3 contre 3. Un bassin vide et un plongeoir : le bas contre le haut, les bords ouverts sur le vide."),
+        ("depot", "LE DÉPÔT", "3 contre 3. Deux fosses, deux trams, trois couloirs : le toit du tram domine, à un tacle de la chute."),
         ("croix_neon", "CROIX NÉON", "2 contre 2. Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
         ("fosse_croisee", "FOSSE CROISÉE", "2 contre 2. Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
         ("tour_4v4", "LA TOUR", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
