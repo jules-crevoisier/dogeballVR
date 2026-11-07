@@ -793,8 +793,8 @@ public partial class MatchController : Node3D
         ballsCached = -1;
         if (specialOnSpot != null && !SpecialWaiting)   // prise (ou délogée) : balle comme les autres
         {
-            if (IsInstanceValid(specialOnSpot) && specialOnSpot.IsHeld) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId}");
-            else GD.Print("[Match] Balle spéciale délogée de son socle");
+            if (IsInstanceValid(specialOnSpot) && specialOnSpot.IsHeld) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId} (t={specialClock:0.0} s)");
+            else GD.Print($"[Match] Balle spéciale délogée de son socle (t={specialClock:0.0} s)");
             specialOnSpot = null;
         }
         highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);

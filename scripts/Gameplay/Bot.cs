@@ -275,7 +275,12 @@ public partial class Bot : Node3D
                 return;
             }
             held = ball;
-            if (World != null) { World.Claims.Remove(ball); goalBall = null; repathAt = 0; }
+            if (World != null)
+            {
+                World.Unclaim(goalBall, this);
+                if (goalBall != ball) World.Claims.Remove(RoamWorld.ClaimKey(ball, Hurtbox.Team));   // balle prise en route : plus personne n'y court
+                goalBall = null; repathAt = 0;
+            }
             if (reads.Remove(ball) || ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() > 8f) { nCatches++; if (perfect) nPerfects++; }
             ball.Hold(holdPoint, Hurtbox.PlayerId, Hurtbox.Team, perfect);
             feinted = false;

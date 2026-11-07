@@ -10,8 +10,21 @@ public sealed class RoamWorld
     public ArenaGeometry Geo { get; }
     public NavGrid Nav { get; }
     public MapData Map { get; }
-    /// <summary>Balle visée par chaque bot (un seul bot court vers une balle donnée).</summary>
-    public Dictionary<Ball, Bot> Claims { get; } = new();
+    /// <summary>Balle visée par chaque bot : un seul bot court vers une balle normale ; une balle spéciale est disputée, un bot
+    /// par équipe (clé : balle et équipe, -1 pour une balle normale).</summary>
+    public Dictionary<(Ball, int), Bot> Claims { get; } = new();
+
+    /// <summary>Clé de réservation d'une balle pour un bot de l'équipe donnée.</summary>
+    public static (Ball, int) ClaimKey(Ball b, int team) => (b, b.Kind == Ball.KindNormal ? -1 : team);
+
+    /// <summary>Libère la réservation de ce bot sur cette balle (seulement si c'est la sienne).</summary>
+    public void Unclaim(Ball? b, Bot bot)
+    {
+        if (b == null) return;
+        // Sans lire b.Kind : la balle peut déjà être libérée (bombe explosée, balle recyclée).
+        foreach (var key in new[] { (b, -1), (b, bot.Hurtbox.Team) })
+            if (Claims.TryGetValue(key, out var who) && who == bot) Claims.Remove(key);
+    }
 
     public RoamWorld(MapData map)
     {
@@ -221,7 +234,9 @@ public partial class Bot
         Vector3? want = null;
         if (held == null)
         {
-            if (goalBall != null && (!IsInstanceValid(goalBall) || goalBall.IsHeld || !Free(goalBall))) { w.Claims.Remove(goalBall!); goalBall = null; }
+            if (goalBall != null && (!IsInstanceValid(goalBall) || goalBall.IsHeld || !Free(goalBall))) { w.Unclaim(goalBall, this); goalBall = null; }
+            // Balle spéciale posée sur son socle : on lâche une balle normale visée pour aller la disputer.
+            if (goalBall is { Kind: Ball.KindNormal } && PickBall(specialOnly: true) is { } special) { w.Unclaim(goalBall, this); goalBall = special; }
             goalBall ??= PickBall();
             if (goalBall != null) want = goalBall.GlobalPosition;
             else if (roamClock >= postUntil || goal == null) { want = PickPost(); postUntil = roamClock + rng.RandfRange(2.5f, 4.5f); }
@@ -229,7 +244,7 @@ public partial class Bot
         }
         else
         {
-            if (goalBall != null) { w.Claims.Remove(goalBall); goalBall = null; }
+            if (goalBall != null) { w.Unclaim(goalBall, this); goalBall = null; }
             var target = Nearest(enemy: true);
             if (target == null) return;
             var tp = target.GlobalPosition;
@@ -257,22 +272,38 @@ public partial class Bot
         return p.Y > -0.5f && b.LinearVelocity.Length() < 7f && !World!.Geo.IsVoid(p.X, p.Z, 0.2f);
     }
 
-    Ball? PickBall()
+    /// <summary>Portée (m) jusqu'à laquelle un bot sans balle va disputer la balle spéciale, et avance qu'on lui donne sur une
+    /// balle normale dans le choix (elle vaut un détour).</summary>
+    const float SpecialReach = 22f, SpecialBonus = 10f;
+
+    /// <summary>
+    /// Balle à aller prendre : la plus proche (hauteur comptée double), pénalisée si un adversaire en est bien plus près ;
+    /// la balle spéciale passe devant (un bot par équipe la dispute, la pénalité d'adversaire ne s'applique pas : c'est une
+    /// course). specialOnly : seulement une balle spéciale à portée, sans réserver si aucune.
+    /// </summary>
+    Ball? PickBall(bool specialOnly = false)
     {
         var w = World!;
         Ball? best = null; float bestD = float.MaxValue;
+        var enemy = Nearest(enemy: true);
         foreach (var node in GetTree().GetNodesInGroup("balls"))
         {
             if (node is not Ball b || !Free(b)) continue;
-            if (w.Claims.TryGetValue(b, out var other) && other != this && IsInstanceValid(other)) continue;
+            bool special = b.Kind != Ball.KindNormal;
+            if (specialOnly && !special) continue;
+            if (w.Claims.TryGetValue(RoamWorld.ClaimKey(b, Hurtbox.Team), out var other) && other != this && IsInstanceValid(other)) continue;
             var p = b.GlobalPosition;
             float d = new Vector2(p.X - roamPos.X, p.Z - roamPos.Y).Length() + Mathf.Abs(p.Y - Feet) * 2f;
-            // Une balle bien plus près d'un adversaire est un piège : pénalité.
-            var enemy = Nearest(enemy: true);
-            if (enemy != null && enemy.GlobalPosition.DistanceTo(p) < d * 0.5f) d += 6f;
+            if (special)
+            {
+                if (d > SpecialReach) continue;
+                d = Mathf.Max(0f, d - SpecialBonus);
+            }
+            // Une balle normale bien plus près d'un adversaire est un piège : pénalité.
+            else if (enemy != null && enemy.GlobalPosition.DistanceTo(p) < d * 0.5f) d += 6f;
             if (d < bestD) { bestD = d; best = b; }
         }
-        if (best != null) w.Claims[best] = this;
+        if (best != null) w.Claims[RoamWorld.ClaimKey(best, Hurtbox.Team)] = this;
         return best;
     }
 
