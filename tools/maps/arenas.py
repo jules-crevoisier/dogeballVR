@@ -71,7 +71,7 @@ class Arena:
             if color_b: m["color"] = color_b
             self.decor.append(m)
 
-    def skyline(self, bounds, seed, colors, ring=10, base=-14, brick=True, max_h=30, near_h=(4, 12)):
+    def skyline(self, bounds, seed, colors, ring=10, base=-14, brick=True, max_h=30, near_h=(4, 12), min_far=16):
         """Immeubles autour de l'arène (décor sans collision) : fenêtres, hauteurs variées, à 8-30 m des bords."""
         import random
         rnd = random.Random(seed)
@@ -80,7 +80,7 @@ class Arena:
         for k in range(ring):
             t = k / ring
             for side in range(4):
-                far = rnd.uniform(16, 34)
+                far = rnd.uniform(min_far, 34)
                 if side == 0: x, z = x0 + (x1 - x0) * t, z0 - far
                 elif side == 1: x, z = x1 + far, z0 + (z1 - z0) * t
                 elif side == 2: x, z = x1 - (x1 - x0) * t, z1 + far
@@ -339,8 +339,8 @@ def depot():
         for dx in (-0.85, 0.85):
             a.deco(x=x + dx, y=0, z=-6, sx=0.12, sy=0.08, sz=12, color="#B9BFCC", pattern=0)
     for x, z in ((-11.2, -1.2), (11.2, -11.6)):
-        a.block(f"poteau_{'g' if x < 0 else 'd'}", "wall", x, z, 0.4, 0.4, 6.6, 0, color="#4A5170")
-        a.deco(x=x + (2.2 if x < 0 else -2.2) / 2, y=6.4, z=z, sx=2.2, sy=0.12, sz=0.12, color="#4A5170", pattern=0)   # console jusqu'au fil
+        a.block(f"poteau_{'g' if x < 0 else 'd'}", "wall", x, z, 0.4, 0.4, 7.3, 0, color="#4A5170")
+        a.deco(x=x + (2.2 if x < 0 else -2.2) / 2, y=7.1, z=z, sx=2.2, sy=0.12, sz=0.12, color="#4A5170", pattern=0)   # console jusqu'au fil
     # Couverts du couloir central et des flancs.
     # Voie de service en x = -4 : draisine et touret alignés dessus (une ligne, pas un semis).
     a.deco(x=-4.6, y=0.01, z=-8.3, sx=0.12, sy=0.08, sz=8, color="#B9BFCC", pattern=0)
@@ -368,8 +368,8 @@ def depot():
     # Mâts de signal (décor) de part et d'autre : feux rouge et vert lisibles de loin.
     a.deco(x=1.9, y=0.4, z=0, sx=0.15, sy=5.6, sz=0.15, color="#2E3350", pattern=0)
     a.deco(x=1.9, y=4.95, z=0, sx=0.5, sy=1.1, sz=0.5, color="#1E2230", pattern=0)                  # tête de signal
-    a.deco(x=1.9, y=5.1, z=0, sx=0.52, sy=0.36, sz=0.36, color="#E0201A", glow=2.5, pattern=0)
-    a.deco(x=1.9, y=5.55, z=0, sx=0.52, sy=0.36, sz=0.36, color="#3BE07A", glow=2.0, pattern=0)
+    a.deco(x=1.9, y=5.1, z=0, sx=0.52, sy=0.36, sz=0.52, color="#E0201A", glow=2.5, pattern=0)
+    a.deco(x=1.9, y=5.55, z=0, sx=0.52, sy=0.36, sz=0.52, color="#3BE07A", glow=2.0, pattern=0)
     # Places : 4 par équipe sur le quai.
     for x, z in [(-2, -16.6), (2, -16.6), (-5.5, -16.2), (5.5, -16.2)]:
         a.spawn(x, z)
@@ -388,12 +388,12 @@ def depot():
         a.deco(mirror=False, x=24, y=-14, z=-z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
         a.deco(mirror=False, x=24, y=-12.8, z=-z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
     for x in (-9, 9):
-        a.deco(mirror=False, x=x, y=6.5, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, tenu par les consoles
+        a.deco(mirror=False, x=x, y=7.2, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, tenu par les consoles
     # Lampadaires au sodium : deux par moitié.
     for x, z in ((-15.5, -12.6), (15.8, -1.5)):
         a.deco(model="lampadaire", x=x, y=0, z=z, scale=1.0)
     a.skyline((-19, 19, -19, 19), 23, [("#4E5568", "#FFC46A"), ("#5A5A66", "#3A4258"), ("#46506A", "#FFC46A"), ("#5E5650", "#3A4258")], base=-14,
-              brick=True, max_h=24, near_h=(-5, 2))
+              brick=True, max_h=24, near_h=(-5, 2), min_far=20)
     a.write("depot", {
         "ambiance": "aube",
         "info": {"title": "Le Dépôt", "tagline": "Deux fosses, deux trams, trois couloirs.",
