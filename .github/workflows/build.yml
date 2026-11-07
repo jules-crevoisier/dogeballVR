@@ -692,6 +692,7 @@ jobs:
             grep -qE "MANCHE POUR|MANCHE NULLE" arene-$MAP.log || { echo "$MAP : aucune manche terminée"; exit 1; }
             grep -q "Balle spéciale posée" arene-$MAP.log || { echo "$MAP : aucune balle spéciale posée sur un socle"; exit 1; }
             grep -q "Balle spéciale prise sur son socle" arene-$MAP.log || { echo "$MAP : balle spéciale jamais prise sur son socle"; exit 1; }
+            if [ "$MAP" = piscine ]; then grep -q "Bombe : explosion" arene-$MAP.log || { echo "$MAP : la bombe prise n'a jamais explosé (lancée puis perdue ?)"; exit 1; }; fi
             grep "Balle spéciale p" arene-$MAP.log | head -6
           done
 

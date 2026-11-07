@@ -821,8 +821,8 @@ public partial class MatchController : Node3D
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
             if (b == specialOnSpot) continue;   // balle spéciale sur son socle : elle attend son preneur
-            if (b.Kind != Ball.KindNormal) { b.QueueFree(); continue; }   // balle spéciale perdue : elle disparaît, sans devenir une balle normale de plus
             if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
+            if (b.Kind != Ball.KindNormal) { b.QueueFree(); continue; }   // balle spéciale perdue : elle disparaît, sans devenir une balle normale de plus
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);
             pendingReturns.Add((now + returnSeconds, team));
