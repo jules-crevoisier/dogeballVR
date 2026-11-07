@@ -158,8 +158,9 @@ public partial class MatchController : Node3D
             var hp = h.Head.GlobalPosition;
             if (ringMap.Geometry is { } geo)
             {
-                // Arène libre : tombé quand la tête passe sous le niveau du sol le plus bas (0) au-dessus du vide.
-                if (hp.Y > -1.0f || !geo.IsVoid(hp.X, hp.Z, 0f)) continue;
+                // Arène libre : tombé quand la tête passe sous le niveau du sol le plus bas (0) au-dessus du vide, ou sous la ligne
+                // de chute où qu'elle soit (une tête passée sous un tram ou une passerelle n'est plus « au-dessus du vide »).
+                if (hp.Y > -1.0f || !geo.IsVoid(hp.X, hp.Z, 0f) && hp.Y > geo.KillY) continue;
             }
             else
             {

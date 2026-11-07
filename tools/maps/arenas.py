@@ -71,7 +71,7 @@ class Arena:
             if color_b: m["color"] = color_b
             self.decor.append(m)
 
-    def skyline(self, bounds, seed, colors, ring=10, base=-14, brick=True, max_h=30):
+    def skyline(self, bounds, seed, colors, ring=10, base=-14, brick=True, max_h=30, near_h=(4, 12)):
         """Immeubles autour de l'arène (décor sans collision) : fenêtres, hauteurs variées, à 8-30 m des bords."""
         import random
         rnd = random.Random(seed)
@@ -88,7 +88,7 @@ class Arena:
                 spots.append((x, z, far))
         for i, (x, z, far) in enumerate(spots):
             w, d = rnd.uniform(6, 11), rnd.uniform(6, 11)
-            h = rnd.uniform(4, 12) if far < 22 else rnd.uniform(10, max_h)   # proches : bas (ne cachent pas l'arène) ; loin : la silhouette
+            h = rnd.uniform(*near_h) if far < 22 else rnd.uniform(10, max_h)   # proches : bas (ne cachent pas l'arène) ; loin : la silhouette
             c1, c2 = colors[i % len(colors)]
             self.decor.append({"x": round(x, 1), "y": base, "z": round(z, 1), "sx": round(w, 1), "sy": round(h - base, 1), "sz": round(d, 1),
                                "color": c1, "color2": c2, "pattern": 5 if (i % 3 or not brick) else 1})
@@ -299,15 +299,19 @@ def depot():
     a = Arena()
     TRAM, TRAM_B = "#E8E2D2", "#E8E2D2"   # caisse crème, bande d'équipe en décor
     # Dalle du côté orange (z -18..0), percée par les deux fosses (x -9,8..-8,2 et 8,2..9,8) de z = -12 au centre.
-    a.block("dalle_fond", "floor", 0, -15, 34, 6, 0)
-    a.block("dalle_centre", "floor", 0, -6, 16.4, 12, 0)
-    a.block("dalle_g", "floor", -13.4, -6, 7.2, 12, 0)
-    a.block("dalle_d", "floor", 13.4, -6, 7.2, 12, 0)
+    BETON = "#8C877E"   # béton chaud : la brume aplatit un sol ardoise
+    a.block("dalle_fond", "floor", 0, -15, 34, 6, 0, color=BETON)
+    a.block("dalle_centre", "floor", 0, -6, 16.4, 12, 0, color=BETON)
+    a.block("dalle_g", "floor", -13.4, -6, 7.2, 12, 0, color=BETON)
+    a.block("dalle_d", "floor", 13.4, -6, 7.2, 12, 0, color=BETON)
+    # Bandes jaunes de sécurité le long de chaque bord de fosse : le vide se voit de loin.
+    for x in (-9.95, -8.05, 8.05, 9.95):
+        a.deco(x=x, y=0.01, z=-6, sx=0.3, sy=0.02, sz=12, color="#F2C230", pattern=0)
     # Quai du fond (départ, 1,2 m) et ses rampes, mur de la halle derrière.
     a.block("quai", "deck", 0, -16, 16, 3.6, 1.2)
     a.ramp("rampe_quai_g", -9.5, -16, 3, 3, 0, 1.2, "+x")
     a.ramp("rampe_quai_d", 9.5, -16, 3, 3, 0, 1.2, "-x")
-    a.block("muret_quai", "low", 0, -14.0, 4, 0.4, 2.2, 1.2)
+    a.block("muret_quai", "low", 0, -14.0, 4, 0.4, 2.2, 1.2, color=ORANGE, color_b=BLEU)
     a.block("mur_halle", "parapet", 0, -18.2, 34.8, 0.4, 4.0, 0, color="#8E7A6A")
     a.block("mur_g", "parapet", -17.2, -13.5, 0.4, 9.4, 1.6, 0)
     a.block("mur_d", "parapet", 17.2, -13.5, 0.4, 9.4, 1.6, 0)
@@ -319,6 +323,8 @@ def depot():
         a.deco(x=-9, y=0.9, z=zz, sx=1.6, sy=0.25, sz=0.1, color="#FFE9B0", glow=1.4, pattern=0)
     a.deco(x=-9, y=3.0, z=-6.5, sx=0.5, sy=1.2, sz=0.5, color="#3A3F4A", pattern=0)   # pantographe
     a.pad("tremplin_tram", -13.2, -12.5, 0, -9, -8.5, 3.0, apex=1.5)
+    # Balle sur le toit, côté nez avant (z -4) : la récompense est au bout exposé, à un tacle de la fosse.
+    a.ball("balle_toit_tram", -9, -4.0, 3.0 + 0.9, interval=14)
     # Passerelle sur la fosse droite (ouverte de ce côté-ci) : 2 m de large.
     a.block("passerelle", "bridge", 9, -7.5, 2.4, 2.0, 0, -0.4)
     # Rails le long des fosses (décor) et poteaux de caténaire (couverts fins, pleins).
@@ -326,25 +332,37 @@ def depot():
         for dx in (-0.85, 0.85):
             a.deco(x=x + dx, y=0, z=-6, sx=0.12, sy=0.08, sz=12, color="#B9BFCC", pattern=0)
     for x, z in ((-11.2, -1.2), (11.2, -11.6)):
-        a.block(f"poteau_{'g' if x < 0 else 'd'}", "wall", x, z, 0.4, 0.4, 5.0, 0, color="#4A5170")
+        a.block(f"poteau_{'g' if x < 0 else 'd'}", "wall", x, z, 0.4, 0.4, 6.6, 0, color="#4A5170")
+        a.deco(x=x + (2.2 if x < 0 else -2.2) / 2, y=6.4, z=z, sx=2.2, sy=0.12, sz=0.12, color="#4A5170", pattern=0)   # console jusqu'au fil
     # Couverts du couloir central et des flancs.
-    a.block("draisine", "cover", -3.5, -4, 2.6, 1.4, 1.2, 0, color="#F2C230")          # jaune chantier, demi-couvert
+    # Voie de service en x = -4 : draisine et touret alignés dessus (une ligne, pas un semis).
+    a.deco(x=-4.6, y=0.01, z=-8.3, sx=0.12, sy=0.08, sz=8, color="#B9BFCC", pattern=0)
+    a.deco(x=-3.4, y=0.01, z=-8.3, sx=0.12, sy=0.08, sz=8, color="#B9BFCC", pattern=0)
+    a.block("draisine", "cover", -4, -5.3, 1.4, 2.6, 1.2, 0, color="#F2C230")          # jaune chantier, demi-couvert
+    a.block("touret", "cover", -4, -10, 1.6, 1.6, 1.2, 0, color="#A9773F")             # touret de câble
     a.block("traverses", "crate", 4, -9.5, 3, 1.2, 0.8, 0)
-    a.block("armoire", "container", 5.2, -3.6, 1.2, 1.2, 2.4, 0, color="#5A6B5A")   # armoire électrique (couvert plein)
-    a.block("bidons", "cover", 13.6, -3.5, 1.4, 1.4, 1.0, 0, color="#2F6F8F")
+    # Wagon plat chargé : le grand couvert plein de la moitié (4,4 × 2,2 m, 2,4 m).
+    a.block("wagon", "container", 4.5, -5.2, 4.4, 2.2, 2.4, 0, color="#5A6B5A")
+    a.deco(x=4.5, y=0, z=-5.2, sx=4.8, sy=0.35, sz=2.4, color="#2E3350", pattern=0)   # châssis du wagon
+    a.block("bidons", "cover", 13.6, -4.6, 1.4, 1.4, 1.0, 0, color="#2F6F8F")
     a.block("caisses_quai", "crate", -14.2, -9.5, 1.6, 1.6, 1.1, 0, model="caisse_bois")
-    a.block("touret", "cover", -2.5, -11.5, 1.6, 1.6, 1.2, 0, color="#A9773F")   # touret de câble
     # Plaque tournante au centre (0,4 m, se monte en marchant) et poste d'aiguillage : coupe la vue d'un camp à l'autre.
-    a.block("plaque_tournante", "deck", 0, 0, 8, 8, 0.4, -0.6, mirror=False, color="#6E7487")
-    a.block("poste_aiguillage", "tower", 0, 0, 2.2, 2.2, 2.8, 0.4, mirror=False, color="#C9A27A")
+    a.block("plaque_tournante", "deck", 0, 0, 8, 8, 0.4, -0.6, mirror=False, color="#4E5262")
+    for sx, sz, x, z in ((8.2, 0.2, 0, 4.0), (8.2, 0.2, 0, -4.0), (0.2, 8.2, 4.0, 0), (0.2, 8.2, -4.0, 0)):   # cerclage jaune
+        a.deco(mirror=False, x=x, y=0.4, z=z, sx=sx, sy=0.03, sz=sz, color="#F2C230", pattern=0)
+    # Poste d'aiguillage : le repère de la carte (4,6 m), cabine vitrée éclairée en haut, feux rouge et vert.
+    a.block("poste_aiguillage", "tower", 0, 0, 2.2, 2.2, 4.6, 0.4, mirror=False, color="#C9A27A")
     a.deco(x=0, y=0.4, z=0, sx=7.6, sy=0.03, sz=0.14, color="#B9BFCC", pattern=0, mirror=False)   # rails de la plaque
-    a.deco(x=0, y=2.8, z=0, sx=2.6, sy=0.25, sz=2.6, color="#5A6180", pattern=0, mirror=False)    # toit du poste
+    a.deco(x=0, y=3.2, z=0, sx=2.32, sy=1.0, sz=2.32, color="#A9C4D6", glow=0.6, pattern=0, mirror=False)   # cabine vitrée
+    a.deco(x=0, y=4.6, z=0, sx=2.8, sy=0.3, sz=2.8, color="#5A6180", pattern=0, mirror=False)    # toit du poste
+    for x, z, c in ((1.17, 0.7, "#FF3B30"), (1.17, -0.7, "#3BE07A"), (-1.17, -0.7, "#FF3B30"), (-1.17, 0.7, "#3BE07A")):
+        a.deco(mirror=False, x=x, y=2.6, z=z, sx=0.12, sy=0.3, sz=0.3, color=c, glow=1.5, pattern=0)
     # Places : 4 par équipe sur le quai.
     for x, z in [(-2, -16.6), (2, -16.6), (-5.5, -16.2), (5.5, -16.2)]:
         a.spawn(x, z)
     # Balles : une près du tram (à découvert), une derrière l'armoire, une sur la plaque tournante (au centre, disputée).
     a.ball("balle_tram", -6, -11.2, 1.0)
-    a.ball("balle_armoire", 7, -5.5, 1.0)
+    a.ball("balle_bord", 14.2, -6.5, 1.0)   # couloir extérieur : la prendre, c'est longer le vide (x = 17)
     a.ball("balle_plaque", 2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
     a.ball("balle_plaque_b", -2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
     # Décor : la halle (arches), le faisceau de voies plus bas avec des trams garés, caténaires, lampes.
@@ -352,21 +370,23 @@ def depot():
         a.deco(x=x, y=4.0, z=-18.2, sx=8, sy=3.5, sz=0.5, color="#8E7A6A", pattern=1)
         a.deco(x=x, y=4.0, z=-18.0, sx=6, sy=2.8, sz=0.3, color="#A9C4D6", pattern=5, color2="#F6E6C0")
     for k, z in enumerate((-14, -6, 2, 10)):
-        a.deco(mirror=False, x=-24, y=-6, z=z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
-        a.deco(mirror=False, x=-24, y=-4.8, z=z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
-        a.deco(mirror=False, x=24, y=-6, z=-z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
-        a.deco(mirror=False, x=24, y=-4.8, z=-z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
+        a.deco(mirror=False, x=-24, y=-14, z=z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
+        a.deco(mirror=False, x=-24, y=-12.8, z=z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
+        a.deco(mirror=False, x=24, y=-14, z=-z, sx=2.6, sy=3.0, sz=7, color="#E8E2D2")
+        a.deco(mirror=False, x=24, y=-12.8, z=-z, sx=2.66, sy=0.9, sz=6.6, color="#2A3550", pattern=0)
     for x in (-9, 9):
-        a.deco(mirror=False, x=x, y=5.2, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, d'un poteau à l'autre
+        a.deco(mirror=False, x=x, y=6.5, z=0, sx=0.05, sy=0.05, sz=26, color="#2E3350", pattern=0)   # fil de contact, tenu par les consoles
+    # Lampadaires au sodium : deux par moitié.
     a.deco(model="lampadaire", x=-15.5, y=0, z=-12.6, scale=1.0)
-    a.skyline((-19, 19, -19, 19), 23, [("#7A869A", "#E9E4D8"), ("#8E8A86", "#E9E4D8"), ("#6E7A8E", "#F2E2C4"), ("#9A8E80", "#E9E4D8")], base=-6,
-              brick=True, max_h=24)
+    a.deco(model="lampadaire", x=15.8, y=0, z=-1.5, scale=1.0)
+    a.skyline((-19, 19, -19, 19), 23, [("#4E5568", "#FFC46A"), ("#5A5A66", "#F2E2C4"), ("#46506A", "#FFC46A"), ("#5E5650", "#E9E4D8")], base=-14,
+              brick=True, max_h=24, near_h=(-5, 2))
     a.write("depot", {
         "ambiance": "brume",
         "info": {"title": "Le Dépôt", "tagline": "Deux fosses, deux trams, trois couloirs.",
                  "idea": "Choisir son couloir : le centre est court et couvert, les côtés longent la fosse et le vide ; le toit du tram domine, à un tacle de la chute.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},
-        "arena": {"killY": -3, "stepUp": 0.45, "floorBelowY": -6, "floorBelowColor": "#4A4D58", "fogScale": 0.35},
+        "arena": {"killY": -3, "stepUp": 0.45, "floorBelowY": -14, "floorBelowColor": "#4A4D58", "fogScale": 0.35},
     })
 
 
