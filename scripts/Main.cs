@@ -111,6 +111,7 @@ public partial class Main : Node3D
         Online.CrashReporter.Start(GetTree());
         Online.SteamBridge.Init();   // sans effet sans Steam (CI, LAN)
         MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
+        MatchView.HumanLook = z => Online.OnlineLobby.Instance?.LookOfZone(z);   // leurs couvre-chefs
         Visual.KcShaders.ParseLook();
         bool xrActive = XrBootstrap.Start(GetViewport());
         Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque

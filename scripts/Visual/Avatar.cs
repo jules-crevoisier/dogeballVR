@@ -127,6 +127,14 @@ public partial class Avatar : Node3D
         return y > 1.2f && y < 2.1f ? y : DefaultHeadHeight;   // rig inattendu : on garde la valeur historique
     }
 
+    /// <summary>Couvre-chef porté (identifiant de Online.Cosmetics) ; null ou « aucun » : tête nue. Sans effet sur l'avatar de secours.</summary>
+    public void SetHeadwear(string? id)
+    {
+        if (body == null) return;
+        Headwear.Attach(body, id);
+        meshes = System.Array.Empty<MeshInstance3D>();   // l'éclat de touche recouvre aussi le couvre-chef
+    }
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };

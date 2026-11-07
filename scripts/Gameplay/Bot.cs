@@ -94,6 +94,7 @@ public partial class Bot : Node3D
         holdPoint = new Node3D { Name = "HoldPoint", Position = new Vector3(0, 1.4f, 0) };
         AddChild(holdPoint);
         Avatar = Avatar.Create(Hurtbox.Team, bot: true, Hurtbox.PlayerId);
+        Avatar.SetHeadwear(Online.Cosmetics.ForBot(Hurtbox.PlayerId));
         AddChild(Avatar);
         Hurtbox.Position = new Vector3(0, 0.85f, 0);
         if (World != null) SetupRoam();

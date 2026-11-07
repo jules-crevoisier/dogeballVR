@@ -48,6 +48,8 @@ public static class GameSettings
     public static float RenderScale = 1f;
     // Première partie : on propose le tutoriel
     public static bool TutorialDone;
+    // Profil : couvre-chef choisi (Online.Cosmetics vérifie qu'il est débloqué)
+    public static string Headwear = "aucun";
 
     public static event Action? Changed;
     static bool loaded;
@@ -92,6 +94,7 @@ public static class GameSettings
         SfxVolume = Mathf.Clamp(F(cfg, "audio", "sfx", SfxVolume), 0f, 1f);
         UiVolume = Mathf.Clamp(F(cfg, "audio", "ui", UiVolume), 0f, 1f);
         TutorialDone = B(cfg, "pc", "tutorial_done", TutorialDone);
+        Headwear = (string)cfg.GetValue("profile", "headwear", Headwear);
         InputSetup.LoadBindings(cfg);
     }
 
@@ -101,6 +104,7 @@ public static class GameSettings
         cfg.Load(Path);
         cfg.SetValue("pc", "sensitivity", Sensitivity);
         cfg.SetValue("pc", "tutorial_done", TutorialDone);
+        cfg.SetValue("profile", "headwear", Headwear);
         cfg.SetValue("controls", "invert_y", InvertY);
         cfg.SetValue("controls", "fov", Fov);
         cfg.SetValue("controls", "aim_assist", AimAssist);

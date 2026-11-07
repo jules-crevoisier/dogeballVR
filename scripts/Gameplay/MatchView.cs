@@ -147,6 +147,13 @@ public sealed class MatchView
     /// <summary>Nom d'un joueur humain fourni par la salle en ligne (null : bot ou inconnu). Branché par le module en ligne.</summary>
     public static Func<int, string?>? HumanName { get; set; }
 
+    /// <summary>Couvre-chef d'un joueur humain fourni par la salle en ligne (null : bot, inconnu ou tête nue). Branché par le module en ligne.</summary>
+    public static Func<int, string?>? HumanLook { get; set; }
+
+    /// <summary>Couvre-chef à montrer pour ce joueur : le sien pour le joueur local, celui de la salle pour un humain, celui du bot sinon.</summary>
+    public string? HeadwearOf(int id) => id == LocalId ? Online.Cosmetics.Equipped
+        : isBot?.Invoke(id) == true ? Online.Cosmetics.ForBot(id) : HumanLook?.Invoke(id);
+
     public string NameOf(int id) => id == LocalId ? "Toi" : HumanName?.Invoke(id) is { Length: > 0 } n ? n : isBot?.Invoke(id) == true ? BotName(id) : $"Joueur {id + 1}";
 
     /// <summary>Surnoms des bots, à la façon des joueurs de rue : un par numéro de zone (toujours le même d'une partie à l'autre).</summary>

@@ -82,10 +82,11 @@ public partial class EndPodium : Control
     /// sans toucher au reste. Renvoie un socle à poser (pieds à l'origine, regard vers -Z) ; le MVP célèbre en boucle,
     /// ses coéquipiers tiennent « Victoire » si le modèle l'a, sinon « Celebration » décalée dans le temps.
     /// </summary>
-    internal static Node3D SpawnPodiumHero(int team, int playerId, bool mvp)
+    internal static Node3D SpawnPodiumHero(int team, int playerId, bool mvp, string? headwear = null)
     {
         var socle = new Node3D { Name = $"Heros{playerId}" };
         var avatar = Avatar.Create(team, false, playerId);
+        avatar.SetHeadwear(headwear);
         // Hors jeu : l'avatar ne réagit plus aux balles ni ne revient au repos ; seule son animation tourne.
         avatar.ProcessMode = ProcessModeEnum.Disabled;
         socle.AddChild(avatar);
@@ -151,7 +152,7 @@ public partial class EndPodium : Control
                 world.AddChild(new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.7f, OuterRadius = 0.78f, Rings = 48 }, Position = pos + new Vector3(0, 0.28f, 0), MaterialOverride = Materials.Glow(UiKit.Yellow, 1.2f) });
                 pos.Y = 0.28f;
             }
-            var hero = SpawnPodiumHero(Winner, id, center);
+            var hero = SpawnPodiumHero(Winner, id, center, View.HeadwearOf(id));
             hero.Position = pos;
             // Tous regardent un point juste derrière la caméra : de face au centre, de trois quarts sur les côtés.
             var dir = new Vector3(0, 0, 9f) - pos;

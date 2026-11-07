@@ -250,6 +250,7 @@ public partial class DesktopPlayer : Node3D
         }
         // Son propre personnage, vu de dos en caméra d'épaule (caché en vue subjective), sur toutes les cartes.
         selfAvatar = Visual.Avatar.Create(Hurtbox.Team, false, Hurtbox.PlayerId);
+        selfAvatar.SetHeadwear(Online.Cosmetics.Equipped);
         selfAvatar.ShowsHeldBall = false;   // la balle tenue reste au point de visée (holdPoint)
         selfAvatar.TopLevel = true;
         AddChild(selfAvatar);

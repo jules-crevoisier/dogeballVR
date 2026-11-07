@@ -15,7 +15,7 @@ public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     /// <summary>Version du protocole réseau : l'hôte refuse un client d'une autre version (snapshots et RPC incompatibles).</summary>
-    public const int ProtocolVersion = 3;   // 3 : le Hello porte la carte jouée
+    public const int ProtocolVersion = 4;   // 3 : le Hello porte la carte jouée ; 4 : couvre-chefs dans la salle (SetLookRpc)
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;

@@ -20,6 +20,8 @@ public class LobbyMember
     public bool Vr;
     /// <summary>Zone tenue en partie (-1 : pas en partie).</summary>
     public int Zone = -1;
+    /// <summary>Couvre-chef porté (identifiant de Cosmetics, vérifié par l'hôte).</summary>
+    public string Look = Cosmetics.None;
     public bool Host => PeerId == 1;
 }
 
@@ -125,6 +127,27 @@ public partial class OnlineLobby : Node
         NetHandshake.Rejected += reason => { if (!IsHost) Fail(reason); };
         foreach (var a in args)
             if (a.StartsWith("--autostart=") && int.TryParse(a["--autostart=".Length..], out int n)) autoStart = n;
+        Cosmetics.EquippedChanged += SendLook;
+    }
+
+    /// <summary>Couvre-chef choisi pendant qu'on est dans une salle : l'hôte le note et le renvoie à tous.</summary>
+    void SendLook(string look)
+    {
+        if (State is not (LobbyState.InRoom or LobbyState.InMatch)) return;
+        if (IsHost) { if (members.TryGetValue(1, out var me)) { me.Look = look; BroadcastRoster(); } }
+        else RpcId(1, MethodName.SetLookRpc, look);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    void SetLookRpc(string look)
+    {
+        int peer = Multiplayer.GetRemoteSenderId();
+        if (!IsHost || Flooding(peer) || !members.TryGetValue(peer, out var m)) return;
+        // Identifiant inconnu (version modifiée) : tête nue. Le niveau n'est pas vérifiable ici, la récompense est cosmétique.
+        look = Cosmetics.Find(look)?.Id ?? Cosmetics.None;
+        if (m.Look == look) return;
+        m.Look = look;
+        BroadcastRoster();
     }
 
     public override void _Notification(int what)
@@ -149,6 +172,7 @@ public partial class OnlineLobby : Node
 
     public override void _ExitTree()
     {
+        Cosmetics.EquippedChanged -= SendLook;
         if (Instance == this) Instance = null;
         ClosePortMapping();
         // Fermeture du jeu (la salle vit sous /root jusqu'au bout) : on lâche le transport et la poignée de main,
@@ -259,7 +283,7 @@ public partial class OnlineLobby : Node
         IsHost = true;
         Map = MapChoices.Contains(map) ? map : Map;
         members.Clear();
-        members[1] = new LobbyMember { PeerId = 1, Name = Identity.Name, Token = Identity.Token, Team = 0, Ready = true, Vr = IsVr };
+        members[1] = new LobbyMember { PeerId = 1, Name = Identity.Name, Token = Identity.Token, Team = 0, Ready = true, Vr = IsVr, Look = Cosmetics.Equipped };
         EnsureVrMap("Hôte en casque");
         SetState(LobbyState.InRoom, "Salle ouverte : en attente de joueurs");
         BroadcastRoster();
@@ -713,13 +737,17 @@ public partial class OnlineLobby : Node
         {
             var md = v.AsGodotDictionary();
             var m = new LobbyMember { PeerId = (int)md["peer"], Name = (string)md["name"], Team = (int)md["team"], Ready = (bool)md["ready"], Vr = (bool)md["vr"],
-                Zone = md.ContainsKey("zone") ? (int)md["zone"] : -1 };
+                Zone = md.ContainsKey("zone") ? (int)md["zone"] : -1, Look = md.ContainsKey("look") ? Cosmetics.Find((string)md["look"])?.Id ?? Cosmetics.None : Cosmetics.None };
             members[m.PeerId] = m;
         }
         bool hostInMatch = d.ContainsKey("inMatch") && (bool)d["inMatch"];
         RematchIn = d.ContainsKey("rematch") ? (double)d["rematch"] : 0;
         QuickStartIn = d.ContainsKey("quick") ? (double)d["quick"] : 0;
-        if (State is LobbyState.Connecting) SetState(LobbyState.InRoom, "Dans la salle");
+        if (State is LobbyState.Connecting)
+        {
+            SetState(LobbyState.InRoom, "Dans la salle");
+            RpcId(1, MethodName.SetLookRpc, Cosmetics.Equipped);   // entré dans la salle : on montre son couvre-chef
+        }
         else if (State is LobbyState.Reconnecting && !hostInMatch)
         {
             // Reconnecté pendant que l'hôte est revenu à la salle : on quitte l'ancienne scène de jeu.
@@ -776,6 +804,9 @@ public partial class OnlineLobby : Node
     /// <summary>Nom du joueur humain qui tient cette zone en partie, null si c'est un bot (HUD, fil des KO, écran de fin).</summary>
     public string? NameOfZone(int zone) => State == LobbyState.InMatch ? members.Values.FirstOrDefault(m => m.Zone == zone)?.Name : null;
 
+    /// <summary>Couvre-chef du joueur humain qui tient cette zone en partie, null si c'est un bot ou hors partie.</summary>
+    public string? LookOfZone(int zone) => State == LobbyState.InMatch ? members.Values.FirstOrDefault(m => m.Zone == zone)?.Look : null;
+
     void BroadcastRoster()
     {
         if (!IsHost) { Changed?.Invoke(); return; }
@@ -783,7 +814,7 @@ public partial class OnlineLobby : Node
         foreach (var m in Members)
         {
             m.Zone = State == LobbyState.InMatch && matchZones.TryGetValue(m.PeerId, out int zone) ? zone : -1;
-            list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr, ["zone"] = m.Zone });
+            list.Add(new Godot.Collections.Dictionary { ["peer"] = m.PeerId, ["name"] = m.Name, ["team"] = m.Team, ["ready"] = m.Ready, ["vr"] = m.Vr, ["zone"] = m.Zone, ["look"] = m.Look });
         }
         string json = Json.Stringify(new Godot.Collections.Dictionary { ["map"] = Map, ["members"] = list, ["inMatch"] = State == LobbyState.InMatch, ["rematch"] = RematchIn, ["quick"] = QuickStartIn });
         foreach (var m in members.Values) if (!m.Host) RpcId(m.PeerId, MethodName.RosterRpc, json);

@@ -37,15 +37,20 @@ public partial class MenuBackdrop : Node3D
 
         // Héros orange au premier plan, de trois quarts, balle levée derrière la tête.
         hero = Avatar.Create(0, false);
+        hero.SetHeadwear(Online.Cosmetics.Equipped);   // le héros du menu, c'est le joueur : il porte son couvre-chef
+        Online.Cosmetics.EquippedChanged += OnEquipped;
         AddChild(hero);
         // Rival bleu plus loin, mains en avant pour attraper.
         rival = Avatar.Create(1, false);
         AddChild(rival);
         // Coéquipiers flous au fond.
+        rival.SetHeadwear("casque");
         var mate = Avatar.Create(0, false);
+        mate.SetHeadwear("bonnet");
         AddChild(mate);
         mate.Pose(new Vector3(-5.4f, 1.6f, -5.0f), Mathf.DegToRad(165), new Vector3(-5.8f, 1.0f, -5.3f), new Vector3(-5.0f, 1.1f, -5.4f));
         var other = Avatar.Create(1, false);
+        other.SetHeadwear("casquette");
         AddChild(other);
         other.Pose(new Vector3(3.5f, 1.6f, 6.5f), Mathf.DegToRad(150), new Vector3(3.1f, 1.0f, 6.3f), new Vector3(3.9f, 1.0f, 6.4f));
 
@@ -175,4 +180,8 @@ public partial class MenuBackdrop : Node3D
         camera.GlobalPosition = CamPos + drift;
         camera.LookAt(LookTarget + drift * 0.3f, Vector3.Up);
     }
+
+    void OnEquipped(string id) { if (hero != null && IsInstanceValid(hero)) hero.SetHeadwear(id); }
+
+    public override void _ExitTree() => Online.Cosmetics.EquippedChanged -= OnEquipped;
 }

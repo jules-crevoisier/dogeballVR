@@ -102,7 +102,7 @@ public partial class VrEndStage : Node3D
                 Mesh = new TorusMesh { InnerRadius = 0.41f, OuterRadius = 0.47f, Rings = 32 }, Position = pos + new Vector3(0, h, 0),
                 MaterialOverride = Materials.Glow(i == 0 && mvp >= 0 ? UiKit.Yellow : Palette.Team(shown), 1.1f),
             });
-            var hero = EndPodium.SpawnPodiumHero(shown, ids[i], i == 0);
+            var hero = EndPodium.SpawnPodiumHero(shown, ids[i], i == 0, View.HeadwearOf(ids[i]));
             hero.Position = pos + new Vector3(0, h, 0);
             hero.Rotation = Vector3.Zero;   // l'avatar regarde vers -Z : face au joueur
             hero.Scale = Vector3.One * 0.01f;
