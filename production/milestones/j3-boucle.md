@@ -19,7 +19,7 @@ complètes et son de qualité. À la fin, un inconnu peut installer le jeu et y 
 - [ ] Partie en ligne de bout en bout : créer, inviter, rejoindre, jouer, revanche
 - [x] Progression sauvegardée (niveau de joueur, récompenses cosmétiques) et Steam Cloud — couvre-chefs et vestiaire, PR #34
 - [x] Options : graphismes, son, contrôles réassignables, sensibilité, langue, accessibilité de base — onglets Contrôles, Clavier, Audio, Vidéo ; Langue ; secousses, flashs, symboles d'équipe, taille du texte (captures `production/qa/evidence/langue/options-*`), PR #34
-- [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés (ambiances et musiques de match par arène faites, PR #34 ; sons d'impact et d'attrape restent)
+- [x] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés — ambiances et musiques par arène ; touches et attrapes refaites en balle de caoutchouc (`tools/audio/build_impacts.py`, spectrogrammes `production/qa/evidence/son/impacts-avant-apres.png`), à valider à l'oreille par jules, PR #34
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
 - [ ] Build stable for 3 consecutive days

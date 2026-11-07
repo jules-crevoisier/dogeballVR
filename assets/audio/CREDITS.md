@@ -80,3 +80,10 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | ambience/depot.ogg | Le Dépôt : Generator loop (YCbCr) ralenti ×0,8, passe-bas 420 Hz (bourdonnement de caténaire), Morning sounds (Kresiek The Furry) passe-haut 900 Hz, rooftop.ogg à -7 dB, Rotating bicycle bell (AntumDeluge) ralentie ×0,62 deux fois par boucle (timbre de tram) |
 
 Ambiances des arènes construites par `build_ambiences.py <téléchargements> assets/audio` (boucles de 40 s, -26 LUFS).
+
+## Touches et attrapes (balle en caoutchouc)
+
+`hit_*`, `hurtself_*`, `catch_*` et `perfect_*` sont reconstruits par `tools/audio/build_impacts.py` à partir des sons
+ci-dessus (gardés dans `tools/audio/impacts-src/`) : le corps grave d'origine, atténué, plus un claquement de caoutchouc
+et la résonance d'une balle gonflée synthétisés pour le projet (CC0 comme le reste). Relancer :
+`python3 tools/audio/build_impacts.py`.
