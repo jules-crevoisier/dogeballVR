@@ -149,6 +149,7 @@ public partial class DesktopPlayer : Node3D
     const float CamMinAboveEyes = 0.05f; // la caméra ne descend pas sous la ligne des yeux : toujours au-dessus des épaules
     const float RaiseHeight = 0.9f;      // hauteur du passage par-dessus un couvert bas
     const float ZoneCamOutside = 3f;     // cartes en zones : distance max de la caméra d'épaule au-delà du mur d'enceinte
+    const float HatHidePitch = -0.35f;       // regard plus bas que -20° : son couvre-chef est caché
     const float AvatarHideDistance = 1.6f;   // caméra plus proche de la tête : le joueur est caché pour ne pas boucher l'écran
     readonly SphereShape3D camShape = new() { Radius = CamRadius };
     int dashCharges;
@@ -1562,6 +1563,7 @@ public partial class DesktopPlayer : Node3D
         {
             var pose = Pose;
             selfAvatar.Visible = ThirdPerson && !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
+            selfAvatar.HeadwearVisible = pitch > HatHidePitch;   // caméra qui plonge sur la tête : le couvre-chef entrerait dans la visée
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right, pose.Elevation);
             selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }

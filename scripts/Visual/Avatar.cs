@@ -127,17 +127,26 @@ public partial class Avatar : Node3D
         return y > 1.2f && y < 2.1f ? y : DefaultHeadHeight;   // rig inattendu : on garde la valeur historique
     }
 
+    int team;
+    Node3D? headwear;
+
     /// <summary>Couvre-chef porté (identifiant de Online.Cosmetics) ; null ou « aucun » : tête nue. Sans effet sur l'avatar de secours.</summary>
     public void SetHeadwear(string? id)
     {
         if (body == null) return;
-        Headwear.Attach(body, id);
+        headwear = Headwear.Attach(body, id, team);
         meshes = System.Array.Empty<MeshInstance3D>();   // l'éclat de touche recouvre aussi le couvre-chef
+    }
+
+    /// <summary>Montre ou cache le couvre-chef seul (son propre personnage quand la caméra plonge : il passerait dans la visée).</summary>
+    public bool HeadwearVisible
+    {
+        set { if (headwear != null && IsInstanceValid(headwear)) headwear.Visible = value; }
     }
 
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
-        var avatar = new Avatar { Name = "Avatar", playerId = playerId };
+        var avatar = new Avatar { Name = "Avatar", playerId = playerId, team = team };
         string teamName = team == 0 ? "orange" : "bleu";
         // deux persos par équipe (Riko/Bo, Nova/Kai) : le second joueur de chaque équipe prend la variante
         var rigged = (playerId >= 0 && playerId / 2 % 2 == 1 ? ModelLibrary.Instance($"avatar_{teamName}2_rig") : null)

@@ -126,11 +126,12 @@ public partial class XpBanner : CanvasLayer
         var (level, into, need) = Progression.LevelOf(totalXp);
         if (level > shownLevel)
         {
+            int from = shownLevel;
             shownLevel = level;
             UiKit.Punch(badge, 1.5f, 0.35);
             Sfx.Play(this, SfxKind.Tier);
             // Couvre-chef débloqué à ce niveau : annoncé dans le titre (il se porte depuis le vestiaire du Profil).
-            var gained = Cosmetics.UnlockedBetween(level - 1, level);
+            var gained = Cosmetics.UnlockedBetween(from, level);   // plusieurs niveaux d'un coup : aucun déblocage oublié
             titleLabel.Text = gained.Count > 0 ? $"NIVEAU {level} !  NOUVEAU : {gained[0].Name.ToUpper()}" : $"NIVEAU {level} !";
         }
         else if (level == award?.LevelBefore)

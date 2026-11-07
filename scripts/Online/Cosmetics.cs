@@ -24,11 +24,20 @@ public static class Cosmetics
         new HeadwearDef("casquette", "Casquette", 2),
         new HeadwearDef("bandeau", "Bandeau", 4),
         new HeadwearDef("bonnet", "Bonnet", 7),
-        new HeadwearDef("lunettes", "Lunettes de soleil", 10),
+        new HeadwearDef("lunettes", "Masque de course", 10),
         new HeadwearDef("casque", "Casque de chantier", 15),
         new HeadwearDef("bob", "Bob", 20),
+        new HeadwearDef("casquette_encre", "Casquette encre", 25),
         new HeadwearDef("crete", "Crête", 30),
-        new HeadwearDef("couronne", "Couronne", 50),
+        new HeadwearDef("bob_kaki", "Bob kaki", 35),
+        new HeadwearDef("casque_blanc", "Casque blanc", 40),
+        new HeadwearDef("couronne_argent", "Couronne d'argent", 45),
+        new HeadwearDef("couronne", "Couronne d'or", 50),
+        new HeadwearDef("bonnet_ocre", "Bonnet ocre", 60),
+        new HeadwearDef("crete_papier", "Crête papier", 70),
+        new HeadwearDef("lunettes_or", "Masque doré", 80),
+        new HeadwearDef("bandeau_papier", "Bandeau papier", 90),
+        new HeadwearDef("couronne_noire", "Couronne noire", 100),
     };
 
     /// <summary>Définition d'un identifiant reçu (sauvegarde, réseau) ; null s'il est inconnu (version plus récente, fichier modifié).</summary>
@@ -82,6 +91,21 @@ public static class Cosmetics
         var pool = new List<HeadwearDef>();
         foreach (var h in Headwear) if (h.Level > 1 && h.Level <= 10) pool.Add(h);
         return pool[(playerId * 7 + 3) % pool.Count].Id;
+    }
+
+    /// <summary>Nombre de couvre-chefs gagnés au niveau donné (tête nue non comptée).</summary>
+    public static int OwnedCount(int level)
+    {
+        int n = 0;
+        foreach (var h in Headwear) if (h.Id != None && IsUnlocked(h, level)) n++;
+        return n;
+    }
+
+    /// <summary>Prochain couvre-chef à gagner après ce niveau, null s'il n'en reste pas.</summary>
+    public static HeadwearDef? NextAfter(int level)
+    {
+        foreach (var h in Headwear) if (h.Level > level) return h;
+        return null;
     }
 
     /// <summary>Couvre-chefs débloqués en passant du niveau <paramref name="before"/> au niveau <paramref name="after"/> (bandeau d'XP).</summary>
