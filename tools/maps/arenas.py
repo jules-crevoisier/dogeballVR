@@ -62,6 +62,14 @@ class Arena:
         if mirror:
             self.balls.append({**b, "id": id + "_b", "x": -x, "z": -z})
 
+    def special(self, id, x, z, ground, mirror=True):
+        """Socle de balle spéciale (bombe ou rebond, une famille par match) : bas et large, au milieu de la carte. Le match y pose la
+        balle spéciale toutes les 45 s, sur le socle le plus proche de l'équipe menée (MatchController.PlaceOnSpecialSpot)."""
+        b = {"id": id, "kind": "special", "zone": -1, "x": x, "y": round(ground + 0.35, 2), "z": z, "intervalSeconds": 45, "maxStored": 1, "startBalls": 0}
+        self.balls.append(b)
+        if mirror:
+            self.balls.append({**b, "id": id + "_b", "x": -x, "z": -z})
+
     def deco(self, mirror=True, color_b=None, **d):
         self.decor.append(d)
         if mirror:
@@ -184,6 +192,7 @@ def marche_suspendu():
     a.ball("balle_avant", -9, -5.2, 1.0)
     a.ball("balle_fond", 8, -12, 1.0)
     a.ball("balle_pont", 1.6, -0.6, 0.9, interval=10)   # au milieu d'un couloir, exposée : la prendre engage
+    a.special("speciale_pont", 0, -3.0, 0)   # pont central, entre la charrette et le bord du toit
     # La rue, 20 m plus bas : étals bâchés, deux rangées de guirlandes (parallaxe), et des bâches en porte-à-faux sous le bord
     # de chaque toit, aux couleurs de l'équipe : le marché se voit depuis le toit.
     for x, c in [(-14, "#E36A2E"), (-7, "#5FE0C8"), (0, "#F2C230"), (7, "#E36A2E"), (14, "#5FE0C8")]:
@@ -263,6 +272,7 @@ def piscine():
     a.ball("balle_plage", -11, -12, D + 0.9)
     a.ball("balle_bassin", 5, -1.5, 0.9)
     a.ball("balle_plongeoir", 0, 0, 3.2 + 0.25, interval=14, mirror=False)
+    a.special("speciale_bassin", 0, -3.6, 0)   # fond du bassin, au pied du plongeoir : il faut descendre la chercher
     # Le bassin se lit comme une piscine : parois carrelées cyan, margelle blanche, lignes de couloir au fond.
     tile, rim, lane = "#2FB4CF", "#EDEFF5", "#1E4E8C"
     a.deco(x=0, y=0, z=-6.47, sx=20, sy=D, sz=0.06, color=tile, pattern=2)
@@ -378,6 +388,7 @@ def depot():
     a.ball("balle_bord", 14.2, -6.5, 1.0)   # couloir extérieur : la prendre, c'est longer le vide (x = 17)
     a.ball("balle_plaque", 2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
     a.ball("balle_plaque_b", -2.6, 0, 0.4 + 0.9, interval=10, mirror=False)
+    a.special("speciale_plaque", 0, -2.8, 0.4)   # plaque tournante, devant le poste d'aiguillage
     # Décor : la halle (arches), le faisceau de voies plus bas avec des trams garés, caténaires, lampes.
     for x in (-12, 0, 12):
         a.deco(x=x, y=4.0, z=-18.2, sx=8, sy=3.5, sz=0.5, color="#8E7A6A", pattern=1)

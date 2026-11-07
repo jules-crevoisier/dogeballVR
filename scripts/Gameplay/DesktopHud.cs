@@ -1760,7 +1760,13 @@ public partial class DesktopHud : CanvasLayer
     static string NoticeText(string notice)
     {
         const string special = "BALLE SPÉCIALE : ";
-        return notice.StartsWith(special, System.StringComparison.Ordinal) ? L.F("BALLE SPÉCIALE : {0}", L.T(notice[special.Length..])) : L.T(notice);
+        if (!notice.StartsWith(special, System.StringComparison.Ordinal)) return L.T(notice);
+        string rest = notice[special.Length..];
+        // Décompte de l'annonce : « BOMBE DANS 5 s ».
+        var m = System.Text.RegularExpressions.Regex.Match(rest, @"^(.+) DANS (\d+) s$");
+        if (m.Success) rest = L.F("{0} DANS {1} s", L.T(m.Groups[1].Value), m.Groups[2].Value);
+        else rest = L.T(rest);
+        return L.F("BALLE SPÉCIALE : {0}", rest);
     }
 
     void FillIntermission(MatchView.Snapshot s)

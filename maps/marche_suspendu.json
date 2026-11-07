@@ -2526,6 +2526,28 @@
    "intervalSeconds": 10,
    "maxStored": 1,
    "startBalls": 1
+  },
+  {
+   "id": "speciale_pont",
+   "kind": "special",
+   "zone": -1,
+   "x": 0,
+   "y": 0.35,
+   "z": -3.0,
+   "intervalSeconds": 45,
+   "maxStored": 1,
+   "startBalls": 0
+  },
+  {
+   "id": "speciale_pont_b",
+   "kind": "special",
+   "zone": -1,
+   "x": 0,
+   "y": 0.35,
+   "z": 3.0,
+   "intervalSeconds": 45,
+   "maxStored": 1,
+   "startBalls": 0
   }
  ]
 }

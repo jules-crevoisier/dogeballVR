@@ -688,6 +688,8 @@ jobs:
             if [ "$CHUTES" -gt 3 ]; then echo "$MAP : trop de chutes sans poussée (bots ou joueur auto qui tombent seuls)"; exit 1; fi
             if [ "${TIRS:-0}" -lt 20 ]; then echo "$MAP : les bots ne jouent pas (moins de 20 tirs)"; exit 1; fi
             grep -qE "MANCHE POUR|MANCHE NULLE" arene-$MAP.log || { echo "$MAP : aucune manche terminée"; exit 1; }
+            grep -q "Balle spéciale posée" arene-$MAP.log || { echo "$MAP : aucune balle spéciale posée sur un socle"; exit 1; }
+            grep "Balle spéciale p" arene-$MAP.log | head -6
           done
 
       - name: Test réseau sur Toits du Marché (client PC libre validé par l'hôte)

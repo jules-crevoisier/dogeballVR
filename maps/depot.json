@@ -2236,6 +2236,28 @@
    "intervalSeconds": 10,
    "maxStored": 1,
    "startBalls": 1
+  },
+  {
+   "id": "speciale_plaque",
+   "kind": "special",
+   "zone": -1,
+   "x": 0,
+   "y": 0.75,
+   "z": -2.8,
+   "intervalSeconds": 45,
+   "maxStored": 1,
+   "startBalls": 0
+  },
+  {
+   "id": "speciale_plaque_b",
+   "kind": "special",
+   "zone": -1,
+   "x": 0,
+   "y": 0.75,
+   "z": 2.8,
+   "intervalSeconds": 45,
+   "maxStored": 1,
+   "startBalls": 0
   }
  ]
 }

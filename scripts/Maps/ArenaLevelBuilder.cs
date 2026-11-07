@@ -282,22 +282,33 @@ public static class ArenaLevelBuilder
 
     /// <summary>
     /// Piédestal de balles neutre (« pedestal », ou « dispenser » d'une carte en arène) : socle posé sur le sol réel,
-    /// sommet à la hauteur Y de la carte, faisceau turquoise.
+    /// sommet à la hauteur Y de la carte, faisceau turquoise. Socle de balle spéciale (« special ») : plus large et plus bas,
+    /// cerclé de rose, faisceau rose quand la balle y attend.
     /// </summary>
     static void AddPedestal(Node3D root, BallSpawnDef def, ArenaGeometry geo)
     {
-        if (def.Kind is not ("pedestal" or "dispenser")) return;
+        if (def.Kind is not ("pedestal" or "dispenser" or "special")) return;
+        bool special = def.Kind == "special";
         float ground = geo.HighestAt(def.X, def.Z, 0f);
         if (float.IsNegativeInfinity(ground)) ground = 0f;
         float h = Mathf.Max(0.2f, def.Y - ground);
+        float top = special ? 0.5f : 0.28f, bottom = special ? 0.62f : 0.34f;
         var body = new StaticBody3D { Name = def.Id, Position = new Vector3(def.X, ground + h / 2f, def.Z) };
         body.AddChild(new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.28f, BottomRadius = 0.34f, Height = h },
-            MaterialOverride = KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2),
+            Mesh = new CylinderMesh { TopRadius = top, BottomRadius = bottom, Height = h, RadialSegments = special ? 6 : 16 },
+            MaterialOverride = special ? KcShaders.Toon(new Color("4a2f45"), new Color("3a2338"), 2) : KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2),
         });
-        body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.3f, Height = h } });
-        body.AddChild(new PickupBeacon { TopY = h, Position = new Vector3(0, -h / 2f, 0) });
+        body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = special ? 0.55f : 0.3f, Height = h } });
+        if (special)
+            body.AddChild(new MeshInstance3D
+            {
+                Name = "Liseré",
+                Mesh = new TorusMesh { InnerRadius = top - 0.05f, OuterRadius = top + 0.02f, Rings = 6, RingSegments = 4 },
+                Position = new Vector3(0, h / 2f + 0.01f, 0), Scale = new Vector3(1, 0.3f, 1),
+                MaterialOverride = Materials.Flat(Palette.Special), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            });
+        body.AddChild(new PickupBeacon { TopY = h, Position = new Vector3(0, -h / 2f, 0), Tint = special ? Palette.Special : Palette.Beacon });
         root.AddChild(body);
     }
 

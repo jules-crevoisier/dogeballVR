@@ -14,21 +14,23 @@ Trois propositions (à vérifier avant de choisir : recherche dans le store Stea
 
 | Nom | Pour | Contre |
 |---|---|---|
-| **Neon Throwdown** | Dit l'univers (arènes néon) et l'action (lancer, affrontement) ; lisible sur une petite capsule | « Throwdown » est un mot courant, déjà utilisé dans d'autres titres : à vérifier |
+| **Rooftop Throwdown** | Dit l'univers (toits, quartier) et l'action (lancer, affrontement) ; lisible sur une petite capsule | « Throwdown » est un mot courant, déjà utilisé dans d'autres titres : à vérifier |
 | **Hurlstorm** | Un seul mot, inventé, facile à protéger et à trouver ; sonne compétitif | Ne dit pas « dodgeball » : la capsule et l'accroche doivent le montrer |
-| **Dodge Circuit** | Le genre est dans le nom (bon pour la recherche Steam) ; « circuit » évoque une ligue et les arènes en anneau | Plus générique, moins mémorable |
+| **Dodge Circuit** | Le genre est dans le nom (bon pour la recherche Steam) ; « circuit » évoque une ligue de quartier | Plus générique, moins mémorable |
 
 Les textes ci-dessous utilisent « DogeballVR » ; remplacer partout une fois le nom choisi (et `application/config/name`, `export_presets.cfg`, les noms de fichiers : voir la checklist, le chemin des sauvegardes en dépend).
 
 ## 2. Accroche courte (≤ 300 caractères)
 
-EN (241 caractères) :
+Mise à jour du 07/11 : le jeu vendu sur Steam est celui de la PR #34 (trois arènes en 3 contre 3, interface « Affiche », anglais et français). Les anciennes cartes néon (Croix Néon, Fosse croisée, Tour 4v4) restent dans le dépôt pour la VR d'EVA et n'apparaissent plus sur la page.
 
-> Fast-paced team dodgeball for keyboard & mouse or gamepad. Catch, charge and fling glowing balls across neon arenas, pass to power up your shot, dash and tackle rivals into the pit. Play 2v2 or 4v4 online, with bots filling every empty slot.
+EN (247 caractères) :
 
-FR (284 caractères) :
+> Team dodgeball, 3 vs 3, for keyboard & mouse or gamepad. Catch a throw at the last instant and send it back faster, pass to charge your shot, tackle rivals off the rooftops. Three arenas, quick matches, bots in every empty slot, 17 hats to unlock.
 
-> Du dodgeball en équipe, nerveux, au clavier-souris ou à la manette. Attrape, charge et renvoie des balles lumineuses dans des arènes néon, fais des passes pour charger ton tir, dash et pousse tes rivaux dans la fosse. Joue en 2c2 ou 4c4 en ligne, des bots complètent les places vides.
+FR (266 caractères) :
+
+> Du dodgeball en équipe, 3 contre 3, au clavier-souris ou à la manette. Attrape un tir au dernier moment et renvoie-le plus fort, fais des passes pour charger ton tir, pousse tes rivaux dans le vide. Trois arènes, des matchs courts, des bots partout, 17 couvre-chefs.
 
 ## 3. Description longue (BBCode Steam)
 
@@ -36,98 +38,122 @@ FR (284 caractères) :
 
 ```
 [h2]Catch it. Charge it. Send it back.[/h2]
-DogeballVR is a fast, team-based dodgeball game played in third person: run, dash, aim and throw with keyboard and mouse or a gamepad. Every ball that comes at you is a chance: time your catch and it's yours to throw back.
+DogeballVR is a fast, team-based dodgeball game played 3 vs 3 in third person: run, dash, jump, aim and throw with keyboard and mouse or a gamepad. Every ball that comes at you is a chance: time your catch and it's yours to throw back.
 
 [h2]Catching is everything[/h2]
 [list]
-[*][b]Catch[/b] incoming throws instead of dodging them. Nail the timing for a [b]perfect catch[/b]: you get a heart back and the ball leaves your hand already charged.
-[*][b]Pass and catch to power up[/b]: a pass from a teammate charges the ball, and a perfect catch of an enemy throw adds one more level. From level 2, the ball knocks out in one hit.
-[*][b]Trick shots[/b]: curve your throw around cover, lob it over a wall, or fake a throw to bait the catch.
+[*][b]Catch[/b] incoming throws instead of dodging them. Nail the timing for a [b]perfect catch[/b]: the ball keeps its charge and goes up one level in your hands.
+[*][b]Pass to power up[/b]: a pass from a teammate charges the ball. Every charge level makes the next throw faster and harder to catch.
+[*][b]Trick shots[/b]: curve your throw around cover, lob it over a wall, or fake a throw to bait a catch into thin air.
+[*][b]Two hearts each[/b]: a hit costs one, the second one sends you out for a few seconds. Catching never heals, so every hit counts.
 [/list]
 
-[h2]Arenas that fight back[/h2]
+[h2]Three arenas, with nothing to hold on to[/h2]
 [list]
-[*][b]Neon Cross[/b]: four plates around a central hub, with a rotor whose arms swat flat throws out of the air.
-[*][b]Crossed Pit[/b]: a gaping pit in the middle. Dash, tackle and knock rivals over the edge for a ring-out, or take a jump pad to a sniper terrace.
-[*][b]4v4 Tower[/b]: eight plates around a 16 x 10 m pit for full team chaos.
+[*][b]Market Rooftops[/b]: two rooftops above a street. Hold the bridges, because one tackle and you fall.
+[*][b]The Pool[/b]: an empty pool and a diving board. Low ground against high ground, edges open to the drop.
+[*][b]The Depot[/b]: two pits, two trams, three lanes. The tram roof rules, one tackle away from the drop.
 [/list]
+Charge into a rival to knock the ball out of their hands. Near an edge, they fall: [b]ring out[/b], and the KO is yours.
 
 [h2]Special balls[/h2]
-Every match draws one special ball family. The hub launches it toward the team that's behind:
+Every match draws one special ball. It appears on a pink plinth in the middle of the arena, on the side of the team that's behind, and both teams race for it:
 [list]
-[*][b]Bomb[/b]: explodes on contact and hits every rival in the blast.
-[*][b]Bounce[/b]: ricochets off the walls and keeps flying long after you thought you were safe.
+[*][b]Bomb[/b]: explodes on impact and hits every rival in the blast.
+[*][b]Bounce[/b]: ricochets off the walls, so bank it off one near your target.
+[/list]
+
+[h2]Short, intense matches[/h2]
+[list]
+[*]First team to 10 KOs wins the round, best of three rounds, sudden death on a tie.
+[*]Bots at three difficulty levels fill every empty slot, so a match always starts.
+[*]A guided training mode teaches every move in a few minutes.
 [/list]
 
 [h2]Play your way[/h2]
 [list]
-[*][b]Keyboard & mouse[/b]: third-person movement with dash charges, jump, tackle, aim assist and fully rebindable keys.
-[*][b]Gamepad[/b]: the whole match plays on a controller, menus included.
-[*]Short, intense matches: best of three online, five two-minute rounds against bots, sudden-death overtime on a tie.
+[*][b]Keyboard & mouse[/b]: over-the-shoulder camera with an optional first-person view, dash, jump, tackle and fully rebindable keys.
+[*][b]Gamepad[/b]: the whole game plays on a controller, menus included, with rebindable buttons.
+[*][b]English and French[/b], adjustable text size and team symbols for colour-blind players.
 [/list]
 
 [h2]Online with friends[/h2]
 [list]
-[*]2v2 and 4v4 online matches, hosted by a player.
-[*]Create a lobby and invite your Steam friends, or jump into a public match.
-[*]Bots fill every empty slot, so a match always starts.
+[*]Quick match, or a private room your friends join with a code.
+[*]Online matches are hosted by a player; bots take any empty seat.
 [/list]
+
+[h2]Level up your look[/h2]
+Every match earns XP. Climb from level 1 to 100 and unlock [b]17 hats[/b], from a cap to a black crown, and wear them online.
 ```
 
 ### FR
 
 ```
 [h2]Attrape. Charge. Renvoie.[/h2]
-DogeballVR est un dodgeball en équipe, rapide, à la troisième personne : cours, dash, vise et lance au clavier-souris ou à la manette. Chaque balle qui arrive sur toi est une occasion : attrape-la au bon moment et renvoie-la.
+DogeballVR est un dodgeball en équipe, rapide, en 3 contre 3 à la troisième personne : cours, dash, saute, vise et lance au clavier-souris ou à la manette. Chaque balle qui arrive sur toi est une occasion : attrape-la au bon moment et renvoie-la.
 
 [h2]Tout se joue à l'attrape[/h2]
 [list]
-[*][b]Attrape[/b] les tirs au lieu de les esquiver. Au bon moment, c'est une [b]attrape parfaite[/b] : tu regagnes un cœur et la balle repart déjà chargée.
-[*][b]Passe et attrape pour charger[/b] : une passe d'un coéquipier charge la balle, et une attrape parfaite d'un tir adverse lui ajoute un palier. Dès le palier 2, elle met KO en un seul coup.
-[*][b]Coups spéciaux[/b] : courbe ton tir autour d'un abri, lobe par-dessus un mur, ou feinte pour piéger l'attrape adverse.
+[*][b]Attrape[/b] les tirs au lieu de les esquiver. Au bon moment, c'est une [b]attrape parfaite[/b] : la balle garde sa charge et monte d'un palier dans tes mains.
+[*][b]Passe pour charger[/b] : une passe d'un coéquipier charge la balle. Chaque palier rend le tir suivant plus rapide et plus dur à attraper.
+[*][b]Coups spéciaux[/b] : courbe ton tir autour d'un abri, lobe par-dessus un mur, ou feinte pour faire attraper le vide.
+[*][b]Deux cœurs chacun[/b] : une touche en coûte un, la deuxième te sort quelques secondes. Attraper ne soigne jamais : chaque touche compte.
 [/list]
 
-[h2]Des arènes qui se défendent[/h2]
+[h2]Trois arènes, rien pour se retenir[/h2]
 [list]
-[*][b]Croix Néon[/b] : quatre plaques autour d'un moyeu central, dont le rotor balaie les tirs tendus.
-[*][b]Fosse croisée[/b] : une fosse béante au centre. Dash, tacle et pousse tes rivaux dans le vide, ou prends un tremplin vers une terrasse de tir.
-[*][b]Tour 4v4[/b] : huit plaques autour d'une fosse de 16 x 10 m, pour le chaos à quatre contre quatre.
+[*][b]Toits du Marché[/b] : deux toits au-dessus d'une rue. Tiens les ponts, un tacle et c'est la chute.
+[*][b]La Piscine[/b] : un bassin vide et un plongeoir. Le bas contre le haut, les bords ouverts sur le vide.
+[*][b]Le Dépôt[/b] : deux fosses, deux trams, trois couloirs. Le toit du tram domine, à un tacle de la chute.
 [/list]
+Fonce sur un rival pour lui faire lâcher sa balle. Au bord du vide, il tombe : [b]éjecté[/b], le KO est pour toi.
 
 [h2]Balles spéciales[/h2]
-Chaque match tire au sort une famille de balles spéciales. Le moyeu l'envoie vers l'équipe menée :
+Chaque match tire au sort une balle spéciale. Elle apparaît sur un socle rose au milieu de l'arène, du côté de l'équipe menée, et les deux équipes se la disputent :
 [list]
-[*][b]Bombe[/b] : explose au contact et touche tous les adversaires dans le souffle.
-[*][b]Rebond[/b] : ricoche sur les murs et revient quand on ne l'attend plus.
+[*][b]Bombe[/b] : explose à l'impact et touche tous les adversaires dans le souffle.
+[*][b]Rebond[/b] : ricoche sur les murs, vise à côté d'eux.
+[/list]
+
+[h2]Des matchs courts et intenses[/h2]
+[list]
+[*]La première équipe à 10 KO gagne la manche, en deux manches gagnantes, mort subite en cas d'égalité.
+[*]Des bots à trois niveaux complètent les places vides : un match démarre toujours.
+[*]Un entraînement guidé apprend chaque geste en quelques minutes.
 [/list]
 
 [h2]Joue comme tu veux[/h2]
 [list]
-[*][b]Clavier-souris[/b] : déplacement à la troisième personne avec charges de dash, saut, tacle, aide à la visée et touches entièrement réassignables.
-[*][b]Manette[/b] : tout le match se joue à la manette, menus compris.
-[*]Des matchs courts et intenses : 2 manches gagnantes en ligne, 5 manches de 2 minutes contre les bots, prolongation à mort subite en cas d'égalité.
+[*][b]Clavier-souris[/b] : caméra à l'épaule, vue à la première personne en option, dash, saut, tacle et touches entièrement réassignables.
+[*][b]Manette[/b] : tout le jeu se joue à la manette, menus compris, boutons réassignables.
+[*][b]Français et anglais[/b], taille du texte réglable et symboles d'équipe pour les daltoniens.
 [/list]
 
 [h2]En ligne entre amis[/h2]
 [list]
-[*]Matchs en ligne en 2c2 et 4c4, hébergés par un joueur.
-[*]Crée un salon et invite tes amis Steam, ou rejoins une partie publique.
-[*]Des bots complètent les places vides : un match démarre toujours.
+[*]Partie rapide, ou salle privée que tes amis rejoignent avec un code.
+[*]Les matchs en ligne sont hébergés par un joueur ; des bots prennent les places libres.
 [/list]
+
+[h2]Soigne ton look[/h2]
+Chaque match rapporte de l'XP. Monte du niveau 1 au niveau 100 et débloque [b]17 couvre-chefs[/b], de la casquette à la couronne noire, à porter en ligne.
 ```
 
-Les noms de cartes anglais (Neon Cross, Crossed Pit, 4v4 Tower) sont des traductions proposées des noms du dépôt (`maps/croix_neon.json`, `fosse_croisee.json`, `tour_4v4.json`) ; à aligner avec les noms affichés en jeu.
+Noms anglais des arènes : ceux affichés en jeu (`assets/i18n/textes.csv`). Balles spéciales : une famille tirée au sort par match, posée toutes les 45 s sur le socle central le plus proche de l'équipe menée (`MatchController.PlaceOnSpecialSpot`, socles `special` de `tools/maps/arenas.py`).
 
 ### Conditions (retirer la ligne si ce n'est pas livré)
 
-| Passage | Dépend de | État au 21/10 |
+| Passage | Dépend de | État au 07/11 |
 |---|---|---|
-| « fully rebindable keys » / « touches entièrement réassignables » | Options, touches réassignables (fil interfaces) | en cours |
-| « Create a lobby and invite your Steam friends, or jump into a public match » | Lobbies Steam, invitations, relais P2P (fil réseau) | en cours ; aujourd'hui : IP directe ou LAN seulement |
-| « 2v2 and 4v4 online » | Fait (ENet, hôte qui fait autorité) ; en ligne hors LAN dépend du relais Steam | en cours |
-| « Gamepad » / « Manette » | Manette en mode écran faite (sauf saisie d'un code de salle) | à essayer sur une vraie manette et sur Steam Deck avant de l'annoncer |
+| « fully rebindable keys » / « touches entièrement réassignables » | Options > Clavier et Contrôles | fait |
+| « Gamepad » / « Manette », « rebindable buttons » | Manette en mode écran, boutons réassignables | fait ; à essayer sur une vraie manette et sur Steam Deck avant de l'annoncer |
+| « Quick match, or a private room your friends join with a code » | Salons Steam (code dans `scripts/Online/Steam/`), relais P2P | écrit, jamais lancé avec un vrai Steam : premier essai avec l'AppID 480 (`ACTIONS-JULES.md`) ; sans Steam, le code demande le port UDP 7777 ouvert |
+| « team symbols for colour-blind players » | Option « Symboles d'équipe (daltonisme) » | fait |
+| « 17 hats » / « 17 couvre-chefs », « from a cap to a black crown » | Catalogue `scripts/Online/Cosmetics.cs` | fait ; recompter si le catalogue change |
+| « English and French » | Option Langue, table `assets/i18n/textes.csv` | fait ; cocher les deux langues (interface) dans Steamworks |
 | Toute mention de la VR | Hors Steam : la VR est pour les arènes EVA (décision du 22/10) | **ne jamais l'annoncer sur Steam** |
-| Achievements, Cloud (cases à cocher) | Fil réseau | en cours |
+| Achievements, Stats, Cloud (cases à cocher) | 22 succès et 8 stats (`achievements.csv`), Auto-Cloud | écrits ; à vérifier avec un vrai Steam |
 
 ## 4. Tags suggérés (20)
 
@@ -147,8 +173,8 @@ Les noms de cartes anglais (Neon Cross, Crossed Pit, 4v4 Tower) sont des traduct
 12. Controller
 13. Stylized
 14. Colorful
-15. Futuristic
-16. Sci-fi
+15. Character Customization
+16. Bots
 17. 3D
 18. Party Game
 19. Casual
@@ -200,40 +226,41 @@ Steam Deck : visé (voir la checklist, section Steam Deck), mais rien à écrire
 
 ## 8. Bande-annonce (60 à 90 s)
 
-Contraintes Valve (https://partner.steamgames.com/doc/store/trailer) : 1920x1080 au plus, 30 ou 60 i/s, 5 000 kbit/s ou plus, H.264 + AAC en .mp4/.mov, 16:9. Les deux premières bandes-annonces passent avant les captures, la première doit montrer surtout du gameplay. Beaucoup la regardent sans le son : tout doit se comprendre à l'image. Captation en jeu, à 60 i/s, HUD visible.
+Contraintes Valve (https://partner.steamgames.com/doc/store/trailer) : 1920x1080 au plus, 30 ou 60 i/s, 5 000 kbit/s ou plus, H.264 + AAC en .mp4/.mov, 16:9. Les deux premières bandes-annonces passent avant les captures, la première doit montrer surtout du gameplay. Beaucoup la regardent sans le son : tout doit se comprendre à l'image. Captation en jeu, à 60 i/s, HUD visible, interface en anglais.
 
-Durée visée : 75 s. Musique électro rythmée, coupes sur les temps.
+Durée visée : 70 s. Musique de match du jeu, coupes sur les temps.
 
 | # | Temps | Plan | Ce qu'on voit | Texte à l'écran |
 |---|---|---|---|---|
-| 1 | 0:00–0:04 | Gros plan | Une balle lumineuse fonce vers la caméra, le joueur l'attrape au dernier moment (son « PRISE ! ») | — |
-| 2 | 0:04–0:08 | Plan large qui tourne | Croix Néon de haut, 4 plaques, le rotor tourne, 8 balles en vol | logo du jeu |
-| 3 | 0:08–0:14 | 3e personne, clavier-souris | Course, dash, tir chargé qui touche un adversaire (flash, cœur perdu) | CATCH. |
-| 4 | 0:14–0:20 | 3e personne, caméra proche | Attrape parfaite (anneau, son), renvoi immédiat, KO | CHARGE. |
-| 5 | 0:20–0:26 | 3e personne | Passe à un allié (palier 1), attrape parfaite d'un tir adverse : palier 2 (double halo), tir KO en un coup | SEND IT BACK. |
-| 6 | 0:26–0:32 | Plan latéral | Tir à effet qui contourne un couvert ; cloche par-dessus un mur | — |
-| 7 | 0:32–0:38 | Fosse croisée | Tacle en dash, l'adversaire tombe dans la fosse (ring-out) | — |
-| 8 | 0:38–0:43 | Tremplin | Vol guidé vers la terrasse, tir plongeant depuis le haut | — |
-| 9 | 0:43–0:49 | Moyeu | Annonce « BALLE SPÉCIALE », la bombe part, explosion qui touche deux adversaires | — |
-| 10 | 0:49–0:54 | Rebond | Balle rebond qui ricoche sur trois murs et touche par-derrière | — |
-| 11 | 0:54–0:60 | Feinte | Le joueur feinte un tir, l'adversaire rate son attrape, le vrai tir le met KO | KEYBOARD & MOUSE OR GAMEPAD |
-| 12 | 0:60–0:66 | Tour 4v4 | Plan large d'un 4c4 complet, six balles en l'air | 2v2 · 4v4 ONLINE |
-| 13 | 0:66–0:71 | Montage rapide | Quatre KO enchaînés, un par carte | — |
-| 14 | 0:71–0:75 | Carton final | Logo, « Wishlist now on Steam » (puis « Available now » à la sortie) | — |
+| 1 | 0:00–0:04 | Gros plan à l'épaule | Une balle arrive vers la caméra, le joueur l'attrape au dernier moment (anneau d'attrape parfaite, son) | — |
+| 2 | 0:04–0:09 | Plan large | Toits du Marché : les deux toits, la rue, les trois ponts, six joueurs en mouvement | logo du jeu |
+| 3 | 0:09–0:15 | 3e personne | Course, dash, tir chargé qui touche un adversaire (flash, cœur perdu) | CATCH. |
+| 4 | 0:15–0:21 | 3e personne, caméra proche | Attrape parfaite, la balle monte d'un palier, renvoi immédiat qui touche | CHARGE. |
+| 5 | 0:21–0:27 | 3e personne | Passe d'un allié (palier 1), tir rapide qui met KO | SEND IT BACK. |
+| 6 | 0:27–0:33 | Plan latéral | Tir à effet autour d'une cheminée ; cloche par-dessus un mur | — |
+| 7 | 0:33–0:39 | Toits du Marché | Tacle sur un pont, l'adversaire tombe dans la rue (éjecté) | — |
+| 8 | 0:39–0:45 | La Piscine | Saut du plongeoir, tir plongeant sur le bassin | — |
+| 9 | 0:45–0:51 | Le Dépôt | Annonce « SPECIAL BALL: BOMB », course vers le socle rose, la bombe explose sur deux adversaires | — |
+| 10 | 0:51–0:56 | Feinte | Le joueur feinte, l'adversaire attrape le vide, le vrai tir le met KO | KEYBOARD & MOUSE OR GAMEPAD |
+| 11 | 0:56–1:02 | Montage | Vestiaire : trois couvre-chefs essayés, puis podium de fin avec le MVP | 17 HATS TO UNLOCK |
+| 12 | 1:02–1:06 | Montage rapide | Trois KO enchaînés, un par arène | 3 VS 3 · ONLINE |
+| 13 | 1:06–1:10 | Carton final | Logo, « Wishlist now on Steam » (puis « Available now » à la sortie) | — |
 
-Tourner une version sans aucun texte pour la presse et les réseaux. N'utiliser que des plans réellement jouables dans le build (règle du store) : aucun plan VR, la VR n'est pas dans la version Steam.
+Tourner une version sans aucun texte pour la presse et les réseaux. N'utiliser que des plans réellement jouables dans le build (règle du store) : aucun plan VR.
 
-## 9. Captures d'écran (8 à produire)
+## 9. Captures d'écran
 
 Exigences : 1920x1080 au moins, 16:9, au moins 5 sur la page, au moins 4 marquées « tout public » ; uniquement du jeu (pas d'illustration, pas de texte ajouté par-dessus, https://partner.steamgames.com/doc/store/assets/standard et /doc/store/review_process). HUD autorisé et conseillé. Captures en 3840x2160 si possible (Steam réduit).
 
-1. **Attrape parfaite** : caméra proche à la troisième personne, le joueur saisit une balle lumineuse, anneau d'attrape parfaite, adversaire flou derrière.
-2. **Plan large Croix Néon** : 4 plaques, moyeu et rotor, 6 balles en vol avec leurs traînées, éclairage néon.
-3. **Clavier-souris 3e personne** : joueur en pleine charge de tir, viseur rouge sur un adversaire, jauges de dash visibles.
-4. **Ring-out sur la Fosse croisée** : adversaire poussé au bord de la fosse par un tacle, traînée de dash.
-5. **Explosion de bombe** : souffle qui touche deux adversaires, cœurs qui sautent.
-6. **Balle chargée** : balle au palier 2 (double halo et anneau) juste après une attrape parfaite.
-7. **Tour 4v4** : vue d'ensemble des huit plaques en plein match, tableau de score visible.
-8. **Menu / salon** : écran de salon avec amis Steam et sélection de carte (une fois le menu du fil interfaces livré) ; sinon terrasse et tremplin en vol.
+Les captures se refont d'une commande dans le vrai jeu, joueur automatique, interface en anglais : `GODOT=godot tools/steam/shots.sh DOSSIER` (puis `capsules.py` pour les capsules). Jeu du 07/11 : `/mnt/project-files/steam/captures-0711/` (rendu logiciel lavapipe sans carte graphique : les ombres et l'anticrénelage seront meilleurs sur une vraie machine, refaire la série sur le PC de jules avant de publier).
 
-Ordre conseillé sur la page : 2, 1, 3, 4, 5, 6, 7, 8 (la première capture sert aussi de fond de page si on ne fournit pas de « page background »).
+1. **Toits du Marché, plan large** : les deux toits, la rue en contrebas, balles en vol (`toits-*`).
+2. **Attrape parfaite** : caméra proche, anneau d'attrape parfaite, adversaire derrière (à capturer à la main pendant une partie : l'instant est trop court pour un horodatage fixe).
+3. **La Piscine** : le bassin vide, le plongeoir, joueurs en haut et en bas (`piscine-*`).
+4. **Le Dépôt** : les trams, la fosse, un joueur sur le toit du tram (`depot-*`).
+5. **Tacle au bord du vide** : un adversaire bousculé près d'un bord, traînée de dash (à la main, comme la 2).
+6. **Fin de partie** : podium et tableau des scores (`fin-de-partie-*`).
+7. **Menu** : le menu « Affiche » avec les personnages (`menu-*`).
+8. **Vestiaire** : profil, onglet Vestiaire, un couvre-chef porté (`--profile-wardrobe`, à ajouter à shots.sh si la capture plaît).
+
+Ordre conseillé sur la page : 1, 2, 3, 4, 5, 6, 8, 7 (la première capture sert aussi de fond de page si on ne fournit pas de « page background »).

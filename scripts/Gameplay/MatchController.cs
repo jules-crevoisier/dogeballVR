@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Maps;
@@ -226,6 +227,11 @@ public partial class MatchController : Node3D
     public void ConfigureMap(MapData map)
     {
         foreach (var zone in map.Zones) SpawnZones.Add(zone.Center);
+        for (int t = 0; t < 2; t++)
+        {
+            var own = map.Zones.FindAll(z => z.Team == t);
+            teamSide[t] = own.Count == 0 ? Vector2.Zero : own.Aggregate(Vector2.Zero, (acc, z) => acc + new Vector2(z.X, z.Z)) / own.Count;
+        }
         planZones.AddRange(map.Zones);
         mapObstacles = map.Obstacles;
         returnSeconds = map.BallReturn.Seconds;
@@ -243,6 +249,7 @@ public partial class MatchController : Node3D
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
             else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); }
+            else if (def.Kind == "special") specialSpots.Add(def);   // arène libre : socles centraux où la balle spéciale apparaît
             else if (def.Kind == "dispenser")
             {
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
@@ -340,6 +347,7 @@ public partial class MatchController : Node3D
         specialAnnounced = false;
         ResetPlates();
         specialLaunched = 0;
+        specialOnSpot = null;
         ballTimer = 0;
         roundBanner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
         countdownLeft = CountdownSeconds;
@@ -504,8 +512,13 @@ public partial class MatchController : Node3D
         UpdateHud();
     }
 
-    // Balles spéciales : une famille par match, lancée par le moyeu toutes les 45 s vers l'équipe menée, annoncée 5 s avant.
+    // Balles spéciales : une famille par match, toutes les 45 s, annoncée 5 s avant. Carte à moyeu : lancée vers l'équipe menée ;
+    // arène libre : posée sur un socle central (« special »), à qui la prend en premier.
     const double SpecialIntervalSeconds = 45, SpecialAnnounceSeconds = 5;
+    readonly List<BallSpawnDef> specialSpots = new();
+    readonly Vector2[] teamSide = new Vector2[2];   // centre des places de chaque équipe (côté du terrain)
+    Ball? specialOnSpot;
+    bool HasSpecialBalls => hubLauncher != null || specialSpots.Count > 0;
     int specialKind;
     double specialClock;
     bool specialAnnounced;
@@ -631,12 +644,12 @@ public partial class MatchController : Node3D
 
     static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
 
-    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a pas de lanceur central.</summary>
-    public string SpecialBallName => hubLauncher == null || specialKind == 0 ? "" : SpecialName(specialKind);
+    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a ni lanceur central ni socle spécial.</summary>
+    public string SpecialBallName => !HasSpecialBalls || specialKind == 0 ? "" : SpecialName(specialKind);
 
     void UpdateSpecialBalls(double delta)
     {
-        if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
+        if (!HasSpecialBalls || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
         if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && SpecialTest) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
@@ -653,9 +666,31 @@ public partial class MatchController : Node3D
             specialAnnounced = false;
             specialLaunched++;
             specialNotice = "";
+            if (hubLauncher == null) { PlaceOnSpecialSpot(); return; }
             if (!LaunchFromHub(hubLauncher, specialKind)) { GD.Print("[Match] Balle spéciale : aucune plaque de l'équipe menée, lancer annulé"); return; }
             GD.Print($"[Match] Balle spéciale lancée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
+    }
+
+    /// <summary>
+    /// Arène libre : la balle spéciale apparaît, immobile, sur le socle central le plus proche de l'équipe menée (à égalité : chacun son
+    /// tour), comme le moyeu des anciennes cartes la lance vers l'équipe menée. Le socle reste au milieu : l'autre équipe peut la disputer.
+    /// Une balle spéciale encore posée là n'est pas doublée : elle attend son preneur.
+    /// </summary>
+    void PlaceOnSpecialSpot()
+    {
+        if (specialOnSpot != null && IsInstanceValid(specialOnSpot) && !specialOnSpot.IsQueuedForDeletion() && !specialOnSpot.IsHeld)
+        {
+            GD.Print("[Match] Balle spéciale : la précédente attend encore sur son socle");
+            return;
+        }
+        int trailing = Rules.Kos[0] == Rules.Kos[1] ? neutralFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
+        var def = specialSpots.OrderBy(d => new Vector2(d.X, d.Z).DistanceSquaredTo(teamSide[trailing])).First();
+        specialOnSpot = SpawnBallAt(new Vector3(def.X, def.Y + 0.2f, def.Z));
+        specialOnSpot.Kind = specialKind;
+        specialOnSpot.LinearVelocity = Vector3.Zero;
+        if (ballsCached >= 0) ballsCached++;
+        GD.Print($"[Match] Balle spéciale posée : {SpecialName(specialKind)} sur {def.Id} (manche {round}, t={specialClock:0.0} s)");
     }
 
     /// <summary>Souffle de la bombe : 1 cœur à chaque adversaire à moins de BombRadius (pas de tir allié), la cible déjà touchée par la balle est exclue.</summary>
@@ -740,6 +775,11 @@ public partial class MatchController : Node3D
     void UpdateDispensers(double delta, double now)
     {
         ballsCached = -1;
+        if (specialOnSpot != null && (!IsInstanceValid(specialOnSpot) || specialOnSpot.IsHeld))   // prise : balle comme les autres
+        {
+            if (IsInstanceValid(specialOnSpot)) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId}");
+            specialOnSpot = null;
+        }
         highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
         foreach (var d in dispensers)
         {
@@ -763,6 +803,7 @@ public partial class MatchController : Node3D
         {
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
+            if (b == specialOnSpot && b.GlobalPosition.Y > -2f) continue;   // balle spéciale sur son socle : elle attend son preneur
             if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);
