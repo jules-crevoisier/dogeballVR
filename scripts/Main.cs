@@ -204,6 +204,7 @@ public partial class Main : Node3D
         // Arènes libres : 3 contre 3 par défaut (fiche de la carte) ; --team-size=2|3|4 pour les essais.
         if (int.TryParse(Tools.DevFlags.Value("--team-size=") ?? "", out int teamSize)) MapData.ArenaTeamSize = Mathf.Clamp(teamSize, 1, 4);
         map = MapData.Load(mapPath);
+        Audio.Music.SetAmbienceTrack(map.AmbienceSound);
         // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
         KcRules.Configure(map.Rules, xrActive);
         Assist.Configure(map.BallRules);

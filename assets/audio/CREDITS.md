@@ -22,6 +22,12 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | Funky Menu Loop | iamoneabe | CC0 | https://opengameart.org/content/funky-menu-loop |
 | Simple Action Beat | LushoGames | CC0 | https://opengameart.org/content/simple-action-beat |
 | Funky Victory Loop | Archonic | CC0 | https://opengameart.org/content/funky-victory-loop |
+| Crowd shouting/speaking ambience | StarNinjas | CC0 | https://opengameart.org/content/crowd-shoutingspeaking-ambience |
+| Crickets ambient noise (loopable) | Wolfgang_ | CC0 | https://opengameart.org/content/crickets-ambient-noise-loopable |
+| Park ambiences | Thimras | CC0 | https://opengameart.org/content/park-ambiences |
+| Generator loop | YCbCr | CC0 | https://opengameart.org/content/generator-loop |
+| Morning sounds (perfect loop) | Kresiek The Furry | CC0 | https://opengameart.org/content/amb-morning-sounds-perfect-loop |
+| Rotating bicycle bell | AntumDeluge | CC0 | https://opengameart.org/content/rotating-bicycle-bell |
 
 ## Effets (`sfx/<kind>_N.ogg`)
 
@@ -63,3 +69,8 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | music/victory.ogg | Funky Victory Loop (Archonic), jouée une fois avec fondu final |
 | music/defeat.ogg | jingles_STEEL06 (Kenney Music Jingles) |
 | ambience/rooftop.ogg | High traffic road sounds (IgnasD), passe-bas 1,6 kHz (circulation en contrebas du toit), boucle de 40 s par fondu enchaîné de 3 s, -26 LUFS |
+| ambience/marche.ogg | Toits du Marché : rooftop.ogg + Crowd shouting/speaking ambience (StarNinjas) filtrée 180–900 Hz à -9 dB (le marché en bas) |
+| ambience/piscine.ogg | La Piscine : Crickets ambient noise (Wolfgang_) passe-haut 1,5 kHz, Park ambiences rivière (Thimras) passe-bas 700 Hz à -10 dB, vent à -14 dB |
+| ambience/depot.ogg | Le Dépôt : Generator loop (YCbCr) ralenti ×0,8, passe-bas 420 Hz (bourdonnement de caténaire), Morning sounds (Kresiek The Furry) passe-haut 900 Hz, rooftop.ogg à -7 dB, Rotating bicycle bell (AntumDeluge) ralentie ×0,62 deux fois par boucle (timbre de tram) |
+
+Ambiances des arènes construites par `build_ambiences.py <téléchargements> assets/audio` (boucles de 40 s, -26 LUFS).

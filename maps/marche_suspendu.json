@@ -3,6 +3,7 @@
  "schemaVersion": 4,
  "layout": "arena",
  "ambiance": "chantier",
+ "ambienceSound": "marche",
  "info": {
   "title": "Toits du Marché",
   "tagline": "Deux toits, une rue, trois ponts.",

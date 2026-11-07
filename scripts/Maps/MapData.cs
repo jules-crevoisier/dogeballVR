@@ -294,6 +294,8 @@ public class MapData
     public string? Decor { get; set; }
     /// <summary>Ambiance du décor KC (ciel, soleil, brume) : jour, chantier, coucher, soiree, nuit, brume. Purement visuelle.</summary>
     public string? Ambiance { get; set; }
+    /// <summary>Boucle d'ambiance sonore du match (assets/audio/ambience/&lt;nom&gt;.ogg) ; absente : la circulation lointaine (rooftop).</summary>
+    public string? AmbienceSound { get; set; }
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();

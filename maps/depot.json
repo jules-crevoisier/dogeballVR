@@ -3,6 +3,7 @@
  "schemaVersion": 4,
  "layout": "arena",
  "ambiance": "aube",
+ "ambienceSound": "depot",
  "info": {
   "title": "Le Dépôt",
   "tagline": "Deux fosses, deux trams, trois couloirs.",
