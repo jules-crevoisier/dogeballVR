@@ -192,7 +192,6 @@ public partial class Main : Node3D
 
     void StartMatch(bool xrActive)
     {
-        Audio.Music.PlayMatch();
         bool client = cfg.Mode == NetMode.Client;
 
         string mapPath = $"res://maps/{cfg.Map}.json";
@@ -205,6 +204,8 @@ public partial class Main : Node3D
         if (int.TryParse(Tools.DevFlags.Value("--team-size=") ?? "", out int teamSize)) MapData.ArenaTeamSize = Mathf.Clamp(teamSize, 1, 4);
         map = MapData.Load(mapPath);
         Audio.Music.SetAmbienceTrack(map.AmbienceSound);
+        Audio.Music.SetMatchTrack(map.MatchMusic);
+        Audio.Music.PlayMatch();   // après la fiche de la carte : sa musique et son ambiance partent directement
         // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
         KcRules.Configure(map.Rules, xrActive);
         Assist.Configure(map.BallRules);

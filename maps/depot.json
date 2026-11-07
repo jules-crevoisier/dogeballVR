@@ -4,6 +4,7 @@
  "layout": "arena",
  "ambiance": "aube",
  "ambienceSound": "depot",
+ "matchMusic": "depot",
  "info": {
   "title": "Le Dépôt",
   "tagline": "Deux fosses, deux trams, trois couloirs.",

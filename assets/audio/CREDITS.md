@@ -28,6 +28,9 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | Generator loop | YCbCr | CC0 | https://opengameart.org/content/generator-loop |
 | Morning sounds (perfect loop) | Kresiek The Furry | CC0 | https://opengameart.org/content/amb-morning-sounds-perfect-loop |
 | Rotating bicycle bell | AntumDeluge | CC0 | https://opengameart.org/content/rotating-bicycle-bell |
+| Raspberry Jam | congusbongus | CC0 | https://opengameart.org/content/raspberry-jam |
+| Wednesday Night (funk fusion) | Zane Little Music | CC0 | https://opengameart.org/content/wednesday-night-funk-fusion |
+| Rhythm Factory | Zane Little Music | CC0 | https://opengameart.org/content/rhythm-factory |
 
 ## Effets (`sfx/<kind>_N.ogg`)
 
@@ -65,7 +68,10 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | Fichier | Source |
 |---|---|
 | music/menu.ogg | Funky Menu Loop, version longue (iamoneabe), boucle de 36,9 s (20 mesures) |
-| music/match.ogg | Simple Action Beat (LushoGames), boucle de 120 s |
+| music/match.ogg | Simple Action Beat (LushoGames), boucle de 120 s (cartes sans musique propre) |
+| music/match_marche.ogg | Toits du Marché : Raspberry Jam (congusbongus), 0–169,5 s bouclés par fondu de 4 s, -14 LUFS (`build_arena_music.py`) |
+| music/match_piscine.ogg | La Piscine : Wednesday Night (Zane Little Music), 11–160 s (sans l'intro ni la fin en fondu), bouclés par fondu de 4 s, -14 LUFS |
+| music/match_depot.ogg | Le Dépôt : Rhythm Factory (Zane Little Music), 9–215 s, bouclés par fondu de 4 s, -14 LUFS |
 | music/victory.ogg | Funky Victory Loop (Archonic), jouée une fois avec fondu final |
 | music/defeat.ogg | jingles_STEEL06 (Kenney Music Jingles) |
 | ambience/rooftop.ogg | High traffic road sounds (IgnasD), passe-bas 1,6 kHz (circulation en contrebas du toit), boucle de 40 s par fondu enchaîné de 3 s, -26 LUFS |

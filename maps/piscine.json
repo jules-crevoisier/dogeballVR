@@ -4,6 +4,7 @@
  "layout": "arena",
  "ambiance": "soiree",
  "ambienceSound": "piscine",
+ "matchMusic": "piscine",
  "info": {
   "title": "La Piscine",
   "tagline": "Un bassin vide, un plongeoir, deux camps.",

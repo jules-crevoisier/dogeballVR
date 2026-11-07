@@ -296,6 +296,8 @@ public class MapData
     public string? Ambiance { get; set; }
     /// <summary>Boucle d'ambiance sonore du match (assets/audio/ambience/&lt;nom&gt;.ogg) ; absente : la circulation lointaine (rooftop).</summary>
     public string? AmbienceSound { get; set; }
+    /// <summary>Musique de match (assets/audio/music/match_&lt;nom&gt;.ogg) ; absente : la boucle commune match.ogg.</summary>
+    public string? MatchMusic { get; set; }
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();

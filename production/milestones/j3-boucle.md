@@ -15,11 +15,11 @@ complètes et son de qualité. À la fin, un inconnu peut installer le jeu et y 
 
 ## Success Criteria
 
-- [ ] Tutoriel guidé sur une arène (déplacement, ramasser, lancer, attraper, esquive, tremplin, éjection)
+- [x] Tutoriel guidé sur une arène (déplacement, ramasser, lancer, attraper, esquive, tremplin, éjection) — Toits du Marché, 13 étapes, PR #34 (testé en CI)
 - [ ] Partie en ligne de bout en bout : créer, inviter, rejoindre, jouer, revanche
 - [x] Progression sauvegardée (niveau de joueur, récompenses cosmétiques) et Steam Cloud — couvre-chefs et vestiaire, PR #34
 - [ ] Options : graphismes, son, contrôles réassignables, sensibilité, langue, accessibilité de base
-- [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés (ambiances par arène faites, PR #34 ; musique et impacts restent)
+- [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés (ambiances et musiques de match par arène faites, PR #34 ; sons d'impact et d'attrape restent)
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
 - [ ] Build stable for 3 consecutive days

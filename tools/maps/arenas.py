@@ -204,7 +204,7 @@ def marche_suspendu():
     a.skyline((-19, 19, -20, 20), 7, [("#4A4E6A", "#F6C56A"), ("#5B4A5E", "#FFB070"), ("#3A3F5C", "#F6C56A"), ("#6B5A50", "#F6C56A")], base=-20,
               brick=False, max_h=22)   # ville sourde et plus basse : l'aire de jeu reste ce qui attire l'œil
     a.write("marche_suspendu", {
-        "ambiance": "chantier", "ambienceSound": "marche",
+        "ambiance": "chantier", "ambienceSound": "marche", "matchMusic": "marche",
         "info": {"title": "Toits du Marché", "tagline": "Deux toits, une rue, trois ponts.",
                  "idea": "Tenir les ponts : le vide de la rue sanctionne chaque tacle, la passerelle d'enseigne domine tout.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -20, "maxZ": 20, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},
@@ -279,7 +279,7 @@ def piscine():
     a.deco(model="lampadaire", x=-15.3, y=D, z=-16)
     a.skyline((-19, 19, -19, 19), 11, [("#3A3F5C", "#F6C56A"), ("#4A4E6A", "#FFB070"), ("#5B4A5E", "#F6C56A"), ("#2E3350", "#F6C56A")], base=-14, brick=False, max_h=22)   # ville froide et sombre : le club se détache
     a.write("piscine", {
-        "ambiance": "soiree", "ambienceSound": "piscine",
+        "ambiance": "soiree", "ambienceSound": "piscine", "matchMusic": "piscine",
         "info": {"title": "La Piscine", "tagline": "Un bassin vide, un plongeoir, deux camps.",
                  "idea": "Le bas contre le haut : on plonge dans le bassin pour couper la route, le plongeoir voit tout mais ne cache rien.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},
@@ -395,7 +395,7 @@ def depot():
     a.skyline((-19, 19, -19, 19), 23, [("#4E5568", "#FFC46A"), ("#5A5A66", "#3A4258"), ("#46506A", "#FFC46A"), ("#5E5650", "#3A4258")], base=-14,
               brick=True, max_h=24, near_h=(-5, 2), min_far=20)
     a.write("depot", {
-        "ambiance": "aube", "ambienceSound": "depot",
+        "ambiance": "aube", "ambienceSound": "depot", "matchMusic": "depot",
         "info": {"title": "Le Dépôt", "tagline": "Deux fosses, deux trams, trois couloirs.",
                  "idea": "Choisir son couloir : le centre est court et couvert, les côtés longent la fosse et le vide ; le toit du tram domine, à un tacle de la chute.", "teamSize": 3},
         "arenaBounds": {"minX": -19, "maxX": 19, "minZ": -19, "maxZ": 19, "wallHeight": 14, "ceilingHeight": 14, "wallKind": "plain"},

@@ -24,7 +24,7 @@ public partial class AudioSelfTest : Node3D
             Sfx.Play(this, kind, Vector3.Zero, 1.1f, -3f);
         }
         Check("couche grave", Sfx.Variants("low").Length > 0, $"{Sfx.Variants("low").Length} variante(s)");
-        foreach (var (file, loop) in new[] { ("music/menu.ogg", true), ("music/match.ogg", true), ("music/victory.ogg", false), ("music/defeat.ogg", false), ("ambience/rooftop.ogg", true), ("ambience/marche.ogg", true), ("ambience/piscine.ogg", true), ("ambience/depot.ogg", true) })
+        foreach (var (file, loop) in new[] { ("music/menu.ogg", true), ("music/match.ogg", true), ("music/match_marche.ogg", true), ("music/match_piscine.ogg", true), ("music/match_depot.ogg", true), ("music/victory.ogg", false), ("music/defeat.ogg", false), ("ambience/rooftop.ogg", true), ("ambience/marche.ogg", true), ("ambience/piscine.ogg", true), ("ambience/depot.ogg", true) })
         {
             string path = "res://assets/audio/" + file;
             var s = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;

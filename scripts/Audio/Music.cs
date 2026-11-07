@@ -89,10 +89,26 @@ public static class Music
         SetAmbience(false, fade);
     }
 
-    /// <summary>Boucle de match (plus énergique) et ambiance de toit en fond.</summary>
+    static string matchFile = "music/match.ogg";
+
+    /// <summary>
+    /// Musique de match de la carte (assets/audio/music/match_&lt;nom&gt;.ogg, une par arène) ; absente ou introuvable : la boucle commune.
+    /// Si une musique de match joue déjà, fondu enchaîné vers la nouvelle.
+    /// </summary>
+    public static void SetMatchTrack(string? name)
+    {
+        string file = string.IsNullOrEmpty(name) ? "music/match.ogg" : $"music/match_{name}.ogg";
+        if (!ResourceLoader.Exists(Dir + file)) file = "music/match.ogg";
+        if (file == matchFile) return;
+        bool playing = currentTrack == matchFile && current != null && GodotObject.IsInstanceValid(current);
+        matchFile = file;
+        if (playing) CrossfadeTo(matchFile, MatchDb, 1.5f);
+    }
+
+    /// <summary>Boucle de match de la carte (plus énergique que le menu) et son ambiance en fond.</summary>
     public static void PlayMatch(float fade = 1.5f)
     {
-        CrossfadeTo("music/match.ogg", MatchDb, fade);
+        CrossfadeTo(matchFile, MatchDb, fade);
         SetAmbience(true, fade * 2f);
     }
 
