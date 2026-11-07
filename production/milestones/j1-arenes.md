@@ -18,9 +18,9 @@ jouer une partie solo et une partie en ligne complètes sur deux arènes, et ell
 - [x] Géométrie d'arène partagée par le joueur, les bots et l'hôte (`scripts/Maps/ArenaGeometry.cs`)
 - [x] Bots qui naviguent sur toute la carte sans tomber seuls (`NavGrid`, `BotRoam`)
 - [x] Toits du Marché et La Piscine jouables en solo et en ligne
-- [ ] Job CI « arenes » vert (solo des deux cartes, réseau sur Toits du Marché)
-- [ ] Revue indépendante des cartes ≥ 8/10
-- [ ] Troisième arène (dépôt de tramways, couverts mobiles)
+- [x] Job CI « arenes » vert (solo des deux cartes, réseau sur Toits du Marché)
+- [x] Revue indépendante des cartes ≥ 8/10
+- [x] Troisième arène (dépôt de tramways) — Le Dépôt, PR #34 ; les couverts mobiles sont reportés (trams garés fixes)
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware (60 i/s sur PC milieu de gamme)
 - [ ] Build stable for 2 consecutive days

@@ -17,9 +17,9 @@ complètes et son de qualité. À la fin, un inconnu peut installer le jeu et y 
 
 - [ ] Tutoriel guidé sur une arène (déplacement, ramasser, lancer, attraper, esquive, tremplin, éjection)
 - [ ] Partie en ligne de bout en bout : créer, inviter, rejoindre, jouer, revanche
-- [ ] Progression sauvegardée (niveau de joueur, récompenses cosmétiques) et Steam Cloud
+- [x] Progression sauvegardée (niveau de joueur, récompenses cosmétiques) et Steam Cloud — couvre-chefs et vestiaire, PR #34
 - [ ] Options : graphismes, son, contrôles réassignables, sensibilité, langue, accessibilité de base
-- [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés
+- [ ] Ambiance sonore et musique par arène, sons d'impact et d'attrape retravaillés (ambiances par arène faites, PR #34 ; musique et impacts restent)
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
 - [ ] Build stable for 3 consecutive days

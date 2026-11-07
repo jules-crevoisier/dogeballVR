@@ -27,8 +27,8 @@ public static class Headwear
     public const float MaxTop = Top + 0.07f;
 
     static readonly Color Ink = new("15141a"), Paper = new("f3ecdd"), Yellow = new("F2C230"), White = new("F4F4F4"),
-        Moss = new("3B5B4F"), MossDark = new("2C443B"), Ochre = new("C98A2E"), OchreDark = new("8E5E1C"), Straw = new("D9B866"),
-        Khaki = new("7E7E52"), Gold = new("E8B730"), Silver = new("C9CED6"), Night = new("2A2830"), Ruby = new("D8262E"), Lens = new("2A3550");
+        Moss = new("3B5B4F"), MossDark = new("2C443B"), Plum = new("5A3A5E"), PlumDark = new("3F2842"), Straw = new("D9B866"),
+        Khaki = new("7E7E52"), Gold = new("E8B730"), Silver = new("9EA6B3"), Night = new("2A2830"), Ruby = new("D8262E"), Lens = new("2A3550");
 
     static readonly Dictionary<string, ArrayMesh?> cache = new();
     static readonly Dictionary<(Color, float, float, float), StandardMaterial3D> materials = new();
@@ -91,7 +91,7 @@ public static class Headwear
         string key = $"{id}#{team}";
         if (cache.TryGetValue(key, out var hit)) return hit;
         var p = new Parts();
-        var teamMat = Mat(team == 0 ? new Color("f2612d") : new Color("2e86de"), 0.55f);
+        var teamMat = Mat(team == 0 ? Palette.TeamA : Palette.TeamB, 0.55f);   // mêmes couleurs que les bandes du corps
         bool ok = true;
         switch (id)
         {
@@ -119,9 +119,9 @@ public static class Headwear
             case "bonnet":
             case "bonnet_ocre":
             {
-                bool ochre = id == "bonnet_ocre";
-                Dome(p, Mat(ochre ? Ochre : Moss, 0.95f), Rx + 0.012f, 0.106f, -0.062f);
-                Ring(p, Mat(ochre ? OchreDark : MossDark, 0.95f), Rx + 0.012f, Rx + 0.014f, 0.045f, -0.045f);   // revers sur le front
+                bool plum = id == "bonnet_ocre";   // identifiant historique : le bonnet est prune (l'ocre se confondait avec l'orange d'équipe)
+                Dome(p, Mat(plum ? Plum : Moss, 0.95f), Rx + 0.012f, 0.106f, -0.062f);
+                Ring(p, Mat(plum ? PlumDark : MossDark, 0.95f), Rx + 0.012f, Rx + 0.014f, 0.045f, -0.045f);   // revers sur le front
                 p.Add(new SphereMesh { Radius = 0.026f, Height = 0.052f }, Mat(Paper, 1f), new Vector3(0, Top + 0.032f, 0.008f));     // pompon, sous la limite
                 break;
             }
@@ -154,7 +154,7 @@ public static class Headwear
                 var shell = Mat(id == "casque" ? Yellow : White, 0.45f);
                 Dome(p, shell, Rx + 0.016f, 0.084f, -0.03f);
                 Ring(p, shell, Rx + 0.028f, Rx + 0.032f, 0.012f, -0.034f);   // bord
-                p.Add(new BoxMesh { Size = new Vector3(0.024f, 0.022f, 0.2f) }, shell, new Vector3(0, 0.05f, 0.004f));   // nervure
+                p.Add(new BoxMesh { Size = new Vector3(0.022f, 0.014f, 0.09f) }, shell, new Vector3(0, 0.05f, 0.004f));   // nervure, courte : elle reste sur le haut de la calotte
                 p.Add(new BoxMesh { Size = new Vector3(0.05f, 0.028f, 0.004f) }, teamMat, new Vector3(0, -0.002f, -Front - 0.012f), new Vector3(-28, 0, 0));   // insigne
                 break;
             }

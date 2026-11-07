@@ -1563,7 +1563,7 @@ public partial class DesktopPlayer : Node3D
         {
             var pose = Pose;
             selfAvatar.Visible = ThirdPerson && !Hurtbox.Eliminated && camera.GlobalPosition.DistanceTo(head.GlobalPosition) > AvatarHideDistance;   // caméra collée au joueur (mur derrière) : on le cache pour ne pas boucher l'écran
-            selfAvatar.HeadwearVisible = pitch > HatHidePitch;   // caméra qui plonge sur la tête : le couvre-chef entrerait dans la visée
+            selfAvatar.HeadwearVisible = pitch > HatHidePitch;   // caméra qui plonge sur la tête : le couvre-chef entrerait dans la visée (collée à un mur, tout l'avatar est déjà caché)
             selfAvatar.Pose(pose.Head, pose.Yaw, pose.Left, pose.Right, pose.Elevation);
             selfAvatar.Charging = charging && held != null;   // bras armé tant que le tir se charge
         }

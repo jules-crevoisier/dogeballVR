@@ -145,8 +145,8 @@ public partial class ProfileScreen : Control
 
     public override void _UnhandledInput(InputEvent e)
     {
-        bool prev = e is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.Q } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.LeftShoulder };
-        bool next = e is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.E } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.RightShoulder };
+        bool prev = e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Q } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.LeftShoulder };
+        bool next = e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.E } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.RightShoulder };
         if (!prev && !next) return;
         GetViewport().SetInputAsHandled();
         ShowTab(1 - tab);
@@ -270,13 +270,14 @@ public partial class ProfileScreen : Control
     }
 
     /// <summary>
-    /// Case du vestiaire. Porté : plaque lime pleine, texte encre, « PORTÉ ». Débloqué : encart sombre, texte blanc. Verrouillé :
-    /// nom en gris chaud, « NIV. n ». Prochain déblocage : liseré lime fin. Focus et survol : liseré papier de 3 px.
+    /// Case du vestiaire. Porté : plaque lime pleine, texte encre, « PORTÉ ». Débloqué : encart sombre, texte blanc, « DISPONIBLE ». Verrouillé :
+    /// fond plus noir, nom en gris éteint, « NIV. n ». Prochain déblocage : liseré lime fin. Focus et survol : liseré papier de 3 px.
     /// </summary>
     static void StyleTile(Button b, HeadwearDef h, Label title, Label sub, int level)
     {
         bool worn = Cosmetics.Equipped == h.Id, open = Cosmetics.IsUnlocked(h, level), next = Cosmetics.NextAfter(level) == h;
-        var normal = worn ? UiKit.InsetBox(UiKit.Yellow, 0) : next ? UiKit.InsetBox(null, 0, 2, new Color(UiKit.Yellow, 0.7f)) : UiKit.InsetBox(null, 0);
+        var locked = new Color("121116");   // case verrouillée : plus sombre que l'encart des cases débloquées
+        var normal = worn ? UiKit.InsetBox(UiKit.Yellow, 0) : next ? UiKit.InsetBox(locked, 0, 2, new Color(UiKit.Yellow, 0.7f)) : open ? UiKit.InsetBox(null, 0) : UiKit.InsetBox(locked, 0);
         var lit = normal.Copy();
         lit.BorderWidth = 3;
         lit.BorderColor = UiKit.Cream;
@@ -284,9 +285,9 @@ public partial class ProfileScreen : Control
         b.AddThemeStyleboxOverride("hover", lit);
         b.AddThemeStyleboxOverride("pressed", lit);
         b.AddThemeStyleboxOverride("focus", lit);
-        title.AddThemeColorOverride("font_color", worn ? UiKit.Navy : open ? Colors.White : UiKit.Sky);
-        sub.AddThemeColorOverride("font_color", worn ? UiKit.Navy : next ? UiKit.Yellow : UiKit.Sky);
-        sub.Text = worn ? "PORTÉ" : open ? (h.Level > 1 ? $"niv. {h.Level}" : "de base") : next ? $"NIV. {h.Level} · encore {h.Level - level}" : $"NIV. {h.Level}";
+        title.AddThemeColorOverride("font_color", worn ? UiKit.Navy : open ? Colors.White : new Color("8a857c"));
+        sub.AddThemeColorOverride("font_color", worn ? UiKit.Navy : next ? UiKit.Yellow : open ? UiKit.Cream : new Color("8a857c"));
+        sub.Text = worn ? "PORTÉ" : open ? "DISPONIBLE" : next ? $"NIV. {h.Level} · encore {h.Level - level}" : $"NIV. {h.Level}";
     }
 
     /// <summary>Essaie un couvre-chef sur l'aperçu et met à jour le nom et l'état affichés à côté.</summary>

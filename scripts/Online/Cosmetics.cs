@@ -17,7 +17,10 @@ public static class Cosmetics
     /// <summary>Aucun couvre-chef.</summary>
     public const string None = "aucun";
 
-    /// <summary>Catalogue, dans l'ordre de déblocage. Ajouter à la fin : l'identifiant circule sur le réseau.</summary>
+    /// <summary>
+    /// Catalogue, dans l'ordre de déblocage. L'identifiant (chaîne) circule sur le réseau et dans la sauvegarde : ne jamais en renommer
+    /// un ; l'ordre peut changer, mais <see cref="ForBot"/> dépend des entrées des niveaux 2 à 10.
+    /// </summary>
     public static readonly IReadOnlyList<HeadwearDef> Headwear = new[]
     {
         new HeadwearDef(None, "Tête nue", 1),
@@ -33,7 +36,7 @@ public static class Cosmetics
         new HeadwearDef("casque_blanc", "Casque blanc", 40),
         new HeadwearDef("couronne_argent", "Couronne d'argent", 45),
         new HeadwearDef("couronne", "Couronne d'or", 50),
-        new HeadwearDef("bonnet_ocre", "Bonnet ocre", 60),
+        new HeadwearDef("bonnet_ocre", "Bonnet prune", 60),
         new HeadwearDef("crete_papier", "Crête papier", 70),
         new HeadwearDef("lunettes_or", "Masque doré", 80),
         new HeadwearDef("bandeau_papier", "Bandeau papier", 90),
