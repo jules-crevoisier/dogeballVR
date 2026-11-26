@@ -79,7 +79,9 @@ public static class GameSettings
         if (!hasSettings) return;   // premier lancement
         Sensitivity = Mathf.Clamp(F(cfg, "pc", "sensitivity", Sensitivity), 0.0005f, 0.01f);
         InvertY = B(cfg, "controls", "invert_y", InvertY);
-        PadSensitivity = Mathf.Clamp(F(cfg, "pad", "sensitivity", PadSensitivity), 0.25f, 3f);
+        // Avant ce réglage, le stick suivait la sensibilité de la souris : sans clé [pad], on garde la vitesse que le joueur avait.
+        float legacy = cfg.HasSectionKey("pad", "sensitivity") ? PadSensitivity : Sensitivity / DefaultSensitivity;
+        PadSensitivity = Mathf.Clamp(F(cfg, "pad", "sensitivity", legacy), 0.25f, 3f);
         PadCurve = Mathf.Clamp((int)F(cfg, "pad", "curve", PadCurve), 0, 2);
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);

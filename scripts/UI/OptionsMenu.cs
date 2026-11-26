@@ -49,8 +49,8 @@ public partial class OptionsMenu : Control
         ["Aides contextuelles (premières parties)"] = "Pendant tes premières parties, rappelle la bonne touche au bon moment (attraper, esquiver, charger).",
         ["Ouvrir le port sur ma box (UPnP)"] = "Pour héberger par Internet sans Steam : demande à ta box d'ouvrir le port UDP 7777 tant que ta salle est ouverte. Le code de salle contient alors ton adresse IP publique. NON : jeu en réseau local ou par Steam seulement.",
         ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
-        ["Inverser l'axe vertical"] = "Pousser la souris ou le stick droit vers l'avant fait regarder vers le bas, comme un manche d'avion.",
-        ["Sensibilité du stick"] = "Vitesse de la caméra au stick droit, indépendante de la souris. 1,00× = 260° par seconde stick à fond.",
+        ["Inverser l'axe vertical"] = "Pousser la souris ou le stick droit vers l'avant fait regarder vers le bas, comme un manche d'avion. Vaut pour la souris et la manette.",
+        ["Sensibilité du stick"] = "Vitesse de la caméra au stick droit, indépendante de la souris. 1,00× = un demi-tour en 0,7 s, stick à fond.",
         ["Courbe de visée"] = "Précise : le stick à moitié tourne lentement, pour viser fin. Directe : la vitesse suit le stick. Équilibrée : entre les deux.",
         ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
         ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
@@ -201,8 +201,9 @@ public partial class OptionsMenu : Control
         float top = row.GetGlobalRect().Position.Y - scroll.GetGlobalRect().Position.Y;
         float bottom = top + row.Size.Y;
         float view = scroll.Size.Y;
-        if (bottom > view - Margin) scroll.ScrollVertical += (int)Mathf.Ceil(bottom - (view - Margin));
-        else if (top < Margin && scroll.ScrollVertical > 0) scroll.ScrollVertical -= (int)Mathf.Ceil(Margin - top);
+        if (view < row.Size.Y + 2 * Margin) return;   // liste trop basse (interface « Très grande ») : le suivi de focus suffit, pas d'aller-retour
+        if (bottom > view - Margin) scroll.ScrollVertical += (int)Mathf.Ceil(bottom - (view - Margin));   // fondu « encore des réglages » en bas
+        else if (top < 0 && scroll.ScrollVertical > 0) scroll.ScrollVertical -= (int)Mathf.Ceil(-top);
     }
 
     /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
@@ -328,12 +329,12 @@ public partial class OptionsMenu : Control
                 Toggle("Ouvrir le port sur ma box (UPnP)", GameSettings.Upnp, v => GameSettings.Upnp = v);
                 Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
-                Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Section("Manette");
                 Slider("Sensibilité du stick", GameSettings.PadSensitivity, 0.25f, 3f, 0.05f, v => GameSettings.PadSensitivity = v, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Choice("Courbe de visée", new[] { "Précise", "Équilibrée", "Directe" }, GameSettings.PadCurve, k => GameSettings.PadCurve = k);
                 Section("Caméra et visée");
                 Choice("Vue", new[] { "Épaule (3e personne)", "Première personne" }, GameSettings.FirstPerson ? 1 : 0, k => GameSettings.FirstPerson = k == 1);
+                Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
                 Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : L.F("{0:0} %", v * 100));
                 Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : L.F("{0:0} %", v * 100));

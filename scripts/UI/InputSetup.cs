@@ -205,7 +205,13 @@ public static class InputSetup
 
     public static void Track(InputEvent e)
     {
-        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f) UsingPad = true;
+        if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f)
+        {
+            // Passage à la manette dans un menu : le curseur est rangé dans le coin, sinon il laisse allumé (survol) un autre
+            // contrôle que celui du focus.
+            if (!UsingPad && Input.MouseMode == Input.MouseModeEnum.Visible) Input.WarpMouse(Vector2.Zero);
+            UsingPad = true;
+        }
         // Sur Steam Deck, le pavé tactile et l'écran envoient des mouvements de souris : seuls un clic ou une touche repassent
         // les aides au clavier.
         else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }

@@ -16,7 +16,7 @@ accessibilité, Steam Deck et correction de tous les bugs remontés par les test
 
 - [ ] 60 i/s stables sur la configuration minimale annoncée, 60 i/s sur Steam Deck (réglage Deck)
 - [ ] Aucun bug S1 ou S2 ouvert
-- [x] Accessibilité : sous-titres, daltonisme (couleurs d'équipe + motifs), réduction des secousses — sons importants à l'écran avec leur direction (le jeu n'a pas de voix), symboles d'équipe, secousses de 0 à 100 %, flashs réduits ; vérifié en jeu (`production/qa/evidence/accessibilite/`), PR #34
+- [ ] Accessibilité : sous-titres, daltonisme (couleurs d'équipe + motifs), réduction des secousses — **partiel** : sons importants à l'écran avec leur direction (le jeu n'a pas de voix) et symboles d'équipe vus en jeu (`production/qa/evidence/accessibilite/`) ; secousses réglables de 0 à 100 % et flashs réduits présents mais sans preuve en jeu ; manquent `design/accessibility-requirements.md`, des symboles plus grands au Deck et des flèches de sons qui ne ressemblent pas au symbole d'équipe
 - [x] Animations du mannequin (UAL) : course, saut, lancer, attrape, esquive, chute — plus marche, recul et réception (`tools/blender/mannequin.py`, `--avatar-test` en CI), PR #34
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware
@@ -30,14 +30,14 @@ accessibilité, Steam Deck et correction de tous les bugs remontés par les test
 |---------|-----------|-------|--------------|--------|
 | Passe de performance | `docs/architecture/` | performance-analyst | S1 | À faire |
 | Animations des personnages | `design/art/` | technical-artist | S1 | Mannequin UAL choisi |
-| Accessibilité de base | `design/accessibility-requirements.md` | accessibility-specialist | S2 | À faire |
+| Accessibilité de base | `design/accessibility-requirements.md` | accessibility-specialist | S2 | Partiel (options en place, exigences à écrire) |
 | Correction des bugs des testeurs | — | qa-lead | S2 | À faire |
 
 ### Should Ship (Planned but Cuttable)
 
 | Feature | Design Doc | Owner | Sprint Target | Cut Impact | Status |
 |---------|-----------|-------|--------------|-----------|--------|
-| Vérification Steam Deck | `docs/steam/` | qa-tester | S2 | Pas de badge Deck | À faire |
+| Vérification Steam Deck | `docs/steam/` | qa-tester | S2 | Pas de badge Deck | Simulée en 1280×800 (PR #34), vrai Deck à faire |
 
 ### Stretch Goals (Only if Ahead of Schedule)
 
