@@ -18,6 +18,7 @@ public static class ArenaBuilder
 
     public static Result Build(MapData map, int localZoneId, bool pcProfile = true)
     {
+        if (map.IsArena) return ArenaLevelBuilder.Build(map, pcProfile);   // arène libre du PC : son propre constructeur
         var root = new Node3D { Name = "Arena" };
         var platforms = new Dictionary<int, Node3D>();
         foreach (var z in map.Zones)
@@ -62,14 +63,19 @@ public static class ArenaBuilder
         ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
         // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
         ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.011f, 0.55f, 0.6f, 1.25f, 0.95f),
+        // La Piscine : heure dorée, soleil encore haut et ciel bleu profond ; moins de rose que « coucher », le cyan du bassin et le
+        // bois de la plage gardent leurs couleurs
+        ["soiree"] = new("34509C", "FFB070", "C9A88A", "FFD9A8", 1.45f, new Vector3(-24, 140, 0), "F2B48C", 0.009f, 0.6f, 0.55f, 1.05f, 0.95f),
         // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
         ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
         // La Fosse, port : matin brumeux, lumière blanche et douce
         ["brume"] = new("7E9FC6", "D9E1E8", "B9C3CC", "FFF0DA", 1.2f, new Vector3(-24, -140, 0), "C9D4DF", 0.013f, 0.6f, 0.35f, 0.95f, 0.95f),
+        // Le Dépôt : aube sur le faisceau de voies, soleil bas et rasant, horizon rose orangé, brume légère et chaude
+        ["aube"] = new("6A80B4", "FFB08E", "C9A493", "FFD09A", 1.35f, new Vector3(-16, -120, 0), "E9C1AE", 0.010f, 0.6f, 0.5f, 1.08f, 0.95f),
     };
 
     /// <summary>Ciel dégradé, brume, soleil : l'ambiance de la DA Knockout City, propre à chaque carte. Le glow n'est activé qu'au clavier-souris.</summary>
-    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null)
+    internal static void AddKcEnvironment(Node3D root, bool pcProfile, string? ambiance = null, float fogScale = 1f)
     {
         var m = Moods.TryGetValue(ambiance ?? "jour", out var mood) ? mood : Moods["jour"];
         var sky = new ProceduralSkyMaterial
@@ -86,7 +92,7 @@ public static class ArenaBuilder
             // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume qui repousse le fond
             AmbientLightEnergy = m.Ambient,
             TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = m.Exposure, TonemapWhite = 6f,
-            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity * fogScale, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
             GlowEnabled = pcProfile, GlowIntensity = m.Glow, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
             AdjustmentEnabled = true, AdjustmentSaturation = m.Saturation, AdjustmentContrast = 1.08f,
@@ -266,7 +272,7 @@ public static class ArenaBuilder
             // DesktopPlayer cache le groupe « zone_label ».
             var label = new Label3D
             {
-                Text = $"ÉQUIPE {zone.Team + 1}",
+                Text = DogeballVR.UI.L.F("ÉQUIPE {0}", zone.Team + 1),
                 Position = zone.Center + new Vector3(0, 0.03f, 0),
                 RotationDegrees = new Vector3(-90, zone.FacingDegrees, 0),
                 FontSize = 96,
@@ -388,6 +394,12 @@ public static class ArenaBuilder
         });
         root.AddChild(launcher);
     }
+
+    /// <summary>Murs et plafond invisibles (accès pour les arènes libres).</summary>
+    internal static void AddBoundsPublic(Node3D root, MapData map) => AddBounds(root, map);
+
+    /// <summary>Boîte englobante d'un modèle dans son propre repère (null sans maillage).</summary>
+    internal static Aabb? ModelBounds(Node3D model) => Bounds(model, Transform3D.Identity);
 
     /// <summary>Murs et plafond invisibles. Mur « rebound » : la balle rebondit fort dessus (jeu en ricochets).</summary>
     static void AddBounds(Node3D root, MapData map)

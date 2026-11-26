@@ -60,7 +60,7 @@ public class NetConfig
             else if (a == "--format=online") cfg.OnlineFormat = true;
         }
         // L'entraînement se joue sur la vraie carte du jeu, pas sur l'arène de test.
-        if (args.Contains("--tutorial") && !args.Exists(a => a.StartsWith("--map="))) cfg.Map = "croix_neon";
+        if (args.Contains("--tutorial") && !args.Exists(a => a.StartsWith("--map="))) cfg.Map = Main.TutorialMap;
         return cfg;
     }
 }

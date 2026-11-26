@@ -7,8 +7,8 @@ using DogeballVR.Online.Steam;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Écran Profil du menu : niveau, titre et barre d'XP, statistiques de carrière, et liste des succès (débloqués en jaune,
-/// les autres grisés avec leur progression). Tout vient de progress.cfg, le même fichier que Steam recopie (Auto-Cloud).
+/// Écran Profil du menu : niveau, titre et barre d'XP, puis deux onglets. CARRIÈRE : statistiques et succès (débloqués en lime,
+/// les autres grisés avec leur progression). VESTIAIRE : couvre-chefs débloqués par niveau, essayés sur un aperçu 3D. Tout vient de progress.cfg, le même fichier que Steam recopie (Auto-Cloud).
 /// </summary>
 public partial class ProfileScreen : Control
 {
@@ -48,12 +48,13 @@ public partial class ProfileScreen : Control
         var who = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
         who.AddThemeConstantOverride("separation", 4);
         var nameRow = new HBoxContainer();
-        var name = UiKit.Title(Identity.Name.ToUpper(), 50, HorizontalAlignment.Left);
+        var name = UiKit.Raw(UiKit.Title("", 50, HorizontalAlignment.Left));
+        name.Text = Identity.Name.ToUpper();
         name.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         nameRow.AddChild(name);
-        nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : "NIVEAU MAX", 22, UiKit.Sky, 6, HorizontalAlignment.Right));
+        nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : L.T("NIVEAU MAX"), 22, UiKit.Sky, 6, HorizontalAlignment.Right));
         who.AddChild(nameRow);
-        who.AddChild(UiKit.Text($"{Progression.TitleOf(level)}  ·  {XpBanner.Spaced(xp)} XP au total", 24, UiKit.Cream, 6));
+        who.AddChild(UiKit.Text(L.F("{0}  ·  {1} XP au total", L.T(Progression.TitleOf(level)), XpBanner.Spaced(xp)), 24, UiKit.Cream, 6));
         float fill = need > 0 ? (float)into / need : 1f;
         var bar = new Control { CustomMinimumSize = new Vector2(0, 18) };
         bar.Draw += () =>
@@ -64,9 +65,21 @@ public partial class ProfileScreen : Control
         who.AddChild(bar);
         head.AddChild(who);
 
-        var body = new HBoxContainer();
-        body.AddThemeConstantOverride("separation", 28);
-        col.AddChild(body);
+        // Deux onglets dans un panneau de 1280 (Deck : interface à 1,3, 1477 px utiles) : CARRIÈRE et VESTIAIRE.
+        var tabRow = new HBoxContainer();
+        tabRow.AddThemeConstantOverride("separation", 6);
+        col.AddChild(tabRow);
+        tabButtons[0] = UiKit.Button("CARRIÈRE", UiKit.NavySoft, () => ShowTab(0), 22, new Vector2(220, 48));
+        tabButtons[1] = UiKit.Button(L.F("VESTIAIRE  {0} / {1}", Cosmetics.OwnedCount(level), Cosmetics.Headwear.Count - 1), UiKit.NavySoft, () => ShowTab(1), 22, new Vector2(260, 48));
+        foreach (var t in tabButtons) tabRow.AddChild(t);
+        var tabHint = UiKit.Text("Q / E  ·  LB / RB", 18, UiKit.Sky, 0, HorizontalAlignment.Right);
+        tabHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        tabHint.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        tabRow.AddChild(tabHint);
+
+        career = new HBoxContainer { CustomMinimumSize = new Vector2(0, PageH) };
+        career.AddThemeConstantOverride("separation", 28);
+        col.AddChild(career);
 
         // Statistiques de carrière.
         var stats = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) };
@@ -74,22 +87,22 @@ public partial class ProfileScreen : Control
         stats.AddChild(Heading("STATISTIQUES"));
         int matches = Achievements.GetStat(AchievementDefs.StatMatches), wins = Achievements.GetStat(AchievementDefs.StatWins);
         StatRow(stats, "Matchs joués", matches.ToString());
-        StatRow(stats, "Victoires", matches > 0 ? $"{wins}  ({100 * wins / matches} %)" : wins.ToString());
+        StatRow(stats, "Victoires", matches > 0 ? $"{wins}  ({L.F("{0} %", 100 * wins / matches)})" : wins.ToString());
         StatRow(stats, "KO infligés", Achievements.GetStat(AchievementDefs.StatKos).ToString());
         StatRow(stats, "Balles attrapées", Achievements.GetStat(AchievementDefs.StatCatches).ToString());
         StatRow(stats, "Arrêts parfaits", Achievements.GetStat(AchievementDefs.StatPerfects).ToString());
         StatRow(stats, "Passes", Achievements.GetStat(AchievementDefs.StatPasses).ToString());
         StatRow(stats, "Tacles", Achievements.GetStat(AchievementDefs.StatTackles).ToString());
-        body.AddChild(stats);
+        career.AddChild(stats);
 
         // Succès : débloqués d'abord.
         var right = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         right.AddThemeConstantOverride("separation", 6);
         int unlocked = 0;
         foreach (var a in AchievementDefs.All) if (Achievements.IsUnlocked(a.Id)) unlocked++;
-        right.AddChild(Heading($"SUCCÈS  {unlocked} / {AchievementDefs.All.Count}"));
+        right.AddChild(Heading(L.F("SUCCÈS  {0} / {1}", unlocked, AchievementDefs.All.Count)));
         // Manette et Deck : chaque succès prend le focus (croix haut/bas) et la liste défile pour le suivre.
-        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 470), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
+        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, PageH - 50), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
         var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         list.AddThemeConstantOverride("separation", 6);
         scroll.AddChild(list);
@@ -97,15 +110,207 @@ public partial class ProfileScreen : Control
         foreach (bool wanted in new[] { true, false })
             foreach (var a in AchievementDefs.All)
                 if (Achievements.IsUnlocked(a.Id) == wanted) list.AddChild(AchievementRow(a, wanted));
-        body.AddChild(right);
+        career.AddChild(right);
+
+        wardrobe = Wardrobe(level);
+        col.AddChild(wardrobe);
 
         var back = UiKit.Button("RETOUR", UiKit.Blue, () => Back?.Invoke(), 28, new Vector2(300, 64));
         back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
         col.AddChild(back);
+        backButton = back;
+        ShowTab(Tools.DevFlags.Has("--profile-wardrobe") ? 1 : 0);   // captures : --profile-wardrobe ouvre le vestiaire
         back.CallDeferred(Control.MethodName.GrabFocus);
         // Fondu (pas de glissé : le conteneur centré replace le panneau à chaque mise en page).
         panel.Modulate = new Color(1, 1, 1, 0);
         panel.CreateTween().TweenProperty(panel, "modulate:a", 1.0, 0.2);
+    }
+
+    // ------------------------------------------------------------------ onglets
+
+    const float PageH = 520f;
+    readonly Button[] tabButtons = new Button[2];
+    Control career = null!, wardrobe = null!;
+    Button backButton = null!;
+    int tab;
+
+    void ShowTab(int i)
+    {
+        tab = i;
+        career.Visible = i == 0;
+        wardrobe.Visible = i == 1;
+        for (int k = 0; k < 2; k++)
+            UiKit.Tint(tabButtons[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Cream : null, k == i ? UiKit.Navy : null);   // onglet ouvert : plaque papier, languette lime
+        if (i == 1) { Show(Cosmetics.Equipped); Reset(); }
+    }
+
+    public override void _UnhandledInput(InputEvent e)
+    {
+        bool prev = e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Q } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.LeftShoulder };
+        bool next = e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.E } || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.RightShoulder };
+        if (!prev && !next) return;
+        GetViewport().SetInputAsHandled();
+        ShowTab(1 - tab);
+        Sfx.Play(this, SfxKind.UiHover);
+        int eq = tiles.FindIndex(t => t.def.Id == Cosmetics.Equipped);
+        (tab == 1 && tiles.Count > 0 ? tiles[Mathf.Max(0, eq)].tile : backButton).GrabFocus();
+    }
+
+    // ------------------------------------------------------------------ vestiaire
+
+    const float PreviewW = 500f;
+    const float RestYaw = 140f;   // de trois quarts (180 = de face) : visière, crête et masque se lisent de profil
+    Node3D? turntable;
+    Visual.Avatar? model;
+    Label wearName = null!, wearState = null!, wearNext = null!;
+    string shown = "";
+    double swayT;
+    readonly System.Collections.Generic.List<(Button tile, HeadwearDef def)> tiles = new();
+
+    /// <summary>
+    /// Onglet vestiaire : grand aperçu 3D à gauche (buste, léger balancement), à droite le nom et l'état du couvre-chef montré
+    /// et la grille 4 × 4 des couvre-chefs. Survol ou focus : on l'essaie sur l'aperçu, même verrouillé (on voit ce qu'on gagnera).
+    /// Clic ou Entrée : on le porte s'il est débloqué.
+    /// </summary>
+    Control Wardrobe(int level)
+    {
+        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, PageH) };
+        row.AddThemeConstantOverride("separation", 24);
+
+        var frame = new PanelContainer { CustomMinimumSize = new Vector2(PreviewW, PageH) };
+        var frameBox = UiKit.InsetBox(new Color("34313c"), 0);
+        frameBox.ContentMarginLeft = frameBox.ContentMarginRight = frameBox.ContentMarginTop = frameBox.ContentMarginBottom = 0;
+        frame.AddThemeStyleboxOverride("panel", frameBox);
+        var view = new SubViewportContainer { Stretch = true, MouseFilter = MouseFilterEnum.Ignore };
+        frame.AddChild(view);
+        var world = new SubViewport { OwnWorld3D = true, TransparentBg = true, Msaa3D = Viewport.Msaa.Msaa4X, HandleInputLocally = false };
+        view.AddChild(world);
+        BuildPreview(world);
+        row.AddChild(frame);
+
+        var side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        side.AddThemeConstantOverride("separation", 4);
+        wearName = UiKit.Title("", 46, HorizontalAlignment.Left);
+        wearState = UiKit.Text("", 22, UiKit.Yellow, 4);
+        wearNext = UiKit.Text("", 18, UiKit.Sky, 0);
+        side.AddChild(wearName);
+        side.AddChild(wearState);
+        side.AddChild(wearNext);
+        side.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+        var grid = new GridContainer { Columns = 4 };
+        grid.AddThemeConstantOverride("h_separation", 8);
+        grid.AddThemeConstantOverride("v_separation", 8);
+        foreach (var h in Cosmetics.Headwear) grid.AddChild(Tile(h, level));
+        grid.MouseExited += () => Show(Cosmetics.Equipped);
+        side.AddChild(grid);
+        row.AddChild(side);
+        var next = Cosmetics.NextAfter(level);
+        wearNext.Text = next == null ? L.T("Tous les couvre-chefs sont à toi.")
+            : L.F(next.Level - level > 1 ? "Prochain : {0}, au niveau {1} (encore {2} niveaux)." : "Prochain : {0}, au niveau {1} (encore {2} niveau).", L.T(next.Name), next.Level, next.Level - level);
+        return row;
+    }
+
+    void BuildPreview(SubViewport world)
+    {
+        var env = new Godot.Environment
+        {
+            BackgroundMode = Godot.Environment.BGMode.ClearColor,
+            AmbientLightSource = Godot.Environment.AmbientSource.Color,
+            AmbientLightColor = new Color(0.86f, 0.88f, 1f), AmbientLightEnergy = 0.6f,
+        };
+        world.AddChild(new WorldEnvironment { Environment = env });
+        world.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-30, -30, 0), LightEnergy = 1.3f, LightColor = new Color("fff0dc") });
+        world.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-10, 150, 0), LightEnergy = 0.8f, LightColor = new Color("cfd8ff") });   // contre-jour froid
+        // Buste et tête : champ vertical d'environ 0,7 m centré sur le visage.
+        world.AddChild(new Camera3D { Position = new Vector3(0.02f, 1.6f, 1.75f), RotationDegrees = new Vector3(0, 0, 0), Fov = 20f, Current = true });
+        turntable = new Node3D { Name = "Plateau", RotationDegrees = new Vector3(0, RestYaw, 0) };
+        world.AddChild(turntable);
+        model = Visual.Avatar.Create(0, false);
+        model.ProcessMode = ProcessModeEnum.Disabled;   // hors jeu : seule l'animation tourne
+        turntable.AddChild(model);
+        model.Pose(new Vector3(0, 1.62f, 0), 0f, new Vector3(-0.35f, 1.0f, -0.2f), new Vector3(0.35f, 1.0f, -0.2f));
+        if (model.FindChild("AnimationPlayer", true, false) is AnimationPlayer ap && ap.HasAnimation("Repos"))
+        {
+            ap.ProcessMode = ProcessModeEnum.Pausable;
+            ap.Play("Repos");
+        }
+    }
+
+    Button Tile(HeadwearDef h, int level)
+    {
+        bool open = Cosmetics.IsUnlocked(h, level);
+        var b = new Button { CustomMinimumSize = new Vector2(166, 64), FocusMode = FocusModeEnum.All, ClipText = true };
+        var label = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+        label.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        label.AddThemeConstantOverride("separation", -2);
+        var title = UiKit.Text(h.Name, 18, open ? Colors.White : UiKit.Sky, 0, HorizontalAlignment.Center);
+        var sub = UiKit.Text("", 16, UiKit.Sky, 0, HorizontalAlignment.Center);
+        label.AddChild(title);
+        label.AddChild(sub);
+        b.AddChild(label);
+        b.FocusEntered += () => { Show(h.Id); Sfx.Play(b, SfxKind.UiHover); };
+        b.MouseEntered += () => Show(h.Id);
+        b.Pressed += () =>
+        {
+            if (Cosmetics.Equip(h.Id)) { Sfx.Play(b, SfxKind.UiClick); RefreshTiles(); Show(h.Id); }
+            else Sfx.Play(b, SfxKind.UiBack);
+        };
+        tiles.Add((b, h));
+        StyleTile(b, h, title, sub, level);
+        b.SetMeta("labels", new Godot.Collections.Array { title, sub });
+        return b;
+    }
+
+    void RefreshTiles()
+    {
+        int level = Cosmetics.Level;
+        foreach (var (b, h) in tiles)
+        {
+            var labels = b.GetMeta("labels").AsGodotArray();
+            StyleTile(b, h, labels[0].As<Label>(), labels[1].As<Label>(), level);
+        }
+    }
+
+    /// <summary>
+    /// Case du vestiaire. Porté : plaque lime pleine, texte encre, « PORTÉ ». Débloqué : encart sombre, texte blanc, « DISPONIBLE ». Verrouillé :
+    /// fond plus noir, nom en gris éteint, « NIV. n ». Prochain déblocage : liseré lime fin. Focus et survol : liseré papier de 3 px.
+    /// </summary>
+    static void StyleTile(Button b, HeadwearDef h, Label title, Label sub, int level)
+    {
+        bool worn = Cosmetics.Equipped == h.Id, open = Cosmetics.IsUnlocked(h, level), next = Cosmetics.NextAfter(level) == h;
+        var locked = new Color("121116");   // case verrouillée : plus sombre que l'encart des cases débloquées
+        var normal = worn ? UiKit.InsetBox(UiKit.Yellow, 0) : next ? UiKit.InsetBox(locked, 0, 2, new Color(UiKit.Yellow, 0.7f)) : open ? UiKit.InsetBox(null, 0) : UiKit.InsetBox(locked, 0);
+        var lit = normal.Copy();
+        lit.BorderWidth = 3;
+        lit.BorderColor = UiKit.Cream;
+        b.AddThemeStyleboxOverride("normal", normal);
+        b.AddThemeStyleboxOverride("hover", lit);
+        b.AddThemeStyleboxOverride("pressed", lit);
+        b.AddThemeStyleboxOverride("focus", lit);
+        title.AddThemeColorOverride("font_color", worn ? UiKit.Navy : open ? Colors.White : new Color("8a857c"));
+        sub.AddThemeColorOverride("font_color", worn ? UiKit.Navy : next ? UiKit.Yellow : open ? UiKit.Cream : new Color("8a857c"));
+        sub.Text = worn ? L.T("PORTÉ") : open ? L.T("DISPONIBLE") : next ? L.F("NIV. {0} · encore {1}", h.Level, h.Level - level) : L.F("NIV. {0}", h.Level);
+    }
+
+    /// <summary>Essaie un couvre-chef sur l'aperçu et met à jour le nom et l'état affichés à côté.</summary>
+    void Show(string id)
+    {
+        if (Cosmetics.Find(id) is not { } h) return;
+        if (shown != id) { shown = id; model?.SetHeadwear(id); Reset(); }
+        wearName.Text = L.T(h.Name).ToUpper();
+        bool open = Cosmetics.IsUnlocked(h, Cosmetics.Level);
+        wearState.Text = Cosmetics.Equipped == id ? L.T("PORTÉ") : open ? L.T("PORTER") : L.F("VERROUILLÉ · NIVEAU {0}", h.Level);
+        wearState.AddThemeColorOverride("font_color", Cosmetics.Equipped == id ? UiKit.Yellow : open ? UiKit.Cream : UiKit.Sky);
+    }
+
+    /// <summary>Aperçu remis de trois quarts face caméra (chaque nouvel essai part de là).</summary>
+    void Reset() => swayT = 0;
+
+    public override void _Process(double delta)
+    {
+        if (turntable == null || !wardrobe.Visible) return;
+        swayT += delta;
+        turntable.RotationDegrees = new Vector3(0, RestYaw + 12f * Mathf.Sin(0.6f * (float)swayT), 0);   // balancement, toujours de trois quarts (180 = de face)
     }
 
     static Label Heading(string text) => UiKit.Title(text, 32, HorizontalAlignment.Left);
@@ -143,8 +348,8 @@ public partial class ProfileScreen : Control
         var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         text.AddThemeConstantOverride("separation", -2);
         bool secret = a.Hidden && !unlocked;
-        text.AddChild(UiKit.Text(secret ? "Succès caché" : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
-        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
+        text.AddChild(UiKit.Text(secret ? "Succès caché" : L.English ? a.NameEn : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
+        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : L.English ? a.DescEn : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
         h.AddChild(text);
         if (!unlocked && a.Stat != null && a.Threshold > 1)
             h.AddChild(UiKit.Text($"{Mathf.Min(Achievements.GetStat(a.Stat), a.Threshold)} / {a.Threshold}", 20, UiKit.Sky, 4, HorizontalAlignment.Right));

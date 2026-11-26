@@ -1,5 +1,6 @@
 using Godot;
 using DogeballVR.Net;
+using DogeballVR.UI;
 
 namespace DogeballVR.Online;
 
@@ -43,13 +44,13 @@ public partial class NetStatusOverlay : CanvasLayer
         if (lobby is { State: LobbyState.Reconnecting })
         {
             banner.Visible = true;
-            banner.Text = lobby.Status;
+            banner.Text = OnlineLobby.Display(lobby.Status);
             ping.Text = "";
             return;
         }
         if (Net.IsHost)
         {
-            ping.Text = Net.Remotes.Count > 0 ? $"Hôte · {Net.Remotes.Count} joueur(s) en ligne" : "Hôte · en attente de joueurs";
+            ping.Text = Net.Remotes.Count > 0 ? L.F("Hôte · {0} joueur(s) en ligne", Net.Remotes.Count) : L.T("Hôte · en attente de joueurs");
             ping.AddThemeColorOverride("font_color", Colors.White);
             banner.Visible = false;
             return;

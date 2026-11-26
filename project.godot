@@ -38,3 +38,8 @@ shaders/enabled=true
 [gui]
 
 theme/custom_font="res://assets/fonts/LilitaOne-Regular.ttf"
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://assets/i18n/textes.en.translation")
+locale/fallback="fr"

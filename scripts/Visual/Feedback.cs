@@ -121,7 +121,7 @@ void fragment() {
         if (NameOf?.Invoke(id) is { Length: > 0 } given) return given;
         if (MatchView.HumanName?.Invoke(id) is { Length: > 0 } human) return human;
         if (match == null || !IsInstanceValid(match)) match = GetTree().CurrentScene?.FindChild("MatchController", true, false) as MatchController;
-        return match?.IsBot?.Invoke(id) == true ? MatchView.BotName(id) : $"Joueur {id + 1}";
+        return match?.IsBot?.Invoke(id) == true ? MatchView.BotName(id) : DogeballVR.UI.L.F("Joueur {0}", id + 1);
     }
 
     Hurtbox? HurtboxOf(int playerId)

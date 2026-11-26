@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Online.Steam;
+using DogeballVR.UI;
 
 namespace DogeballVR.Online;
 
@@ -53,21 +54,21 @@ public static class Progression
     /// <summary>Calcule l'XP du match, l'ajoute au profil et débloque les succès de niveau.</summary>
     public static MatchAward Award(MatchResult r)
     {
-        var lines = new List<XpLine> { new("Match joué", 100) };
-        if (r.Won) lines.Add(new("Victoire", 150));
-        if (r.Kos > 0) lines.Add(new($"KO ×{r.Kos}", 30 * r.Kos));
-        if (r.Catches > 0) lines.Add(new($"Attrapes ×{r.Catches}", 10 * r.Catches));
-        if (r.Perfects > 0) lines.Add(new($"Arrêts parfaits ×{r.Perfects}", 20 * r.Perfects));
-        if (r.Passes > 0) lines.Add(new($"Passes ×{Mathf.Min(r.Passes, 20)}", 5 * Mathf.Min(r.Passes, 20)));   // plafond : pas de farm de passes
+        var lines = new List<XpLine> { new(L.T("Match joué"), 100) };   // libellés traduits ici : ils ne servent qu'à l'affichage
+        if (r.Won) lines.Add(new(L.T("Victoire"), 150));
+        if (r.Kos > 0) lines.Add(new(L.F("KO ×{0}", r.Kos), 30 * r.Kos));
+        if (r.Catches > 0) lines.Add(new(L.F("Attrapes ×{0}", r.Catches), 10 * r.Catches));
+        if (r.Perfects > 0) lines.Add(new(L.F("Arrêts parfaits ×{0}", r.Perfects), 20 * r.Perfects));
+        if (r.Passes > 0) lines.Add(new(L.F("Passes ×{0}", Mathf.Min(r.Passes, 20)), 5 * Mathf.Min(r.Passes, 20)));   // plafond : pas de farm de passes
         if (r.Mvp) lines.Add(new("MVP", 50));
         int xp = 0;
         foreach (var l in lines) xp += l.Xp;
         // Hors ligne, contre des bots faciles ou normaux, l'XP est réduite (le jeu en ligne et le niveau difficile rapportent le plus).
         if (!r.Online && r.BotLevel < 2)
         {
-            float k = r.BotLevel <= 0 ? 0.5f : 0.8f;
+            float k = r.BotLevel <= 0 ? 0.5f : 0.8f;   // « ×0,8 » : le format « 0,0 » de .NET lit la virgule comme séparateur de milliers (« ×01 »)
             int cut = Mathf.RoundToInt(xp * k) - xp;
-            lines.Add(new($"Bots {(r.BotLevel <= 0 ? "faciles" : "normaux")} ×{k.ToString(System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}", cut));
+            lines.Add(new(L.F(r.BotLevel <= 0 ? "Bots faciles ×{0}" : "Bots normaux ×{0}", L.English ? k.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : k.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',')), cut));
             xp += cut;
         }
         int before = TotalXp;

@@ -55,7 +55,7 @@ public partial class VrEndStage : Node3D
         if (stage != null && footer != null)
         {
             double left = HoldSeconds - (clock - shownAt);
-            footer.Text = HoldSeconds > 0 ? $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)left))} s" : "En attente de l'opérateur";
+            footer.Text = HoldSeconds > 0 ? L.F("Nouvelle partie dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)left))) : L.T("En attente de l'opérateur");
         }
     }
 
@@ -75,7 +75,7 @@ public partial class VrEndStage : Node3D
         string title = winner < 0 ? "ÉGALITÉ" : winner == View.LocalTeam ? "VICTOIRE !" : "DÉFAITE";
         AddText(title, new Vector3(0, 3.3f, 0), 0.012f, 120, teamColor);
         string teamName = winner == 0 ? "ÉQUIPE ORANGE" : winner == 1 ? "ÉQUIPE BLEUE" : "PERSONNE";
-        AddText($"{teamName} GAGNE  {View.State.Rounds(0)} - {View.State.Rounds(1)}", new Vector3(0, 2.7f, 0), 0.006f, 64, Palette.Lines);
+        AddText(L.F("{0} GAGNE  {1} - {2}", L.T(teamName), View.State.Rounds(0), View.State.Rounds(1)), new Vector3(0, 2.7f, 0), 0.006f, 64, Palette.Lines);
 
         // Podium : l'équipe gagnante (sans vainqueur, l'équipe du joueur), le MVP au centre sur le socle haut.
         int shown = winner >= 0 ? winner : View.LocalTeam;
@@ -102,7 +102,7 @@ public partial class VrEndStage : Node3D
                 Mesh = new TorusMesh { InnerRadius = 0.41f, OuterRadius = 0.47f, Rings = 32 }, Position = pos + new Vector3(0, h, 0),
                 MaterialOverride = Materials.Glow(i == 0 && mvp >= 0 ? UiKit.Yellow : Palette.Team(shown), 1.1f),
             });
-            var hero = EndPodium.SpawnPodiumHero(shown, ids[i], i == 0);
+            var hero = EndPodium.SpawnPodiumHero(shown, ids[i], i == 0, View.HeadwearOf(ids[i]));
             hero.Position = pos + new Vector3(0, h, 0);
             hero.Rotation = Vector3.Zero;   // l'avatar regarde vers -Z : face au joueur
             hero.Scale = Vector3.One * 0.01f;
@@ -111,7 +111,7 @@ public partial class VrEndStage : Node3D
             tw.TweenInterval(i == 0 ? 0.5 : 0.15 + 0.12 * i);
             tw.TweenProperty(hero, "scale", Vector3.One, 0.35).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
             string star = ids[i] == mvp ? "★ MVP  " : "";
-            var tag = AddText(star + View.NameOf(ids[i]), pos + new Vector3(0, h + 2.0f, -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium);
+            var tag = UiKit.Raw(AddText(star + View.NameOf(ids[i]), pos + new Vector3(0, h + 2.0f, -0.05f), 0.0045f, 48, ids[i] == mvp ? UiKit.Yellow : Palette.Lines, podium));
             tag.Billboard = BaseMaterial3D.BillboardModeEnum.FixedY;
         }
 
@@ -179,9 +179,10 @@ public partial class VrEndStage : Node3D
                 RenderPriority = 1,   // sous le texte ; test de profondeur gardé : un coéquipier plus proche passe devant
             },
         });
-        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52)
+        void Cell(string text, float x, float y, Color c, HorizontalAlignment align = HorizontalAlignment.Center, int size = 52, bool raw = false)
         {
             var l = AddText(text, new Vector3(x, y, 0), 0.0032f, size, c, board);
+            if (raw) UiKit.Raw(l);   // nom de joueur
             l.HorizontalAlignment = align;
         }
         Cell("JOUEUR", ColumnName, top, UiKit.Lavender, HorizontalAlignment.Left, 40);
@@ -207,7 +208,7 @@ public partial class VrEndStage : Node3D
             var c = Palette.Team(p.Team);
             string name = (p.Id == mvp ? "★ " : "") + View.NameOf(p.Id);
             if (name.Length > 12) name = name[..11] + "…";   // la colonne KO commence 1,15 m plus loin
-            Cell(name, ColumnName, y, p.Id == View.LocalId ? UiKit.Yellow : c, HorizontalAlignment.Left);
+            Cell(name, ColumnName, y, p.Id == View.LocalId ? UiKit.Yellow : c, HorizontalAlignment.Left, raw: true);
             Cell($"{st?.Kos ?? 0}", ColumnKo, y, c);
             Cell($"{st?.Hits ?? 0}", ColumnHits, y, c);
             Cell($"{st?.Catches ?? 0}", ColumnCatches, y, c);

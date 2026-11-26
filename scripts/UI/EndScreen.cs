@@ -63,15 +63,14 @@ public partial class EndScreen : CanvasLayer
         }
         overFor = overFor < 0 ? 0 : overFor + delta;
         // Animations dessinées pilotées d'ici : le _Process des classes imbriquées n'est pas appelé par Godot.
-        if (burst != null) { burst.Angle += (float)delta * 0.12f; burst.QueueRedraw(); }
         if (star != null) { star.T += (float)delta; star.QueueRedraw(); }
         if (root == null && overFor >= OpenDelay) Open();
         if (page == null && podium != null && (podiumLeft -= delta) <= 0) ShowStats();
         // Le menu pause refermé reprend la souris : sur l'écran de fin, il faut la rendre pour cliquer.
         if (root != null && !Autoplay && !PauseMenu.IsOpen && Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
         if (autoLabel != null) autoLabel.Text = BackToRoom
-            ? $"Retour à la salle dans {Mathf.Max(0, Mathf.CeilToInt((float)(BackToRoomAfter - overFor)))} s"
-            : $"Nouvelle partie dans {Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor)))} s";
+            ? L.F("Retour à la salle dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)(BackToRoomAfter - overFor))))
+            : L.F("Nouvelle partie dans {0} s", Mathf.Max(0, Mathf.CeilToInt((float)(AutoRestartSeconds - overFor))));
     }
 
     /// <summary>Statistiques affichées : celles de l'hôte, ou celles du test de capture (voir <see cref="TestStats"/>).</summary>
@@ -91,6 +90,7 @@ public partial class EndScreen : CanvasLayer
         root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
+        guardUntil = Time.GetTicksMsec() / 1000.0 + 0.8;
         TestKeys();
 
         // Podium d'abord, s'il y a une équipe gagnante à montrer (toujours le cas en fin de partie, client compris).
@@ -112,9 +112,14 @@ public partial class EndScreen : CanvasLayer
     /// Deuxième phase : le tableau. Après le podium, il arrive de la droite pendant que le podium sort par la gauche,
     /// puis le podium (sa scène 3D) est libéré ; sa cascade d'apparition démarre au milieu du glissement.
     /// </summary>
+    /// <summary>Fin de la garde des appuis (voir <see cref="_Input"/>), en secondes depuis le lancement.</summary>
+    double guardUntil;
+    Button? replayButton;
+
     void ShowStats()
     {
         if (root == null || page != null) return;
+        guardUntil = Time.GetTicksMsec() / 1000.0 + 0.8;
         page = new Control { Name = "Tableau", MouseFilter = Control.MouseFilterEnum.Ignore };
         page.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(page);
@@ -140,8 +145,8 @@ public partial class EndScreen : CanvasLayer
         dim.Modulate = new Color(1, 1, 1, 0);
         dim.CreateTween().TweenProperty(dim, "modulate:a", 1.0, 0.3);
 
-        // Victoire : rayons dorés festifs. Défaite : pas de rayons, juste un halo gris-bleu éteint derrière le titre.
-        burst = new Sunburst { Color = win ? UiKit.Yellow : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Victoire : trame de points papier autour du titre (affiche). Défaite : trame gris-bleu éteinte, plus fine.
+        burst = new Sunburst { Color = win ? UiKit.Cream : new Color("8a96ad"), Rays = win, MouseFilter = Control.MouseFilterEnum.Ignore };
         burst.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         host.AddChild(burst);
 
@@ -149,12 +154,24 @@ public partial class EndScreen : CanvasLayer
         col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : titre plus petit et marges serrées, les boutons restent visibles.
         bool compact = host.GetViewportRect().Size.Y < 960f;
-        col.OffsetTop = compact ? 12 : 40; col.OffsetBottom = compact ? -12 : -40;
-        col.AddThemeConstantOverride("separation", compact ? 8 : 14);
+        col.OffsetTop = compact ? 12 : 24; col.OffsetBottom = compact ? -140 : -160;   // bas : place du bandeau d'XP (XpBanner, ~96 px de haut à 34 px du bord), les boutons restent visibles
+        col.AddThemeConstantOverride("separation", compact ? 6 : 8);
         host.AddChild(col);
+        // Steam Deck (1280×800, interface ×1,3) : le tableau est plus haut que la place libre et passait sous le bandeau d'XP,
+        // par-dessus les boutons. La colonne est réduite d'un bloc, depuis le haut, pour finir au-dessus du bandeau.
+        void Fit()
+        {
+            if (!IsInstanceValid(col)) return;
+            float avail = host.GetViewportRect().Size.Y - col.OffsetTop + col.OffsetBottom;
+            float need = col.GetCombinedMinimumSize().Y;
+            col.PivotOffset = new Vector2(col.Size.X / 2, 0);
+            col.Scale = Vector2.One * (need > avail && need > 0 ? avail / need : 1f);
+        }
+        col.Resized += Fit;
+        Callable.From(Fit).CallDeferred();
 
-        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 120 : 170, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
-        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 190);
+        var title = UiKit.Title(win ? "VICTOIRE !" : "DÉFAITE", compact ? 90 : 112, HorizontalAlignment.Center, win ? UiKit.Yellow : new Color("9fb4d8"));
+        title.CustomMinimumSize = new Vector2(0, compact ? 136 : 166);   // Anton : capitales hautes, interligne large
         col.AddChild(title);
 
         // Score des manches, aux couleurs des équipes, avec son unité sous les chiffres.
@@ -163,7 +180,7 @@ public partial class EndScreen : CanvasLayer
         Label Team(string name, Color c)
         {
             var l = UiKit.Text(name, 40, c, 10);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+            UiKit.Poster(l);
             l.CustomMinimumSize = new Vector2(0, 80);   // hauteur des chiffres : le nom reste aligné sur eux, pas sur l'unité
             l.VerticalAlignment = VerticalAlignment.Center;
             l.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
@@ -178,7 +195,7 @@ public partial class EndScreen : CanvasLayer
         mid.AddChild(digits);
         mid.AddChild(UiKit.Text("MANCHES", 22, UiKit.Cream, 6, HorizontalAlignment.Center));
         score.AddChild(mid);
-        score.AddChild(Team("ÉQUIPE BLEUE", UiKit.Sky));
+        score.AddChild(Team("ÉQUIPE BLEUE", UiKit.Blue.Lightened(0.15f)));
         col.AddChild(score);
         col.AddChild(UiKit.Spacer(6));
 
@@ -208,9 +225,9 @@ public partial class EndScreen : CanvasLayer
             buttons.AddChild(autoLabel);
             // Hôte de la salle : tout le monde a lu, on y retourne sans attendre la fin du compte à rebours.
             if (BackToRoom && View.CanRestart)
-                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76)));
+                buttons.AddChild(first = UiKit.KeyButton("SALLE", "Entrée", UiKit.Orange, BackNow, 30, new Vector2(260, 76), ""));
         }
-        else if (View.CanRestart) buttons.AddChild(first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76)));
+        else if (View.CanRestart) buttons.AddChild(replayButton = first = UiKit.KeyButton("REJOUER", "Entrée", UiKit.Orange, Replay, 34, new Vector2(420, 76), ""));   // à la manette A valide le bouton sélectionné : pas de touche dessinée
         else
         {
             var wait = UiKit.Text("En attente de l'hôte…", 32, UiKit.Sky, 8, HorizontalAlignment.Center);
@@ -218,8 +235,12 @@ public partial class EndScreen : CanvasLayer
             wait.VerticalAlignment = VerticalAlignment.Center;
             buttons.AddChild(wait);
         }
-        var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76));
+        var menu = UiKit.KeyButton("MENU PRINCIPAL", InputSetup.KeyboardName("pause"), UiKit.Grey, ToMenu, 30, new Vector2(460, 76), InputSetup.PadName("pause"));
         buttons.AddChild(menu);
+        // Le bouton sélectionné se valide avec A (ou Entrée) : dit sous les boutons, REJOUER n'ayant plus de touche dessinée.
+        var validate = UiKit.KeyHint("", "Valider", 22, "A");   // au clavier, Entrée est déjà dessinée sur REJOUER : aide masquée
+        validate.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+        col.AddChild(validate);
         replayKey = first != null;
         (first ?? menu).CallDeferred(Control.MethodName.GrabFocus);
 
@@ -234,6 +255,7 @@ public partial class EndScreen : CanvasLayer
         int i = 0;
         foreach (var c in middle.GetChildren()) if (c is Control ctl) Appear(ctl, d0 + 0.35f + 0.15f * i++);
         Appear(buttons, d0 + 0.7f);
+        Appear(validate, d0 + 0.8f);
         if (mvpCard != null)
         {
             var t2 = mvpCard.CreateTween();
@@ -290,10 +312,18 @@ public partial class EndScreen : CanvasLayer
     public override void _Input(InputEvent e)
     {
         if (root == null || PauseMenu.IsOpen || Autoplay) return;
+        // Garde : un joueur qui enchaîne sauts (A) ou esquives quand la partie se termine ne passe pas le podium et ne
+        // relance pas la partie par mégarde. Les appuis des premières 0,8 s de chaque page sont avalés.
+        if (Time.GetTicksMsec() / 1000.0 < guardUntil)
+        {
+            if (e is InputEventKey { Pressed: true } or InputEventJoypadButton { Pressed: true } or InputEventMouseButton { Pressed: true }) GetViewport().SetInputAsHandled();
+            return;
+        }
         if (page == null)
         {
             bool skip = e is InputEventKey { Pressed: true, Echo: false } sk && sk.Keycode is Key.Enter or Key.KpEnter or Key.Space
                 || e.IsActionPressed("pause")
+                || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A }
                 || e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left or MouseButton.Right };
             if (!skip) return;
             GetViewport().SetInputAsHandled();
@@ -304,6 +334,8 @@ public partial class EndScreen : CanvasLayer
         if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Enter or Key.KpEnter)
         {
             if (!replayKey) return;
+            // Un autre bouton sélectionné (MENU PRINCIPAL) : Entrée le valide lui, comme A à la manette.
+            if (GetViewport().GuiGetFocusOwner() is Button other && other != replayButton) return;
             GetViewport().SetInputAsHandled();
             Replay();
         }
@@ -408,7 +440,7 @@ public partial class EndScreen : CanvasLayer
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(360, 0) };
         // Carte penchée à la couleur de l'équipe, liseré jaune, ombre et bande violette : la fenêtre du menu, version trophée.
         var box = UiKit.PanelBox(18, 26);
-        box.Top = TeamRow(team, true); box.Bottom = TeamRow(team, false).Darkened(0.2f); box.BorderColor = UiKit.Yellow;
+        box.Top = box.Bottom = TeamRow(team, true); box.BorderColor = UiKit.Yellow;   // aplat franc (sérigraphie)
         panel.Rotation = -0.03f;
         box.ContentMarginTop = 18; box.ContentMarginBottom = 22;
         panel.AddThemeStyleboxOverride("panel", box);
@@ -417,17 +449,17 @@ public partial class EndScreen : CanvasLayer
         panel.AddChild(col);
         star = new Star { CustomMinimumSize = new Vector2(0, 90), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(star);
-        col.AddChild(UiKit.Title("MVP", 64));
-        col.AddChild(UiKit.Text(View.NameOf(id), 46, Colors.White, 10, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("MVP", 64, HorizontalAlignment.Center, UiKit.Cream));
+        col.AddChild(UiKit.Poster(UiKit.Raw(UiKit.Text(View.NameOf(id), 46, Colors.White, 0, HorizontalAlignment.Center))));
         col.AddChild(UiKit.Spacer(6));
-        col.AddChild(UiKit.Text($"{st.Kos} KO   ·   {Plural(st.Hits, "touche", "touches")}", 26, UiKit.Cream, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text(L.F("{0} KO   ·   {1}", st.Kos, Plural(st.Hits, "touche", "touches")), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.Catches, "balle attrapée", "balles attrapées"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text(Plural(st.PerfectCatches, "attrape parfaite", "attrapes parfaites"), 26, UiKit.Cream, 6, HorizontalAlignment.Center));
         panel.Resized += () => panel.PivotOffset = panel.Size / 2;
         return panel;
     }
 
-    static string Plural(int n, string one, string many) => $"{n} {(n > 1 ? many : one)}";
+    static string Plural(int n, string one, string many) => $"{n} {L.T(L.IsOne(n) ? one : many)}";
 
     Control StatsTable()
     {
@@ -437,7 +469,7 @@ public partial class EndScreen : CanvasLayer
         var rows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         rows.AddThemeConstantOverride("separation", 6);
         panel.AddChild(rows);
-        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "BALLES\nATTRAPÉES", "ARRÊTS\nPARFAITS", "LANCERS" }, false));
+        rows.AddChild(Row(null, "JOUEUR", new[] { "KO", "TOUCHES", "BALLES\nATTRAPÉES", "ATTRAPES\nPARFAITES", "LANCERS" }, false));
         int mvp = MvpId();
         // Mon équipe d'abord, puis l'adverse ; dans chaque équipe, du meilleur score MVP au moins bon (KO à égalité).
         var ordered = new List<MatchView.PlayerInfo>();
@@ -473,7 +505,7 @@ public partial class EndScreen : CanvasLayer
         // Couleurs pleines et vives par équipe (orange / bleu) ; ma ligne plus claire, cerclée de jaune avec un halo.
         var bg = header ? new Color(0, 0, 0, 0) : TeamRow(p!.Team, local);
         // Lignes penchées comme la barre du menu ; la mienne cerclée de jaune.
-        var box = new KcBox { Top = bg, Bottom = header ? bg : bg.Darkened(0.18f), Slant = 8, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
+        var box = new KcBox { Top = bg, Bottom = bg, Slant = 0, BorderWidth = local ? 4 : 0, BorderColor = UiKit.Yellow, ShadowOffset = new Vector2(5, 5), ShadowColor = new Color("0a0f22", header ? 0f : 0.5f) };
         box.ContentMarginTop = 3; box.ContentMarginBottom = 3; box.ContentMarginLeft = 20; box.ContentMarginRight = 20;
         row.AddThemeStyleboxOverride("panel", box);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -481,7 +513,8 @@ public partial class EndScreen : CanvasLayer
         row.AddChild(line);
         int size = header ? 20 : 30;
         var color = header ? UiKit.Sky : Colors.White;
-        var n = UiKit.Text(name, size, color, local ? 9 : 6);   // blanc : le jaune ne se lit pas sur l'orange
+        var n = UiKit.Text(name, size, color, local ? 9 : 6);
+        if (p != null) UiKit.Raw(n);   // nom de joueur   // blanc : le jaune ne se lit pas sur l'orange
         n.CustomMinimumSize = new Vector2(220, 0);
         n.VerticalAlignment = VerticalAlignment.Center;
         line.AddChild(n);
@@ -498,28 +531,35 @@ public partial class EndScreen : CanvasLayer
 
     /// <summary>Fond de ligne du tableau (et de la carte MVP) : orange ou bleu vifs et opaques, plus clairs pour le joueur local.</summary>
     static Color TeamRow(int team, bool bright) => team == 0
-        ? (bright ? new Color("ff7a1f") : new Color("d9520c"))
-        : (bright ? new Color("2f8fff") : new Color("1f63c9"));
+        ? (bright ? UiKit.Orange : UiKit.Orange.Darkened(0.22f))
+        : (bright ? UiKit.Blue : UiKit.Blue.Darkened(0.22f));
 
-    /// <summary>Rayons lumineux qui tournent lentement derrière le titre, avec un halo au centre (animés par l'écran).</summary>
+    /// <summary>
+    /// Fond d'affiche derrière le titre : trame de points en quinconce, gros points autour du titre qui s'effacent vers les bords
+    /// (victoire : papier ; défaite : gris-bleu éteint, trame plus fine). Dessin fixe : redessiné seulement si la taille change.
+    /// </summary>
     sealed partial class Sunburst : Control
     {
-        public Color Color = UiKit.Yellow;
+        public Color Color = UiKit.Cream;
         public bool Rays = true;
-        public float Angle;
+        public override void _Notification(int what)
+        {
+            if (what == NotificationResized) QueueRedraw();
+        }
         public override void _Draw()
         {
-            var c = new Vector2(Size.X / 2, 260);
-            float r = Size.Length();
-            const int n = 18;
-            for (int i = 0; i < (Rays ? n : 0); i++)
-            {
-                float a = Angle + Mathf.Tau * i / n;
-                var tip0 = c + Vector2.FromAngle(a) * r;
-                var tip1 = c + Vector2.FromAngle(a + Mathf.Tau / n * 0.5f) * r;
-                DrawPolygon(new[] { c, tip0, tip1 }, new[] { new Color(Color, 0.28f), new Color(Color, 0.04f), new Color(Color, 0.04f) });
-            }
-            for (int k = 6; k >= 1; k--) DrawCircle(c, 70f * k, new Color(Color, 0.035f));   // halo doux derrière le titre
+            var c = new Vector2(Size.X / 2, 230);
+            float reach = Mathf.Max(Size.X, Size.Y) * 0.62f;
+            float step = Rays ? 26f : 22f, top = Rays ? 0.46f : 0.3f;
+            var dot = new Color(Color, Rays ? 0.13f : 0.08f);
+            int row = 0;
+            for (float y = step / 2; y < Size.Y; y += step, row++)
+                for (float x = (row % 2) * step / 2; x < Size.X + step; x += step)
+                {
+                    float k = 1f - new Vector2(x, y).DistanceTo(c) / reach;
+                    if (k <= 0.05f) continue;
+                    DrawCircle(new Vector2(x, y), step * top * k, dot);
+                }
         }
     }
 

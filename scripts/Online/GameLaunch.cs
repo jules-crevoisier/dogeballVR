@@ -60,11 +60,14 @@ public static class Identity
         }
     }
 
+    static bool defaultName;
+    static string DefaultName => Clean(DogeballVR.UI.L.F("Joueur {0}", Token[^4..].ToUpperInvariant()));
+
     public static string Name
     {
         get
         {
-            if (name != null) return name;
+            if (name != null) return defaultName ? DefaultName : name;   // nom par défaut : dans la langue du moment
             if (Arg("--name=") is { } forced) return name = Clean(forced);
             string? steam = SteamHooks.PersonaName?.Invoke();
             if (!string.IsNullOrEmpty(steam)) return name = Clean(steam);
@@ -75,12 +78,13 @@ public static class Identity
             {
                 name = OS.GetEnvironment("USERNAME");
                 if (name == "") name = OS.GetEnvironment("USER");
-                if (name == "" || name == "root") name = $"Joueur {Token[^4..].ToUpperInvariant()}";
+                if (name == "" || name == "root") { defaultName = true; return name = DefaultName; }
             }
             return name = Clean(name);
         }
         set
         {
+            defaultName = false;
             name = Clean(value);
             var cfg = new ConfigFile();
             cfg.Load(Path);

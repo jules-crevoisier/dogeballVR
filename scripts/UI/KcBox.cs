@@ -16,7 +16,7 @@ public partial class KcBox : StyleBox
     [Export] public float BorderWidth { get; set; }
     [Export] public Color BorderColor { get; set; } = UiKit.Cream;
     /// <summary>Décalage horizontal du haut par rapport au bas (px) : positif, le haut part vers la droite comme le texte penché.</summary>
-    [Export] public float Slant { get; set; } = 14f;
+    [Export] public float Slant { get; set; } = 0f;
     /// <summary>Ombre portée (décalage et couleur ; alpha 0 : aucune).</summary>
     [Export] public Vector2 ShadowOffset { get; set; } = new(7, 7);
     [Export] public Color ShadowColor { get; set; } = new(0.02f, 0.03f, 0.1f, 0f);
@@ -40,8 +40,7 @@ public partial class KcBox : StyleBox
     public override void _Draw(Rid ci, Rect2 rect)
     {
         var rs = RenderingServer.Singleton;
-        // Le biais ne doit pas dépasser la moitié de la largeur (petits boutons, cases).
-        float s = Mathf.Clamp(Slant, -rect.Size.X * 0.25f, rect.Size.X * 0.25f);
+        float s = 0f;   // DA « Affiche » : boîtes droites ; Slant n'est plus dessiné (gardé pour les appels existants)
         void Poly(Vector2[] pts, Color c) { if (c.A > 0.001f) rs.CanvasItemAddPolygon(ci, pts, new[] { c }); }
         if (StripColor.A > 0f) Poly(Quad(new Rect2(rect.Position + StripOffset, rect.Size), s), StripColor);
         if (ShadowColor.A > 0f) Poly(Quad(new Rect2(rect.Position + ShadowOffset, rect.Size), s), ShadowColor);

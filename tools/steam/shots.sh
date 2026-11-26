@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Captures de la page Steam prises dans le vrai jeu (joueur PC automatique), puis capsules recadrées.
 # Usage : tools/steam/shots.sh [DOSSIER]   (Linux : xvfb-run si pas d'écran ; Windows : lancer les mêmes commandes dans Git Bash)
-# GODOT doit pointer vers l'éditeur Godot 4.3 .NET ; projet compilé avant (dotnet build).
+# GODOT doit pointer vers l'éditeur Godot 4.3 .NET ; projet compilé avant (dotnet build) et importé (la table anglaise
+# assets/i18n/textes.en.translation est produite à l'import).
+# Le joueur automatique cadre au hasard : on prend beaucoup d'instants par arène et on garde les meilleures à la main.
 set -u
 OUT="${1:-$PWD/docs/steam/captures}"
 GODOT="${GODOT:-godot}"
@@ -9,21 +11,27 @@ RES="${RES:-1920x1080}"
 mkdir -p "$OUT"
 RUN=()
 [ -z "${DISPLAY:-}" ] && RUN=(xvfb-run -a -s "-screen 0 ${RES}x24")
-# Sans carte graphique (serveur, CI), le rendu Compatibilité passe par Mesa ; sur un vrai PC, retirer ces deux options pour le rendu complet.
-# Rendu complet sans carte graphique : installer mesa-vulkan-drivers (lavapipe) puis
-#   DRIVER="--rendering-method forward_plus --rendering-driver vulkan" VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
-DRIVER=(${DRIVER---rendering-method gl_compatibility --rendering-driver opengl3})
+# Rendu du jeu (Mobile, Vulkan). Sans carte graphique : installer mesa-vulkan-drivers (lavapipe) ;
+# en dernier recours DRIVER="--rendering-method gl_compatibility --rendering-driver opengl3" (rendu dégradé).
+DRIVER=(${DRIVER---rendering-driver vulkan})
 shoot() { # nom carte instants options...
   local name=$1 map=$2 at=$3; shift 3
-  "${RUN[@]}" "$GODOT" --path . "${DRIVER[@]}" --resolution "$RES" -- --map="$map" --pc-autoplay --shots="$OUT" --shots-name="$name" --shots-at="$at" "$@" 2>&1 | grep -E "\[Captures\]|ERROR: (System|Unhandled)" || true
+  "${RUN[@]}" "$GODOT" --path . "${DRIVER[@]}" --resolution "$RES" -- --map="$map" --format=online --shots="$OUT" \
+    --shots-name="$name" --shots-at="$at" --lang=en "$@" 2>&1 | grep -E "\[Captures\]|ERROR: (System|Unhandled)" || true
 }
-shoot croix-neon croix_neon 9,16,23,31
-# Fonds des capsules : même jeu, sans HUD ni étiquettes.
-shoot capsule croix_neon 8,13,19,26,34 --shots-clean
-shoot tour-4v4 tour_4v4 9,18,27
-shoot fosse-croisee fosse_croisee 10,20
-shoot neon-court neon_court 10,20
-shoot la-fosse la_fosse 10,20
-shoot fin-de-partie croix_neon 19 --end-screen-test
-shoot menu croix_neon 4 --menu
+# Page Steam : les trois arènes PC (la VR n'est pas vendue sur Steam), en anglais (langue de repli du store), au format
+# en ligne (3 manches) comme une vraie partie. La balle spéciale est annoncée à 40 s et posée à 45 s (horloge du jeu,
+# compte à rebours de début de manche compris).
+shoot toits marche_suspendu 9,14,19,24,29,34,42,47,52 --pc-autoplay
+shoot piscine piscine 9,14,19,24,29,34,42,47,52 --pc-autoplay
+shoot depot depot 9,14,19,24,29,34,42,47,52 --pc-autoplay
+# Fonds des capsules : caméra de plateau près des socles de balle spéciale, juste après la pose (45 s) quand les
+# joueurs s'y précipitent, sans HUD ni étiquettes. capsules.py garde le plan le plus riche (capsule) et le suivant (héros).
+shoot capsule-toits marche_suspendu 45.6,46.5,47.5 --pc-autoplay --special=bombe --shots-clean --shots-cam=6,2.4,0.01,0,0.6,0,60
+shoot capsule-piscine piscine 45.6,46.5,47.5 --pc-autoplay --special=bombe --shots-clean --shots-cam=7,2.8,0.01,0,0.5,0,60
+# Vues d'ensemble (page, presse) : même caméra de plateau, de haut.
+shoot vue-depot depot 20,35,47 --pc-autoplay --shots-clean --shots-cam=15,9,-19,0,0,0,55
+# Écran de fin : sans joueur automatique (il relancerait une partie aussitôt la précédente finie).
+shoot fin-de-partie marche_suspendu 28 --end-screen-test
+shoot menu marche_suspendu 6 --menu --pc-autoplay
 python3 "$(dirname "$0")/capsules.py" "$OUT"

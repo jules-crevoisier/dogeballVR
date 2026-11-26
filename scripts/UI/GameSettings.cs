@@ -19,6 +19,8 @@ public static class GameSettings
     // Contrôles
     public static float Sensitivity = DefaultSensitivity;   // radians par pixel de souris
     public static bool InvertY;
+    public static float PadSensitivity = 1f;                 // visée au stick droit : multiplicateur (0,25 à 3), indépendant de la souris
+    public static int PadCurve;                              // 0 précise (cubique), 1 équilibrée (carré), 2 directe (linéaire)
     public static float Fov = DefaultFov;                    // champ horizontal (degrés)
     public static float AimAssist = 1f;                      // 0 = aucune aide, 1 = aide normale
     public static bool ToggleCrouch;
@@ -48,6 +50,10 @@ public static class GameSettings
     public static float RenderScale = 1f;
     // Première partie : on propose le tutoriel
     public static bool TutorialDone;
+    // Profil : couvre-chef choisi (Online.Cosmetics vérifie qu'il est débloqué)
+    public static string Headwear = "aucun";
+    // Langue de l'interface : "auto" (celle du système, sinon l'anglais), "fr" ou "en" (voir L)
+    public static string Language = "auto";
 
     public static event Action? Changed;
     static bool loaded;
@@ -73,6 +79,10 @@ public static class GameSettings
         if (!hasSettings) return;   // premier lancement
         Sensitivity = Mathf.Clamp(F(cfg, "pc", "sensitivity", Sensitivity), 0.0005f, 0.01f);
         InvertY = B(cfg, "controls", "invert_y", InvertY);
+        // Avant ce réglage, le stick suivait la sensibilité de la souris : sans clé [pad], on garde la vitesse que le joueur avait.
+        float legacy = cfg.HasSectionKey("pad", "sensitivity") ? PadSensitivity : Sensitivity / DefaultSensitivity;
+        PadSensitivity = Mathf.Clamp(F(cfg, "pad", "sensitivity", legacy), 0.25f, 3f);
+        PadCurve = Mathf.Clamp((int)F(cfg, "pad", "curve", PadCurve), 0, 2);
         Fov = Mathf.Clamp(F(cfg, "controls", "fov", Fov), 80f, 120f);
         AimAssist = Mathf.Clamp(F(cfg, "controls", "aim_assist", AimAssist), 0f, 1f);
         ToggleCrouch = B(cfg, "controls", "toggle_crouch", ToggleCrouch);
@@ -92,6 +102,9 @@ public static class GameSettings
         SfxVolume = Mathf.Clamp(F(cfg, "audio", "sfx", SfxVolume), 0f, 1f);
         UiVolume = Mathf.Clamp(F(cfg, "audio", "ui", UiVolume), 0f, 1f);
         TutorialDone = B(cfg, "pc", "tutorial_done", TutorialDone);
+        Headwear = (string)cfg.GetValue("profile", "headwear", Headwear);
+        Language = (string)cfg.GetValue("profile", "language", Language);
+        L.Apply(Language);
         InputSetup.LoadBindings(cfg);
     }
 
@@ -101,7 +114,11 @@ public static class GameSettings
         cfg.Load(Path);
         cfg.SetValue("pc", "sensitivity", Sensitivity);
         cfg.SetValue("pc", "tutorial_done", TutorialDone);
+        cfg.SetValue("profile", "headwear", Headwear);
+        cfg.SetValue("profile", "language", Language);
         cfg.SetValue("controls", "invert_y", InvertY);
+        cfg.SetValue("pad", "sensitivity", PadSensitivity);
+        cfg.SetValue("pad", "curve", PadCurve);
         cfg.SetValue("controls", "fov", Fov);
         cfg.SetValue("controls", "aim_assist", AimAssist);
         cfg.SetValue("controls", "toggle_crouch", ToggleCrouch);
@@ -140,6 +157,7 @@ public static class GameSettings
     /// <summary>Applique au moteur : bus audio, fenêtre, synchronisation verticale, qualité, échelle de rendu.</summary>
     public static void Apply(Viewport? viewport = null)
     {
+        L.Apply(Language);
         AudioBuses.Ensure();
         // Le bus Master reste à plein : le volume général est reporté sur chaque bus, pour que l'alerte de sécurité
         // (bus Safety, gain fixe) passe même volume coupé.

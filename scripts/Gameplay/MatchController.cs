@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using Godot;
 using DogeballVR.Maps;
@@ -124,6 +125,8 @@ public partial class MatchController : Node3D
     /// <summary>Tacle validé : la victime est poussée de 2 m dans la direction donnée (le joueur local l'applique, un joueur distant reçoit un message).</summary>
     public System.Action<int, Vector2>? PushVictim { get; set; }
     public System.Func<int, bool>? IsBot { get; set; }
+    /// <summary>Arène libre : les bots courent partout, on peut donc les tacler (et les pousser dans le vide).</summary>
+    public bool BotsRoam { get; set; }
 
     void OnTackle(int tacklerId, int victimId, Vector2 dir)
     {
@@ -136,7 +139,7 @@ public partial class MatchController : Node3D
         var toVictim = new Vector2(pv.X - pa.X, pv.Z - pa.Z);
         if (toVictim.Length() > TackleReach || Mathf.Abs(pv.Y - pa.Y) > 1.5f) return;
         if (toVictim.Length() > 0.4f && Mathf.Abs(Mathf.RadToDeg(toVictim.AngleTo(dir))) > 70f) return;   // on pousse dans le sens du dash, pas où l'on veut
-        if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true) return;        // un bot ne se déplace pas : pas de tacle sans poussée
+        if (a.Head == null || v.Head == null || IsBot?.Invoke(victimId) == true && !BotsRoam) return;        // un bot de zone ne se déplace pas : pas de tacle sans poussée
         tackleReadyAt[tacklerId] = now + 0.8;
         lastPush[victimId] = (tacklerId, now);
         foreach (var n in GetTree().GetNodesInGroup("balls"))
@@ -154,11 +157,20 @@ public partial class MatchController : Node3D
             if (h.Eliminated || h.Head == null || !IsInstanceValid(h)) continue;
             if (ringGraceUntil.TryGetValue(id, out double grace) && now < grace) continue;
             var hp = h.Head.GlobalPosition;
-            // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
-            bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
-            if (!above) overPitSince.Remove(id);
-            else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
-            if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
+            if (ringMap.Geometry is { } geo)
+            {
+                // Arène libre : tombé quand la tête passe sous le niveau du sol le plus bas (0) au-dessus du vide, ou sous la ligne
+                // de chute où qu'elle soit (une tête passée sous un tram ou une passerelle n'est plus « au-dessus du vide »).
+                if (hp.Y > -1.0f || !geo.IsVoid(hp.X, hp.Z, 0f) && hp.Y > geo.KillY) continue;
+            }
+            else
+            {
+                // Suspendu au-dessus de la fosse sans arc de saut (client qui garde la tête haute) : au-delà de 1,8 s c'est une chute.
+                bool above = hp.Y > 0.5f && ringMap.OverPit(hp.X, hp.Z, -0.2f);
+                if (!above) overPitSince.Remove(id);
+                else if (!overPitSince.TryAdd(id, now) && now - overPitSince[id] > 0.9) { overPitSince.Remove(id); hp.Y = 0f; }
+                if (hp.Y > 0.5f || !ringMap.OverPit(hp.X, hp.Z, 0.1f)) continue;
+            }
             if (lastPush.TryGetValue(id, out var push) && now - push.at <= PushCreditSeconds && hurtboxes.TryGetValue(push.by, out var pusher) && pusher.Team != h.Team
                 && Rules.Eliminate(push.by, id))   // toutes les vies d'un coup ; l'ancienne boucle de RegisterHit pouvait ne jamais finir
             {
@@ -176,7 +188,7 @@ public partial class MatchController : Node3D
                     respawnAt[id] = now + 1.5;
                     fallReturn.Add(id);
                 }
-                GD.Print($"[Match] Chute dans la fosse : le joueur {id} perd un cœur ({Rules.LivesOf(id)} restant) en {hp.X:0.0} / {hp.Z:0.0} à t={Engine.GetPhysicsFrames() / 60.0:0.0} s");
+                GD.Print($"[Match] Chute dans la fosse : le joueur {id} perd un cœur ({Rules.LivesOf(id)} restant) en {hp.X:0.0} / {hp.Y:0.0} / {hp.Z:0.0} à t={Engine.GetPhysicsFrames() / 60.0:0.0} s");
             }
             lastPush.Remove(id);
         }
@@ -215,6 +227,11 @@ public partial class MatchController : Node3D
     public void ConfigureMap(MapData map)
     {
         foreach (var zone in map.Zones) SpawnZones.Add(zone.Center);
+        for (int t = 0; t < 2; t++)
+        {
+            var own = map.Zones.FindAll(z => z.Team == t);
+            teamSide[t] = own.Count == 0 ? Vector2.Zero : own.Aggregate(Vector2.Zero, (acc, z) => acc + new Vector2(z.X, z.Z)) / own.Count;
+        }
         planZones.AddRange(map.Zones);
         mapObstacles = map.Obstacles;
         returnSeconds = map.BallReturn.Seconds;
@@ -224,7 +241,7 @@ public partial class MatchController : Node3D
         invulnerableSeconds = map.Rules.InvulnerableAfterHitSeconds;
         respawnProtection = map.Rules.RespawnProtectionSeconds;
         heartRegenSeconds = KcRules.HeartRegenSeconds(!PcProfile);   // VR : toutes les cartes ; clavier-souris : aucune
-        ringMap = PcProfile && map.PitRect != null ? map : null;
+        ringMap = PcProfile && (map.PitRect != null || map.IsArena) ? map : null;
         terraceBonus = PcProfile && map.IsRing && map.Pc?.Terraces.Count > 0;
         if (map.Rules.KoTarget > 0) Rules.KoTarget = map.Rules.KoTarget;
         Assist.Configure(map.BallRules);
@@ -232,11 +249,13 @@ public partial class MatchController : Node3D
         {
             if (def.Kind == "neutral_drop") neutralDrop = def;
             else if (def.Kind == "neutral_launcher") { hubLauncher = def; hubZones.AddRange(map.Zones); }
+            else if (def.Kind == "special") specialSpots.Add(def);   // arène libre : socles centraux où la balle spéciale apparaît
             else if (def.Kind == "dispenser")
             {
                 var zone = map.Zones.Find(z => z.Id == def.Zone);
                 if (zone != null) dispensers.Add(new Dispenser { Def = def, Team = zone.Team });
             }
+            else if (def.Kind == "pedestal") dispensers.Add(new Dispenser { Def = def, Team = -1 });   // arène libre : piédestal neutre, à qui le prend
         }
     }
 
@@ -302,6 +321,9 @@ public partial class MatchController : Node3D
         foreach (var st in stats.Values) { st.Kos = st.Hits = st.Catches = st.Throws = st.PerfectCatches = 0; }
         MatchStarted?.Invoke();
         specialKind = SpecialTest ? Ball.KindBomb : rng.RandiRange(Ball.KindBomb, Ball.KindBounce);   // une famille tirée au sort par match (sonar et cage : non implémentées)
+        foreach (var a in Tools.DevFlags.Args)   // CI : --special=bombe ou --special=rebond impose la famille
+            if (a == "--special=bombe") specialKind = Ball.KindBomb;
+            else if (a == "--special=rebond") specialKind = Ball.KindBounce;
         GD.Print($"[Match] Balle spéciale du match : {SpecialName(specialKind)}");
         StartRound();
     }
@@ -328,6 +350,7 @@ public partial class MatchController : Node3D
         specialAnnounced = false;
         ResetPlates();
         specialLaunched = 0;
+        specialOnSpot = null;
         ballTimer = 0;
         roundBanner = round > Rules.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {round}/{Rules.MaxRounds}";
         countdownLeft = CountdownSeconds;
@@ -492,8 +515,18 @@ public partial class MatchController : Node3D
         UpdateHud();
     }
 
-    // Balles spéciales : une famille par match, lancée par le moyeu toutes les 45 s vers l'équipe menée, annoncée 5 s avant.
+    // Balles spéciales : une famille par match, toutes les 45 s, annoncée 5 s avant. Carte à moyeu : lancée vers l'équipe menée ;
+    // arène libre : posée sur un socle central (« special »), à qui la prend en premier.
     const double SpecialIntervalSeconds = 45, SpecialAnnounceSeconds = 5;
+    readonly List<BallSpawnDef> specialSpots = new();
+    readonly Vector2[] teamSide = new Vector2[2];   // centre des places de chaque équipe (côté du terrain)
+    Ball? specialOnSpot;
+    Vector3 specialSpotAt;
+    int specialFlip;   // égalité au score : socles pris chacun son tour (compteur propre, neutralFlip sert aussi au recyclage)
+    /// <summary>Une balle spéciale attend sur son socle (ni prise, ni délogée).</summary>
+    bool SpecialWaiting => specialOnSpot != null && IsInstanceValid(specialOnSpot) && !specialOnSpot.IsQueuedForDeletion() && !specialOnSpot.IsHeld
+        && specialOnSpot.GlobalPosition.DistanceTo(specialSpotAt) <= 0.6f;
+    bool HasSpecialBalls => hubLauncher != null || specialSpots.Count > 0;
     int specialKind;
     double specialClock;
     bool specialAnnounced;
@@ -619,15 +652,22 @@ public partial class MatchController : Node3D
 
     static string SpecialName(int kind) => kind == Ball.KindBomb ? "bombe" : "rebond";
 
-    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a pas de lanceur central.</summary>
-    public string SpecialBallName => hubLauncher == null || specialKind == 0 ? "" : SpecialName(specialKind);
+    /// <summary>Balle spéciale de la partie (« bombe », « rebond »), la même à chaque manche ; vide si la carte n'a ni lanceur central ni socle spécial.</summary>
+    public string SpecialBallName => !HasSpecialBalls || specialKind == 0 ? "" : SpecialName(specialKind);
 
     void UpdateSpecialBalls(double delta)
     {
-        if (hubLauncher == null || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
+        if (!HasSpecialBalls || specialKind == 0 || Rules.InOvertime) return;   // pas de balle spéciale en mort subite
         specialClock += delta;
         if (bombTests < 3 && specialClock >= 8 + 6 * bombTests && SpecialTest) { bombTests++; BombTest(); }
         double due = SpecialIntervalSeconds * (specialLaunched + 1);
+        if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds && hubLauncher == null && SpecialWaiting)
+        {
+            // La précédente attend encore sur son socle : pas d'annonce sans balle, ce tour est sauté.
+            specialLaunched++;
+            GD.Print($"[Match] Balle spéciale : la précédente attend encore sur son socle, tour sauté (manche {round}, t={specialClock:0.0} s)");
+            return;
+        }
         if (!specialAnnounced && specialClock >= due - SpecialAnnounceSeconds)
         {
             specialAnnounced = true;
@@ -641,9 +681,28 @@ public partial class MatchController : Node3D
             specialAnnounced = false;
             specialLaunched++;
             specialNotice = "";
+            if (hubLauncher == null) { PlaceOnSpecialSpot(); return; }
             if (!LaunchFromHub(hubLauncher, specialKind)) { GD.Print("[Match] Balle spéciale : aucune plaque de l'équipe menée, lancer annulé"); return; }
             GD.Print($"[Match] Balle spéciale lancée : {SpecialName(specialKind)} (manche {round}, t={specialClock:0.0} s)");
         }
+    }
+
+    /// <summary>
+    /// Arène libre : la balle spéciale apparaît, immobile, sur le socle central le plus proche de l'équipe menée (à égalité : chacun son
+    /// tour), comme le moyeu des anciennes cartes la lance vers l'équipe menée. Le socle reste au milieu : l'autre équipe peut la disputer.
+    /// Une balle spéciale encore posée là n'est pas doublée : elle attend son preneur.
+    /// </summary>
+    void PlaceOnSpecialSpot()
+    {
+        if (SpecialWaiting) return;   // garde-fou : UpdateSpecialBalls saute déjà ce tour sans l'annoncer
+        int trailing = Rules.Kos[0] == Rules.Kos[1] ? specialFlip++ % 2 : (Rules.Kos[0] < Rules.Kos[1] ? 0 : 1);
+        var def = specialSpots.OrderBy(d => new Vector2(d.X, d.Z).DistanceSquaredTo(teamSide[trailing])).First();
+        specialSpotAt = new Vector3(def.X, def.Y + 0.2f, def.Z);
+        specialOnSpot = SpawnBallAt(specialSpotAt);
+        specialOnSpot.Kind = specialKind;
+        specialOnSpot.LinearVelocity = Vector3.Zero;
+        if (ballsCached >= 0) ballsCached++;
+        GD.Print($"[Match] Balle spéciale posée : {SpecialName(specialKind)} sur {def.Id} (manche {round}, t={specialClock:0.0} s)");
     }
 
     /// <summary>Souffle de la bombe : 1 cœur à chaque adversaire à moins de BombRadius (pas de tir allié), la cible déjà touchée par la balle est exclue.</summary>
@@ -668,6 +727,7 @@ public partial class MatchController : Node3D
     {
         Rules.InOvertime = true;
         swapNotice = "";
+        specialNotice = ""; specialAnnounced = false;   // pas de balle spéciale en mort subite : une annonce en cours s'efface
         roundTimeLeft = Rules.OvertimeSeconds;
         banner = roundBanner = "PROLONGATION : PREMIER KO";
         if (!UsesDispensers)
@@ -696,7 +756,8 @@ public partial class MatchController : Node3D
 
     /// <summary>
     /// Test de capture (--end-screen-test, ou --end-screen-test=defaite) : une manche gagnée d'office à 5 s (bandeau),
-    /// puis la partie finie à 14 s (3-2 pour l'équipe orange, ou pour la bleue avec « defaite ») : écran de fin.
+    /// puis la partie finie à 14 s ou à la manche suivante (2-1 au format en ligne, 3-2 sinon, pour l'équipe orange, ou pour la bleue
+    /// avec « defaite ») : écran de fin.
     /// </summary>
     void EndScreenTest()
     {
@@ -710,7 +771,9 @@ public partial class MatchController : Node3D
         {
             endTestStep = 2;
             GD.Print("[Match] Test de fin : partie terminée d'office");
-            Rules.RoundsWon[team] = 2; Rules.RoundsWon[1 - team] = 2;
+            // Score final crédible pour le format joué : 2-1 en deux manches gagnantes (en ligne), 3-2 en cinq manches (VR).
+            int before = Rules.RoundsToWin > 0 ? Rules.RoundsToWin - 1 : 2;
+            Rules.RoundsWon[team] = before; Rules.RoundsWon[1 - team] = before;
             round = Rules.MaxRounds;
             FinishRound(team);
         }
@@ -728,6 +791,12 @@ public partial class MatchController : Node3D
     void UpdateDispensers(double delta, double now)
     {
         ballsCached = -1;
+        if (specialOnSpot != null && !SpecialWaiting)   // prise (ou délogée) : balle comme les autres
+        {
+            if (IsInstanceValid(specialOnSpot) && specialOnSpot.IsHeld) GD.Print($"[Match] Balle spéciale prise sur son socle par le joueur {specialOnSpot.OwnerPlayerId} (t={specialClock:0.0} s)");
+            else GD.Print($"[Match] Balle spéciale délogée de son socle (t={specialClock:0.0} s)");
+            specialOnSpot = null;
+        }
         highBonusUsed.RemoveWhere(id => ZoneElevation(id) <= 0.1f);
         foreach (var d in dispensers)
         {
@@ -751,7 +820,9 @@ public partial class MatchController : Node3D
         {
             if (n is not Ball { IsHeld: false } b || b.IsQueuedForDeletion()) continue;
             if (dispensers.Exists(d => d.OnPedestal == b)) continue;
+            if (b == specialOnSpot) continue;   // balle spéciale sur son socle : elle attend son preneur
             if (b.GlobalPosition.Y > -2f && b.RestTime <= BallRecycleSeconds) continue;   // sous -2 m : tombée dans la fosse
+            if (b.Kind != Ball.KindNormal) { b.QueueFree(); continue; }   // balle spéciale perdue : elle disparaît, sans devenir une balle normale de plus
             // Balle perdue : elle revient à l'autre camp que celui qui l'a lancée en dernier.
             int team = b.LastTeam >= 0 ? 1 - b.LastTeam : (neutralFlip++ % 2);
             pendingReturns.Add((now + returnSeconds, team));
@@ -762,7 +833,7 @@ public partial class MatchController : Node3D
             if (now < pendingReturns[i].due) continue;
             Dispenser? target = null;
             foreach (var d in dispensers)
-                if (d.Team == pendingReturns[i].team && (target == null || d.Stored < target.Stored)) target = d;
+                if ((d.Team == pendingReturns[i].team || d.Team < 0) && (target == null || d.Stored < target.Stored)) target = d;
             // Distributeur plein : la balle retournée attend en file jusqu'à ce qu'il y ait de la place.
             if (target == null) { pendingReturns.RemoveAt(i); continue; }
             if (target.Stored >= target.Def.MaxStored) continue;

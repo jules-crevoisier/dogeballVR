@@ -28,10 +28,10 @@ public partial class OptionsMenu : Control
     int tab;
     string? listening;          // action en attente d'une nouvelle touche
     Button? listeningButton;
-    /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre TOUCHES).</summary>
+    /// <summary>Onglet ouvert d'abord (captures : `--options-test` ouvre CLAVIER).</summary>
     public int FirstTab { get; set; }
 
-    static readonly string[] TabNames = { "CONTRÔLES", "TOUCHES", "AUDIO", "VIDÉO" };
+    static readonly string[] TabNames = { "CONTRÔLES", "CLAVIER", "AUDIO", "VIDÉO" };
     /// <summary>Texte du bas quand aucune ligne n'est survolée.</summary>
     static readonly string[] TabHints =
     {
@@ -44,11 +44,14 @@ public partial class OptionsMenu : Control
     /// <summary>Description de chaque option (en bas du panneau), par libellé : une ligne ajoutée ailleurs y met la sienne.</summary>
     static readonly System.Collections.Generic.Dictionary<string, string> Help = new()
     {
+        ["Langue / Language"] = "Langue des textes du jeu. Automatique : celle du système (anglais si elle n'est pas le français).",
         ["Difficulté des bots"] = "Niveau des bots qui complètent les équipes, hors ligne comme en ligne.",
         ["Aides contextuelles (premières parties)"] = "Pendant tes premières parties, rappelle la bonne touche au bon moment (attraper, esquiver, charger).",
         ["Ouvrir le port sur ma box (UPnP)"] = "Pour héberger par Internet sans Steam : demande à ta box d'ouvrir le port UDP 7777 tant que ta salle est ouverte. Le code de salle contient alors ton adresse IP publique. NON : jeu en réseau local ou par Steam seulement.",
         ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
-        ["Inverser l'axe vertical"] = "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.",
+        ["Inverser l'axe vertical"] = "Pousser la souris ou le stick droit vers l'avant fait regarder vers le bas, comme un manche d'avion. Vaut pour la souris et la manette.",
+        ["Sensibilité du stick"] = "Vitesse de la caméra au stick droit, indépendante de la souris. 1,00× = un demi-tour en 0,7 s, stick à fond.",
+        ["Courbe de visée"] = "Précise : le stick à moitié tourne lentement, pour viser fin. Directe : la vitesse suit le stick. Équilibrée : entre les deux.",
         ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
         ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
         ["Secousses de l'écran"] = "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
@@ -78,7 +81,7 @@ public partial class OptionsMenu : Control
     static KcBox RowBox(bool on)
     {
         var fill = on ? new Color(UiKit.Violet, 0.55f) : new Color(0, 0, 0, 0);
-        var b = new KcBox { Top = fill, Bottom = on ? new Color(UiKit.VioletMid, 0.55f) : fill, Slant = 8, AccentColor = on ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7 };
+        var b = new KcBox { Top = fill, Bottom = on ? new Color(UiKit.VioletMid, 0.55f) : fill, Slant = 0, AccentColor = on ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7 };
         b.ContentMarginLeft = 22; b.ContentMarginRight = 12; b.ContentMarginTop = 2; b.ContentMarginBottom = 2;
         return b;
     }
@@ -107,12 +110,14 @@ public partial class OptionsMenu : Control
         var tabRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         tabRow.AddThemeConstantOverride("separation", 10);
         col.AddChild(tabRow);
+        tabRow.AddChild(PadCap("LB"));   // à la manette seulement : LB / RB changent d'onglet
         for (int i = 0; i < 4; i++)
         {
             int k = i;
             tabs[i] = UiKit.Button(TabNames[i], UiKit.NavySoft, () => ShowTab(k), 22, new Vector2(200, 50));
             tabRow.AddChild(tabs[i]);
         }
+        tabRow.AddChild(PadCap("RB"));
 
         // Zone de défilement à la hauteur de la liste, plafonnée par l'écran ; si la liste dépasse (onglet Touches, interface
         // agrandie), un fondu en bas annonce la suite au lieu d'une ligne coupée net.
@@ -150,6 +155,12 @@ public partial class OptionsMenu : Control
         var bottom = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         bottom.AddThemeConstantOverride("separation", 16);
         col.AddChild(bottom);
+        hints = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
+        hints.AddThemeConstantOverride("separation", 32);
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 20, "A"));
+        hints.AddChild(UiKit.KeyHint("Échap", "Retour", 20, "B"));
+        hints.Modulate = new Color(1, 1, 1, 0.8f);
+        col.AddChild(hints);
         col.AddChild(UiKit.Spacer(4));
         bottom.AddChild(UiKit.Button("PAR DÉFAUT", UiKit.Grey, ResetTab, 24, new Vector2(260, 56)));
         var back = UiKit.Button("RETOUR", UiKit.Orange, Close, 26, new Vector2(300, 56));
@@ -180,20 +191,38 @@ public partial class OptionsMenu : Control
         QueueFree();
     }
 
+    /// <summary>
+    /// Ligne du focus gardée hors du fondu des bords de la liste : le suivi de focus du ScrollContainer s'arrête au ras du bord,
+    /// où le fondu « encore des réglages » l'assombrit (Steam Deck surtout).
+    /// </summary>
+    void KeepClear(Control row)
+    {
+        const float Margin = 56f;
+        float top = row.GetGlobalRect().Position.Y - scroll.GetGlobalRect().Position.Y;
+        float bottom = top + row.Size.Y;
+        float view = scroll.Size.Y;
+        if (view < row.Size.Y + 2 * Margin) return;   // liste trop basse (interface « Très grande ») : le suivi de focus suffit, pas d'aller-retour
+        if (bottom > view - Margin) scroll.ScrollVertical += (int)Mathf.Ceil(bottom - (view - Margin));   // fondu « encore des réglages » en bas
+        else if (top < 0 && scroll.ScrollVertical > 0) scroll.ScrollVertical -= (int)Mathf.Ceil(-top);
+    }
+
     /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
     public override void _Process(double delta)
     {
         FitHeight();
+        hints.Visible = listening == null;   // pendant une réassignation, B serait pris comme nouveau bouton : pas de « B Retour »
+        string bindings = InputSetup.UsingPad ? "MANETTE" : TabNames[1];   // l'onglet montre les boutons de la manette
+        if (tabs[1].Text != bindings) tabs[1].Text = bindings;
         var bar = scroll.GetVScrollBar();
         moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
         PanelContainer? want = null;
         var mouse = GetGlobalMousePosition();
-        if (scroll.GetGlobalRect().HasPoint(mouse))
+        if (!InputSetup.UsingPad && scroll.GetGlobalRect().HasPoint(mouse))   // à la manette, le curseur (pavé du Deck) ne vole pas la ligne du focus
             foreach (var (row, _) in rows)
                 if (IsInstanceValid(row) && row.GetGlobalRect().HasPoint(mouse)) { want = row; break; }
         if (want == null && GetViewport().GuiGetFocusOwner() is Control f)
             foreach (var (row, _) in rows)
-                if (IsInstanceValid(row) && row.IsAncestorOf(f)) { want = row; break; }
+                if (IsInstanceValid(row) && row.IsAncestorOf(f)) { want = row; KeepClear(row); break; }
         if (want == lit) return;
         if (lit != null && IsInstanceValid(lit)) lit.AddThemeStyleboxOverride("panel", rowIdle);
         lit = want;
@@ -214,17 +243,21 @@ public partial class OptionsMenu : Control
                 GetViewport().SetInputAsHandled();
                 if (InputSetup.RebindPad(listening, e)) Sfx.Play(this, SfxKind.UiClick);
                 else Sfx.Play(this, SfxKind.UiBack);
-                StopListening();
-                ShowTab(1);
+                RebuildAfterRebind();
+                return;
+            }
+            // Stick pendant l'attente : avalé, sinon le focus quitterait la ligne qui attend son bouton.
+            if (e is InputEventJoypadMotion { Axis: not (JoyAxis.TriggerLeft or JoyAxis.TriggerRight) } sm)
+            {
+                if (Mathf.Abs(sm.AxisValue) >= 0.5f) GetViewport().SetInputAsHandled();   // le retour au centre passe
                 return;
             }
             if (!key && !mouse) return;
             GetViewport().SetInputAsHandled();
-            if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { StopListening(); ShowTab(1); return; }   // remet la touche affichée
+            if (e is InputEventKey { PhysicalKeycode: Key.Escape } && listening != "pause") { RebuildAfterRebind(); return; }   // remet la touche affichée
             InputSetup.Rebind(listening, e);
             Sfx.Play(this, SfxKind.UiClick);
-            StopListening();
-            ShowTab(1);
+            RebuildAfterRebind();
             return;
         }
         if (e.IsActionPressed("pause") || e.IsActionPressed("ui_cancel"))
@@ -233,10 +266,43 @@ public partial class OptionsMenu : Control
             Sfx.Play(this, SfxKind.UiBack);
             Close();
         }
+        else if (e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.LeftShoulder or JoyButton.RightShoulder } sh)
+        {
+            // LB / RB : onglet voisin, le focus sur son bouton (la liste est reconstruite, l'ancien focus disparaît).
+            GetViewport().SetInputAsHandled();
+            int next = (tab + (sh.ButtonIndex == JoyButton.RightShoulder ? 1 : 3)) % 4;
+            Sfx.Play(this, SfxKind.UiClick);
+            ShowTab(next);
+            tabs[next].GrabFocus();
+        }
     }
+
+    static Label PadCap(string pad)
+    {
+        var cap = UiKit.KeyCap(pad, 20, 52);
+        UiKit.FollowDevice(cap, "", pad);
+        return cap;
+    }
+
+    /// <summary>Fin d'une réassignation : la liste est reconstruite et le focus revient sur la même ligne (sinon la manette
+    /// n'a plus rien de sélectionné).</summary>
+    void RebuildAfterRebind()
+    {
+        int index = listeningButton == null ? -1 : rows.FindIndex(r => IsInstanceValid(r.row) && r.row.IsAncestorOf(listeningButton));
+        StopListening();
+        ShowTab(1);
+        if (index < 0 || index >= rows.Count) return;
+        foreach (var c in rows[index].row.FindChildren("*", "Button", true, false))
+            if (c is Button b) { b.CallDeferred(Control.MethodName.GrabFocus); break; }
+    }
+
+    HBoxContainer hints = null!;
+
+    public override void _ExitTree() => InputSetup.Capturing = false;
 
     void StopListening()
     {
+        InputSetup.Capturing = false;
         listening = null;
         listeningButton = null;
     }
@@ -247,7 +313,7 @@ public partial class OptionsMenu : Control
     {
         tab = i;
         for (int k = 0; k < 4; k++)
-            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Violet : null, k == i ? UiKit.Yellow : null);   // onglet ouvert : violet clair, accent et texte jaunes
+            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Cream : null, k == i ? UiKit.Navy : null);   // onglet ouvert : plaque papier, languette lime, texte encre
         foreach (var c in list.GetChildren()) c.QueueFree();
         rows.Clear();
         lit = null;
@@ -256,17 +322,22 @@ public partial class OptionsMenu : Control
         {
             case 0:
                 Section("Partie", true);
+                Choice("Langue / Language", new[] { "Automatique", "Français", "English" }, System.Array.IndexOf(Languages, GameSettings.Language) is int li and >= 0 ? li : 0,
+                    k => GameSettings.Language = Languages[k]);
                 Choice("Difficulté des bots", new[] { "Facile", "Normal", "Difficile" }, GameSettings.BotLevel, k => GameSettings.BotLevel = k);
                 Toggle("Aides contextuelles (premières parties)", GameSettings.ContextHints, v => GameSettings.ContextHints = v);
                 Toggle("Ouvrir le port sur ma box (UPnP)", GameSettings.Upnp, v => GameSettings.Upnp = v);
                 Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
-                Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
+                Section("Manette");
+                Slider("Sensibilité du stick", GameSettings.PadSensitivity, 0.25f, 3f, 0.05f, v => GameSettings.PadSensitivity = v, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
+                Choice("Courbe de visée", new[] { "Précise", "Équilibrée", "Directe" }, GameSettings.PadCurve, k => GameSettings.PadCurve = k);
                 Section("Caméra et visée");
                 Choice("Vue", new[] { "Épaule (3e personne)", "Première personne" }, GameSettings.FirstPerson ? 1 : 0, k => GameSettings.FirstPerson = k == 1);
+                Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
-                Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : $"{v * 100:0} %");
-                Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
+                Slider("Aide à la visée", GameSettings.AimAssist, 0f, 1f, 0.05f, v => GameSettings.AimAssist = v, v => v < 0.01f ? "Désactivée" : L.F("{0:0} %", v * 100));
+                Slider("Secousses de l'écran", GameSettings.ScreenShake, 0f, 1f, 0.05f, v => GameSettings.ScreenShake = v, v => v < 0.01f ? "Aucune" : L.F("{0:0} %", v * 100));
                 Toggle("Arrêt sur image aux impacts", GameSettings.HitStop, v => GameSettings.HitStop = v);
                 Toggle("Marqueur de touche", GameSettings.HitMarkers, v => GameSettings.HitMarkers = v);
                 Toggle("S'accroupir : appui = bascule", GameSettings.ToggleCrouch, v => GameSettings.ToggleCrouch = v);
@@ -275,7 +346,7 @@ public partial class OptionsMenu : Control
                 Toggle("Symboles d'équipe (daltonisme)", GameSettings.TeamSymbols, v => GameSettings.TeamSymbols = v);
                 Toggle("Sons importants à l'écran", GameSettings.SoundCues, v => GameSettings.SoundCues = v);
                 Section("Casque VR");
-                Slider("Vibrations des manettes", GameSettings.Haptics, 0f, 1f, 0.05f, v => GameSettings.Haptics = v, v => v < 0.01f ? "Aucune" : $"{v * 100:0} %");
+                Slider("Vibrations des manettes", GameSettings.Haptics, 0f, 1f, 0.05f, v => GameSettings.Haptics = v, v => v < 0.01f ? "Aucune" : L.F("{0:0} %", v * 100));
                 break;
             case 1:
                 foreach (var a in InputSetup.Actions) KeyRow(a);
@@ -297,7 +368,10 @@ public partial class OptionsMenu : Control
         }
     }
 
-    static string Pct(float v) => $"{v * 100:0} %";
+    /// <summary>Réglages de langue proposés, dans l'ordre de la liste (voir L.Apply).</summary>
+    static readonly string[] Languages = { "auto", "fr", "en" };
+
+    static string Pct(float v) => L.F("{0:0} %", v * 100);
 
     void ResetTab()
     {
@@ -307,7 +381,7 @@ public partial class OptionsMenu : Control
                 GameSettings.BotLevel = 1;
                 GameSettings.ContextHints = true;
                 GameSettings.Upnp = false;
-                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
+                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.PadSensitivity = 1f; GameSettings.PadCurve = 0; GameSettings.Fov = GameSettings.DefaultFov;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false; GameSettings.FirstPerson = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
@@ -325,8 +399,8 @@ public partial class OptionsMenu : Control
         if (!first) list.AddChild(UiKit.Spacer(8));
         var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 16);
-        var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
-        if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+        var l = UiKit.Text(L.T(text).ToUpperInvariant(), 30, UiKit.Cream, 8);
+        UiKit.Poster(l);
         h.AddChild(l);
         var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
         h.AddChild(rule);
@@ -378,7 +452,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
         var b = UiKit.Button(value ? "OUI" : "NON", UiKit.NavySoft, () => { }, 22, new Vector2(150, 44));
-        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Green : new Color(0, 0, 0, 0), on ? new Color("1f6b45") : null, on ? Colors.White : UiKit.Lavender);
+        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Yellow : new Color(0, 0, 0, 0), on ? UiKit.Cream : null, on ? UiKit.Navy : UiKit.Lavender);   // OUI : plaque papier et languette lime
         Paint(value);
         b.Pressed += () =>
         {
@@ -412,7 +486,7 @@ public partial class OptionsMenu : Control
     void KeyRow(InputSetup.ActionDef a)
     {
         string help = a.Secondary != null
-            ? $"Clique puis appuie sur la nouvelle touche. {InputSetup.Describe(a.Secondary)} marche aussi (touche fixe)."
+            ? L.F("Clique puis appuie sur la nouvelle touche. {0} marche aussi (touche fixe).", InputSetup.Describe(a.Secondary))
             : "Clique puis appuie sur la nouvelle touche. Échap annule.";
         if (InputSetup.UsingPad)
             help = InputSetup.PadRemappable(a)
@@ -423,6 +497,7 @@ public partial class OptionsMenu : Control
         b.Pressed += () =>
         {
             listening = a.Name;
+            InputSetup.Capturing = true;
             listeningButton = b;
             b.Text = "Appuie…";
             UiKit.Tint(b, UiKit.Pink, UiKit.Pink.Darkened(0.35f));

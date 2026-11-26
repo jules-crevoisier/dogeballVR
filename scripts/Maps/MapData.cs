@@ -292,13 +292,33 @@ public class MapData
     public List<ZoneDef> Zones { get; set; } = new();
     /// <summary>Décor visuel optionnel (assets/models/&lt;decor&gt;.glb et &lt;decor&gt;_ville.glb) : toit, skyline et ciel de la DA Knockout City. Sans collision.</summary>
     public string? Decor { get; set; }
-    /// <summary>Ambiance du décor KC (ciel, soleil, brume) : jour, chantier, coucher, nuit, brume. Purement visuelle.</summary>
+    /// <summary>Ambiance du décor KC (ciel, soleil, brume) : jour, chantier, coucher, soiree, nuit, brume. Purement visuelle.</summary>
     public string? Ambiance { get; set; }
+    /// <summary>Boucle d'ambiance sonore du match (assets/audio/ambience/&lt;nom&gt;.ogg) ; absente : la circulation lointaine (rooftop).</summary>
+    public string? AmbienceSound { get; set; }
+    /// <summary>Musique de match (assets/audio/music/match_&lt;nom&gt;.ogg) ; absente : la boucle commune match.ogg.</summary>
+    public string? MatchMusic { get; set; }
     public List<PropDef> Props { get; set; } = new();
     public List<ObstacleDef> Obstacles { get; set; } = new();
     public List<BallSpawnDef> BallSpawns { get; set; } = new();
 
     public bool IsRing => Layout == "ring";
+
+    /// <summary>Arène libre du PC (« arena ») : sol à plusieurs hauteurs, rampes, vide (ring-out) ; décrite par <see cref="Arena"/>.</summary>
+    public bool IsArena => Layout == "arena" && Arena != null;
+
+    /// <summary>Jeu libre au clavier-souris : le joueur circule sur toute la carte (moulinet ou arène), sans plaque de zone.</summary>
+    public bool IsFreeRoam => IsRing || IsArena;
+
+    /// <summary>Géométrie de l'arène libre (blocs, rampes, tremplins), présente seulement si <c>layout</c> vaut « arena ».</summary>
+    public ArenaDef? Arena { get; set; }
+
+    /// <summary>Présentation de la carte dans les menus (nom affiché, accroche, idée de jeu).</summary>
+    public MapInfoDef? Info { get; set; }
+
+    ArenaGeometry? geometry;
+    /// <summary>Géométrie calculée une fois (sol, collisions, vide) ; null hors arène libre.</summary>
+    public ArenaGeometry? Geometry => IsArena ? geometry ??= new ArenaGeometry(Arena!) : null;
 
     /// <summary>Fosse carrée au centre (obstacle « pit » qui ne coupe pas toute l'arène) : y tomber est un ring-out. Null sinon.</summary>
     public ObstacleDef? PitRect => IsRing ? Obstacles.Find(o => o.Kind == "pit") : null;
@@ -356,12 +376,29 @@ public class MapData
         WallHeight = ArenaHeight, CeilingHeight = ArenaHeight,
     };
 
+    /// <summary>Joueurs par équipe sur une arène libre (2, 3 ou 4) ; 0 = celui de la fiche de la carte. Posé avant <see cref="Load"/>.</summary>
+    public static int ArenaTeamSize { get; set; }
+
     static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
     public static MapData Load(string resPath)
     {
         string json = FileAccess.GetFileAsString(resPath);
         var map = JsonSerializer.Deserialize<MapData>(json, Options);
+        if (map != null && map.Layout == "arena" && map.Arena != null)
+        {
+            // Arène libre : les places viennent des points d'apparition, et le joueur PC y réapparaît (pc.spawns).
+            if (map.Zones.Count == 0) map.Zones = map.Arena.ZonesFromSpawns();
+            // Taille d'équipe : les premières places de chaque équipe (3 contre 3 par défaut, la fiche de la carte ou la partie décident).
+            int size = ArenaTeamSize > 0 ? ArenaTeamSize : map.Info?.TeamSize ?? 3;
+            var kept = new List<ZoneDef>();
+            foreach (var z in map.Zones) if (kept.FindAll(k => k.Team == z.Team).Count < size) kept.Add(z);
+            map.Zones = kept;
+            map.VrAllowed = false;
+            map.Pc ??= new PcDef();
+            if (map.Pc.Spawns.Count == 0)
+                foreach (var z in map.Zones) map.Pc.Spawns.Add(new PcSpawnDef { Zone = z.Id, X = z.X, Z = z.Z });
+        }
         if (map == null || map.Zones.Count == 0)
             throw new System.InvalidOperationException($"Map invalide : {resPath}");
         return map;

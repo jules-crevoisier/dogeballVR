@@ -22,6 +22,15 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | Funky Menu Loop | iamoneabe | CC0 | https://opengameart.org/content/funky-menu-loop |
 | Simple Action Beat | LushoGames | CC0 | https://opengameart.org/content/simple-action-beat |
 | Funky Victory Loop | Archonic | CC0 | https://opengameart.org/content/funky-victory-loop |
+| Crowd shouting/speaking ambience | StarNinjas | CC0 | https://opengameart.org/content/crowd-shoutingspeaking-ambience |
+| Crickets ambient noise (loopable) | Wolfgang_ | CC0 | https://opengameart.org/content/crickets-ambient-noise-loopable |
+| Park ambiences | Thimras | CC0 | https://opengameart.org/content/park-ambiences |
+| Generator loop | YCbCr | CC0 | https://opengameart.org/content/generator-loop |
+| Morning sounds (perfect loop) | Kresiek The Furry | CC0 | https://opengameart.org/content/amb-morning-sounds-perfect-loop |
+| Rotating bicycle bell | AntumDeluge | CC0 | https://opengameart.org/content/rotating-bicycle-bell |
+| Raspberry Jam | congusbongus | CC0 | https://opengameart.org/content/raspberry-jam |
+| Wednesday Night (funk fusion) | Zane Little Music | CC0 | https://opengameart.org/content/wednesday-night-funk-fusion |
+| Rhythm Factory | Zane Little Music | CC0 | https://opengameart.org/content/rhythm-factory |
 
 ## Effets (`sfx/<kind>_N.ogg`)
 
@@ -59,7 +68,22 @@ pour les effets, -14 LUFS intégrés pour la musique, Ogg Vorbis q4). Relancer :
 | Fichier | Source |
 |---|---|
 | music/menu.ogg | Funky Menu Loop, version longue (iamoneabe), boucle de 36,9 s (20 mesures) |
-| music/match.ogg | Simple Action Beat (LushoGames), boucle de 120 s |
+| music/match.ogg | Simple Action Beat (LushoGames), boucle de 120 s (cartes sans musique propre) |
+| music/match_marche.ogg | Toits du Marché : Raspberry Jam (congusbongus), 0–169,5 s bouclés par fondu de 4 s, -14 LUFS (`build_arena_music.py`) |
+| music/match_piscine.ogg | La Piscine : Wednesday Night (Zane Little Music), 11–160 s (sans l'intro ni la fin en fondu), bouclés par fondu de 4 s, -14 LUFS |
+| music/match_depot.ogg | Le Dépôt : Rhythm Factory (Zane Little Music), 9–215 s, bouclés par fondu de 4 s, -14 LUFS |
 | music/victory.ogg | Funky Victory Loop (Archonic), jouée une fois avec fondu final |
 | music/defeat.ogg | jingles_STEEL06 (Kenney Music Jingles) |
 | ambience/rooftop.ogg | High traffic road sounds (IgnasD), passe-bas 1,6 kHz (circulation en contrebas du toit), boucle de 40 s par fondu enchaîné de 3 s, -26 LUFS |
+| ambience/marche.ogg | Toits du Marché : rooftop.ogg + Crowd shouting/speaking ambience (StarNinjas) filtrée 180–900 Hz à -9 dB (le marché en bas) |
+| ambience/piscine.ogg | La Piscine : Crickets ambient noise (Wolfgang_) passe-haut 1,5 kHz, Park ambiences rivière (Thimras) passe-bas 700 Hz à -10 dB, vent à -14 dB |
+| ambience/depot.ogg | Le Dépôt : Generator loop (YCbCr) ralenti ×0,8, passe-bas 420 Hz (bourdonnement de caténaire), Morning sounds (Kresiek The Furry) passe-haut 900 Hz, rooftop.ogg à -7 dB, Rotating bicycle bell (AntumDeluge) ralentie ×0,62 deux fois par boucle (timbre de tram) |
+
+Ambiances des arènes construites par `build_ambiences.py <téléchargements> assets/audio` (boucles de 40 s, -26 LUFS).
+
+## Touches et attrapes (balle en caoutchouc)
+
+`hit_*`, `hurtself_*`, `catch_*` et `perfect_*` sont reconstruits par `tools/audio/build_impacts.py` à partir des sons
+ci-dessus (gardés dans `tools/audio/impacts-src/`) : le corps grave d'origine, atténué, plus un claquement de caoutchouc
+et la résonance d'une balle gonflée synthétisés pour le projet (CC0 comme le reste). Relancer :
+`python3 tools/audio/build_impacts.py`.

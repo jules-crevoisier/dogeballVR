@@ -64,6 +64,7 @@ public partial class ClientWorld : Node3D
             {
                 int team = Map.Zones.Find(z => z.Id == p.Id)?.Team ?? 0;
                 avatar = Avatar.Create(team, p.Bot, p.Id);
+                avatar.SetHeadwear(p.Bot ? Online.Cosmetics.ForBot(p.Id) : MatchView.HumanLook?.Invoke(p.Id));
                 AddChild(avatar);
                 avatars[p.Id] = avatar;
                 poseTargets[p.Id] = p.Pose;

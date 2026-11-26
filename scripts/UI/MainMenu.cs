@@ -6,10 +6,10 @@ using DogeballVR.Net;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Menu principal du mode PC, par-dessus le décor 3D : grand bandeau diagonal plein à gauche (~40 % de l'écran, les
-/// personnages occupent la droite), logo, items en grosses lettres penchées surlignés par une barre jaune inclinée qui
-/// glisse de l'un à l'autre, comme le menu de Knockout City ; pages Jouer en ligne, Options et Crédits. À la toute
-/// première partie, on propose le tutoriel.
+/// Menu principal du mode PC, DA « Affiche », par-dessus le décor 3D (une arène vivante) : colonne d'encre droite à gauche
+/// (un tiers de l'écran, les personnages occupent la droite), logo en double tirage décalé, items en grandes capitales Anton
+/// surlignés par une bande de papier à languette vert acide qui glisse de l'un à l'autre ; pages Jouer en ligne, Options et
+/// Crédits. À la toute première partie, on propose le tutoriel.
 /// </summary>
 public partial class MainMenu : CanvasLayer
 {
@@ -21,9 +21,12 @@ public partial class MainMenu : CanvasLayer
     /// <summary>Cartes proposées en solo, dans l'ordre du sélecteur.</summary>
     static readonly (string Map, string Name, string Info)[] SoloMaps =
     {
+        ("marche_suspendu", "TOITS DU MARCHÉ", "3 contre 3. Deux toits au-dessus d'une rue : tenir les ponts, un tacle et c'est la chute."),
+        ("piscine", "LA PISCINE", "3 contre 3. Un bassin vide et un plongeoir : le bas contre le haut, les bords ouverts sur le vide."),
+        ("depot", "LE DÉPÔT", "3 contre 3. Deux fosses, deux trams, trois couloirs : le toit du tram domine, à un tacle de la chute."),
         ("croix_neon", "CROIX NÉON", "2 contre 2. Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
         ("fosse_croisee", "FOSSE CROISÉE", "2 contre 2. Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
-        ("tour_4v4", "TOUR 4V4", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
+        ("tour_4v4", "LA TOUR", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
         ("la_fosse", "LA FOSSE", "2 contre 2. Zones face à face : chacun garde la sienne, E pour esquiver."),
         ("neon_court", "NÉON COURT", "2 contre 2. Terrain court en zones : chacun garde la sienne, E pour esquiver."),
     };
@@ -37,6 +40,7 @@ public partial class MainMenu : CanvasLayer
     Control? barOn;   // item sous la barre jaune (null : barre cachée)
     Tween? barTween;
     Control escHint = null!;
+    Control hintBar = null!;   // aides clavier : toujours au-dessus des fenêtres et de leur voile
     Action? back;   // page précédente (Échap) : null sur le menu racine
     bool leaving, compact;
 
@@ -55,61 +59,60 @@ public partial class MainMenu : CanvasLayer
         compact = root.GetViewportRect().Size.Y < 960f;
         float top = compact ? -44f : 0f;
 
-        // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
+        // Colonne d'encre à gauche : elle porte le logo et les items.
         band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
         band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         band.Resized += band.QueueRedraw;
         root.AddChild(band);
-        UiKit.SlideIn(band, 0f, -260f);
+        UiKit.SlideIn(band, 0f, -200f);
 
-        // Logo penché, en autocollant : ombre marine, contour crème épais, puis le texte orange cerné de marine.
-        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.82f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
+        // Logo d'affiche : DOGEBALL en capitales Anton, trois tirages décalés (bleu, orange, papier) comme une sérigraphie mal
+        // calée ; dessous, la devise en vert acide sur un filet.
+        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.8f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
         root.AddChild(logoScale);
-        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(72, compact ? 30 : 42), Size = new Vector2(700, 210), RotationDegrees = -6f };
+        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(64, compact ? 18 : 34), Size = new Vector2(600, 240) };
         logoScale.AddChild(logoBox);
-        void LogoLayer(Color color, int outline, Color outlineColor, Vector2 at)
+        void LogoLayer(Color color, Vector2 at)
         {
-            var l = UiKit.Text("DOGEBALL", 138, color, outline);
-            l.AddThemeColorOverride("font_outline_color", outlineColor);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+            var l = UiKit.Text("DOGEBALL", 150, color, 0);
+            if (UiKit.Display is Font d) l.AddThemeFontOverride("font", d);
             l.Position = at;
             logoBox.AddChild(l);
         }
-        LogoLayer(new Color("0a0f22"), 60, new Color("0a0f22"), new Vector2(9, 12));
-        LogoLayer(UiKit.Cream, 60, UiKit.Cream, Vector2.Zero);
-        LogoLayer(UiKit.Orange, 30, UiKit.Navy, Vector2.Zero);
-        var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 30, UiKit.Yellow, 10);
-        if (UiKit.Italic is Font ti) tag.AddThemeFontOverride("font", ti);
-        tag.Position = new Vector2(22, 170);
+        LogoLayer(UiKit.Blue, new Vector2(-6, 7));
+        LogoLayer(UiKit.Orange, new Vector2(7, 7));
+        LogoLayer(UiKit.Cream, Vector2.Zero);
+        var rule = new ColorRect { Color = UiKit.Yellow, Position = new Vector2(4, 214), Size = new Vector2(548, 5), MouseFilter = Control.MouseFilterEnum.Ignore };
+        logoBox.AddChild(rule);
+        var tag = UiKit.Text("ESQUIVE  ·  ATTRAPE  ·  RENVOIE", 26, UiKit.Yellow, 0);
+        if (UiKit.Heavy is Font hv) tag.AddThemeFontOverride("font", hv);
+        tag.Position = new Vector2(4, 222);
         logoBox.AddChild(tag);
-        UiKit.Punch(logoBox, 1.3f, 0.45);
-        // Le logo respire doucement.
-        var bob = logoBox.CreateTween().SetLoops();
-        bob.TweenProperty(logoBox, "rotation_degrees", -4.5f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        bob.TweenProperty(logoBox, "rotation_degrees", -6f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        UiKit.Punch(logoBox, 1.15f, 0.35);
 
         // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         hints.AddThemeConstantOverride("separation", 36);
-        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
-        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24);   // sous-menus seulement : le menu racine n'a pas de retour
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24, "A"));
+        escHint = UiKit.KeyHint(InputSetup.KeyboardName("pause"), "Retour", 24, "B");   // sous-menus seulement : le menu racine n'a pas de retour
         escHint.Visible = false;
         hints.AddChild(escHint);
         hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         hints.GrowVertical = Control.GrowDirection.Begin;
         hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
         root.AddChild(hints);
+        hintBar = hints;
 
         // Barre jaune de sélection, sous les items (elle suit le focus dans _Process).
         bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         root.AddChild(bar);
 
-        column = new VBoxContainer { Position = new Vector2(110, 300 + top) };
+        column = new VBoxContainer { Position = new Vector2(96, 318 + top) };
         column.AddThemeConstantOverride("separation", compact ? 10 : 14);
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"Accès anticipé · v{(ver == "" ? "0.1" : ver)}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
+        var version = UiKit.Text(L.F("ACCÈS ANTICIPÉ · V{0}", ver == "" ? "0.1" : ver), 18, new Color(UiKit.Cream, 0.85f), 5, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
         root.AddChild(version);
@@ -178,13 +181,13 @@ public partial class MainMenu : CanvasLayer
         bar.QueueRedraw();
     }
 
-    /// <summary>Rectangle de la barre pour un item : du texte jusqu'un peu au-delà du liseré du bandeau, comme dans KC.</summary>
+    /// <summary>Rectangle de la bande de sélection pour un item : du bord gauche de l'écran jusqu'au filet de la colonne.</summary>
     Rect2 BarRect(Control item)
     {
         float y = column.Position.Y + item.Position.Y;
-        float x0 = column.Position.X - BarLead;
-        float x1 = band.EdgeX(y + item.Size.Y / 2f) + 44f;
-        return new Rect2(x0, y + 3, x1 - x0, item.Size.Y - 6);
+        float x0 = 0f;
+        float x1 = band.EdgeX(y + item.Size.Y / 2f) + 30f;
+        return new Rect2(x0, y + 4, x1 - x0, item.Size.Y - 8);
     }
 
     void Fill(params Control[] items)
@@ -195,7 +198,7 @@ public partial class MainMenu : CanvasLayer
         int i = 0;
         foreach (var c in items)
         {
-            // Items en lettres penchées et grasses, comme les menus de Knockout City.
+            // Items en capitales d'affiche (Anton).
             if (UiKit.Italic is Font it && c is Button or Label) c.AddThemeFontOverride("font", it);
             column.AddChild(c);
             UiKit.SlideIn(c, 0.05f * i++);
@@ -211,14 +214,14 @@ public partial class MainMenu : CanvasLayer
     Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
     {
         var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
-        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 84 : 52) };
+        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? (compact ? 66 : 80) : (compact ? 44 : 50)) };   // petit écran (Steam Deck) : la colonne tient au-dessus des aides
         b.SetMeta(ItemMeta, true);
         foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        b.AddThemeFontSizeOverride("font_size", main ? 70 : 38);
+        b.AddThemeFontSizeOverride("font_size", main ? (compact ? 56 : 64) : (compact ? 30 : 34));
         if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
         b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
-        var rest = restColor ?? (main ? Colors.White : UiKit.Lavender);   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
-        int restOutline = main ? 12 : 8;
+        var rest = restColor ?? (main ? UiKit.Cream : UiKit.Lavender);   // gris chaud : 3e niveau de hiérarchie
+        int restOutline = 0;
         void Paint(Color c, int outline)
         {
             foreach (var k in FontColors) b.AddThemeColorOverride(k, c);
@@ -232,17 +235,18 @@ public partial class MainMenu : CanvasLayer
             slide = b.CreateTween();
             slide.TweenProperty(pad, "content_margin_left", to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 2); Shift(main ? 36f : 30f); };
+        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 0); Shift(0f); };   // le texte reste aligné : la plaque papier et la languette lime suffisent
         b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
-        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
+        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); if (b.HasMeta(ItemMeta)) lastMain = text; onPress(); };
         return b;
     }
 
     void ShowMain()
     {
         back = null;
-        Fill(
+        var items = new Control[]
+        {
             Item("JOUER", PlayBots),
             Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
             Item("EN LIGNE", ShowOnline),
@@ -250,8 +254,15 @@ public partial class MainMenu : CanvasLayer
             Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
             UiKit.Spacer(14),
             Item("CRÉDITS", ShowCredits, false),
-            Item("QUITTER", () => GetTree().Quit(), false));
+            Item("QUITTER", () => GetTree().Quit(), false),
+        };
+        Fill(items);
+        // Retour d'une page (B, Échap) : le focus revient sur l'item qui l'avait ouverte, pas tout en haut.
+        if (Array.Find(items, c => c is Button bt && bt.Text == lastMain) is Button from) from.CallDeferred(Control.MethodName.GrabFocus);
     }
+
+    /// <summary>Dernier item du menu racine validé (le focus y revient au retour).</summary>
+    string? lastMain;
 
     /// <summary>
     /// Actions en ligne (Steam / salle) : branchées par Main sur le module Online quand il est présent.
@@ -361,26 +372,64 @@ public partial class MainMenu : CanvasLayer
         yes.CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    /// <summary>Solo : choix de la carte, à la Knockout City (liste à gauche, description de la carte sélectionnée dessous).</summary>
+    /// <summary>
+    /// Solo : choix de la carte. Liste à gauche ; à droite, l'aperçu de la carte sélectionnée (cadre papier, ombre dure),
+    /// son format et sa description. Aperçus : assets/ui/cartes/&lt;carte&gt;.jpg (vue de la carte en hauteur).
+    /// </summary>
     void ShowMapPicker()
     {
         var card = new PanelContainer();
         var col = new VBoxContainer();
-        col.AddThemeConstantOverride("separation", 10);
+        col.AddThemeConstantOverride("separation", 14);
         card.AddChild(col);
-        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52));
-        var info = UiKit.Text("", 22, UiKit.Cream, 6, HorizontalAlignment.Center);
+        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52, HorizontalAlignment.Left));
+        var split = new HBoxContainer();
+        split.AddThemeConstantOverride("separation", 34);
+        col.AddChild(split);
+        var list = new VBoxContainer();
+        list.AddThemeConstantOverride("separation", 6);
+        split.AddChild(list);
+
+        var right = new VBoxContainer();
+        right.AddThemeConstantOverride("separation", 12);
+        split.AddChild(right);
+        var frame = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var frameBox = new KcBox { Top = UiKit.Cream, Bottom = UiKit.Cream, ShadowOffset = new Vector2(10, 10), ShadowColor = UiKit.Ink };
+        frameBox.ContentMarginLeft = frameBox.ContentMarginRight = frameBox.ContentMarginTop = frameBox.ContentMarginBottom = 6;
+        frame.AddThemeStyleboxOverride("panel", frameBox);
+        right.AddChild(frame);
+        var preview = new TextureRect
+        {
+            CustomMinimumSize = new Vector2(512, 288), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered, MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        frame.AddChild(preview);
+        var mode = UiKit.Text("", 30, UiKit.Yellow, 0);
+        if (UiKit.Heavy is Font hv) mode.AddThemeFontOverride("font", hv);
+        right.AddChild(mode);
+        var info = UiKit.Text("", 24, UiKit.Cream, 0);
         info.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        info.CustomMinimumSize = new Vector2(560, 64);
+        info.CustomMinimumSize = new Vector2(524, 64);
+        right.AddChild(info);
+
         Button? first = null;
         foreach (var (map, name, text) in SoloMaps)
         {
-            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(560, 62));
-            b.FocusEntered += () => info.Text = text;
-            col.AddChild(b);
+            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(400, 60));
+            // « 3 contre 3. Deux toits… » : le format en accent, la description dessous.
+            string tr = L.T(text);   // traduit avant d'être coupé en format + description
+            int dot = tr.IndexOf(". ", StringComparison.Ordinal);
+            string head = dot > 0 ? tr[..dot].ToUpperInvariant() : "", body = dot > 0 ? tr[(dot + 2)..] : tr;
+            string path = $"res://assets/ui/cartes/{map}.jpg";
+            b.FocusEntered += () =>
+            {
+                mode.Text = head;
+                info.Text = body;
+                preview.Texture = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+            };
+            list.AddChild(b);
             first ??= b;
         }
-        col.AddChild(info);
         OpenOverlay(Centered(card));
         first?.CallDeferred(Control.MethodName.GrabFocus);
     }
@@ -396,7 +445,7 @@ public partial class MainMenu : CanvasLayer
         {
             ("Conception et direction", "jules"),
             ("Moteur", "Godot Engine 4.3 (MIT)"),
-            ("Police", "Lilita One, Juan Montoreano (SIL OFL)"),
+            ("Polices", "Anton (The Anton Project Authors), Barlow (Jeremy Tribby), Lilita One (Juan Montoreano), SIL OFL"),
             ("Modèles 3D", "faits maison avec Blender"),
             ("Sons", "voir assets/audio/CREDITS.md"),
             ("Inspiration", "Knockout City (Velan Studios), hommage"),
@@ -407,7 +456,10 @@ public partial class MainMenu : CanvasLayer
             var a = UiKit.Text(who, 24, UiKit.Sky, 6, HorizontalAlignment.Right);
             a.CustomMinimumSize = new Vector2(330, 0);
             row.AddChild(a);
-            row.AddChild(UiKit.Text(what, 24, Colors.White, 6));
+            var b = UiKit.Text(what, 24, Colors.White, 6);
+            b.AutowrapMode = TextServer.AutowrapMode.WordSmart;   // la ligne des polices passe sur deux lignes au lieu de sortir de l'écran
+            b.CustomMinimumSize = new Vector2(620, 0);
+            row.AddChild(b);
             col.AddChild(row);
         }
         var back = UiKit.Button("RETOUR", UiKit.Orange, CloseOverlay, 26, new Vector2(300, 58));
@@ -425,6 +477,7 @@ public partial class MainMenu : CanvasLayer
         holder.AddChild(UiKit.Dim(0.5f));
         var center = new CenterContainer();
         center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        center.OffsetLeft = MenuBand.Width + 30;   // centrée à droite de la colonne d'encre, sans chevaucher son filet
         holder.AddChild(center);
         center.AddChild(card);
         UiKit.Punch(card, 0.85f, 0.22);
@@ -436,8 +489,11 @@ public partial class MainMenu : CanvasLayer
         CloseOverlay();
         column.Visible = false;
         overlay = c;
-        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; ShowMain(); };
+        // Options : leur panneau a son bouton RETOUR et sa ligne d'aide ; l'aide du coin bas gauche toucherait son cadre.
+        hintBar.Visible = c is not OptionsMenu;
+        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; hintBar.Visible = true; ShowMain(); };
         root.AddChild(c);
+        root.MoveChild(hintBar, -1);
         root.MoveChild(fade, -1);
     }
 
@@ -477,23 +533,16 @@ public partial class MainMenu : CanvasLayer
         tw.TweenCallback(Callable.From(then));
     }
 
-    /// <summary>Barre de sélection jaune inclinée, qui vire à l'or vers le bas, avec l'étoile marine devant le texte (« ✦ JUGAR »).</summary>
+    /// <summary>Bande de sélection : papier, ombre d'encre franche, languette vert acide à gauche du texte.</summary>
     sealed partial class SelectBar : Control
     {
-        static readonly Color Gold = new("ffb21f");
-
         public override void _Draw()
         {
             float w = Size.X, h = Size.Y;
             if (w < 2f) return;
-            float s = Mathf.Min(h * 0.3f, w);   // biais : le haut part vers la droite, comme le texte penché
-            Vector2[] Quad(Vector2 o) => new[] { o + new Vector2(s, 0), o + new Vector2(w, 0), o + new Vector2(w - s, h), o + new Vector2(0, h) };
-            DrawColoredPolygon(Quad(new Vector2(7, 7)), new Color(0.02f, 0.03f, 0.1f, 0.55f));
-            DrawPolygon(Quad(Vector2.Zero), new[] { UiKit.Yellow, UiKit.Yellow, Gold, Gold });
-            if (w < BarLead + 24f) return;
-            var c = new Vector2(BarLead + 10f, h / 2f);
-            float r = Mathf.Min(h * 0.24f, 15f), k = r * 0.3f;
-            DrawColoredPolygon(new[] { c + new Vector2(0, -r), c + new Vector2(k, -k), c + new Vector2(r, 0), c + new Vector2(k, k), c + new Vector2(0, r), c + new Vector2(-k, k), c + new Vector2(-r, 0), c + new Vector2(-k, -k) }, UiKit.Navy);
+            DrawRect(new Rect2(8, 8, w, h), new Color(0, 0, 0, 0.55f));
+            DrawRect(new Rect2(0, 0, w, h), UiKit.Cream);
+            if (w > BarLead + 40f) DrawRect(new Rect2(BarLead + 16f, h * 0.2f, 14f, h * 0.6f), UiKit.Yellow.Darkened(0.12f));
         }
     }
 }
