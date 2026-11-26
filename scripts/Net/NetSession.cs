@@ -15,7 +15,7 @@ public partial class NetSession : Node
 {
     public const int DefaultPort = 7777;
     /// <summary>Version du protocole réseau : l'hôte refuse un client d'une autre version (snapshots et RPC incompatibles).</summary>
-    public const int ProtocolVersion = 4;   // 3 : le Hello porte la carte jouée ; 4 : couvre-chefs dans la salle (SetLookRpc)
+    public const int ProtocolVersion = 5;   // 3 : le Hello porte la carte jouée ; 4 : couvre-chefs dans la salle (SetLookRpc) ; 5 : tir chargé VR (mode 3)
     public const int MaxPlayers = 8;   // la Tour 4v4 a huit plaques ; la zone demandée au Hello doit exister dans la carte
     const float SnapshotInterval = 1f / 30f;
     const float PoseInterval = 1f / 30f;
@@ -869,10 +869,10 @@ public partial class NetSession : Node
         var ball = remote.HeldBall(hand);
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         if (BallActions.Locked) { ball.Release(Vector3.Zero, 0f); return; }   // décompte : la balle tombe, rien ne part avant GO
-        mode = Mathf.Clamp(mode, 0, 2);
+        mode = Mathf.Clamp(mode, 0, Ball.ModePower);
         ball.Release(Assist.PlanFor(ball, velocity, mode), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
-        GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s" + (mode == Ball.ModePass ? " (passe)" : mode == Ball.ModeLob ? " (cloche)" : spin != 0 ? " (effet)" : ""));
+        GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s" + (mode == Ball.ModePass ? " (passe)" : mode == Ball.ModeLob ? " (cloche)" : mode == Ball.ModePower ? " (chargé)" : spin != 0 ? " (effet)" : ""));
     }
 
     // ---------------------------------------------------------------- hôte -> clients

@@ -110,13 +110,15 @@ sert qu'à vérifier qu'elle démarre et qu'elle tourne bien.
 
 | # | Test | Ce qui est attendu | À noter |
 |---|---|---|---|
-| H | **Orientation au départ** | Le départ suit l'avant du Guardian. Le jeu ne tourne pas le joueur vers le terrain : la zone 0 est orientée à 180°, donc les adversaires sont **derrière** cet avant. Se retourner | À EVA, le calage de la salle décidera. À confirmer : les adversaires sont-ils bien derrière ? |
+| H | **Orientation au départ** | Le terrain est tourné vers l'adversaire : face à l'avant du Guardian, les adversaires sont **devant** (avant : derrière). Pour recaler à la main : se mettre au centre de la zone réelle, regarder vers l'avant, tenir **les deux gâchettes 2 s** sans balle, entre deux manches : vibration et « ZONE RECALÉE » (retouche seulement : refusé si le terrain s'écarterait de plus de 0,5 m ou 5° de la salle) | Les adversaires sont-ils devant ? Le recalage tombe-t-il juste ? |
+| K | **Gestes de lancer** (docs/VR-GESTES.md) | Tir tendu par-dessus l'épaule ; **effet** en lançant de côté, main sous les épaules, le bras qui balaie (la balle tourne du même côté) ; **cloche** par en dessous, main sous la poitrine ; **passe** vers un allié ; **tir chargé** : gâchette tenue 0,8 s avec la balle, trois petites vibrations puis un déclic. Le nom du coup s'affiche au-dessus de la main | Chaque coup sort-il quand on le veut, et seulement quand on le veut ? Un tir normal part-il en effet par mégarde ? |
+| L | **Zone de jeu** | Si la zone Guardian est plus petite que 15 × 8 m, un message orange le dit au lancement | Le message apparaît-il ? |
 | I | **Partie de 2 min** | Une manche jouable du début à la fin, sans plantage | Images saccadées, chauffe du casque, son |
 | J | **Échange de plaques** | Ne se produit jamais en VR (coupé par la PR #25) | Toute téléportation de zone est un bug |
 
 ## 6. Ce qu'il faut renvoyer
 
-- Une ligne par test (A à J) : OK, KO ou « bof », avec une remarque.
+- Une ligne par test (A à L) : OK, KO ou « bof », avec une remarque.
 - Pour les gants, le sens et l'angle de la correction suffisent. Ce sont deux constantes
   de `scripts/Main.cs` : `GloveRollDegrees` (90° aujourd'hui) et `GlovePitchDegrees`
   (0°).

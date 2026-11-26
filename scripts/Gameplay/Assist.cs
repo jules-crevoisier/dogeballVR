@@ -78,12 +78,12 @@ public static class Assist
     }
 
     /// <summary>Applique la vitesse planifiée : plancher MinLaunchSpeed, plafond SpeedCap. Renvoie la vitesse retenue (0 = pas un vrai lancer).</summary>
-    public static (Vector3 velocity, float speed) Plan(Vector3 from, Vector3 velocity, IEnumerable<Vector3> enemies)
+    public static (Vector3 velocity, float speed) Plan(Vector3 from, Vector3 velocity, IEnumerable<Vector3> enemies, float boost = 1f)
     {
         float speed = velocity.Length();
         if (speed < 1.5f) return (velocity, 0f);   // pas un vrai lancer : la balle tombe
         var dir = velocity / speed;
-        float cap = SpeedCap(from, dir, enemies);
+        float cap = SpeedCap(from, dir, enemies) * boost;   // tir chargé : plafond relevé (temps de vol minimal 0,5 s / boost)
         float planned = Mathf.Clamp(speed, MinLaunchSpeed, cap);
         return (dir * planned, planned);
     }
@@ -103,11 +103,15 @@ public static class Assist
     /// </summary>
     public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode)
     {
+        // Tir chargé : l'hôte ne croit pas le client sur parole, la balle doit avoir été tenue le temps d'une charge, à 0,25 s près (gigue réseau). La gâchette, elle, ne se vérifie pas chez l'hôte.
+        bool power = mode == Ball.ModePower && Time.GetTicksMsec() / 1000.0 - ball.HeldAt >= KcRules.Def.VrGestures.ChargeSeconds - 0.25;   // marge pour la gigue réseau : le client a déjà annoncé le tir chargé
+        if (mode == Ball.ModePower) mode = 0;
         if (mode != 0) return velocity.LimitLength(24f);
         if (!VrRules) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }
-        velocity = velocity.LimitLength(MaxLaunchSpeedVR);
+        float boost = power ? 1f + Mathf.Clamp(KcRules.Def.VrGestures.ChargeSpeedBonus, 0f, 0.5f) : 1f;   // tir chargé au casque (gâchette tenue)
+        velocity = velocity.LimitLength(MaxLaunchSpeedVR * boost);
         if (!ball.IsInsideTree()) { ball.SpeedCap = velocity.Length(); return velocity; }
-        var (planned, speed) = Plan(ball.GlobalPosition, velocity, EnemyPositions(ball.GetTree(), ball.OwnerTeam));
+        var (planned, speed) = Plan(ball.GlobalPosition, velocity, EnemyPositions(ball.GetTree(), ball.OwnerTeam), boost);
         ball.SpeedCap = speed;
         return planned;
     }

@@ -115,6 +115,17 @@ jobs:
           "$GODOT" --headless --path . -- --assist-test 2>&1 | tee assist.log
           grep -q "TOUT OK" assist.log || { echo "Les aides VR ou les règles KC ne respectent pas les critères"; exit 1; }
 
+      - name: Test des gestes de lancer au casque (pic de vitesse, effet de côté, cloche par en dessous, passe, tir chargé, zone de jeu)
+        run: |
+          "$GODOT" --headless --path . -- --gesture-test 2>&1 | tee gesture.log
+          grep -q "\[GestureTest\] TOUT OK" gesture.log || { echo "Les gestes de lancer VR ne respectent pas les critères"; exit 1; }
+
+      - name: Joueur VR simulé sans casque (branche casque de Main, terrain face à l'adversaire, 5 gestes rejoués par la vraie main)
+        run: |
+          "$GODOT" --headless --path . --fixed-fps 60 --quit-after 4000 -- --map=neon_court --vr-sim --vr-sim-throws 2>&1 | tee vr-sim.log
+          if grep -E "SCRIPT ERROR|Unhandled|System\.[A-Za-z]+Exception" vr-sim.log; then echo "Erreur à l'exécution"; exit 1; fi
+          grep -q "\[VrSim\] TOUT OK" vr-sim.log || { echo "Le joueur VR simulé ne lit pas les gestes attendus"; exit 1; }
+
       - name: Test fin de partie dans le casque (podium et tableau 3D, durée réglée par l'opérateur)
         run: |
           "$GODOT" --headless --path . --fixed-fps 60 --quit-after 1800 -- --map=neon_court --pc-autoplay --end-screen-test --vr-end-stage --eva-end-hold=6 2>&1 | tee vr-end.log
