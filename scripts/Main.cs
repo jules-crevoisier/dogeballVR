@@ -113,7 +113,7 @@ public partial class Main : Node3D
         MatchView.HumanName = z => Online.OnlineLobby.Instance?.NameOfZone(z);   // noms des joueurs de la salle (null : bot)
         MatchView.HumanLook = z => Online.OnlineLobby.Instance?.LookOfZone(z);   // leurs couvre-chefs
         Visual.KcShaders.ParseLook();
-        bool xrActive = XrBootstrap.Start(GetViewport());
+        bool xrActive = XrBootstrap.Start(GetViewport()) || Tools.DevFlags.Has("--vr-sim");   // --vr-sim : branche casque sans casque (tests)
         Visual.ModelLibrary.Quest = xrActive || System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--quest") >= 0;   // versions allégées sur casque
         UI.GameSettings.Load();
         UI.GameSettings.WatchScene(GetTree());
@@ -134,6 +134,7 @@ public partial class Main : Node3D
         if (!xrActive && DisplayServer.GetName() != "headless") DisplayServer.WindowSetTitle("Dogeball");
         Assist.VrRules = xrActive;
         if (Tools.DevFlags.Has("--assist-test")) { AddChild(new AssistSelfTest()); return; }
+        if (Tools.DevFlags.Has("--gesture-test")) { AddChild(new VrGestureSelfTest()); return; }
         if (Tools.DevFlags.Has("--avatar-test")) { AddChild(new Visual.AvatarSelfTest { Name = "AvatarSelfTest" }); return; }
         // Salle en ligne ouverte (retour de fin de partie, échec) ou options de test du lobby : écran du lobby, la partie attend le lancement.
         if (!cfg.Preconnected && (Online.GameLaunch.ShowLobby || Online.OnlineLobby.Instance == null && Online.OnlineLobby.RunCommandLine(GetTree())))
@@ -327,7 +328,24 @@ public partial class Main : Node3D
             }
             origin.AddChild(left);
             origin.AddChild(right);
+            // Terrain calé sur la zone réelle : centre de la zone, regard vers l'adversaire (avant : seulement dans l'APK Essai maison,
+            // ailleurs la zone orientée à 180° faisait démarrer dos aux adversaires).
+            origin.RotationDegrees = new Vector3(0, localZone.FacingDegrees, 0);
+            origin.AddChild(new Xr.ZoneCalibration
+            {
+                Name = "ZoneCalibration", Head = camera, Hands = new[] { left, right }, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
+                Allowed = () => match == null || !match.InRound || match.CountdownLeft > 0,
+            });
             if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
+            if (Tools.DevFlags.Has("--vr-sim-throws"))
+            {
+                var foe = map.Zones.Where(z => z.Team != localZone.Team).OrderBy(z => z.Center.DistanceTo(localZone.Center)).FirstOrDefault();
+                origin.AddChild(new Xr.VrSimDriver
+                {
+                    Name = "VrSimDriver", Origin = origin, Camera = camera, Right = right,
+                    Live = () => match != null && match.InRound && match.CountdownLeft <= 0, EnemyZone = foe?.Center ?? localZone.Center + Vector3.Forward,
+                });
+            }
             localHurtbox.Head = camera;
             origin.AddChild(localHurtbox);
             AddChild(origin);
@@ -500,6 +518,7 @@ public partial class Main : Node3D
             if (arg.StartsWith("--bot-level=") && int.TryParse(arg[12..], out int lvl)) Bot.Level = Mathf.Clamp(lvl, 0, 2);
         // Essai maison : bots faciles et doux (tirs à 12-15 m/s espacés de 2 à 3,5 s) : on reste sur place dans une pièce.
         if (Tools.DevFlags.Has("--essai-maison")) { Bot.Level = 0; Bot.Gentle = true; }
+        if (Tools.DevFlags.Has("--vr-sim-throws")) Bot.Calm = true;   // essai des gestes : personne ne tire sur le joueur simulé
         foreach (var z in map.Zones)
             if (z.Id != localZone.Id) SpawnBot(z);
 

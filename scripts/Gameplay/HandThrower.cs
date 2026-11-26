@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 using DogeballVR.Net;
@@ -5,13 +6,13 @@ using DogeballVR.Net;
 namespace DogeballVR.Gameplay;
 
 /// <summary>
-/// Une main : attrape (grip) et lance. La vitesse du lancer vient du déplacement réel de la main
-/// (moyenne sur les dernières frames), l'effet de la rotation du poignet.
+/// Une main : attrape (grip) et lance au geste du bras. Le geste est lu par <see cref="VrThrowGesture"/> : pic de vitesse de la main,
+/// effet si le bras balaie de côté, cloche par en dessous, passe vers un allié, tir chargé gâchette tenue (docs/VR-GESTES.md).
 /// À régler sur casque : c'est ici que se joue le plaisir du jeu.
 /// </summary>
 public partial class HandThrower : XRController3D
 {
-    const int HistorySize = 4;   // fenêtre courte : une moyenne trop longue mélange armé du bras et lâcher (lancers mous)
+    const int HistorySize = 16;   // ~0,25 s à 60 images/s : la fenêtre de lecture du geste (0,1 à 0,15 s) y tient toujours
 
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
@@ -36,20 +37,54 @@ public partial class HandThrower : XRController3D
     double lastGripPressTime = -10;
     double seenLockUntil = double.NegativeInfinity;
     bool gripDown;
+    /// <summary>Horloge des images physiques (s) : celle des mesures de la main et de la charge (au casque, le temps réel).</summary>
+    double physClock;
+    /// <summary>Gâchette tenue depuis (horloge physique, s), balle en main : tir chargé. -1 = pas de charge en cours.</summary>
+    double chargeSince = -1;
+    int chargeStep;
+    MeshInstance3D? chargeRing;
+    StandardMaterial3D? chargeMat;
 
-    readonly Vector3[] posHistory = new Vector3[HistorySize];
-    readonly double[] timeHistory = new double[HistorySize];
-    readonly float[] yawHistory = new float[HistorySize];
-    int historyCount;
+    /// <summary>Dernier geste lu au lâcher (journal, tests au casque).</summary>
+    public ThrowGesture LastGesture { get; private set; }
+
+    readonly List<HandSample> history = new(HistorySize);
+
+    /// <summary>Charge du tir en cours (0..1), 0 sans balle ou gâchette relâchée.</summary>
+    public float Charge => chargeSince < 0 ? 0f : VrThrowGesture.ChargeFraction(physClock - chargeSince, KcRules.Def.VrGestures);
 
     public override void _Ready()
     {
         ButtonPressed += OnButtonPressed;
         ButtonReleased += OnButtonReleased;
+        // Anneau de charge autour de la balle tenue (local : seul le lanceur le voit, les autres voient le tir partir).
+        chargeMat = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+        };
+        chargeRing = new MeshInstance3D
+        {
+            Name = "ChargeRing", TopLevel = true, Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            Mesh = new TorusMesh { InnerRadius = 0.15f, OuterRadius = 0.17f, Rings = 24, RingSegments = 6 },
+            MaterialOverride = chargeMat,
+        };
+        AddChild(chargeRing);
     }
+
+    /// <summary>Essai sans casque (--vr-sim, <see cref="Xr.VrSimDriver"/>) : même chemin qu'un bouton de la manette.</summary>
+    public void SimButton(string name, bool pressed) { if (pressed) OnButtonPressed(name); else OnButtonReleased(name); }
+
+    /// <summary>Essai sans casque : la main prend cette balle comme par une attrape.</summary>
+    public void SimCatch(Ball ball) { if (CanCatch) Catch(ball); }
 
     void OnButtonPressed(string name)
     {
+        if (name == "trigger_click")
+        {
+            if (HeldBall != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex)) { chargeSince = physClock; chargeStep = 0; }
+            return;
+        }
         if (name != "grip_click" || Hurtbox.Eliminated) return;
         gripDown = true;
         double now = Time.GetTicksMsec() / 1000.0;
@@ -61,6 +96,7 @@ public partial class HandThrower : XRController3D
 
     void OnButtonReleased(string name)
     {
+        if (name == "trigger_click") { chargeSince = -1; return; }   // gâchette relâchée avant le lancer : charge perdue (comme lâcher le clic sur PC)
         if (name != "grip_click") return;
         gripDown = false;
         if (held != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex)) ThrowHeld();
@@ -137,19 +173,74 @@ public partial class HandThrower : XRController3D
 
     void ThrowHeld()
     {
-        var (vel, spin) = EstimateHandMotion();
-        vel = (vel * Assist.SpeedMultiplier).LimitLength(Assist.VrRules ? Assist.MaxLaunchSpeedVR : Assist.MaxLaunchSpeedOther);
-        // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu (l'hôte replanifie, voir Assist.Plan).
-        if (vel.Length() > 1.5f && vel.Length() < Assist.MinLaunchSpeed) vel = vel.Normalized() * Assist.MinLaunchSpeed;
-        if (held != null) BallActions.Throw(held, HandIndex, vel, spin);
-        else BallActions.Net!.RequestThrow(HandIndex, vel, spin); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
+        var def = KcRules.Def.VrGestures;
+        var head = Hurtbox.Head != null ? Hurtbox.Head.GlobalPosition : GlobalPosition + Vector3.Up * 0.5f;
+        var (allies, enemies) = Players();
+        float maxSpeed = Assist.VrRules ? Assist.MaxLaunchSpeedVR : Assist.MaxLaunchSpeedOther;
+        var g = VrThrowGesture.Read(history, GlobalPosition, head, Charge, allies, enemies, def, Assist.SpeedMultiplier, Assist.MinLaunchSpeed, maxSpeed);
+        LastGesture = g;
+        chargeSince = -1;
+        if (g.Velocity.Length() >= VrThrowGesture.DropSpeed) GD.Print($"[VR] Lancer {g.Kind} à {g.Velocity.Length():0.0} m/s");
+        if (held != null) BallActions.Throw(held, HandIndex, g.Velocity, g.Spin, g.Mode);
+        else BallActions.Net!.RequestThrow(HandIndex, g.Velocity, g.Spin, g.Mode); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
+        if (g.IsPower) Pulse(0.9f, 0.12f);
+        // Nom du coup au-dessus de la main : on apprend les gestes en jouant.
+        string? word = g.Velocity.Length() < VrThrowGesture.DropSpeed ? null : g.IsLob ? UI.L.T("CLOCHE !") : g.IsPass ? UI.L.T("PASSE !")
+            : g.IsPower ? UI.L.T("TIR CHARGÉ !") : g.Spin > 0 ? UI.L.T("EFFET →") : g.Spin < 0 ? UI.L.T("← EFFET") : null;
+        if (word != null) Xr.VrToast.AtHand(this, word, g.IsPower ? new Color(1f, 0.35f, 0.75f) : Visual.Palette.Team(Hurtbox.Team));
         ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
         held = null;
         Hurtbox.HeldHand = -1;
     }
 
+    /// <summary>Torses des autres joueurs vivants : alliés (passe) et adversaires (cible de la cloche, passe refusée si un adversaire est dans l'axe).</summary>
+    (List<Vector3> allies, List<Vector3> enemies) Players()
+    {
+        var allies = new List<Vector3>();
+        var enemies = new List<Vector3>();
+        foreach (var n in GetTree().GetNodesInGroup("hurtboxes"))
+        {
+            if (n is not Hurtbox h || h == Hurtbox || h.Eliminated || !IsInstanceValid(h)) continue;
+            (h.Team == Hurtbox.Team ? allies : enemies).Add(h.GlobalPosition);
+        }
+        return (allies, enemies);
+    }
+
+    /// <summary>Charge en cours : vibration à chaque tiers, déclic net à pleine charge, anneau qui se referme sur la balle.</summary>
+    void UpdateCharge(double now)
+    {
+        bool holding = HeldBall != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex);
+        if (!holding || Hurtbox.Eliminated) chargeSince = -1;
+        float c = Charge;
+        if (chargeSince >= 0)
+        {
+            int step = Mathf.FloorToInt(c * 3f + 0.001f);
+            if (step > chargeStep)
+            {
+                chargeStep = step;
+                Pulse(step >= 3 ? 0.7f : 0.25f, step >= 3 ? 0.08f : 0.03f);
+                Audio.Sfx.Play(this, Audio.SfxKind.ChargeTick, GlobalPosition, 0.9f + 0.25f * step, step >= 3 ? 0f : -6f);
+                if (step >= 3 && HandIndex == 1) GD.Print("[VR] Tir chargé prêt");
+            }
+        }
+        if (chargeRing == null || chargeMat == null) return;
+        var ball = HeldBall;
+        chargeRing.Visible = chargeSince >= 0 && c > 0.05f;
+        if (!chargeRing.Visible) return;
+        var at = ball != null ? ball.GlobalPosition : GlobalPosition;
+        var face = Hurtbox.Head != null ? (Hurtbox.Head.GlobalPosition - at) : Vector3.Back;
+        var basis = face.LengthSquared() > 0.001f ? Basis.LookingAt(face.Normalized(), Mathf.Abs(face.Normalized().Y) > 0.95f ? Vector3.Forward : Vector3.Up) : Basis.Identity;
+        float r = Mathf.Lerp(1.6f, 0.75f, c);   // l'anneau se resserre sur la balle
+        chargeRing.GlobalTransform = new Transform3D(basis * new Basis(Vector3.Right, Mathf.Pi / 2f) * Basis.FromScale(Vector3.One * r), at);
+        var full = new Color(1f, 0.35f, 0.75f);
+        var col = c >= 0.999f ? full : Colors.White.Lerp(full, c * 0.6f);
+        col.A = 0.35f + 0.6f * c;
+        chargeMat.AlbedoColor = col;
+    }
+
     public override void _PhysicsProcess(double delta)
     {
+        physClock += delta;
         double now = Time.GetTicksMsec() / 1000.0;
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
         if (BallActions.IsClient)
@@ -180,27 +271,13 @@ public partial class HandThrower : XRController3D
 
         TryCatchSweep(now, delta);
 
-        // Historique glissant de la position / rotation de la main.
-        for (int i = HistorySize - 1; i > 0; i--)
-        {
-            posHistory[i] = posHistory[i - 1];
-            timeHistory[i] = timeHistory[i - 1];
-            yawHistory[i] = yawHistory[i - 1];
-        }
-        posHistory[0] = GlobalPosition;
-        timeHistory[0] = Time.GetTicksMsec() / 1000.0;
-        yawHistory[0] = GlobalRotation.Y;
-        historyCount = Mathf.Min(historyCount + 1, HistorySize);
-    }
+        UpdateCharge(now);
 
-    (Vector3 velocity, float spin) EstimateHandMotion()
-    {
-        if (historyCount < 2) return (Vector3.Zero, 0f);
-        int last = historyCount - 1;
-        double dt = timeHistory[0] - timeHistory[last];
-        if (dt <= 0.0001) return (Vector3.Zero, 0f);
-        var vel = (posHistory[0] - posHistory[last]) / (float)dt;
-        float spin = Mathf.AngleDifference(yawHistory[last], yawHistory[0]) / (float)dt;
-        return (vel, spin);
+        // Historique glissant de la main (plus récente d'abord) : position et, si le runtime la donne, vitesse (plus juste que les écarts de position).
+        var pose = GetPose();
+        bool hasVel = pose != null && pose.HasTrackingData && pose.LinearVelocity.LengthSquared() > 1e-6f;
+        var vel = hasVel ? (GetParent() is Node3D origin ? origin.GlobalBasis * pose!.LinearVelocity : pose!.LinearVelocity) : Vector3.Zero;
+        if (history.Count == HistorySize) history.RemoveAt(HistorySize - 1);
+        history.Insert(0, new HandSample(physClock, GlobalPosition, vel, hasVel));
     }
 }

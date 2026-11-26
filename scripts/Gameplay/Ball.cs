@@ -149,6 +149,8 @@ public partial class Ball : RigidBody3D
 
     /// <summary>Mode de lancer : 0 tir tendu, 1 lob (cloche, blesse), 2 passe (cloche guidée vers un allié, ne blesse personne).</summary>
     public const int ModeLob = 1, ModePass = 2;
+    /// <summary>Tir chargé au casque (gâchette tenue) : n'existe qu'entre la main et l'hôte, qui plafonne plus haut (Assist.PlanFor) ; la balle part en tir tendu (mode 0).</summary>
+    public const int ModePower = 3;
     public int ThrowMode { get; private set; }
     public bool IsPass => ThrowMode == ModePass;
     public const float ArcGravity = 9.8f, ArcMaxSeconds = 2.6f;   // en cloche la balle retombe à pleine gravité ; durée de vol plafonnée
@@ -325,6 +327,7 @@ public partial class Ball : RigidBody3D
 
     public void Release(Vector3 velocity, float spin, int mode = 0)
     {
+        if (mode == ModePower) mode = 0;   // tir chargé : déjà planifié par l'hôte, vole comme un tir tendu
         var world = GetTree().CurrentScene;
         var xf = GlobalTransform;
         Reparent(world, false);

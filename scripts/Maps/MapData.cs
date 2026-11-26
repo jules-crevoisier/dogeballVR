@@ -166,6 +166,40 @@ public class RulesDef
     /// <summary>Pause entre deux manches (s) : hôte en VR, hôte au clavier-souris.</summary>
     public float VrRoundBreakSeconds { get; set; } = 20f;
     public float PcRoundBreakSeconds { get; set; } = 12f;
+    /// <summary>VR : réglages des gestes de lancer (effet, cloche, passe, tir chargé), voir <see cref="Gameplay.VrThrowGesture"/>.</summary>
+    public VrGestureDef VrGestures { get; set; } = new();
+}
+
+/// <summary>
+/// Gestes de lancer au casque (bloc « rules.vrGestures » de la map, facultatif). Valeurs par défaut posées sans casque :
+/// à régler aux premiers essais (docs/VR-GESTES.md).
+/// </summary>
+public class VrGestureDef
+{
+    /// <summary>Fenêtre lue avant le lâcher pour estimer la vitesse de la main (s) : on garde le pic, pas la fin du geste qui freine.</summary>
+    public float VelocityWindowSeconds { get; set; } = 0.1f;
+    /// <summary>Effet : rotation de la trajectoire de la main (rad/s, vue de dessus) en dessous de laquelle le tir reste droit.</summary>
+    public float CurveDeadzone { get; set; } = 3.5f;
+    /// <summary>Effet : rotation de la trajectoire qui donne l'effet maximal (rad/s).</summary>
+    public float CurveFull { get; set; } = 10f;
+    /// <summary>Effet maximal (rad/s, même échelle que le PC : 6).</summary>
+    public float CurveMaxSpin { get; set; } = 6f;
+    /// <summary>Cloche : angle minimal du lancer au-dessus de l'horizontale (degrés).</summary>
+    public float LobMinElevationDegrees { get; set; } = 38f;
+    /// <summary>Cloche : la main doit lâcher au moins à cette distance sous la tête (m) — un lancer par en dessous.</summary>
+    public float LobHandBelowHead { get; set; } = 0.45f;
+    /// <summary>Cloche : portée (m) par m/s de vitesse de la main, bornée par LobMinDistance et LobMaxDistance.</summary>
+    public float LobDistancePerSpeed { get; set; } = 2.2f;
+    public float LobMinDistance { get; set; } = 4f;
+    public float LobMaxDistance { get; set; } = 24f;
+    /// <summary>Cloche : un adversaire dans ce cône (degrés, de part et d'autre) devient la cible du point de chute.</summary>
+    public float LobAimConeDegrees { get; set; } = 18f;
+    /// <summary>Passe : un lancer à moins de cet angle (degrés) d'un allié, plus proche de lui que de tout adversaire, part en passe.</summary>
+    public float PassConeDegrees { get; set; } = 12f;
+    /// <summary>Tir chargé : temps de gâchette maintenue, balle en main, pour une pleine charge (s).</summary>
+    public float ChargeSeconds { get; set; } = 0.8f;
+    /// <summary>Tir chargé : gain de vitesse et de plafond à pleine charge (0,15 = +15 % ; le temps de vol minimal passe de 0,5 à 0,43 s).</summary>
+    public float ChargeSpeedBonus { get; set; } = 0.15f;
 }
 
 /// <summary>Règles de balle de la map : plafond de balles en jeu, durée de vol maximale, gravité réduite pour tendre les trajectoires.</summary>
