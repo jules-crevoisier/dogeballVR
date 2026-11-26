@@ -103,8 +103,10 @@ public static class Assist
     /// </summary>
     public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode)
     {
-        bool power = mode == Ball.ModePower;
-        if (mode != 0 && !power) return velocity.LimitLength(24f);
+        // Tir chargé : l'hôte ne croit pas le client sur parole, la balle doit avoir été tenue le temps d'une charge (à 0,1 s près).
+        bool power = mode == Ball.ModePower && Time.GetTicksMsec() / 1000.0 - ball.HeldAt >= KcRules.Def.VrGestures.ChargeSeconds - 0.1;
+        if (mode == Ball.ModePower) mode = 0;
+        if (mode != 0) return velocity.LimitLength(24f);
         if (!VrRules) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }
         float boost = power ? 1f + Mathf.Clamp(KcRules.Def.VrGestures.ChargeSpeedBonus, 0f, 0.5f) : 1f;   // tir chargé au casque (gâchette tenue)
         velocity = velocity.LimitLength(MaxLaunchSpeedVR * boost);

@@ -42,8 +42,8 @@ public readonly struct ThrowGesture
 /// <list type="bullet">
 /// <item>tir tendu : la vitesse est le pic de vitesse de la main juste avant le lâcher (la fin du geste freine : la moyenne des
 /// dernières images donnait des tirs mous) ;</item>
-/// <item>effet : lancer de côté, le bras balaie en arc ; la balle tourne du même côté que le bras (gauche ou droite). Un lancer
-/// par-dessus l'épaule a une trajectoire de main droite vue de dessus : pas d'effet par mégarde ;</item>
+/// <item>effet : lancer de côté (main sous les épaules, tir à plat), le bras balaie en arc ; la balle tourne du même côté que le
+/// bras (gauche ou droite). Un lancer par-dessus l'épaule ne donne jamais d'effet, même si le tronc tourne ;</item>
 /// <item>cloche : lancer par en dessous (main sous la poitrine, vers le haut) ; le point de chute suit la force du geste et se cale
 /// sur l'adversaire visé s'il y en a un dans le cône ;</item>
 /// <item>passe : lancer vers un allié (plus près de lui que de tout adversaire) : balle en cloche vers ses mains ;</item>
@@ -140,12 +140,12 @@ public static class VrThrowGesture
                 var rel = new Vector3(e.X - hand.X, 0, e.Z - hand.Z);
                 if (rel.Length() < 2f || rel.Length() > def.LobMaxDistance * 1.25f) continue;
                 float ang = Mathf.RadToDeg(dir.AngleTo(rel.Normalized()));
-                if (ang < bestAngle) { bestAngle = ang; to = e; }
+                if (ang < bestAngle) { bestAngle = ang; to = e + Vector3.Up * 0.3f; }   // torse de l'adversaire, comme la cloche du PC
             }
             return new ThrowGesture(DesktopPlayer.ArcVelocity(hand, to, 3.0f), 0f, Ball.ModeLob, "cloche");
         }
 
-        // Passe : vers un allié, plus près de lui que de tout adversaire.
+        // Passe : vers un allié, nettement plus dans l'axe que tout adversaire (au moins deux fois plus près en angle, et 6° d'écart).
         if (flat.Length() > 0.5f)
         {
             var dir = flat.Normalized();
@@ -160,14 +160,15 @@ public static class VrThrowGesture
             }
             if (mate is { } m)
             {
-                bool enemyCloser = false;
+                bool enemyInAxis = false;
+                float guard = Mathf.Max(allyAngle * 2f, allyAngle + 6f);
                 foreach (var e in enemies)
                 {
                     var rel = new Vector3(e.X - hand.X, 0, e.Z - hand.Z);
-                    if (rel.Length() > 1f && Mathf.RadToDeg(dir.AngleTo(rel.Normalized())) <= allyAngle + 4f) enemyCloser = true;
+                    if (rel.Length() > 1f && Mathf.RadToDeg(dir.AngleTo(rel.Normalized())) <= guard) enemyInAxis = true;
                 }
-                if (!enemyCloser)
-                    return new ThrowGesture(DesktopPlayer.ArcVelocity(hand, new Vector3(m.X, head.Y - 0.3f, m.Z), 4.2f), 0f, Ball.ModePass, "passe");
+                if (!enemyInAxis)
+                    return new ThrowGesture(DesktopPlayer.ArcVelocity(hand, m + Vector3.Up * 0.4f, 4.2f), 0f, Ball.ModePass, "passe");   // vers les mains de l'allié, à sa hauteur
             }
         }
 
@@ -177,7 +178,10 @@ public static class VrThrowGesture
         vel = vel.LimitLength(maxSpeed * boost);
         if (vel.Length() < minSpeed) vel = vel.Normalized() * minSpeed;   // geste net mais mou : part quand même tendu
         if (power) vel = (vel * boost).LimitLength(maxSpeed * boost);
-        float spin = CurveSpin(TurnRate(samples, def.VelocityWindowSeconds * 1.5f), def);
+        // Effet : seulement un lancer de côté (main sous les épaules, tir à peu près à plat). Par-dessus l'épaule, la rotation du
+        // tronc fait aussi tourner la trajectoire de la main : pas d'effet par mégarde.
+        bool sidearm = hand.Y <= head.Y - def.CurveHandBelowHead && Mathf.Abs(elevation) <= def.CurveMaxElevationDegrees;
+        float spin = sidearm ? CurveSpin(TurnRate(samples, def.VelocityWindowSeconds), def) : 0f;
         string kind = (power ? "chargé" : "tendu") + (spin > 0 ? ", effet à droite" : spin < 0 ? ", effet à gauche" : "");
         return new ThrowGesture(vel, spin, power ? Ball.ModePower : 0, kind);
     }

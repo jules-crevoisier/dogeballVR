@@ -334,7 +334,7 @@ public partial class Main : Node3D
             origin.AddChild(new Xr.ZoneCalibration
             {
                 Name = "ZoneCalibration", Head = camera, Hands = new[] { left, right }, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
-                Allowed = () => match == null || !match.InRound || match.CountdownLeft > 0,
+                Allowed = () => match == null || !match.InRound,   // client : pas d'état de manche ici, la retouche reste bornée (1 m, 25°)
             });
             if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
             if (Tools.DevFlags.Has("--vr-sim-throws"))

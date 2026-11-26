@@ -27,8 +27,8 @@ public partial class VrSimDriver : Node
     readonly List<Shot> shots = new()
     {
         new("tendu", "tendu", new(0.25f, 1.85f, 0.3f), 0.25, t => new Vector3(0, -0.15f, -1f).Normalized() * 10f * Gauss(t, 0.2)),
-        new("effet-gauche", "effet à gauche", new(0.6f, 1.5f, 0f), 0.2, t => Turn(t, 0.2, 9f, 10f)),
-        new("effet-droite", "effet à droite", new(-0.1f, 1.5f, 0f), 0.2, t => Turn(t, 0.2, 9f, -10f)),
+        new("effet-gauche", "effet à gauche", new(0.6f, 1.38f, 0f), 0.2, t => Turn(t, 0.2, 9f, 10f)),
+        new("effet-droite", "effet à droite", new(-0.1f, 1.38f, 0f), 0.2, t => Turn(t, 0.2, 9f, -10f)),
         new("cloche", "cloche", new(0.2f, 0.7f, 0f), 0.1, _ => new Vector3(0, 1f, -1f).Normalized() * 7f),
         new("charge", "chargé", new(0.25f, 1.85f, 0.3f), 0.25, t => new Vector3(0, -0.15f, -1f).Normalized() * 16f * Gauss(t, 0.2), true),
     };

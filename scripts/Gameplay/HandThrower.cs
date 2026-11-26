@@ -12,7 +12,7 @@ namespace DogeballVR.Gameplay;
 /// </summary>
 public partial class HandThrower : XRController3D
 {
-    const int HistorySize = 16;   // ~0,25 s à 60 images/s : la fenêtre de lecture du geste (0,1 à 0,15 s) y tient toujours
+    const int HistorySize = 32;   // ~0,35 s à 90 images/s : la fenêtre de lecture du geste (0,15 s) y tient toujours
 
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
@@ -37,8 +37,10 @@ public partial class HandThrower : XRController3D
     double lastGripPressTime = -10;
     double seenLockUntil = double.NegativeInfinity;
     bool gripDown;
-    /// <summary>Horloge des images physiques (s) : celle des mesures de la main et de la charge (au casque, le temps réel).</summary>
+    /// <summary>Horloge des images (s) : celle des mesures de la main et de la charge (au casque, le temps réel).</summary>
     double physClock;
+    /// <summary>Gâchette enfoncée (suivie par les boutons : une gâchette déjà serrée à la prise lance la charge).</summary>
+    bool triggerDown;
     /// <summary>Gâchette tenue depuis (horloge physique, s), balle en main : tir chargé. -1 = pas de charge en cours.</summary>
     double chargeSince = -1;
     int chargeStep;
@@ -82,6 +84,7 @@ public partial class HandThrower : XRController3D
     {
         if (name == "trigger_click")
         {
+            triggerDown = true;
             if (HeldBall != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex)) { chargeSince = physClock; chargeStep = 0; }
             return;
         }
@@ -96,7 +99,7 @@ public partial class HandThrower : XRController3D
 
     void OnButtonReleased(string name)
     {
-        if (name == "trigger_click") { chargeSince = -1; return; }   // gâchette relâchée avant le lancer : charge perdue (comme lâcher le clic sur PC)
+        if (name == "trigger_click") { triggerDown = false; chargeSince = -1; return; }   // gâchette relâchée avant le lancer : charge perdue (comme lâcher le clic sur PC)
         if (name != "grip_click") return;
         gripDown = false;
         if (held != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex)) ThrowHeld();
@@ -180,7 +183,8 @@ public partial class HandThrower : XRController3D
         var g = VrThrowGesture.Read(history, GlobalPosition, head, Charge, allies, enemies, def, Assist.SpeedMultiplier, Assist.MinLaunchSpeed, maxSpeed);
         LastGesture = g;
         chargeSince = -1;
-        if (g.Velocity.Length() >= VrThrowGesture.DropSpeed) GD.Print($"[VR] Lancer {g.Kind} à {g.Velocity.Length():0.0} m/s");
+        if (g.Velocity.Length() >= VrThrowGesture.DropSpeed)   // rotation de la trajectoire journalisée : réglage de l'effet au casque
+            GD.Print($"[VR] Lancer {g.Kind} à {g.Velocity.Length():0.0} m/s (rotation de la main {VrThrowGesture.TurnRate(history, def.VelocityWindowSeconds):0.0} rad/s)");
         if (held != null) BallActions.Throw(held, HandIndex, g.Velocity, g.Spin, g.Mode);
         else BallActions.Net!.RequestThrow(HandIndex, g.Velocity, g.Spin, g.Mode); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
         if (g.IsPower) Pulse(0.9f, 0.12f);
@@ -211,6 +215,7 @@ public partial class HandThrower : XRController3D
     {
         bool holding = HeldBall != null || (BallActions.IsClient && Hurtbox.HeldHand == HandIndex);
         if (!holding || Hurtbox.Eliminated) chargeSince = -1;
+        else if (chargeSince < 0 && triggerDown) { chargeSince = physClock; chargeStep = 0; }   // gâchette déjà serrée à la prise
         float c = Charge;
         if (chargeSince >= 0)
         {
@@ -238,9 +243,28 @@ public partial class HandThrower : XRController3D
         chargeMat.AlbedoColor = col;
     }
 
-    public override void _PhysicsProcess(double delta)
+    /// <summary>
+    /// Mesure de la main à chaque image (72 à 90 par seconde au casque, plus que les 60 images physiques) : position et, si le
+    /// runtime la donne, vitesse. La vitesse du runtime est dans l'espace de suivi brut : on lui applique le recentrage
+    /// (XRServer.ReferenceFrame), l'échelle et l'orientation de l'origine, comme Godot le fait pour la position.
+    /// </summary>
+    public override void _Process(double delta)
     {
         physClock += delta;
+        var pose = GetPose();
+        bool hasVel = pose != null && pose.HasTrackingData && pose.LinearVelocity.LengthSquared() > 1e-6f;
+        var vel = Vector3.Zero;
+        if (hasVel)
+        {
+            vel = XRServer.GetReferenceFrame().Basis * (pose!.LinearVelocity * (float)XRServer.WorldScale);
+            if (GetParent() is Node3D origin) vel = origin.GlobalBasis * vel;
+        }
+        if (history.Count == HistorySize) history.RemoveAt(HistorySize - 1);
+        history.Insert(0, new HandSample(physClock, GlobalPosition, vel, hasVel));
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
         double now = Time.GetTicksMsec() / 1000.0;
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
         if (BallActions.IsClient)
@@ -272,12 +296,5 @@ public partial class HandThrower : XRController3D
         TryCatchSweep(now, delta);
 
         UpdateCharge(now);
-
-        // Historique glissant de la main (plus récente d'abord) : position et, si le runtime la donne, vitesse (plus juste que les écarts de position).
-        var pose = GetPose();
-        bool hasVel = pose != null && pose.HasTrackingData && pose.LinearVelocity.LengthSquared() > 1e-6f;
-        var vel = hasVel ? (GetParent() is Node3D origin ? origin.GlobalBasis * pose!.LinearVelocity : pose!.LinearVelocity) : Vector3.Zero;
-        if (history.Count == HistorySize) history.RemoveAt(HistorySize - 1);
-        history.Insert(0, new HandSample(physClock, GlobalPosition, vel, hasVel));
     }
 }

@@ -10,7 +10,8 @@ namespace DogeballVR.Xr;
 /// <list type="bullet">
 /// <item>Recalage : debout au centre de sa zone réelle, regard vers l'adversaire, les deux gâchettes tenues 2 s sans balle.
 /// Le jeu se recale sur la tête (le sol reste au sol) ; vibration et message de confirmation.</item>
-/// <item>Seulement hors du jeu (avant GO, entre deux manches) : un recalage en pleine manche déplacerait le terrain sous les pieds.
+/// <item>Seulement entre deux manches (ni pendant le décompte ni en pleine manche), et seulement comme retouche : refusé si la tête
+/// est à plus de 1 m du centre de la zone ou tournée de plus de 25° : une erreur d'estimation à l'œil décalerait les bords de sécurité.
 /// Le recentrage système (bouton Meta maintenu) ne touche pas au terrain : à EVA, l'espace « Stage » est la salle.</item>
 /// <item>Au lancement, la taille de la zone de jeu Meta (Guardian) est lue si le runtime la donne : plus petite que la zone
 /// du jeu, un message prévient que les bords du jeu sont plus loin que les murs réels.</item>
@@ -61,6 +62,16 @@ public partial class ZoneCalibration : Node
         }
         if (heldFor < HoldSeconds) return;
         heldFor = -1e9;   // une fois par appui : relâcher pour recommencer
+        var off = new Vector2(Head.Position.X, Head.Position.Z);
+        float yaw = Mathf.RadToDeg(Mathf.Abs(Mathf.Wrap(Head.Rotation.Y, -Mathf.Pi, Mathf.Pi)));
+        if (!CanRecenter(off.Length(), yaw))
+        {
+            // Retouche seulement : un recalage loin du centre ou de travers déplacerait les bords de sécurité de plus d'un mètre.
+            GD.Print($"[VR] Recalage refusé : tête à {off.Length():0.00} m du centre, {yaw:0} ° de l'avant");
+            foreach (var h in Hands) h.Pulse(0.3f, 0.2f);
+            VrToast.InFront(Head, L.T("RECALAGE REFUSÉ : VA AU CENTRE DE TA ZONE, FACE À L'ADVERSAIRE"), new Color(1f, 0.55f, 0.2f), 3.0);
+            return;
+        }
         Recenter(L.T("ZONE RECALÉE"));
     }
 
@@ -90,6 +101,12 @@ public partial class ZoneCalibration : Node
         if (!Fits(size, ZoneWidth, ZoneDepth) && IsInstanceValid(Head))
             VrToast.InFront(Head, L.F("ZONE DE JEU {0} × {1} M : LE TERRAIN FAIT {2} × {3} M. RESTE LOIN DES MURS.", size.X.ToString("0.0"), size.Y.ToString("0.0"), ZoneWidth.ToString("0"), ZoneDepth.ToString("0")), new Color(1f, 0.55f, 0.2f), 6.0);
     }
+
+    /// <summary>Écart maximal (m) entre la tête et le centre de la zone, et (degrés) entre le regard et l'avant, pour accepter un recalage.</summary>
+    public const float MaxShift = 1.0f, MaxYawDegrees = 25f;
+
+    /// <summary>Le recalage n'est qu'une retouche : refusé si la tête est loin du centre de la zone ou tournée de travers.</summary>
+    public static bool CanRecenter(float shift, float yawDegrees) => shift <= MaxShift && yawDegrees <= MaxYawDegrees;
 
     /// <summary>Encombrement (largeur, profondeur) d'un contour de zone de jeu, sur le plan du sol.</summary>
     public static Vector2 PlayAreaSize(IReadOnlyList<Vector3> points)

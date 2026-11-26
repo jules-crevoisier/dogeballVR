@@ -177,13 +177,17 @@ public class RulesDef
 public class VrGestureDef
 {
     /// <summary>Fenêtre lue avant le lâcher pour estimer la vitesse de la main (s) : on garde le pic, pas la fin du geste qui freine.</summary>
-    public float VelocityWindowSeconds { get; set; } = 0.1f;
+    public float VelocityWindowSeconds { get; set; } = 0.15f;
     /// <summary>Effet : rotation de la trajectoire de la main (rad/s, vue de dessus) en dessous de laquelle le tir reste droit.</summary>
     public float CurveDeadzone { get; set; } = 3.5f;
     /// <summary>Effet : rotation de la trajectoire qui donne l'effet maximal (rad/s).</summary>
     public float CurveFull { get; set; } = 10f;
     /// <summary>Effet maximal (rad/s, même échelle que le PC : 6).</summary>
     public float CurveMaxSpin { get; set; } = 6f;
+    /// <summary>Effet : la main doit lâcher au moins à cette distance sous la tête (m) — un lancer de côté, pas par-dessus l'épaule.</summary>
+    public float CurveHandBelowHead { get; set; } = 0.25f;
+    /// <summary>Effet : angle maximal du tir au-dessus ou sous l'horizontale (degrés).</summary>
+    public float CurveMaxElevationDegrees { get; set; } = 25f;
     /// <summary>Cloche : angle minimal du lancer au-dessus de l'horizontale (degrés).</summary>
     public float LobMinElevationDegrees { get; set; } = 38f;
     /// <summary>Cloche : la main doit lâcher au moins à cette distance sous la tête (m) — un lancer par en dessous.</summary>

@@ -54,6 +54,10 @@ public partial class VrGestureSelfTest : Node
         Check("Effet à gauche", gl.Spin < -3f && gl.Mode == 0, $"{gl.Kind}, effet {gl.Spin:0.0} (rotation de la main {VrThrowGesture.TurnRate(left, def.VelocityWindowSeconds * 1.5f):0.0} rad/s)");
         Check("Effet à droite", gr.Spin > 3f && gr.Mode == 0, $"{gr.Kind}, effet {gr.Spin:0.0}");
         Check("Zone morte de l'effet", gs.Spin == 0f, $"rotation 2 rad/s : effet {gs.Spin:0.0}");
+        // Par-dessus l'épaule avec le tronc qui tourne (trajectoire de la main qui tourne de 8 rad/s, main à hauteur de tête) : pas d'effet.
+        var trunk = Integrate(new Vector3(0.3f, 1.8f, 0.2f), 0.2, t => Turn(t, 0.2, 10f, 8f) + Vector3.Down * 1.2f);
+        var gt = Read(trunk);
+        Check("Tronc qui tourne par-dessus l'épaule : pas d'effet", gt.Spin == 0f && gt.Mode == 0, $"{gt.Kind}, rotation {VrThrowGesture.TurnRate(trunk, def.VelocityWindowSeconds):0.0} rad/s, main à {trunk[0].Position.Y:0.00} m");
         var vl = Assist.Plan(left[0].Position, gl.Velocity, none).velocity;
         var vr = Assist.Plan(right[0].Position, gr.Velocity, none).velocity;
         float dl = Lateral(left[0].Position, vl, Fly(vl, gl.Spin, 0, left[0].Position, out var trajL));
@@ -78,6 +82,12 @@ public partial class VrGestureSelfTest : Node
         Check("Passe vers l'allié", gPass.IsPass && new Vector2(passLand.X - Ally.X, passLand.Z - Ally.Z).Length() < 0.8f, $"{gPass.Kind}, arrivée à ({passLand.X:0.0} ; {passLand.Z:0.0})");
         var gBlocked = Read(toAlly, 0f, allies, new List<Vector3> { new(8.5f, 1.2f, -8.5f) });
         Check("Adversaire dans l'axe : pas de passe", !gBlocked.IsPass, gBlocked.Kind);
+        // Allié à 6° du tir, adversaire à 11° derrière lui : on visait l'adversaire, pas de passe.
+        var aim = new Vector3(Ally.X - passFrom.X, 0, Ally.Z - passFrom.Z).Normalized().Rotated(Vector3.Up, Mathf.DegToRad(-6f));
+        var nearAxis = Line(passFrom, aim * 8f);
+        var foeBehind = passFrom + new Vector3(Ally.X - passFrom.X, 0, Ally.Z - passFrom.Z).Normalized().Rotated(Vector3.Up, Mathf.DegToRad(-17f)) * 14f;
+        var gNear = Read(nearAxis, 0f, allies, new List<Vector3> { foeBehind });
+        Check("Adversaire presque dans l'axe : pas de passe", !gNear.IsPass, gNear.Kind);
 
         // 5) Tir chargé : gâchette tenue 0,8 s. Plein : +15 % et plafond relevé ; 90 % : tir normal.
         var hard = Overhand(16f, new Vector3(0.25f, 1.85f, 0.3f));
@@ -100,6 +110,8 @@ public partial class VrGestureSelfTest : Node
         // 7) Zone de jeu du casque contre zone du jeu (15 × 8 m).
         var room = new[] { new Vector3(-7.5f, 0, -4), new Vector3(7.5f, 0, -4), new Vector3(7.5f, 0, 4), new Vector3(-7.5f, 0, 4) };
         var small = new[] { new Vector3(-2, 0, -2), new Vector3(2, 0, -2), new Vector3(2, 0, 2), new Vector3(-2, 0, 2) };
+        Check("Recalage borné", Xr.ZoneCalibration.CanRecenter(0.4f, 10f) && !Xr.ZoneCalibration.CanRecenter(1.5f, 0f) && !Xr.ZoneCalibration.CanRecenter(0.2f, 40f),
+            "0,4 m et 10° acceptés ; 1,5 m ou 40° refusés");
         Check("Zone de jeu", Xr.ZoneCalibration.Fits(Xr.ZoneCalibration.PlayAreaSize(room), 15f, 8f) && !Xr.ZoneCalibration.Fits(Xr.ZoneCalibration.PlayAreaSize(small), 15f, 8f)
             && Xr.ZoneCalibration.Fits(new Vector2(8f, 15f), 15f, 8f), "15 × 8 tient, 4 × 4 non, 8 × 15 tient");
 
@@ -120,15 +132,13 @@ public partial class VrGestureSelfTest : Node
         return Integrate(start, 0.25, t => dir * peak * Mathf.Exp(-Mathf.Pow((float)((t - 0.20) / 0.05), 2)));
     }
 
-    /// <summary>De côté : cap de la main qui tourne à « turn » rad/s (positif : vers la gauche), lâché face à -Z.</summary>
-    static List<HandSample> Sidearm(float speed, float turn)
+    /// <summary>De côté : cap de la main qui tourne à « turn » rad/s (positif : vers la gauche), lâché face à -Z, main à hauteur de poitrine.</summary>
+    static List<HandSample> Sidearm(float speed, float turn) => Integrate(new Vector3(0.6f, 1.3f, 0f), 0.2, t => Turn(t, 0.2, speed, turn));
+
+    static Vector3 Turn(double t, double T, float speed, float turn)
     {
-        const double T = 0.2;
-        return Integrate(new Vector3(0.6f, 1.3f, 0f), T, t =>
-        {
-            float h = turn * (float)(t - T);
-            return new Vector3(-Mathf.Sin(h), 0, -Mathf.Cos(h)) * speed;
-        });
+        float h = turn * (float)(t - T);
+        return new Vector3(-Mathf.Sin(h), 0, -Mathf.Cos(h)) * speed;
     }
 
     /// <summary>Main à vitesse constante pendant « duration » secondes.</summary>
