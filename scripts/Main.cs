@@ -336,8 +336,8 @@ public partial class Main : Node3D
             {
                 Name = "ZoneCalibration", Head = camera, Hands = new[] { left, right }, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
                 // Entre deux manches seulement. Hôte : état du match ; client : phase relue dans le tableau de score de l'hôte.
-                Allowed = () => match != null ? !match.InRound
-                    : clientHud != null && MatchView.FromText(clientHud.Text, default).Phase is MatchView.Phase.RoundOver or MatchView.Phase.MatchOver,
+                // Client : il faut encore 2 s de pause au moins (le tableau arrive avec un instantané de retard).
+                Allowed = () => match != null ? !match.InRound : ClientBreakForRecenter(),
             });
             if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
             if (Tools.DevFlags.Has("--vr-sim-throws"))
@@ -772,6 +772,20 @@ public partial class Main : Node3D
             if (left.Scale.X < 0f) hearts.Scale = new Vector3(-1, 1, 1);   // annule le miroir du gant gauche (ordre des cœurs)
             left.AddChild(hearts);
         }
+    }
+
+    string? recenterText;
+    bool recenterOk;
+
+    /// <summary>Client VR : pause entre deux manches (ou fin de partie) relue dans le tableau de l'hôte, avec au moins 2 s avant la manche suivante.</summary>
+    bool ClientBreakForRecenter()
+    {
+        if (clientHud == null) return false;
+        if (clientHud.Text == recenterText) return recenterOk;   // relu seulement quand le tableau change
+        recenterText = clientHud.Text;
+        var s = MatchView.FromText(recenterText, default);
+        recenterOk = s.Phase == MatchView.Phase.MatchOver || (s.Phase == MatchView.Phase.RoundOver && s.NextRoundIn >= 2);
+        return recenterOk;
     }
 
     void BuildClient(ZoneDef localZone)

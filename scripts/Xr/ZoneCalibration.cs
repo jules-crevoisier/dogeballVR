@@ -14,8 +14,9 @@ namespace DogeballVR.Xr;
 /// comme retouche : l'écart <b>total</b> au repère de la salle (« Stage », calé par l'opérateur) reste sous 0,5 m et 5°, quel que soit
 /// le nombre de recalages. Au-delà, refusé : 5° décalent déjà le coin d'une zone 15 × 8 de 0,75 m.
 /// Le recentrage système (bouton Meta maintenu) ne touche pas au terrain : à EVA, l'espace « Stage » est la salle.</item>
-/// <item>Au lancement, la taille de la zone de jeu Meta (Guardian) est lue si le runtime la donne : plus petite que la zone
-/// du jeu, un message prévient que les bords du jeu sont plus loin que les murs réels.</item>
+/// <item>Au lancement, le contour de la zone de jeu Meta (Guardian) est lu si le runtime le donne : si un coin du terrain en
+/// sort, un message prévient que les bords du jeu sont plus loin que les murs réels. Le recalage refuse aussi une tête penchée
+/// de plus de 60° (cap indéfini).</item>
 /// </list>
 /// </summary>
 public partial class ZoneCalibration : Node
@@ -33,8 +34,8 @@ public partial class ZoneCalibration : Node
     OpenXRInterface? xr;
     static readonly StringName Trigger = "trigger_click";
     double heldFor;
-    int lastStep;
-    bool areaChecked;
+    int lastStep, areaTries;
+    bool fired;
 
     public override void _Ready()
     {
@@ -53,24 +54,25 @@ public partial class ZoneCalibration : Node
     {
         if (Hands.Count < 2) return;
         bool both = true;
-        foreach (var h in Hands) both &= h.IsButtonPressed(Trigger) && h.HeldBall == null && h.Hurtbox.HeldHand < 0;
+        for (int i = 0; i < Hands.Count; i++) { var h = Hands[i]; both &= h.IsButtonPressed(Trigger) && h.HeldBall == null && h.Hurtbox.HeldHand < 0; }
         both = both && Allowed?.Invoke() != false;
-        if (!both) { heldFor = 0; lastStep = 0; return; }
+        if (!both) { heldFor = 0; lastStep = 0; fired = false; return; }
+        if (fired) return;   // une fois par appui : relâcher pour recommencer
         heldFor += delta;
         int step = (int)(heldFor / (HoldSeconds / 4));
         if (step > lastStep && step < 4)
         {
             lastStep = step;
-            foreach (var h in Hands) h.Pulse(0.2f, 0.03f);
+            for (int i = 0; i < Hands.Count; i++) Hands[i].Pulse(0.2f, 0.03f);
         }
         if (heldFor < HoldSeconds) return;
-        heldFor = -1e9;   // une fois par appui : relâcher pour recommencer
+        fired = true;
         var (shift, yaw) = TotalAfterRecenter(XRServer.GetReferenceFrame(), Head.Transform, (float)XRServer.WorldScale);
         if (!CanRecenter(shift, yaw))
         {
             // Retouche seulement, bornée par rapport à la salle : des recalages successifs ne peuvent pas faire dériver le terrain.
             GD.Print($"[VR] Recalage refusé : le terrain bougerait de {shift:0.00} m et {yaw:0} ° par rapport à la salle");
-            foreach (var h in Hands) h.Pulse(0.3f, 0.2f);
+            for (int i = 0; i < Hands.Count; i++) Hands[i].Pulse(0.3f, 0.2f);
             VrToast.InFront(Head, L.T("RECALAGE REFUSÉ : VA AU CENTRE DE TA ZONE, FACE À L'ADVERSAIRE"), new Color(1f, 0.55f, 0.2f), 3.0);
             return;
         }
@@ -81,26 +83,35 @@ public partial class ZoneCalibration : Node
     {
         XRServer.CenterOnHmd(XRServer.RotationMode.ResetButKeepTilt, true);   // garde la hauteur : le sol reste à 0
         GD.Print("[VR] Zone recalée sur la tête du joueur");
-        foreach (var h in Hands) h.Pulse(0.8f, 0.15f, safety: true);
+        for (int i = 0; i < Hands.Count; i++) Hands[i].Pulse(0.8f, 0.15f, safety: true);
         if (message != null) GetTree().CreateTimer(0.15).Timeout += () => { if (IsInstanceValid(Head)) VrToast.InFront(Head, message, new Color(0.83f, 1f, 0.2f), 2.0); };
     }
 
     void CheckPlayAreaLater()
     {
-        if (areaChecked) return;
-        areaChecked = true;
+        if (areaTries > 0) return;
+        areaTries = 1;
         GetTree().CreateTimer(1.5).Timeout += CheckPlayArea;
     }
 
-    /// <summary>Zone de jeu du système (Guardian) : comparée à la zone du jeu, prévient si elle est plus petite.</summary>
+    /// <summary>
+    /// Zone de jeu du système (Guardian) : les quatre coins du terrain (repère de la salle) doivent être dans son contour, à
+    /// <see cref="CornerTolerance"/> près ; sinon un message prévient. Contour pas encore prêt : jusqu'à 4 essais espacés de 2 s.
+    /// </summary>
     void CheckPlayArea()
     {
         if (xr == null || !IsInstanceValid(this) || !IsInsideTree()) return;
         var area = xr.GetPlayArea();
-        if (area == null || area.Length < 3) { GD.Print("[VR] Zone de jeu du casque inconnue (le runtime ne la donne pas)"); return; }
+        if (area == null || area.Length < 3)
+        {
+            if (++areaTries <= 4) { GetTree().CreateTimer(2.0).Timeout += CheckPlayArea; return; }
+            GD.Print("[VR] Zone de jeu du casque inconnue (le runtime ne la donne pas)");
+            return;
+        }
         var size = PlayAreaSize(area);
-        GD.Print($"[VR] Zone de jeu du casque : {size.X:0.0} × {size.Y:0.0} m (zone du jeu {ZoneWidth:0} × {ZoneDepth:0} m)");
-        if (!Fits(size, ZoneWidth, ZoneDepth) && IsInstanceValid(Head))
+        bool inside = ZoneInside(area, ZoneWidth, ZoneDepth, XRServer.GetReferenceFrame());
+        GD.Print($"[VR] Zone de jeu du casque : {size.X:0.0} × {size.Y:0.0} m (zone du jeu {ZoneWidth:0} × {ZoneDepth:0} m) : {(inside ? "le terrain tient dedans" : "le terrain dépasse")}");
+        if (!inside && IsInstanceValid(Head))
             VrToast.InFront(Head, L.F("ZONE DE JEU {0} × {1} M : LE TERRAIN FAIT {2} × {3} M. RESTE LOIN DES MURS.", size.X.ToString("0.0"), size.Y.ToString("0.0"), ZoneWidth.ToString("0"), ZoneDepth.ToString("0")), new Color(1f, 0.55f, 0.2f), 6.0);
     }
 
@@ -121,7 +132,9 @@ public partial class ZoneCalibration : Node
         float s = Mathf.Max(worldScale, 1e-3f);
         float shift = new Vector2(raw.Origin.X, raw.Origin.Z).Length() / s;
         var fwd = -raw.Basis.Z;
-        float yaw = fwd.X * fwd.X + fwd.Z * fwd.Z < 1e-6f ? 0f : Mathf.RadToDeg(Mathf.Abs(Mathf.Atan2(-fwd.X, -fwd.Z)));
+        // Tête penchée de plus de 60° (regard au sol ou au plafond) : le cap n'a plus de sens, CenterOnHmd tournerait le terrain au hasard.
+        if (fwd.X * fwd.X + fwd.Z * fwd.Z < 0.25f) return (shift, 180f);
+        float yaw = Mathf.RadToDeg(Mathf.Abs(Mathf.Atan2(-fwd.X, -fwd.Z)));
         return (shift, yaw);
     }
 
@@ -139,4 +152,47 @@ public partial class ZoneCalibration : Node
 
     /// <summary>Le Quest donne le plus grand rectangle inscrit dans le Guardian, un peu plus petit que la zone tracée : 0,5 m de marge.</summary>
     public const float FitTolerance = 0.5f;
+
+    /// <summary>Un coin du terrain peut dépasser le contour Guardian de cette distance (m) : rectangle inscrit, tracé à la main.</summary>
+    public const float CornerTolerance = 0.25f;
+
+    /// <summary>
+    /// Les quatre coins du terrain (largeur en X, profondeur en Z, centré sur l'origine : repère de la zone) sont-ils dans le contour
+    /// de la zone de jeu (espace de suivi brut) ? Les coins passent par l'inverse du recalage (<paramref name="referenceFrame"/>).
+    /// </summary>
+    public static bool ZoneInside(IReadOnlyList<Vector3> polygon, float width, float depth, Transform3D referenceFrame)
+    {
+        var inv = referenceFrame.AffineInverse();
+        for (int i = 0; i < 4; i++)
+        {
+            var c = inv * new Vector3((i & 1) == 0 ? -width / 2 : width / 2, 0, (i & 2) == 0 ? -depth / 2 : depth / 2);
+            var p = new Vector2(c.X, c.Z);
+            if (!InPolygon(polygon, p) && DistanceToPolygon(polygon, p) > CornerTolerance) return false;
+        }
+        return true;
+    }
+
+    static bool InPolygon(IReadOnlyList<Vector3> poly, Vector2 p)
+    {
+        bool inside = false;
+        for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+        {
+            Vector2 a = new(poly[i].X, poly[i].Z), b = new(poly[j].X, poly[j].Z);
+            if ((a.Y > p.Y) != (b.Y > p.Y) && p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X) inside = !inside;
+        }
+        return inside;
+    }
+
+    static float DistanceToPolygon(IReadOnlyList<Vector3> poly, Vector2 p)
+    {
+        float best = float.MaxValue;
+        for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+        {
+            Vector2 a = new(poly[j].X, poly[j].Z), b = new(poly[i].X, poly[i].Z);
+            var ab = b - a;
+            float t = ab.LengthSquared() < 1e-8f ? 0f : Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0f, 1f);
+            best = Mathf.Min(best, p.DistanceTo(a + ab * t));
+        }
+        return best;
+    }
 }

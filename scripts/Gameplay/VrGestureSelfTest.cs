@@ -52,6 +52,12 @@ public partial class VrGestureSelfTest : Node
         float whipElev = Mathf.RadToDeg(Mathf.Atan2(pw.Y, new Vector2(pw.X, pw.Z).Length()));
         float lastElev = Mathf.RadToDeg(Mathf.Atan2(whip[0].Position.Y - whip[1].Position.Y, Mathf.Abs(whip[0].Position.Z - whip[1].Position.Z)));
         Check("Fouetté : élévation du pic", whipElev > -16f && whipElev < -4f, $"élévation lue {whipElev:0} ° (pic -8 °, main au lâcher {lastElev:0} °)");
+        // Rebond : la main freine sec puis repart en arrière juste avant que le grip s'ouvre. La balle garde la direction du pic.
+        var bounce = Integrate(new Vector3(0.25f, 1.85f, 0.3f), 0.25, t => t < 0.22
+            ? new Vector3(0, -0.15f, -1f).Normalized() * 10f * Mathf.Exp(-Mathf.Pow((float)((t - 0.18) / 0.04), 2))
+            : new Vector3(0.4f, 0, 2.5f));
+        var pb = VrThrowGesture.PeakVelocity(bounce, def.VelocityWindowSeconds);
+        Check("Rebond au lâcher : direction du pic", pb.Z < -0.9f * pb.Length(), $"direction lue ({pb.X:0.0} ; {pb.Y:0.0} ; {pb.Z:0.0}), main au lâcher vers l'arrière");
         var withVel = WithRuntimeVelocity(over);
         var g2 = Read(withVel);
         Check("Vitesse du runtime", Mathf.Abs(g2.Velocity.Length() - g.Velocity.Length()) < 1.2f, $"{g2.Velocity.Length():0.0} contre {g.Velocity.Length():0.0} m/s");
@@ -129,6 +135,17 @@ public partial class VrGestureSelfTest : Node
         var (back, yawBack) = Xr.ZoneCalibration.TotalAfterRecenter(shifted, new Transform3D(new Basis(Vector3.Up, Mathf.DegToRad(3f)), new Vector3(-0.3f, 1.65f, 0)));
         Check("Recalages successifs : pas de dérive", !Xr.ZoneCalibration.CanRecenter(cum, 0f) && Xr.ZoneCalibration.CanRecenter(back, yawBack),
             $"0,4 m puis 0,4 m : {cum:0.00} m de la salle, refusé ; retour vers le centre : {back:0.00} m et {yawBack:0} °, accepté");
+        var (_, yawDown) = Xr.ZoneCalibration.TotalAfterRecenter(Transform3D.Identity, new Transform3D(new Basis(Vector3.Right, Mathf.DegToRad(-75f)), new Vector3(0, 1.65f, 0)));
+        Check("Tête penchée : recalage refusé", !Xr.ZoneCalibration.CanRecenter(0f, yawDown), "regard 75° vers le sol : cap indéfini");
+        // Coins du terrain dans le contour Guardian : 15 × 8 tracé tel quel tient ; décalé de 1 m, non ; tourné de 30°, non.
+        var shiftedRoom = new[] { new Vector3(-6.5f, 0, -4), new Vector3(8.5f, 0, -4), new Vector3(8.5f, 0, 4), new Vector3(-6.5f, 0, 4) };
+        var turnedRoom = new Vector3[4];
+        for (int i = 0; i < 4; i++) turnedRoom[i] = room[i].Rotated(Vector3.Up, Mathf.DegToRad(30f)) * 1.15f;
+        bool inRoom = Xr.ZoneCalibration.ZoneInside(room, 15f, 8f, Transform3D.Identity);
+        bool inShifted = Xr.ZoneCalibration.ZoneInside(shiftedRoom, 15f, 8f, Transform3D.Identity);
+        bool inTurned = Xr.ZoneCalibration.ZoneInside(turnedRoom, 15f, 8f, Transform3D.Identity);
+        Check("Terrain dans le Guardian", inRoom && !inShifted && !inTurned && !Xr.ZoneCalibration.ZoneInside(small, 15f, 8f, Transform3D.Identity),
+            $"tel quel {inRoom}, décalé de 1 m {inShifted}, tourné de 30° (boîte plus grande) {inTurned}");
         Check("Zone de jeu", Xr.ZoneCalibration.Fits(Xr.ZoneCalibration.PlayAreaSize(room), 15f, 8f) && !Xr.ZoneCalibration.Fits(Xr.ZoneCalibration.PlayAreaSize(small), 15f, 8f)
             && Xr.ZoneCalibration.Fits(new Vector2(8f, 15f), 15f, 8f), "15 × 8 tient, 4 × 4 non, 8 × 15 tient");
 

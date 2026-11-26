@@ -32,9 +32,14 @@ au-dessus de la main au lâcher, pour apprendre les gestes en jouant.
   l'autre). 5° décalent déjà le coin d'une zone de 15 × 8 m de 0,75 m. Le recentrage du
   système (bouton Meta) ne touche pas au terrain. À EVA, le calage de la salle reste
   l'affaire de l'opérateur.
-- Au lancement, si la zone Guardian est plus petite que la zone du jeu (à 0,5 m près : le
-  Quest donne le plus grand rectangle inscrit dans le Guardian), un message le dit. La
-  seule vraie limite physique reste le Guardian.
+- Au lancement, le jeu lit le contour Guardian (jusqu'à 4 essais si le casque n'est pas
+  prêt) et vérifie que les **quatre coins du terrain** sont dedans, à 0,25 m près (le Quest
+  donne un rectangle inscrit). Sinon, un message le dit. La seule vraie limite physique
+  reste le Guardian.
+- Le recalage refuse une tête penchée de plus de 60° (regard au sol : cap indéfini). Chez
+  un client, il faut encore au moins 2 s de pause avant la manche suivante.
+- Au lâcher, si la main repart en arrière (cap à plus de 60° de celui du pic), la balle
+  garde la direction du pic.
 - **Pas d'ancre partagée entre casques** : le jeu suppose que l'origine « Stage » de chaque
   casque est le centre de sa zone réelle, tournée comme dans la map. Le jeu ne vérifie pas
   que les casques d'une même salle sont alignés entre eux : c'est le calage de l'opérateur.
@@ -59,7 +64,7 @@ Tous facultatifs. Valeurs par défaut posées sans casque, à régler aux premie
 
 ## Tests sans casque
 
-- `--gesture-test` : 22 cas de gestes synthétiques à 72 images/s (Quest 2), dont la
+- `--gesture-test` : 25 cas de gestes synthétiques à 72 images/s (Quest 2), dont la
   comparaison avec l'ancienne lecture (moyenne des 4 dernières images : 8 m/s lus pour un
   pic à 10 m/s).
 - Au casque, chaque lancer écrit dans le journal la rotation de la trajectoire de la main

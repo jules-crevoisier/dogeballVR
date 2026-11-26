@@ -55,6 +55,9 @@ public static class VrThrowGesture
     /// <summary>En dessous : pas un lancer, la balle tombe des mains.</summary>
     public const float DropSpeed = 1.5f;
 
+    /// <summary>Écart maximal (°) entre le cap de la main au lâcher et celui du pic : au-delà, la main rebondit, on garde le pic.</summary>
+    public const float MaxHeadingChangeDegrees = 60f;
+
     /// <summary>
     /// Vitesse de lancer lue dans la fenêtre (mesures les plus récentes d'abord) : la force est le pic de vitesse de la main, lissé
     /// avec ses deux voisins (la main freine juste avant que le grip s'ouvre). Le cap (vu de dessus) est celui de la main au lâcher :
@@ -74,8 +77,11 @@ public static class VrThrowGesture
         var peak = sum / n;
         float speed = peak.Length();
         var lastFlat = new Vector2(v[0].X, v[0].Z);
+        if (v.Count > 1) lastFlat = (lastFlat + new Vector2(v[1].X, v[1].Z)) * 0.5f;   // deux dernières mesures : moins de bruit
         var peakFlat = new Vector2(peak.X, peak.Z);
-        if (speed < 1e-4f || peakFlat.Length() < 1e-3f || lastFlat.Length() < 0.3f * peakFlat.Length()) return peak;   // main presque arrêtée au lâcher : direction du pic
+        // Main presque arrêtée au lâcher, ou qui repart en arrière (rebond après un freinage sec) : direction du pic.
+        if (speed < 1e-4f || peakFlat.Length() < 1e-3f || lastFlat.Length() < 0.3f * peakFlat.Length()
+            || Mathf.RadToDeg(Mathf.Abs(lastFlat.AngleTo(peakFlat))) > MaxHeadingChangeDegrees) return peak;
         var heading = lastFlat.Normalized() * peakFlat.Length();
         return new Vector3(heading.X, peak.Y, heading.Y);   // même norme que le pic : cap du lâcher, élévation du pic
     }
