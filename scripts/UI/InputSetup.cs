@@ -203,15 +203,20 @@ public static class InputSetup
     /// <summary>Écran qui attend un nouveau bouton (réassignation) : pas de répétition de la croix, elle serait prise pour le bouton choisi.</summary>
     public static bool Capturing { get; set; }
 
+    static bool warped;   // curseur rangé au coin (0, 0) par un passage à la manette
+
     public static void Track(InputEvent e)
     {
         if (e is InputEventJoypadButton { Pressed: true } || e is InputEventJoypadMotion jm && Mathf.Abs(jm.AxisValue) > 0.5f)
         {
             // Passage à la manette dans un menu : le curseur est rangé dans le coin, sinon il laisse allumé (survol) un autre
             // contrôle que celui du focus.
-            if (!UsingPad && Input.MouseMode == Input.MouseModeEnum.Visible) Input.WarpMouse(Vector2.Zero);
+            if (!UsingPad && Input.MouseMode == Input.MouseModeEnum.Visible) { Input.WarpMouse(Vector2.Zero); warped = true; }
             UsingPad = true;
         }
+        // Le curseur rangé renvoie un mouvement de souris (Windows, X11), parfois plusieurs images plus tard : un mouvement qui
+        // arrive au coin où on l'a rangé ne repasse pas les aides au clavier.
+        else if (e is InputEventMouseMotion wm && warped && wm.Position.LengthSquared() < 9f) return;
         // Sur Steam Deck, le pavé tactile et l'écran envoient des mouvements de souris : seuls un clic ou une touche repassent
         // les aides au clavier.
         else if (e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }
