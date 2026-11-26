@@ -108,8 +108,9 @@ public partial class ZoneCalibration : Node
             GD.Print("[VR] Zone de jeu du casque inconnue (le runtime ne la donne pas)");
             return;
         }
+        areaTries = 0;   // contour lu : revérifié au prochain retour dans le jeu (zone redessinée entre-temps)
         var size = PlayAreaSize(area);
-        bool inside = ZoneInside(area, ZoneWidth, ZoneDepth, XRServer.GetReferenceFrame());
+        bool inside = ZoneInside(area, ZoneWidth, ZoneDepth, XRServer.GetReferenceFrame(), (float)XRServer.WorldScale);
         GD.Print($"[VR] Zone de jeu du casque : {size.X:0.0} × {size.Y:0.0} m (zone du jeu {ZoneWidth:0} × {ZoneDepth:0} m) : {(inside ? "le terrain tient dedans" : "le terrain dépasse")}");
         if (!inside && IsInstanceValid(Head))
             VrToast.InFront(Head, L.F("ZONE DE JEU {0} × {1} M : LE TERRAIN FAIT {2} × {3} M. RESTE LOIN DES MURS.", size.X.ToString("0.0"), size.Y.ToString("0.0"), ZoneWidth.ToString("0"), ZoneDepth.ToString("0")), new Color(1f, 0.55f, 0.2f), 6.0);
@@ -160,13 +161,14 @@ public partial class ZoneCalibration : Node
     /// Les quatre coins du terrain (largeur en X, profondeur en Z, centré sur l'origine : repère de la zone) sont-ils dans le contour
     /// de la zone de jeu (espace de suivi brut) ? Les coins passent par l'inverse du recalage (<paramref name="referenceFrame"/>).
     /// </summary>
-    public static bool ZoneInside(IReadOnlyList<Vector3> polygon, float width, float depth, Transform3D referenceFrame)
+    public static bool ZoneInside(IReadOnlyList<Vector3> polygon, float width, float depth, Transform3D referenceFrame, float worldScale = 1f)
     {
         var inv = referenceFrame.AffineInverse();
+        float s = Mathf.Max(worldScale, 1e-3f);
         for (int i = 0; i < 4; i++)
         {
             var c = inv * new Vector3((i & 1) == 0 ? -width / 2 : width / 2, 0, (i & 2) == 0 ? -depth / 2 : depth / 2);
-            var p = new Vector2(c.X, c.Z);
+            var p = new Vector2(c.X, c.Z) / s;   // même convention que TotalAfterRecenter : contour en mètres bruts
             if (!InPolygon(polygon, p) && DistanceToPolygon(polygon, p) > CornerTolerance) return false;
         }
         return true;
