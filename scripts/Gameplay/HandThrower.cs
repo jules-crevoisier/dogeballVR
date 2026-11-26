@@ -250,7 +250,7 @@ public partial class HandThrower : XRController3D
     /// </summary>
     public override void _Process(double delta)
     {
-        physClock += delta;
+        physClock += delta / Mathf.Max(Engine.TimeScale, 1e-3);   // horloge réelle : un ralenti ne doit pas gonfler les vitesses lues
         var pose = GetPose();
         bool hasVel = pose != null && pose.HasTrackingData && pose.LinearVelocity.LengthSquared() > 1e-6f;
         var vel = Vector3.Zero;

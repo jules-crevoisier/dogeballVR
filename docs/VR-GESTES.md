@@ -25,12 +25,19 @@ au-dessus de la main au lâcher, pour apprendre les gestes en jouant.
 - L'origine VR est posée au centre de sa zone de 15 × 8 m et tournée vers l'adversaire.
 - **Recalage** : debout au centre de sa zone réelle, regard vers l'adversaire, tenir les
   deux gâchettes 2 s sans balle. Seulement entre deux manches : pendant le décompte et en
-  pleine manche, le terrain ne bouge jamais sous les pieds. C'est une retouche : refusé si
-  la tête est à plus de 1 m du centre ou tournée de plus de 25° (une estimation à l'œil
-  décalerait les bords de sécurité). Le recentrage du système (bouton Meta) ne touche pas
-  au terrain. À EVA, le calage de la salle reste l'affaire de l'opérateur.
-- Au lancement, si la zone Guardian est plus petite que la zone du jeu, un message le dit.
-  La seule vraie limite physique reste le Guardian.
+  pleine manche, le terrain ne bouge jamais sous les pieds (vrai aussi chez un client : il
+  lit la phase de la partie dans le tableau de score de l'hôte). C'est une retouche : le
+  terrain ne s'écarte jamais de plus de **0,5 m et 5°** du repère de la salle (espace
+  « Stage » du casque), quel que soit le nombre de recalages (pas de dérive d'une pause à
+  l'autre). 5° décalent déjà le coin d'une zone de 15 × 8 m de 0,75 m. Le recentrage du
+  système (bouton Meta) ne touche pas au terrain. À EVA, le calage de la salle reste
+  l'affaire de l'opérateur.
+- Au lancement, si la zone Guardian est plus petite que la zone du jeu (à 0,5 m près : le
+  Quest donne le plus grand rectangle inscrit dans le Guardian), un message le dit. La
+  seule vraie limite physique reste le Guardian.
+- **Pas d'ancre partagée entre casques** : le jeu suppose que l'origine « Stage » de chaque
+  casque est le centre de sa zone réelle, tournée comme dans la map. Le jeu ne vérifie pas
+  que les casques d'une même salle sont alignés entre eux : c'est le calage de l'opérateur.
 
 ## Réglages (map, bloc `rules.vrGestures`)
 
@@ -41,10 +48,10 @@ Tous facultatifs. Valeurs par défaut posées sans casque, à régler aux premie
 | `velocityWindowSeconds` | 0,15 | Fenêtre lue avant le lâcher pour trouver le pic de vitesse |
 | `curveDeadzone` / `curveFull` | 3,5 / 10 rad/s | Rotation de la trajectoire de la main : sans effet en dessous, effet maximal au-dessus |
 | `curveMaxSpin` | 6 | Effet maximal (même valeur que le PC) |
-| `curveHandBelowHead`, `curveMaxElevationDegrees` | 0,25 m ; 25° | Effet réservé au lancer de côté : main sous les épaules, tir à plat |
+| `curveHandBelowHead`, `curveMaxElevationDegrees` | 0,3 m ; 25° | Effet réservé au lancer de côté : main sous les épaules, tir à plat (un trois-quarts à hauteur d'épaule n'en donne pas) |
 | `lobMinElevationDegrees` | 38 | Angle minimal d'une cloche |
 | `lobHandBelowHead` | 0,45 m | La main doit lâcher au moins à cette distance sous la tête |
-| `lobDistancePerSpeed`, `lobMinDistance`, `lobMaxDistance` | 2,2 ; 4 ; 24 | Portée de la cloche selon la vitesse de la main |
+| `lobDistancePerSpeed`, `lobMinDistance`, `lobMaxDistance` | 2,2 ; 3 ; 24 | Portée de la cloche selon la vitesse de la main |
 | `lobAimConeDegrees` | 18 | Cône de visée de la cloche |
 | `passConeDegrees` | 12 | Cône de la passe |
 | `chargeSeconds` | 0,8 s | Gâchette tenue pour une pleine charge |
@@ -52,7 +59,7 @@ Tous facultatifs. Valeurs par défaut posées sans casque, à régler aux premie
 
 ## Tests sans casque
 
-- `--gesture-test` : 20 cas de gestes synthétiques à 72 images/s (Quest 2), dont la
+- `--gesture-test` : 22 cas de gestes synthétiques à 72 images/s (Quest 2), dont la
   comparaison avec l'ancienne lecture (moyenne des 4 dernières images : 8 m/s lus pour un
   pic à 10 m/s).
 - Au casque, chaque lancer écrit dans le journal la rotation de la trajectoire de la main

@@ -30,6 +30,7 @@ public partial class Main : Node3D
     ClientWorld? clientWorld;
     System.Collections.Generic.Dictionary<int, Node3D> platforms = new();
     Node3D localMarker = null!;
+    Label3D? clientHud;   // client : tableau de score de l'hôte (phase de la partie pour le recalage VR)
     MatchView? pcView;   // vue du match du joueur PC (HUD, écran de fin, succès)
     Hurtbox localHurtbox = null!;
     System.Func<PoseData>? localPose;
@@ -334,7 +335,9 @@ public partial class Main : Node3D
             origin.AddChild(new Xr.ZoneCalibration
             {
                 Name = "ZoneCalibration", Head = camera, Hands = new[] { left, right }, ZoneWidth = map.ZoneWidth, ZoneDepth = map.ZoneDepth,
-                Allowed = () => match == null || !match.InRound,   // client : pas d'état de manche ici, la retouche reste bornée (1 m, 25°)
+                // Entre deux manches seulement. Hôte : état du match ; client : phase relue dans le tableau de score de l'hôte.
+                Allowed = () => match != null ? !match.InRound
+                    : clientHud != null && MatchView.FromText(clientHud.Text, default).Phase is MatchView.Phase.RoundOver or MatchView.Phase.MatchOver,
             });
             if (Tools.DevFlags.Has("--essai-maison")) PlaceForHomeTest(origin, localZone);
             if (Tools.DevFlags.Has("--vr-sim-throws"))
@@ -779,6 +782,7 @@ public partial class Main : Node3D
             FontSize = 96, PixelSize = 0.004f, NoDepthTest = true,
         };
         AddChild(hud);
+        clientHud = hud;
         var world = new ClientWorld
         {
             Name = "ClientWorld", Net = net!, Map = map, LocalPlayerId = localZone.Id, LocalHurtbox = localHurtbox, Hud = hud,

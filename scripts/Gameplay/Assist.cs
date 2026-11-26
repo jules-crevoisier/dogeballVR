@@ -103,8 +103,8 @@ public static class Assist
     /// </summary>
     public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode)
     {
-        // Tir chargé : l'hôte ne croit pas le client sur parole, la balle doit avoir été tenue le temps d'une charge (à 0,1 s près).
-        bool power = mode == Ball.ModePower && Time.GetTicksMsec() / 1000.0 - ball.HeldAt >= KcRules.Def.VrGestures.ChargeSeconds - 0.1;
+        // Tir chargé : l'hôte ne croit pas le client sur parole, la balle doit avoir été tenue le temps d'une charge, à 0,25 s près (gigue réseau). La gâchette, elle, ne se vérifie pas chez l'hôte.
+        bool power = mode == Ball.ModePower && Time.GetTicksMsec() / 1000.0 - ball.HeldAt >= KcRules.Def.VrGestures.ChargeSeconds - 0.25;   // marge pour la gigue réseau : le client a déjà annoncé le tir chargé
         if (mode == Ball.ModePower) mode = 0;
         if (mode != 0) return velocity.LimitLength(24f);
         if (!VrRules) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }

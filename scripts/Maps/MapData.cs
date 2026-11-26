@@ -185,7 +185,7 @@ public class VrGestureDef
     /// <summary>Effet maximal (rad/s, même échelle que le PC : 6).</summary>
     public float CurveMaxSpin { get; set; } = 6f;
     /// <summary>Effet : la main doit lâcher au moins à cette distance sous la tête (m) — un lancer de côté, pas par-dessus l'épaule.</summary>
-    public float CurveHandBelowHead { get; set; } = 0.25f;
+    public float CurveHandBelowHead { get; set; } = 0.3f;
     /// <summary>Effet : angle maximal du tir au-dessus ou sous l'horizontale (degrés).</summary>
     public float CurveMaxElevationDegrees { get; set; } = 25f;
     /// <summary>Cloche : angle minimal du lancer au-dessus de l'horizontale (degrés).</summary>
@@ -194,7 +194,7 @@ public class VrGestureDef
     public float LobHandBelowHead { get; set; } = 0.45f;
     /// <summary>Cloche : portée (m) par m/s de vitesse de la main, bornée par LobMinDistance et LobMaxDistance.</summary>
     public float LobDistancePerSpeed { get; set; } = 2.2f;
-    public float LobMinDistance { get; set; } = 4f;
+    public float LobMinDistance { get; set; } = 3f;
     public float LobMaxDistance { get; set; } = 24f;
     /// <summary>Cloche : un adversaire dans ce cône (degrés, de part et d'autre) devient la cible du point de chute.</summary>
     public float LobAimConeDegrees { get; set; } = 18f;

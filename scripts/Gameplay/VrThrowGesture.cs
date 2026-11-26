@@ -57,8 +57,9 @@ public static class VrThrowGesture
 
     /// <summary>
     /// Vitesse de lancer lue dans la fenêtre (mesures les plus récentes d'abord) : la force est le pic de vitesse de la main, lissé
-    /// avec ses deux voisins (la main freine juste avant que le grip s'ouvre) ; la direction est celle de la main au lâcher (un bras
-    /// qui balaie de côté change de direction à chaque image : le pic indiquerait où la main allait 50 ms plus tôt).
+    /// avec ses deux voisins (la main freine juste avant que le grip s'ouvre). Le cap (vu de dessus) est celui de la main au lâcher :
+    /// un bras qui balaie de côté change de cap à chaque image, le pic indiquerait où la main allait 50 ms plus tôt. L'élévation est
+    /// celle du pic : par-dessus l'épaule, l'avant-bras fouette et la main plonge au lâcher, la balle partirait dans le sol.
     /// Vitesse du runtime si elle existe (plus juste sur Quest), sinon différence de positions.
     /// </summary>
     public static Vector3 PeakVelocity(IReadOnlyList<HandSample> samples, float window)
@@ -72,9 +73,11 @@ public static class VrThrowGesture
         for (int i = Mathf.Max(0, best - 1); i <= Mathf.Min(v.Count - 1, best + 1); i++) { sum += v[i]; n++; }
         var peak = sum / n;
         float speed = peak.Length();
-        var last = v[0];
-        if (speed < 1e-4f || last.Length() < 0.3f * speed) return peak;   // main presque arrêtée au lâcher : direction du pic
-        return last.Normalized() * speed;
+        var lastFlat = new Vector2(v[0].X, v[0].Z);
+        var peakFlat = new Vector2(peak.X, peak.Z);
+        if (speed < 1e-4f || peakFlat.Length() < 1e-3f || lastFlat.Length() < 0.3f * peakFlat.Length()) return peak;   // main presque arrêtée au lâcher : direction du pic
+        var heading = lastFlat.Normalized() * peakFlat.Length();
+        return new Vector3(heading.X, peak.Y, heading.Y);   // même norme que le pic : cap du lâcher, élévation du pic
     }
 
     /// <summary>

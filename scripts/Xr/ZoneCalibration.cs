@@ -10,8 +10,9 @@ namespace DogeballVR.Xr;
 /// <list type="bullet">
 /// <item>Recalage : debout au centre de sa zone réelle, regard vers l'adversaire, les deux gâchettes tenues 2 s sans balle.
 /// Le jeu se recale sur la tête (le sol reste au sol) ; vibration et message de confirmation.</item>
-/// <item>Seulement entre deux manches (ni pendant le décompte ni en pleine manche), et seulement comme retouche : refusé si la tête
-/// est à plus de 1 m du centre de la zone ou tournée de plus de 25° : une erreur d'estimation à l'œil décalerait les bords de sécurité.
+/// <item>Seulement entre deux manches (ni pendant le décompte ni en pleine manche, chez l'hôte comme chez le client), et seulement
+/// comme retouche : l'écart <b>total</b> au repère de la salle (« Stage », calé par l'opérateur) reste sous 0,5 m et 5°, quel que soit
+/// le nombre de recalages. Au-delà, refusé : 5° décalent déjà le coin d'une zone 15 × 8 de 0,75 m.
 /// Le recentrage système (bouton Meta maintenu) ne touche pas au terrain : à EVA, l'espace « Stage » est la salle.</item>
 /// <item>Au lancement, la taille de la zone de jeu Meta (Guardian) est lue si le runtime la donne : plus petite que la zone
 /// du jeu, un message prévient que les bords du jeu sont plus loin que les murs réels.</item>
@@ -26,10 +27,11 @@ public partial class ZoneCalibration : Node
     public IReadOnlyList<Gameplay.HandThrower> Hands { get; init; } = System.Array.Empty<Gameplay.HandThrower>();
     public float ZoneWidth { get; init; } = 15f;
     public float ZoneDepth { get; init; } = 8f;
-    /// <summary>Vrai quand le recalage est permis (hors manche ou pendant le décompte). Nul : toujours.</summary>
+    /// <summary>Vrai quand le recalage est permis : entre deux manches seulement (ni décompte ni manche en cours). Nul : toujours.</summary>
     public System.Func<bool>? Allowed { get; init; }
 
     OpenXRInterface? xr;
+    static readonly StringName Trigger = "trigger_click";
     double heldFor;
     int lastStep;
     bool areaChecked;
@@ -50,8 +52,9 @@ public partial class ZoneCalibration : Node
     public override void _Process(double delta)
     {
         if (Hands.Count < 2) return;
-        bool both = Allowed?.Invoke() != false;
-        foreach (var h in Hands) both &= h.IsButtonPressed("trigger_click") && h.HeldBall == null && h.Hurtbox.HeldHand < 0;
+        bool both = true;
+        foreach (var h in Hands) both &= h.IsButtonPressed(Trigger) && h.HeldBall == null && h.Hurtbox.HeldHand < 0;
+        both = both && Allowed?.Invoke() != false;
         if (!both) { heldFor = 0; lastStep = 0; return; }
         heldFor += delta;
         int step = (int)(heldFor / (HoldSeconds / 4));
@@ -62,12 +65,11 @@ public partial class ZoneCalibration : Node
         }
         if (heldFor < HoldSeconds) return;
         heldFor = -1e9;   // une fois par appui : relâcher pour recommencer
-        var off = new Vector2(Head.Position.X, Head.Position.Z);
-        float yaw = Mathf.RadToDeg(Mathf.Abs(Mathf.Wrap(Head.Rotation.Y, -Mathf.Pi, Mathf.Pi)));
-        if (!CanRecenter(off.Length(), yaw))
+        var (shift, yaw) = TotalAfterRecenter(XRServer.GetReferenceFrame(), Head.Transform, (float)XRServer.WorldScale);
+        if (!CanRecenter(shift, yaw))
         {
-            // Retouche seulement : un recalage loin du centre ou de travers déplacerait les bords de sécurité de plus d'un mètre.
-            GD.Print($"[VR] Recalage refusé : tête à {off.Length():0.00} m du centre, {yaw:0} ° de l'avant");
+            // Retouche seulement, bornée par rapport à la salle : des recalages successifs ne peuvent pas faire dériver le terrain.
+            GD.Print($"[VR] Recalage refusé : le terrain bougerait de {shift:0.00} m et {yaw:0} ° par rapport à la salle");
             foreach (var h in Hands) h.Pulse(0.3f, 0.2f);
             VrToast.InFront(Head, L.T("RECALAGE REFUSÉ : VA AU CENTRE DE TA ZONE, FACE À L'ADVERSAIRE"), new Color(1f, 0.55f, 0.2f), 3.0);
             return;
@@ -102,11 +104,26 @@ public partial class ZoneCalibration : Node
             VrToast.InFront(Head, L.F("ZONE DE JEU {0} × {1} M : LE TERRAIN FAIT {2} × {3} M. RESTE LOIN DES MURS.", size.X.ToString("0.0"), size.Y.ToString("0.0"), ZoneWidth.ToString("0"), ZoneDepth.ToString("0")), new Color(1f, 0.55f, 0.2f), 6.0);
     }
 
-    /// <summary>Écart maximal (m) entre la tête et le centre de la zone, et (degrés) entre le regard et l'avant, pour accepter un recalage.</summary>
-    public const float MaxShift = 1.0f, MaxYawDegrees = 25f;
+    /// <summary>Écart total maximal (m, degrés) entre le terrain recalé et le repère de la salle (« Stage »).</summary>
+    public const float MaxShift = 0.5f, MaxYawDegrees = 5f;
 
-    /// <summary>Le recalage n'est qu'une retouche : refusé si la tête est loin du centre de la zone ou tournée de travers.</summary>
+    /// <summary>Le recalage n'est qu'une retouche : refusé si le terrain s'écarterait trop du repère de la salle.</summary>
     public static bool CanRecenter(float shift, float yawDegrees) => shift <= MaxShift && yawDegrees <= MaxYawDegrees;
+
+    /// <summary>
+    /// Écart au repère de la salle (m au sol, degrés de cap) qu'aurait le terrain si on recalait maintenant. Godot place la tête en
+    /// <c>referenceFrame * brut</c> (position brute × échelle) et CenterOnHmd pose <c>referenceFrame = inverse(tête brute à plat)</c> :
+    /// l'écart total est donc la position et le cap de la tête dans l'espace brut, quel que soit le nombre de recalages déjà faits.
+    /// </summary>
+    public static (float shift, float yawDegrees) TotalAfterRecenter(Transform3D referenceFrame, Transform3D headLocal, float worldScale = 1f)
+    {
+        var raw = referenceFrame.AffineInverse() * headLocal;
+        float s = Mathf.Max(worldScale, 1e-3f);
+        float shift = new Vector2(raw.Origin.X, raw.Origin.Z).Length() / s;
+        var fwd = -raw.Basis.Z;
+        float yaw = fwd.X * fwd.X + fwd.Z * fwd.Z < 1e-6f ? 0f : Mathf.RadToDeg(Mathf.Abs(Mathf.Atan2(-fwd.X, -fwd.Z)));
+        return (shift, yaw);
+    }
 
     /// <summary>Encombrement (largeur, profondeur) d'un contour de zone de jeu, sur le plan du sol.</summary>
     public static Vector2 PlayAreaSize(IReadOnlyList<Vector3> points)
@@ -116,7 +133,10 @@ public partial class ZoneCalibration : Node
         return new Vector2(maxX - minX, maxZ - minZ);
     }
 
-    /// <summary>La zone du jeu tient-elle dans la zone de jeu réelle (dans un sens ou dans l'autre) ?</summary>
+    /// <summary>La zone du jeu tient-elle dans la zone de jeu réelle (dans un sens ou dans l'autre, à <see cref="FitTolerance"/> près) ?</summary>
     public static bool Fits(Vector2 area, float width, float depth) =>
-        (area.X >= width - 0.05f && area.Y >= depth - 0.05f) || (area.X >= depth - 0.05f && area.Y >= width - 0.05f);
+        (area.X >= width - FitTolerance && area.Y >= depth - FitTolerance) || (area.X >= depth - FitTolerance && area.Y >= width - FitTolerance);
+
+    /// <summary>Le Quest donne le plus grand rectangle inscrit dans le Guardian, un peu plus petit que la zone tracée : 0,5 m de marge.</summary>
+    public const float FitTolerance = 0.5f;
 }
