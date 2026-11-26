@@ -16,7 +16,7 @@ accessibilité, Steam Deck et correction de tous les bugs remontés par les test
 
 - [ ] 60 i/s stables sur la configuration minimale annoncée, 60 i/s sur Steam Deck (réglage Deck)
 - [ ] Aucun bug S1 ou S2 ouvert
-- [ ] Accessibilité : sous-titres, daltonisme (couleurs d'équipe + motifs), réduction des secousses
+- [x] Accessibilité : sous-titres, daltonisme (couleurs d'équipe + motifs), réduction des secousses — sons importants à l'écran avec leur direction (le jeu n'a pas de voix), symboles d'équipe, secousses de 0 à 100 %, flashs réduits ; vérifié en jeu (`production/qa/evidence/accessibilite/`), PR #34
 - [x] Animations du mannequin (UAL) : course, saut, lancer, attrape, esquive, chute — plus marche, recul et réception (`tools/blender/mannequin.py`, `--avatar-test` en CI), PR #34
 - [ ] All S1 and S2 bugs resolved
 - [ ] Performance within budget on target hardware

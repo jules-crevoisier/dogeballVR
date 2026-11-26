@@ -293,14 +293,16 @@ public partial class DesktopPlayer : Node3D
         else if (e is InputEventMouseMotion mm && mm.Relative.LengthSquared() > 4f || e is InputEventKey { Pressed: true } || e is InputEventMouseButton { Pressed: true }) padActive = false;
     }
 
-    /// <summary>Visée au stick droit : courbe cubique (précision au centre), un peu de friction sur un adversaire (aide manette uniquement).</summary>
+    /// <summary>Visée au stick droit : courbe réglable (cubique par défaut, précision au centre), vitesse propre à la manette,
+    /// un peu de friction sur un adversaire (aide manette uniquement).</summary>
     void PadLook(float dt)
     {
         var look = Input.GetVector("look_left", "look_right", "look_up", "look_down");
         if (look == Vector2.Zero) return;
         float mag = look.Length();
-        look = look / mag * (mag * mag * mag);
-        float speed = Mathf.DegToRad(260f) * GameSettings.Sensitivity / GameSettings.DefaultSensitivity;   // degrés par seconde à fond
+        float shaped = GameSettings.PadCurve switch { 1 => mag * mag, 2 => mag, _ => mag * mag * mag };
+        look = look / mag * shaped;
+        float speed = Mathf.DegToRad(260f) * GameSettings.PadSensitivity;   // 260 degrés par seconde à fond au réglage d'origine
         if (AimingAtEnemy && held != null) speed *= Mathf.Lerp(1f, 0.55f, GameSettings.AimAssist);
         yaw -= look.X * speed * dt;
         pitch = Mathf.Clamp(pitch - look.Y * speed * 0.7f * dt * (GameSettings.InvertY ? -1f : 1f), -1.45f, 1.45f);

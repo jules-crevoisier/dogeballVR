@@ -230,7 +230,7 @@ public static partial class UiKit
         t.SetColor("font_color", "OptionButton", Colors.White);
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) t.SetColor(k, "OptionButton", Navy);
         t.SetColor("font_outline_color", "OptionButton", Navy);
-        t.SetConstant("outline_size", "OptionButton", 5);
+        t.SetConstant("outline_size", "OptionButton", 0);   // sélectionnée, texte encre sur plaque papier : un contour encre l'empâtait (illisible)
         if (Italic != null) t.SetFont("font", "OptionButton", Italic);
 
         var popup = PanelBox(0, 14);

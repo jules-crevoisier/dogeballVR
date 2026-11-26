@@ -49,7 +49,9 @@ public partial class OptionsMenu : Control
         ["Aides contextuelles (premières parties)"] = "Pendant tes premières parties, rappelle la bonne touche au bon moment (attraper, esquiver, charger).",
         ["Ouvrir le port sur ma box (UPnP)"] = "Pour héberger par Internet sans Steam : demande à ta box d'ouvrir le port UDP 7777 tant que ta salle est ouverte. Le code de salle contient alors ton adresse IP publique. NON : jeu en réseau local ou par Steam seulement.",
         ["Sensibilité"] = "Vitesse de la caméra quand tu bouges la souris. 1,00× = réglage d'origine.",
-        ["Inverser l'axe vertical"] = "Pousser la souris vers l'avant fait regarder vers le bas, comme un manche d'avion.",
+        ["Inverser l'axe vertical"] = "Pousser la souris ou le stick droit vers l'avant fait regarder vers le bas, comme un manche d'avion.",
+        ["Sensibilité du stick"] = "Vitesse de la caméra au stick droit, indépendante de la souris. 1,00× = 260° par seconde stick à fond.",
+        ["Courbe de visée"] = "Précise : le stick à moitié tourne lentement, pour viser fin. Directe : la vitesse suit le stick. Équilibrée : entre les deux.",
         ["Champ de vision"] = "Angle de vue horizontal. Plus large : tu vois mieux autour de toi, mais tout paraît plus loin.",
         ["Aide à la visée"] = "Balle en main, la visée ralentit sur un adversaire et ton lancer s'infléchit vers lui. 0 % : aucune aide.",
         ["Secousses de l'écran"] = "Force des tremblements de caméra aux impacts, aux KO et aux explosions.",
@@ -189,6 +191,20 @@ public partial class OptionsMenu : Control
         QueueFree();
     }
 
+    /// <summary>
+    /// Ligne du focus gardée hors du fondu des bords de la liste : le suivi de focus du ScrollContainer s'arrête au ras du bord,
+    /// où le fondu « encore des réglages » l'assombrit (Steam Deck surtout).
+    /// </summary>
+    void KeepClear(Control row)
+    {
+        const float Margin = 56f;
+        float top = row.GetGlobalRect().Position.Y - scroll.GetGlobalRect().Position.Y;
+        float bottom = top + row.Size.Y;
+        float view = scroll.Size.Y;
+        if (bottom > view - Margin) scroll.ScrollVertical += (int)Mathf.Ceil(bottom - (view - Margin));
+        else if (top < Margin && scroll.ScrollVertical > 0) scroll.ScrollVertical -= (int)Mathf.Ceil(Margin - top);
+    }
+
     /// <summary>Ligne allumée : celle sous la souris (dans la zone visible), sinon celle qui contient le focus clavier.</summary>
     public override void _Process(double delta)
     {
@@ -200,12 +216,12 @@ public partial class OptionsMenu : Control
         moreBelow.Visible = bar.MaxValue - bar.Page - scroll.ScrollVertical > 4;
         PanelContainer? want = null;
         var mouse = GetGlobalMousePosition();
-        if (scroll.GetGlobalRect().HasPoint(mouse))
+        if (!InputSetup.UsingPad && scroll.GetGlobalRect().HasPoint(mouse))   // à la manette, le curseur (pavé du Deck) ne vole pas la ligne du focus
             foreach (var (row, _) in rows)
                 if (IsInstanceValid(row) && row.GetGlobalRect().HasPoint(mouse)) { want = row; break; }
         if (want == null && GetViewport().GuiGetFocusOwner() is Control f)
             foreach (var (row, _) in rows)
-                if (IsInstanceValid(row) && row.IsAncestorOf(f)) { want = row; break; }
+                if (IsInstanceValid(row) && row.IsAncestorOf(f)) { want = row; KeepClear(row); break; }
         if (want == lit) return;
         if (lit != null && IsInstanceValid(lit)) lit.AddThemeStyleboxOverride("panel", rowIdle);
         lit = want;
@@ -313,6 +329,9 @@ public partial class OptionsMenu : Control
                 Section("Souris");
                 Slider("Sensibilité", GameSettings.Sensitivity / GameSettings.DefaultSensitivity, 0.25f, 4f, 0.05f, v => GameSettings.Sensitivity = v * GameSettings.DefaultSensitivity, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
                 Toggle("Inverser l'axe vertical", GameSettings.InvertY, v => GameSettings.InvertY = v);
+                Section("Manette");
+                Slider("Sensibilité du stick", GameSettings.PadSensitivity, 0.25f, 3f, 0.05f, v => GameSettings.PadSensitivity = v, v => $"{v.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}×");
+                Choice("Courbe de visée", new[] { "Précise", "Équilibrée", "Directe" }, GameSettings.PadCurve, k => GameSettings.PadCurve = k);
                 Section("Caméra et visée");
                 Choice("Vue", new[] { "Épaule (3e personne)", "Première personne" }, GameSettings.FirstPerson ? 1 : 0, k => GameSettings.FirstPerson = k == 1);
                 Slider("Champ de vision", GameSettings.Fov, 80f, 120f, 1f, v => GameSettings.Fov = v, v => $"{v:0}°");
@@ -361,7 +380,7 @@ public partial class OptionsMenu : Control
                 GameSettings.BotLevel = 1;
                 GameSettings.ContextHints = true;
                 GameSettings.Upnp = false;
-                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
+                GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.PadSensitivity = 1f; GameSettings.PadCurve = 0; GameSettings.Fov = GameSettings.DefaultFov;
                 GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false; GameSettings.FirstPerson = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
