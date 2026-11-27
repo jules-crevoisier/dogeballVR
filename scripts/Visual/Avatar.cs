@@ -727,7 +727,7 @@ public partial class Avatar : Node3D
         // Bassin au plus bas (squat profond) : le reste de la correction penche le buste.
         float hipWant = HipDropFor(crouchDrop / s) * s + headFix;
         float over = Mathf.Max(0f, hipWant - AvatarIk.MaxCrouch * s);
-        ik.Grounded = !airborne && !ko;
+        ik.Grounded = !airborne && !ko && bodyBase.Y >= floorY - 0.08f;
         ik.FloorY = floorY;
         ik.Idle = speed < 0.35f;
         float runLean = !airborne && !ko && speed > 0.6f ? Mathf.Clamp(speed / 7.5f, 0f, 1f) * 0.14f : 0f;

@@ -56,7 +56,8 @@ public partial class Tutorial : CanvasLayer
         Bot.Gentle = true;
         Bot.Calm = true;   // dès la première image : pas de tir pendant « REGARDE AUTOUR DE TOI » (Next arrive en différé)
         MatchController.HitScored += OnHit;
-        steps.Add(new("PRISE EN MAIN", () => Pad("Déplace-toi avec le [color=#ff7a29]stick gauche[/color] et tourne la caméra avec le [color=#ff7a29]stick droit[/color].", $"Déplace-toi avec {K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")} et bouge la souris."), p => p.WalkTravel - start["walk"] > 5f && p.LookTravel - start["look"] > 1.5f));
+        steps.Add(new("REGARDE AUTOUR DE TOI", () => Pad("Tourne la caméra avec le [color=#ff7a29]stick droit[/color].", "Bouge la souris pour regarder autour de toi."), p => p.LookTravel - start["look"] > 2.5f));
+        steps.Add(new("DÉPLACE-TOI", () => Pad("Déplace-toi avec le [color=#ff7a29]stick gauche[/color].", $"Déplace-toi avec {K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")}."), p => p.WalkTravel - start["walk"] > 6f));
         steps.Add(new("RAMASSE UNE BALLE", () => "Approche-toi d'un [color=#38e8ff]distributeur turquoise[/color] (ou d'une balle au sol) pour la prendre.", p => p.HeldBall != null));
         steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger le tir, puis relâche pour lancer tendu.", p => p.ChargedThrows > start["charged"]));
         steps.Add(new("TIR COURBÉ (CONTOURNER UN PILIER)", () => $"Balle en main : maintiens {K("curve")} (+ {K("move_left")} ou {K("move_right")}) puis relâche {K("fire")} pour faire contourner un pilier à la balle !", p => p.Curves > start["curves"]));
