@@ -25,23 +25,29 @@ public partial class PickupBeacon : Node3D
         });
         beam = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.06f, BottomRadius = 0.16f, Height = 5f, RadialSegments = 8 },
-            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.30f)), Position = new Vector3(0, 2.5f + TopY, 0),
+            Mesh = new CylinderMesh { TopRadius = 0.08f, BottomRadius = 0.18f, Height = 5.5f, RadialSegments = 10 },
+            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.50f)), Position = new Vector3(0, 2.75f + TopY, 0),
         };
         AddChild(beam);
         for (int i = 0; i < spiral.Length; i++)
         {
             spiral[i] = new MeshInstance3D
             {
-                Mesh = new TorusMesh { InnerRadius = 0.22f, OuterRadius = 0.26f, Rings = 24, RingSegments = 6 },
-                MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.7f)),
+                Mesh = new TorusMesh { InnerRadius = 0.24f, OuterRadius = 0.29f, Rings = 24, RingSegments = 6 },
+                MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.85f)),
             };
             AddChild(spiral[i]);
         }
+        // Collier lumineux turquoise sur le bord haut du distributeur (toujours visible pour repérer les plots en plein jour).
+        AddChild(new MeshInstance3D
+        {
+            Mesh = new TorusMesh { InnerRadius = 0.27f, OuterRadius = 0.34f, Rings = 24, RingSegments = 8 },
+            MaterialOverride = Materials.Glow(Palette.Beacon, 2.2f), Position = new Vector3(0, TopY + 0.02f, 0), Scale = new Vector3(1, 0.55f, 1),
+        });
         ring = new MeshInstance3D
         {
-            Mesh = new TorusMesh { InnerRadius = 0.5f, OuterRadius = 0.58f, Rings = 36, RingSegments = 4 },
-            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.8f)), Position = new Vector3(0, 0.07f, 0), Scale = new Vector3(1, 0.1f, 1),
+            Mesh = new TorusMesh { InnerRadius = 0.52f, OuterRadius = 0.64f, Rings = 36, RingSegments = 6 },
+            MaterialOverride = Materials.Glow(Palette.Beacon, 1.8f), Position = new Vector3(0, 0.08f, 0), Scale = new Vector3(1, 0.35f, 1),
         };
         AddChild(ring);
     }
@@ -55,8 +61,8 @@ public partial class PickupBeacon : Node3D
         emptyFor = loaded ? 0 : emptyFor + delta;
         beam.Visible = loaded;
         // Recharge : l'anneau se remplit (rayon croissant) pendant que le plot attend sa prochaine balle.
-        float fill = loaded ? 1f : Mathf.Clamp((float)(emptyFor / 6.0), 0.15f, 1f);
-        ring.Scale = new Vector3(fill, 0.1f, fill);
+        float fill = loaded ? 1f : Mathf.Clamp((float)(emptyFor / 6.0), 0.20f, 1f);
+        ring.Scale = new Vector3(fill, 0.35f, fill);
         for (int i = 0; i < spiral.Length; i++)
         {
             spiral[i].Visible = loaded;

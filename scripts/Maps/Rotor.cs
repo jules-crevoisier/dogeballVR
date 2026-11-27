@@ -49,16 +49,16 @@ public partial class Rotor : AnimatableBody3D
                 {
                     Mesh = new BoxMesh { Size = new Vector3(stripe, size.Y + 0.02f, size.Z + 0.02f) },
                     Position = new Vector3(side * (r.ArmLength - 0.18f - stripe / 2f), 0, 0),
-                    MaterialOverride = KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f),
+                    MaterialOverride = KcShaders.Toon(new Color("E8EDF6"), new Color("1A1F2E"), 4, 1f),
                 });
-            foreach (float y in new[] { -1f, 1f })   // liserés cyan le long des arêtes haute et basse
+            foreach (float y in new[] { -1f, 1f })   // liserés blancs nets le long des arêtes haute et basse
                 rotor.AddChild(new MeshInstance3D
                 {
                     Mesh = new BoxMesh { Size = new Vector3(size.X - 0.4f, 0.05f, size.Z + 0.03f) },
                     Position = new Vector3(0, y * (size.Y / 2f - 0.12f), 0),
-                    MaterialOverride = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.0f),
+                    MaterialOverride = KcShaders.Toon(new Color("E8EDF6"), new Color("E8EDF6"), 0, 1f, 1.3f),
                 });
-            // arbre central sombre et pointes lumineuses : on lit le sens de rotation de loin
+            // arbre central sombre et pointes blanches lumineuses : 100 % neutre, on lit le sens de rotation de loin
             var hubMat = KcShaders.Toon(new Color("2B3658"), null, 0);
             hubMat.NextPass = KcShaders.Outline(0.03f);
             rotor.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.6f, BottomRadius = 0.6f, Height = size.Y + 0.15f }, MaterialOverride = hubMat });
@@ -67,7 +67,7 @@ public partial class Rotor : AnimatableBody3D
                 {
                     Mesh = new BoxMesh { Size = new Vector3(0.18f, size.Y + 0.06f, size.Z + 0.06f) },
                     Position = new Vector3(side * (r.ArmLength - 0.09f), 0, 0),
-                    MaterialOverride = KcShaders.Toon(new Color("FF6A1A"), new Color("FF6A1A"), 0, 1f, 2.5f),
+                    MaterialOverride = KcShaders.Toon(new Color("F2F4F8"), new Color("F2F4F8"), 0, 1f, 1.8f),
                 });
         }
         else rotor.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = Materials.Flat(new Color("b7bcc8")) });

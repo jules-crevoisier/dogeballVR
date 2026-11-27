@@ -127,6 +127,49 @@ public partial class Avatar : Node3D
         return y > 1.2f && y < 2.1f ? y : DefaultHeadHeight;   // rig inattendu : on garde la valeur historique
     }
 
+    /// <summary>
+    /// Renforce la lisibilité d'équipe sur les mannequins riggés (20 m) : la tenue grise prend une teinte sportive franche
+    /// de son équipe (orange / bleu) et les bandes néon gagnent en éclat, tout en restant légère sur Quest (0 draw call en plus).
+    /// </summary>
+    static void TintRiggedAvatar(Node3D rigged, int team, bool bot)
+    {
+        var teamCol = Palette.Team(team);
+        var jerseyCol = team == 0
+            ? new Color("d94f14").Lerp(new Color("3a3f50"), bot ? 0.28f : 0.16f)
+            : new Color("1678d6").Lerp(new Color("2e3c54"), bot ? 0.28f : 0.16f);
+        var jersey = new StandardMaterial3D
+        {
+            AlbedoColor = jerseyCol,
+            Roughness = 0.52f,
+            Metallic = 0.12f,
+            RimEnabled = true,
+            Rim = 0.45f,
+            RimTint = 0.65f,
+        };
+        var accent = new StandardMaterial3D
+        {
+            AlbedoColor = teamCol.Lerp(Colors.White, 0.25f),
+            EmissionEnabled = true,
+            Emission = teamCol,
+            EmissionEnergyMultiplier = 1.6f,
+            Roughness = 0.35f,
+        };
+        foreach (var n in rigged.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (n is not MeshInstance3D mi || mi.Mesh == null) continue;
+            int count = mi.Mesh.GetSurfaceCount();
+            for (int i = 0; i < count; i++)
+            {
+                var mat = mi.GetActiveMaterial(i);
+                string name = (mat?.ResourceName ?? "").ToLowerInvariant();
+                if (name.Contains("neon") || name.Contains("equipe") || name.Contains("accent"))
+                    mi.SetSurfaceOverrideMaterial(i, accent);
+                else
+                    mi.SetSurfaceOverrideMaterial(i, jersey);
+            }
+        }
+    }
+
     public static Avatar Create(int team, bool bot, int playerId = -1)
     {
         var avatar = new Avatar { Name = "Avatar", playerId = playerId };
@@ -140,6 +183,7 @@ public partial class Avatar : Node3D
             avatar.modelName = $"avatar_{teamName}_rig";
             avatar.anim = rigged.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
             avatar.AddChild(rigged);
+            TintRiggedAvatar(rigged, team, bot);
             foreach (var loop in new[] { "Repos", "Course", "Armer" })
                 if (avatar.anim?.HasAnimation(loop) == true) avatar.anim.GetAnimation(loop).LoopMode = Animation.LoopModeEnum.Linear;
             if (avatar.anim != null) AddRecoil(avatar.anim);

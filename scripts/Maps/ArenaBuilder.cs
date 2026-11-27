@@ -56,12 +56,12 @@ public static class ArenaBuilder
 
     static readonly Dictionary<string, Mood> Moods = new()
     {
-        // Croix Néon : plein jour, ciel bleu et horizon pêche
-        ["jour"] = new("4C8DE8", "FFE3CA", "EBCDB4", "FFF0DE", 1.45f, new Vector3(-48, -35, 0), "FFE8D2", 0.006f, 0.5f, 0.45f, 1.04f, 0.88f),
+        // Croix Néon : plein jour, ciel bleu, brume douce qui détache l'arène et les balles des immeubles du fond
+        ["jour"] = new("4C8DE8", "FFE3CA", "EBCDB4", "FFF0DE", 1.42f, new Vector3(-48, -35, 0), "E8DFD6", 0.0105f, 0.5f, 0.45f, 1.05f, 0.88f),
         // Fosse croisée, chantier : fin d'après-midi dorée, soleil rasant
-        ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.6f, new Vector3(-28, -70, 0), "FFD29A", 0.009f, 0.5f, 0.5f, 1.2f, 0.9f),
+        ["chantier"] = new("5A86D0", "FFC27A", "E8B98C", "FFC77A", 1.55f, new Vector3(-28, -70, 0), "F0CAA0", 0.0115f, 0.5f, 0.5f, 1.18f, 0.9f),
         // Tour 4v4, gratte-ciel : coucher de soleil rose et orange, contre-jour
-        ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.011f, 0.55f, 0.6f, 1.25f, 0.95f),
+        ["coucher"] = new("2E3A8C", "FF7F5A", "D8706A", "FF915A", 1.35f, new Vector3(-10, 150, 0), "FF8E7A", 0.012f, 0.55f, 0.6f, 1.22f, 0.95f),
         // Néon Court, marché de nuit : lune froide, néons et guirlandes qui font la lumière
         ["nuit"] = new("070B24", "26295E", "1B1D3A", "9DB0FF", 0.45f, new Vector3(-55, 30, 0), "1E2350", 0.012f, 0.75f, 0.9f, 1.2f, 1.05f),
         // La Fosse, port : matin brumeux, lumière blanche et douce
@@ -86,7 +86,7 @@ public static class ArenaBuilder
             // lumière : soleil fort, ambiance basse (volumes lisibles), ACES contrasté, brume qui repousse le fond
             AmbientLightEnergy = m.Ambient,
             TonemapMode = Godot.Environment.ToneMapper.Aces, TonemapExposure = m.Exposure, TonemapWhite = 6f,
-            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.5f, FogSkyAffect = 0.3f,
+            FogEnabled = true, FogLightColor = new Color(m.Fog), FogDensity = m.FogDensity, FogAerialPerspective = 0.65f, FogSkyAffect = 0.32f,
             GlowEnabled = pcProfile, GlowIntensity = m.Glow, GlowBloom = 0f, GlowHdrThreshold = 1.3f,
             SsaoEnabled = pcProfile, SsaoRadius = 1.2f, SsaoIntensity = 1.6f,
             AdjustmentEnabled = true, AdjustmentSaturation = m.Saturation, AdjustmentContrast = 1.08f,
@@ -454,12 +454,12 @@ public static class ArenaBuilder
         Piece(new Vector3(wide.X, 0.16f, wide.Z), 0.08f, KcShaders.Toon(new Color("3D4363"), new Color("2F3550"), 2));
         Piece(new Vector3(wide.X, 0.1f, wide.Z), size.Y - 0.05f, KcShaders.Toon(new Color("B4BAD2"), new Color("9AA1BE"), 2));
         float band = pylon ? 1.0f : Mathf.Min(0.7f, size.Y * 0.55f);
-        // bande de danger sur un abri sur trois ; les autres ont un bandeau peint uni (sinon l'écran n'est que rayures)
-        var bandMat = stripes ? KcShaders.Toon(new Color("F2C230"), new Color("1A1C26"), 4, 1f) : KcShaders.Toon(new Color("E36A2E"), null, 0);
+        // Abris 100 % neutres (bible artistique) : rayures blanc/anthracite sur 1/3, sinon acier neutre ; liseré blanc discret.
+        var bandMat = stripes ? KcShaders.Toon(new Color("E8EDF6"), new Color("1E2538"), 4, 1f) : KcShaders.Toon(new Color("4A556E"), null, 0);
         Piece(new Vector3(size.X + 0.02f, 0.18f, size.Z + 0.02f), band, bandMat, false);
-        var glow = KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f);
+        var glow = KcShaders.Toon(new Color("E8EDF6"), new Color("E8EDF6"), 0, 1f, 1.1f);
         Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), size.Y - 0.13f, glow, false);
-        if (pylon) Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), 2.3f, KcShaders.Toon(new Color("7FE8FF"), new Color("7FE8FF"), 0, 1f, 2.5f), false);
+        if (pylon) Piece(new Vector3(size.X + 0.02f, 0.035f, size.Z + 0.02f), 2.3f, KcShaders.Toon(new Color("E8EDF6"), new Color("E8EDF6"), 0, 1f, 1.1f), false);
     }
 
     /// <summary>Piédestal d'un distributeur de balles : cylindre dont le sommet est à la hauteur indiquée par la map.</summary>
