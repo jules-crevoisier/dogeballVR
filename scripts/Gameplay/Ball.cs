@@ -57,7 +57,7 @@ public partial class Ball : RigidBody3D
 
     void AddDecor()
     {
-        seamMaterial = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true, EmissionEnergyMultiplier = 1.6f };
+        seamMaterial = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true, EmissionEnergyMultiplier = 2.4f };
         string[] names = { "balle_normale", "balle_bombe", "balle_rebond" };
         for (int i = 0; i < names.Length; i++)
         {
@@ -204,7 +204,7 @@ public partial class Ball : RigidBody3D
         ball.flightMaterial = Materials.Additive(new Color(Palette.BallCore, 0f));
         ball.flightHalo = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.25f, Height = 0.5f, RadialSegments = 16, Rings = 8 }, MaterialOverride = ball.flightMaterial, Visible = false };
         ball.AddChild(ball.flightHalo);
-        ball.outline.Visible = !ball.modeled || KcShaders.Look == KcShaders.LookKind.Toon;   // ballon modélisé en PBR : pas de coque d'encre (le halo de vol porte la couleur)
+        ball.outline.Visible = true;   // contour sombre permanent (lisible en plein jour sur murs/immeubles clairs ; s'illumine à la couleur d'équipe en vol)
         ball.haloMaterial = Materials.Additive(Palette.BallCore);
         ball.halo = new MeshInstance3D
         {
@@ -218,11 +218,17 @@ public partial class Ball : RigidBody3D
         ball.AddChild(ball.halo2);
         ball.orbit = new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.27f, OuterRadius = 0.31f, Rings = 24, RingSegments = 8 }, MaterialOverride = ball.haloMaterial, Visible = false };
         ball.AddChild(ball.orbit);
-        // Ombre portée simplifiée : un disque lumineux au sol sous la balle (indice de hauteur).
+        // Ombre portée sombre au sol sous la balle (indice de hauteur lisible en plein jour comme de nuit).
+        var shadowMat = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            AlbedoColor = new Color(0.04f, 0.06f, 0.12f, 0.42f),
+        };
         ball.shadow = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.14f, BottomRadius = 0.14f, Height = 0.005f, RadialSegments = 16, Rings = 1 },
-            MaterialOverride = Materials.Additive(new Color(1f, 1f, 1f, 0.22f)),
+            Mesh = new CylinderMesh { TopRadius = 0.16f, BottomRadius = 0.16f, Height = 0.005f, RadialSegments = 16, Rings = 1 },
+            MaterialOverride = shadowMat,
             TopLevel = true,
         };
         ball.AddChild(ball.shadow);
