@@ -175,6 +175,22 @@ public partial class NetSession : Node
         if (secretOfPeer.Remove((int)id, out var secret) && zoneOfSecret.TryGetValue(secret, out int zone))
             reserved[zone] = (0, secret, Time.GetTicksMsec() / 1000.0 + ReconnectHold);
         PeerLeft?.Invoke((int)id);
+        RefreshHybridMode();
+    }
+
+    void RefreshHybridMode()
+    {
+        if (!IsHost) return;
+        bool anyVr = Assist.VrRules, anyPc = !Assist.VrRules;
+        foreach (var r in Remotes.Values) { if (r.IsVr) anyVr = true; else anyPc = true; }
+        bool hybrid = anyVr && anyPc;
+        if (Assist.HybridMatch != hybrid)
+        {
+            Assist.HybridMatch = hybrid;
+            GD.Print(hybrid
+                ? $"[Hybride] Match mixte VR + PC actif : tirs PC plafonnés à {Assist.MaxLaunchSpeedHybrid:0} m/s"
+                : "[Hybride] Match homogène (règles standard)");
+        }
     }
 
     /// <summary>Client : la connexion à l'hôte est déjà ouverte par le lobby ; on se présente tout de suite.</summary>
@@ -198,7 +214,7 @@ public partial class NetSession : Node
     void SendHello()
     {
         helloAt = clientClock;
-        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token, MapName);
+        RpcId(1, MethodName.HelloRpc, ProtocolVersion, ZoneId, Token, MapName, Assist.VrRules);
     }
 
     void OnServerDisconnected()
@@ -435,7 +451,7 @@ public partial class NetSession : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    void HelloRpc(int protocol, int zoneId, string secret, string mapName)
+    void HelloRpc(int protocol, int zoneId, string secret, string mapName, bool isVr)
     {
         if (!IsHost || OverBudget(Sender, nameof(HelloRpc))) return;
         int peer = Sender;
@@ -455,6 +471,8 @@ public partial class NetSession : Node
         if (Remotes.TryGetValue(peer, out var already))
         {
             // Hello répété par le même pair (scène rechargée pour corriger sa zone) : on reconfirme, sans nouvelle entrée.
+            already.IsVr = isVr;
+            RefreshHybridMode();
             if (secretOfPeer.TryGetValue(peer, out var current)) RpcId(peer, MethodName.WelcomeRpc, already.PlayerId, current);
             return;
         }
@@ -472,13 +490,15 @@ public partial class NetSession : Node
         }
         // Zone non imposée (-1) ou déjà prise : l'hôte en choisit une tenue par un bot.
         else if (!IsFree(zoneId, peer, secret)) zoneId = PickFree(-1, peer, secret);
-        GD.Print($"[Net] Pair {peer} demande la zone {zoneId}");
+        GD.Print($"[Net] Pair {peer} demande la zone {zoneId} ({(isVr ? "VR" : "PC")})");
         PeerHello?.Invoke(peer, zoneId);
         if (!Remotes.ContainsKey(peer))
         {
             RpcId(peer, MethodName.RefusedRpc, "PARTIE PLEINE OU ZONE INCONNUE");
             return;
         }
+        Remotes[peer].IsVr = isVr;
+        RefreshHybridMode();
         // Nouveau secret à chaque entrée : l'ancien (peut-être lu sur le réseau) ne sert plus.
         if (secret != "") zoneOfSecret.Remove(secret);
         secret = NewSecret();
@@ -827,7 +847,7 @@ public partial class NetSession : Node
         if (ball == null || !velocity.IsFinite() || !float.IsFinite(spin)) return;
         if (BallActions.Locked) { ball.Release(Vector3.Zero, 0f); return; }   // décompte : la balle tombe, rien ne part avant GO
         mode = Mathf.Clamp(mode, 0, 2);
-        ball.Release(Assist.PlanFor(ball, velocity, mode), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
+        ball.Release(Assist.PlanFor(ball, velocity, mode, remote.IsVr), Mathf.Clamp(spin, -MaxSpin, MaxSpin), mode);   // cloche et passe : vitesse plafonnée à 24 m/s
         remote.NextCatchAt = Time.GetTicksMsec() / 1000.0 + CatchCooldown;
         GD.Print($"[Net] Balle {ball.NetId} lancée par la zone {remote.Hurtbox.PlayerId} à {velocity.Length():0.0} m/s" + (mode == Ball.ModePass ? " (passe)" : mode == Ball.ModeLob ? " (cloche)" : spin != 0 ? " (effet)" : ""));
     }

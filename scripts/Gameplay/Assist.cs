@@ -15,6 +15,8 @@ public static class Assist
     public static float MinLaunchSpeed { get; set; } = 5.5f;
     /// <summary>Plafond de vitesse d'un lancer VR (m/s).</summary>
     public static float MaxLaunchSpeedVR { get; set; } = 20f;
+    /// <summary>Plafond équitable en match hybride VR + PC (m/s) : garde les tirs PC vifs sans rendre les balles inattrapables au casque.</summary>
+    public const float MaxLaunchSpeedHybrid = 24f;
     /// <summary>Plafond hors VR (clavier-souris, vieux réglage).</summary>
     public const float MaxLaunchSpeedOther = 30f;
     public static float SpeedMultiplier { get; set; } = 1.4f;
@@ -41,6 +43,8 @@ public static class Assist
 
     /// <summary>Vrai en VR : l'hôte planifie la vitesse de chaque lancer (ThrowPlan).</summary>
     public static bool VrRules { get; set; }
+    /// <summary>Vrai dès qu'au moins un joueur VR et un joueur PC partagent la même partie (démo hybride EVA).</summary>
+    public static bool HybridMatch { get; set; }
 
     public static void Configure(BallRulesDef rules)
     {
@@ -98,13 +102,14 @@ public static class Assist
     }
 
     /// <summary>
-    /// Lancer d'une balle tenue côté hôte (joueur hôte ou ThrowRpc) : la vitesse est planifiée en VR (plafond 20 m/s quel que soit le palier)
-    /// et mémorisée dans ball.SpeedCap. Hôte au clavier-souris : pleine charge 24 m/s, +15 % par palier, 40 m/s au plus (KcRules.PcTierVelocity).
+    /// Lancer d'une balle tenue côté hôte (joueur hôte ou ThrowRpc) : en VR (ou pour un lanceur VR en hybride), vitesse planifiée
+    /// (plafond 20 m/s) ; au clavier-souris, pleine charge 24 m/s + 15 % par palier (plafonné à 24 m/s en match hybride VR+PC, 40 m/s en PC pur).
     /// </summary>
-    public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode)
+    public static Vector3 PlanFor(Ball ball, Vector3 velocity, int mode, bool? vrThrower = null)
     {
         if (mode != 0) return velocity.LimitLength(24f);
-        if (!VrRules) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }
+        bool vr = vrThrower ?? VrRules;
+        if (!vr) { velocity = KcRules.PcTierVelocity(velocity, ball.Charge); ball.SpeedCap = velocity.Length(); return velocity; }
         velocity = velocity.LimitLength(MaxLaunchSpeedVR);
         if (!ball.IsInsideTree()) { ball.SpeedCap = velocity.Length(); return velocity; }
         var (planned, speed) = Plan(ball.GlobalPosition, velocity, EnemyPositions(ball.GetTree(), ball.OwnerTeam));

@@ -314,6 +314,7 @@ public partial class Main : Node3D
                 glove.RotationDegrees = new Vector3(GlovePitchDegrees, 0, leftHand ? GloveRollDegrees : -GloveRollDegrees);
                 grip.AddChild(glove);
                 origin.AddChild(grip);
+                if (leftHand) left.PalmNode = grip; else right.PalmNode = grip;
             }
             origin.AddChild(left);
             origin.AddChild(right);

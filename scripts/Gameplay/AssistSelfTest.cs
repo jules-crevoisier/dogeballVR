@@ -346,5 +346,18 @@ public partial class AssistSelfTest : Node
             && legacyText.Phase == MatchView.Phase.RoundOver && legacyText.Winner == 0 && legacyText.NextRoundIn == 0
             && cd.Phase == MatchView.Phase.Countdown && cd.Round == 3 && cd.NextRoundIn == 0;
         check("n° 7 : pause 20 s VR / 12 s PC, intermission lue par le client", pause && text, $"client : {brk.Phase}, gagnant {brk.Winner}, suite dans {brk.NextRoundIn} s, KO {brk.Kos0}-{brk.Kos1}");
+
+        // Phase 2 (hybride VR + PC) : fenêtre d'attrape PC resserrée par palier + plafond équitable 24 m/s en match hybride.
+        bool pcWin = Mathf.IsEqualApprox(KcRules.PcCatchWindow(0), 0.45f)
+            && Mathf.IsEqualApprox(KcRules.PcCatchWindow(1), 0.40f)
+            && Mathf.IsEqualApprox(KcRules.PcCatchWindow(2), 0.37f)
+            && Mathf.IsEqualApprox(KcRules.PcCatchWindow(3), 0.35f);
+        Assist.HybridMatch = true;
+        float hybSpeed = KcRules.PcTierVelocity(Vector3.Forward * 38f, 3).Length();
+        Assist.HybridMatch = false;
+        float purePcSpeed = KcRules.PcTierVelocity(Vector3.Forward * 38f, 3).Length();
+        bool hybridOk = Mathf.IsEqualApprox(hybSpeed, Assist.MaxLaunchSpeedHybrid) && purePcSpeed > 35f;
+        check("Hybride VR+PC : fenêtre PC par palier & plafond équitable 24 m/s", pcWin && hybridOk,
+            $"PC 0..3 : {KcRules.PcCatchWindow(0):0.00}/{KcRules.PcCatchWindow(3):0.00} s, vitesse hybride {hybSpeed:0.0} vs PC pur {purePcSpeed:0.0} m/s");
     }
 }
