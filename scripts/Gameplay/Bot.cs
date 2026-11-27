@@ -34,9 +34,9 @@ public partial class Bot : Node3D
 
     public static readonly Skill[] Skills =
     {
-        new("Facile", Catch: 0.2f, Perfect: 0f, Dodge: 0.15f, Pass: 0.05f, Feint: 0f, MinSpeed: 13f, MaxSpeed: 18f, Think: new(0.9f, 1.6f), Windup: 0.4f, Lead: 0.3f, Aim: 0.6f),
-        new("Normal", Catch: 0.4f, Perfect: 0.15f, Dodge: 0.35f, Pass: 0.2f, Feint: 0.12f, MinSpeed: 16f, MaxSpeed: 24f, Think: new(0.4f, 0.9f), Windup: 0.3f, Lead: 0.8f, Aim: 0.25f),
-        new("Difficile", Catch: 0.65f, Perfect: 0.4f, Dodge: 0.6f, Pass: 0.35f, Feint: 0.25f, MinSpeed: 20f, MaxSpeed: 28f, Think: new(0.25f, 0.6f), Windup: 0.25f, Lead: 1f, Aim: 0.1f),
+        new("Facile", Catch: 0.2f, Perfect: 0f, Dodge: 0.15f, Pass: 0.08f, Feint: 0f, MinSpeed: 13f, MaxSpeed: 18f, Think: new(0.9f, 1.5f), Windup: 0.4f, Lead: 0.35f, Aim: 0.5f),
+        new("Normal", Catch: 0.42f, Perfect: 0.18f, Dodge: 0.38f, Pass: 0.28f, Feint: 0.18f, MinSpeed: 17f, MaxSpeed: 24f, Think: new(0.35f, 0.8f), Windup: 0.28f, Lead: 0.85f, Aim: 0.18f),
+        new("Difficile", Catch: 0.65f, Perfect: 0.42f, Dodge: 0.62f, Pass: 0.42f, Feint: 0.30f, MinSpeed: 20f, MaxSpeed: 28f, Think: new(0.22f, 0.55f), Windup: 0.24f, Lead: 1f, Aim: 0.08f),
     };
 
     static Skill Current => Skills[Mathf.Clamp(Level, 0, Skills.Length - 1)];

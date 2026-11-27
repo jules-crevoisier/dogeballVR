@@ -38,6 +38,18 @@ public static class KcRules
         return Mathf.Max(baseWindow - cut, perfectWindow + Def.VrCatchWindowMinGap);
     }
 
+    static readonly float[] PcCatchCuts = { 0f, 0.05f, 0.08f, 0.10f };
+
+    /// <summary>
+    /// Clavier-souris : fenêtre d'attrape normale d'une balle adverse selon son palier (0,45 / 0,40 / 0,37 / 0,35 s),
+    /// jamais moins que la fenêtre parfaite + 0,1 s. Aligne le PC sur la menace des paliers de Knockout City et de la VR.
+    /// </summary>
+    public static float PcCatchWindow(int charge, float baseWindow = 0.45f, float perfectWindow = 0.18f)
+    {
+        float cut = PcCatchCuts[Mathf.Clamp(charge, 0, PcCatchCuts.Length - 1)];
+        return Mathf.Max(baseWindow - cut, perfectWindow + Def.VrCatchWindowMinGap);
+    }
+
     /// <summary>Clavier-souris : vitesse de pleine charge (palier 0).</summary>
     public static float PcFullChargeSpeed => Def.PcFullChargeSpeed;
 
@@ -52,8 +64,13 @@ public static class KcRules
         return Mathf.Min(Mathf.Pow(1f + Def.PcTierSpeedBonus, charge), cap);
     }
 
-    /// <summary>Clavier-souris, côté hôte : plafond d'un tir tendu, pleine charge × palier (24 m/s au palier 0, 40 m/s au plus).</summary>
-    public static Vector3 PcTierVelocity(Vector3 velocity, int charge) => velocity.LimitLength(Def.PcFullChargeSpeed * PcTierFactor(charge));
+    /// <summary>Clavier-souris, côté hôte : plafond d'un tir tendu, pleine charge × palier (24 m/s au palier 0, 40 m/s au plus ; 24 m/s max en match hybride VR+PC).</summary>
+    public static Vector3 PcTierVelocity(Vector3 velocity, int charge)
+    {
+        float maxSpeed = Def.PcFullChargeSpeed * PcTierFactor(charge);
+        if (Assist.HybridMatch) maxSpeed = Mathf.Min(maxSpeed, Assist.MaxLaunchSpeedHybrid);
+        return velocity.LimitLength(maxSpeed);
+    }
 
     /// <summary>Lift VR de La Fosse : palier après le bonus du premier tir lancé du plateau haut (+1, plafonné à Ball.MaxCharge).</summary>
     public static int ChargeAfterLift(int charge) => Mathf.Min(charge + Mathf.Max(0, Def.LiftChargeBonus), Ball.MaxCharge);

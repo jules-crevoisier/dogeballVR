@@ -15,6 +15,9 @@ public partial class HandThrower : XRController3D
 
     /// <summary>Hurtbox du joueur (identité et état KO), fournie par la scène principale.</summary>
     public Hurtbox Hurtbox { get; set; } = null!;
+    /// <summary>Ancre de paume (GripGlove sur la pose « grip ») : centre la balle tenue et l'attrape dans la paume plutôt qu'à la pointe de la manette.</summary>
+    public Node3D? PalmNode { get; set; }
+    Node3D HoldAnchor => PalmNode != null && IsInstanceValid(PalmNode) ? PalmNode : this;
 
     /// <summary>
     /// Vibration de la manette (OpenXR : action « haptic » de l'action map), à la force choisie par l'opérateur EVA et par le joueur (GameSettings.Haptics, 0 coupe tout).
@@ -54,7 +57,7 @@ public partial class HandThrower : XRController3D
         gripDown = true;
         double now = Time.GetTicksMsec() / 1000.0;
         // Blocage après une attrape ratée (tenu par le joueur, pour les deux mains) : l'appui ne compte pas, la main reste fermée sans prendre.
-        if (!KcRules.PressGrip(Hurtbox, GlobalPosition, now)) { Pulse(0.15f, 0.05f); return; }
+        if (!KcRules.PressGrip(Hurtbox, HoldAnchor.GlobalPosition, now)) { Pulse(0.15f, 0.05f); return; }
         lastGripPressTime = now;
         if (BallActions.IsClient) BallActions.Net!.RequestGrip(HandIndex);   // l'hôte tient le même blocage en miroir
     }
@@ -83,7 +86,7 @@ public partial class HandThrower : XRController3D
     {
         TryParry(now, delta);
         if (!gripDown || !CanCatch || !Assist.GripValid(now, lastGripPressTime)) return;
-        var hand = GlobalPosition;
+        var hand = HoldAnchor.GlobalPosition;
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
             if (n is not Ball ball || !Catchable(ball)) continue;
@@ -106,8 +109,8 @@ public partial class HandThrower : XRController3D
     {
         if (gripDown || held != null || Hurtbox.HeldHand >= 0 || Hurtbox.Eliminated || now < nextParry) return;
         var head = Hurtbox.Head;
-        if (head == null || GlobalPosition.Y < head.GlobalPosition.Y - 0.55f || GlobalPosition.Y > head.GlobalPosition.Y + 0.1f) return;
-        var hand = GlobalPosition;
+        var hand = HoldAnchor.GlobalPosition;
+        if (head == null || hand.Y < head.GlobalPosition.Y - 0.55f || hand.Y > head.GlobalPosition.Y + 0.1f) return;
         if (head.GlobalPosition.DistanceTo(hand) < 0.25f || head.GlobalPosition.DistanceTo(hand) > 0.8f) return;
         foreach (var n in GetTree().GetNodesInGroup("balls"))
         {
@@ -131,7 +134,7 @@ public partial class HandThrower : XRController3D
         Hurtbox.HeldHand = HandIndex;
         Hurtbox.CatchLock.Caught();
         catchRequestedAt = now;
-        BallActions.Catch(ball, this, HandIndex, Hurtbox.PlayerId, Hurtbox.Team, perfect);
+        BallActions.Catch(ball, HoldAnchor, HandIndex, Hurtbox.PlayerId, Hurtbox.Team, perfect);
         if (perfect) GD.Print("[VR] Attrape parfaite demandée");
     }
 
@@ -141,6 +144,7 @@ public partial class HandThrower : XRController3D
         vel = (vel * Assist.SpeedMultiplier).LimitLength(Assist.VrRules ? Assist.MaxLaunchSpeedVR : Assist.MaxLaunchSpeedOther);
         // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu (l'hôte replanifie, voir Assist.Plan).
         if (vel.Length() > 1.5f && vel.Length() < Assist.MinLaunchSpeed) vel = vel.Normalized() * Assist.MinLaunchSpeed;
+        if (held != null && IsInstanceValid(held)) held.LocalHoldOverride = null;
         if (held != null) BallActions.Throw(held, HandIndex, vel, spin);
         else BallActions.Net!.RequestThrow(HandIndex, vel, spin); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
         ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
@@ -154,12 +158,20 @@ public partial class HandThrower : XRController3D
         if (held != null && !IsInstanceValid(held)) held = null; // balle supprimée au changement de manche
         if (BallActions.IsClient)
         {
-            // Client : la balle tenue est celle que l'hôte place dans notre main (même en retard sur la main : pas de test de distance).
+            // Client VR : la balle tenue suit immédiatement la paume locale (zéro latence visuelle dans le casque).
             if (Hurtbox.HeldHand == HandIndex)
             {
+                var before = held;
                 var mine = BallActions.FindHeld(GetTree(), Hurtbox.PlayerId);
-                if (mine != null) held = mine;
+                if (now >= ignoreHeldUntil && mine != null) held = mine;
                 else if (now > catchRequestedAt + 0.3) { held = null; Hurtbox.HeldHand = -1; } // refusée ou perdue (KO, manche)
+                if (before != held && before != null && IsInstanceValid(before)) before.LocalHoldOverride = null;
+                if (held != null && IsInstanceValid(held)) held.LocalHoldOverride = HoldAnchor;
+            }
+            else if (held != null)
+            {
+                if (IsInstanceValid(held)) held.LocalHoldOverride = null;
+                held = null;
             }
         }
         else if (held != null && Hurtbox.Eliminated)

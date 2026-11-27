@@ -787,12 +787,14 @@ public partial class DesktopPlayer : Node3D
             {
                 if (node is not Ball { IsHeld: false } ball) continue;
                 if (!KcRules.CanTake(ball.IsPass, ball.OwnerTeam, Hurtbox.Team)) continue;   // passe adverse : interceptable par l'attrape (clic droit), réglable
-                // Un ballon d'allié (passe) qui arrive est pris tout seul ; les tirs adverses demandent l'appui clic droit.
-                bool ally = FreeRoam && time > pickupBlockedUntil && ball.IsPass && ball.OwnerTeam == Hurtbox.Team && ball.OwnerPlayerId != Hurtbox.PlayerId && ball.GlobalPosition.DistanceTo(head.GlobalPosition + Vector3.Down * 0.3f) <= 1.3f;
-                bool viaCatch = ally || (catchWindowLeft > 0 && ball.GlobalPosition.DistanceTo(hand) <= CatchReach);
+                // Un ballon d'allié (passe) qui arrive est pris tout seul sur toutes les cartes ; les tirs adverses demandent l'appui clic droit.
+                bool ally = time > pickupBlockedUntil && ball.IsPass && ball.OwnerTeam == Hurtbox.Team && ball.OwnerPlayerId != Hurtbox.PlayerId && ball.GlobalPosition.DistanceTo(head.GlobalPosition + Vector3.Down * 0.3f) <= 1.3f;
                 bool hostileFast = ball.OwnerTeam >= 0 && ball.OwnerTeam != Hurtbox.Team && ball.LinearVelocity.Length() >= Ball.HitMinSpeed;
+                double allowedWindow = hostileFast ? KcRules.PcCatchWindow(ball.Charge, (float)CatchWindow, (float)PerfectCatchWindow) : CatchWindow;
+                bool withinCatchWindow = catchWindowLeft > 0 && time - catchOpenedAt <= allowedWindow;
+                bool viaCatch = ally || (withinCatchWindow && ball.GlobalPosition.DistanceTo(hand) <= CatchReach);
                 bool fastShot = hostileFast && ((ball.ThrowMode == 0 && ball.LinearVelocity.Length() >= PerfectMinSpeed) || (ball.IsPass && KcRules.PerfectOnPass));   // passe interceptée parfaite : +1 palier
-                bool perfect = FreeRoam && !ally && viaCatch && fastShot && time - catchOpenedAt <= PerfectCatchWindow;
+                bool perfect = !ally && viaCatch && fastShot && time - catchOpenedAt <= PerfectCatchWindow;
                 bool slow = ball.LinearVelocity.Length() < PickupSlowSpeed && time > pickupBlockedUntil;
                 float scoopDist = ball.GlobalPosition.DistanceTo(scoop);
                 if (slow && scoopDist <= PickupRadius + 0.6f) scoopUntil = time + 0.2;

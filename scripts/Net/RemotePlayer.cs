@@ -13,6 +13,8 @@ public partial class RemotePlayer : Node3D
     public int PeerId { get; set; }
     public int PlayerId { get; set; }
     public int Team { get; set; }
+    /// <summary>Vrai si ce joueur distant porte un casque VR (permet l'équilibrage hybride VR + PC côté hôte).</summary>
+    public bool IsVr { get; set; }
     /// <summary>Pose avant le premier paquet reçu : le centre de sa zone (pas de flash à l'origine du monde).</summary>
     public PoseData StartPose { get; set; }
     public Hurtbox Hurtbox { get; private set; } = null!;
