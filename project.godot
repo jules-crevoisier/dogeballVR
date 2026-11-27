@@ -37,4 +37,4 @@ shaders/enabled=true
 
 [gui]
 
-theme/custom_font="res://assets/fonts/LilitaOne-Regular.ttf"
+theme/custom_font="res://assets/fonts/Barlow-SemiBold.ttf"

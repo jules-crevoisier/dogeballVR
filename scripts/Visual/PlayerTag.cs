@@ -15,7 +15,7 @@ public partial class PlayerTag : Node3D
 {
     /// <summary>Distance (m) en deçà de laquelle un adversaire reste repérable derrière un obstacle.</summary>
     public const float ThroughWallRange = 28f;
-    const float HeadAbove = 0.95f;   // du centre de la hurtbox au sommet du bonnet
+    const float HeadAbove = 1.08f;   // dégage bien la tête et le réticule de visée
 
     public Hurtbox Target { get; set; } = null!;
     public Func<int> Lives { get; set; } = () => 0;
@@ -31,7 +31,7 @@ public partial class PlayerTag : Node3D
     float nameEm = 1f;
     string lastHearts = "", lastName = "";
     bool? throughWalls;
-    float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 24 px pour un adversaire)
+    float widthEm = 2f;   // largeur du bloc nom + cœurs, contours compris (1 em = 19 px pour un adversaire)
     float unitPx;         // taille d'un em en pixels de la fenêtre, à la dernière image affichée
 
     /// <summary>Toutes les étiquettes cachées (compte à rebours du joueur PC : le chiffre et « GO ! » ne les chevauchent pas ; intermission entre deux manches).</summary>
@@ -68,18 +68,18 @@ public partial class PlayerTag : Node3D
     public override void _Ready()
     {
         TopLevel = true;
-        font ??= GD.Load<Font>("res://assets/fonts/LilitaOne-Regular.ttf");
-        var color = Palette.Team(Target.Team).Lerp(Colors.White, 0.15f);
+        font ??= GD.Load<Font>("res://assets/fonts/BarlowCondensed-Bold.ttf");
+        var color = Palette.Team(Target.Team).Lerp(Colors.White, 0.2f);
         nameLabel = new Label3D
         {
-            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 40, Modulate = color, OutlineModulate = Palette.Panel,
-            VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, 1.05f, 0), RenderPriority = 1, OutlineRenderPriority = 0,
+            Font = font, FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 22, Modulate = color, OutlineModulate = new Color("04070f"),
+            VerticalAlignment = VerticalAlignment.Bottom, Position = new Vector3(0, 1.0f, 0), RenderPriority = 1, OutlineRenderPriority = 0,
         };
-        // Cœurs : police par défaut (les glyphes ♥ ♡ n'existent pas dans Lilita One).
+        // Cœurs : police par défaut (glyphes ♥ ♡).
         hearts = new Label3D
         {
-            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 44, Modulate = color, OutlineModulate = Palette.Panel,
-            VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * (28f / 24f),
+            FontSize = 64, PixelSize = 1f / 64f, OutlineSize = 26, Modulate = color, OutlineModulate = new Color("04070f"),
+            VerticalAlignment = VerticalAlignment.Bottom, RenderPriority = 1, OutlineRenderPriority = 0, Scale = Vector3.One * (24f / 19f),
         };
         symbol = new Sprite3D
         {
@@ -113,22 +113,22 @@ public partial class PlayerTag : Node3D
             throughWalls = walls;
             nameLabel.NoDepthTest = hearts.NoDepthTest = walls;
         }
-        // Taille : nom 24 px, cœurs 28 px (image 720 lignes) ; coéquipiers aux trois quarts et plus pâles.
-        float k = mate ? 0.75f : 1f;
-        float alpha = mate ? 0.7f : 1f;
-        float em = 24f * k * mpp;   // 1 unité locale = 1 em de 24 px
+        // Taille affinée (19 px en 720p) : lisible à 20 m sans masquer le viseur.
+        float k = mate ? 0.78f : 1f;
+        float alpha = mate ? 0.72f : 1f;
+        float em = 19f * k * mpp;
         var basis = cam.GlobalTransform.Basis.Orthonormalized();
-        GlobalTransform = new Transform3D(basis * Basis.FromScale(Vector3.One * em), head + basis.Y * (6f * mpp));
+        GlobalTransform = new Transform3D(basis * Basis.FromScale(Vector3.One * em), head + basis.Y * (8f * mpp));
 
-        string n = PlayerName();
+        string n = PlayerName().ToUpperInvariant();
         if (n != lastName)
         {
             nameLabel.Text = n;
             lastName = n;
-            nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.65f;
-            widthEm = Mathf.Max(nameEm, Max * 0.85f * (28f / 24f) + 0.7f);
+            nameEm = font!.GetStringSize(n, HorizontalAlignment.Left, -1, 64).X / 64f + 0.55f;
+            widthEm = Mathf.Max(nameEm, Max * 0.85f * (24f / 19f) + 0.6f);
         }
-        unitPx = 24f * k * GetViewport().GetVisibleRect().Size.Y / 720f;
+        unitPx = 19f * k * GetViewport().GetVisibleRect().Size.Y / 720f;
         int lives = Mathf.Clamp(Lives(), 0, Max);
         var t = new string('♥', lives) + new string('♡', Max - lives);
         if (t != lastHearts) { hearts.Text = t; lastHearts = t; }

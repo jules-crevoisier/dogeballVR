@@ -55,69 +55,68 @@ public partial class MainMenu : CanvasLayer
         compact = root.GetViewportRect().Size.Y < 960f;
         float top = compact ? -44f : 0f;
 
-        // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
+        // Grand bandeau carbone diagonal à gauche : porte le wordmark et la navigation.
         band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
         band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         band.Resized += band.QueueRedraw;
         root.AddChild(band);
-        UiKit.SlideIn(band, 0f, -260f);
+        UiKit.SlideIn(band, 0f, -200f);
 
-        // Logo penché, en autocollant : ombre marine, contour crème épais, puis le texte orange cerné de marine.
-        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.82f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
+        // Wordmark e-sport net (plus d'autocollant cartoon ni de « DOGEBALL »).
+        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.86f : 1f) };
         root.AddChild(logoScale);
-        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(72, compact ? 30 : 42), Size = new Vector2(700, 210), RotationDegrees = -6f };
+        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(68, compact ? 38 : 54), Size = new Vector2(620, 180) };
         logoScale.AddChild(logoBox);
-        void LogoLayer(Color color, int outline, Color outlineColor, Vector2 at)
-        {
-            var l = UiKit.Text("DOGEBALL", 138, color, outline);
-            l.AddThemeColorOverride("font_outline_color", outlineColor);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
-            l.Position = at;
-            logoBox.AddChild(l);
-        }
-        LogoLayer(new Color("0a0f22"), 60, new Color("0a0f22"), new Vector2(9, 12));
-        LogoLayer(UiKit.Cream, 60, UiKit.Cream, Vector2.Zero);
-        LogoLayer(UiKit.Orange, 30, UiKit.Navy, Vector2.Zero);
-        var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 30, UiKit.Yellow, 10);
-        if (UiKit.Italic is Font ti) tag.AddThemeFontOverride("font", ti);
-        tag.Position = new Vector2(22, 170);
-        logoBox.AddChild(tag);
-        UiKit.Punch(logoBox, 1.3f, 0.45);
-        // Le logo respire doucement.
-        var bob = logoBox.CreateTween().SetLoops();
-        bob.TweenProperty(logoBox, "rotation_degrees", -4.5f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        bob.TweenProperty(logoBox, "rotation_degrees", -6f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
 
-        // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
+        var badge = UiKit.DisplayText("EVA ARENA · PRÉSENTATION", 18, UiKit.Yellow, 0);
+        badge.Position = new Vector2(4, 0);
+        logoBox.AddChild(badge);
+
+        var titleRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 18) };
+        titleRow.AddThemeConstantOverride("separation", 10);
+        logoBox.AddChild(titleRow);
+        var w1 = UiKit.Title("DODGE", 108, HorizontalAlignment.Left, UiKit.Cream);
+        var w2 = UiKit.Title("ARENA", 108, HorizontalAlignment.Left, UiKit.Orange);
+        titleRow.AddChild(w1);
+        titleRow.AddChild(w2);
+
+        var accentLine = new ColorRect { Color = UiKit.Yellow, Position = new Vector2(4, 134), Size = new Vector2(88, 4), MouseFilter = Control.MouseFilterEnum.Ignore };
+        logoBox.AddChild(accentLine);
+        var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 20, UiKit.Lavender, 0);
+        tag.Position = new Vector2(106, 123);
+        logoBox.AddChild(tag);
+        UiKit.SlideIn(logoBox, 0.05f, -40f);
+
+        // Aides clavier en bas à gauche, dans leur zone dédiée sous le filet séparateur (zéro chevauchement).
         var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        hints.AddThemeConstantOverride("separation", 36);
-        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
-        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24);   // sous-menus seulement : le menu racine n'a pas de retour
+        hints.AddThemeConstantOverride("separation", 28);
+        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 20));
+        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 20);
         escHint.Visible = false;
         hints.AddChild(escHint);
         hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         hints.GrowVertical = Control.GrowDirection.Begin;
-        hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
+        hints.OffsetLeft = 68; hints.OffsetTop = -62; hints.OffsetRight = 520; hints.OffsetBottom = -24;
         root.AddChild(hints);
 
-        // Barre jaune de sélection, sous les items (elle suit le focus dans _Process).
+        // Barre Volt de sélection, sous les items (elle suit le focus dans _Process).
         bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         root.AddChild(bar);
 
-        column = new VBoxContainer { Position = new Vector2(110, 300 + top) };
-        column.AddThemeConstantOverride("separation", compact ? 10 : 14);
+        column = new VBoxContainer { Position = new Vector2(96, compact ? 236 : 272) };
+        column.AddThemeConstantOverride("separation", compact ? 6 : 8);
         root.AddChild(column);
 
         string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"Accès anticipé · v{(ver == "" ? "0.1" : ver)}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
+        var version = UiKit.DisplayText($"EVA DEMO BUILD · v{(ver == "" ? "0.1" : ver)}", 18, new Color(UiKit.Cream, 0.72f), 2, HorizontalAlignment.Right);
         version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
+        version.OffsetLeft = -460; version.OffsetTop = -44; version.OffsetRight = -28; version.OffsetBottom = -16;
         root.AddChild(version);
 
         fade = new ColorRect { Color = new Color(0, 0, 0, 1), MouseFilter = Control.MouseFilterEnum.Ignore };
         fade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(fade);
-        fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.6);
+        fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.45);
 
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
@@ -210,21 +209,20 @@ public partial class MainMenu : CanvasLayer
     /// </summary>
     Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
     {
-        var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
-        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 84 : 52) };
+        var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 2 };
+        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(520, main ? 68 : 44) };
         b.SetMeta(ItemMeta, true);
         foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        b.AddThemeFontSizeOverride("font_size", main ? 70 : 38);
+        b.AddThemeFontSizeOverride("font_size", main ? 58 : 34);
         if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
         b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
-        var rest = restColor ?? (main ? Colors.White : UiKit.Lavender);   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
-        int restOutline = main ? 12 : 8;
-        void Paint(Color c, int outline)
+        var rest = restColor ?? (main ? UiKit.Cream : UiKit.Lavender);
+        void Paint(Color c)
         {
             foreach (var k in FontColors) b.AddThemeColorOverride(k, c);
-            b.AddThemeConstantOverride("outline_size", outline);
+            b.AddThemeConstantOverride("outline_size", 0);
         }
-        Paint(rest, restOutline);
+        Paint(rest);
         Tween? slide = null;
         void Shift(float to)
         {
@@ -232,8 +230,8 @@ public partial class MainMenu : CanvasLayer
             slide = b.CreateTween();
             slide.TweenProperty(pad, "content_margin_left", to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         }
-        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 2); Shift(main ? 36f : 30f); };
-        b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
+        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy); Shift(main ? 32f : 26f); };
+        b.FocusExited += () => { Paint(rest); Shift(0f); };
         b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
@@ -248,7 +246,7 @@ public partial class MainMenu : CanvasLayer
             Item("EN LIGNE", ShowOnline),
             Item("PROFIL", ShowProfile),
             Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
-            UiKit.Spacer(14),
+            UiKit.Spacer(18),
             Item("CRÉDITS", ShowCredits, false),
             Item("QUITTER", () => GetTree().Quit(), false));
     }
@@ -477,23 +475,35 @@ public partial class MainMenu : CanvasLayer
         tw.TweenCallback(Callable.From(then));
     }
 
-    /// <summary>Barre de sélection jaune inclinée, qui vire à l'or vers le bas, avec l'étoile marine devant le texte (« ✦ JUGAR »).</summary>
+    /// <summary>Barre de sélection Volt e-sport avec encoche orange et chevron athlétique.</summary>
     sealed partial class SelectBar : Control
     {
-        static readonly Color Gold = new("ffb21f");
-
         public override void _Draw()
         {
             float w = Size.X, h = Size.Y;
             if (w < 2f) return;
-            float s = Mathf.Min(h * 0.3f, w);   // biais : le haut part vers la droite, comme le texte penché
-            Vector2[] Quad(Vector2 o) => new[] { o + new Vector2(s, 0), o + new Vector2(w, 0), o + new Vector2(w - s, h), o + new Vector2(0, h) };
-            DrawColoredPolygon(Quad(new Vector2(7, 7)), new Color(0.02f, 0.03f, 0.1f, 0.55f));
-            DrawPolygon(Quad(Vector2.Zero), new[] { UiKit.Yellow, UiKit.Yellow, Gold, Gold });
-            if (w < BarLead + 24f) return;
-            var c = new Vector2(BarLead + 10f, h / 2f);
-            float r = Mathf.Min(h * 0.24f, 15f), k = r * 0.3f;
-            DrawColoredPolygon(new[] { c + new Vector2(0, -r), c + new Vector2(k, -k), c + new Vector2(r, 0), c + new Vector2(k, k), c + new Vector2(0, r), c + new Vector2(-k, k), c + new Vector2(-r, 0), c + new Vector2(-k, -k) }, UiKit.Navy);
+            float s = Mathf.Min(h * 0.22f, w);
+            Vector2[] Quad(float x0, float x1, Vector2 o) => new[]
+            {
+                o + new Vector2(x0 + s, 0), o + new Vector2(x1, 0),
+                o + new Vector2(x1 - s, h), o + new Vector2(x0, h),
+            };
+            DrawColoredPolygon(Quad(0, w, new Vector2(0, 5)), new Color(0.01f, 0.02f, 0.06f, 0.55f));
+            DrawPolygon(Quad(0, w, Vector2.Zero), new[] { UiKit.Yellow, UiKit.Yellow, UiKit.Gold, UiKit.Gold });
+            // Encoche d'accent orange sur le bord gauche
+            DrawColoredPolygon(Quad(0, Mathf.Min(10f, w), Vector2.Zero), UiKit.Orange);
+            if (w < BarLead + 22f) return;
+            var c = new Vector2(BarLead + 6f, h / 2f);
+            float ch = Mathf.Min(h * 0.22f, 11f), cw = ch * 0.72f, ct = Mathf.Max(3f, ch * 0.34f);
+            DrawColoredPolygon(new[]
+            {
+                c + new Vector2(-cw * 0.5f, -ch),
+                c + new Vector2(-cw * 0.5f + ct, -ch),
+                c + new Vector2(cw * 0.7f, 0),
+                c + new Vector2(-cw * 0.5f + ct, ch),
+                c + new Vector2(-cw * 0.5f, ch),
+                c + new Vector2(cw * 0.7f - ct, 0),
+            }, UiKit.Navy);
         }
     }
 }
