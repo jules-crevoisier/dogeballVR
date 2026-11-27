@@ -117,7 +117,7 @@ public partial class Main : Node3D
         System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency;   // pas de collecte complète bloquante en pleine partie   // préréglage de qualité sur chaque ciel et soleil chargés
         UI.InputSetup.Register();
         UI.GameSettings.Apply(xrActive ? null : GetViewport());
-        if (xrActive || Tools.DevFlags.Has("--vr-end-stage")) UI.EvaSettings.Load();   // salle EVA : réglages de l'opérateur, pas de menu dans le casque
+        if (xrActive || Tools.DevFlags.Has("--vr-end-stage") || Tools.EvaDemoControl.Active) UI.EvaSettings.Load();   // salle EVA : réglages de l'opérateur, pas de menu dans le casque
         if (xrActive) UI.EvaSettings.Apply();
         Engine.TimeScale = 1.0;
         GetTree().Paused = false;
@@ -191,13 +191,16 @@ public partial class Main : Node3D
         Audio.Music.PlayMatch();
         bool client = cfg.Mode == NetMode.Client;
 
-        string mapPath = $"res://maps/{cfg.Map}.json";
+        string selectedMap = Tools.EvaDemoControl.MapOverride ?? cfg.Map;
+        string mapPath = $"res://maps/{selectedMap}.json";
         if (!FileAccess.FileExists(mapPath))
         {
             GD.PrintErr($"Map introuvable : {mapPath}. Repli sur neon_court.");
+            selectedMap = "neon_court";
             mapPath = "res://maps/neon_court.json";
         }
         map = MapData.Load(mapPath);
+        if (!xrActive) Tools.EvaDemoControl.AttachIfAsked(this, selectedMap);
         // Règles de la map, lues aussi par le client (fenêtre d'attrape par palier, interception, blocage d'une attrape ratée).
         KcRules.Configure(map.Rules, xrActive);
         Assist.Configure(map.BallRules);
