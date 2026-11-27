@@ -110,88 +110,88 @@ public partial class DesktopHud : CanvasLayer
 
     void BuildScoreBoard()
     {
-        board = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(700, 140) };
+        board = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(468, 96) };
         board.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        board.OffsetLeft = -350; board.OffsetRight = 350; board.OffsetTop = 18; board.OffsetBottom = 158;
+        board.OffsetLeft = -234; board.OffsetRight = 234; board.OffsetTop = 18; board.OffsetBottom = 114;
         root.AddChild(board);
+
+        // Pilule centrale verre fumé arrondie (façon Overwatch 2 / The Finals / maquette validée).
+        var pill = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 0), Size = new Vector2(468, 62) };
+        pill.AddThemeStyleboxOverride("panel", UiKit.Pill(new Color("161b26", 0.74f), 31, 1, new Color(1f, 1f, 1f, 0.22f), 14, 0.28f));
+        board.AddChild(pill);
 
         for (int team = 0; team < 2; team++)
         {
             var color = team == 0 ? UiKit.Orange : UiKit.Blue;
             bool mine = team == View.LocalTeam;
-            var box = MakePanel(color, team == 0 ? -0.18f : 0.18f, 14, mine ? 4 : 0, UiKit.Yellow);
-            box.Position = new Vector2(team == 0 ? 0 : 450, 0);
-            box.Size = new Vector2(250, 92);
+            // Carré arrondi vif pour le score KO de chaque équipe
+            var box = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
+            box.AddThemeStyleboxOverride("panel", UiKit.Pill(color, 10, mine ? 2 : 0, Colors.White, 6, 0.25f));
+            box.Position = new Vector2(team == 0 ? 114 : 300, 9);
+            box.Size = new Vector2(54, 44);
             box.PivotOffset = box.Size / 2;
             board.AddChild(box);
             teamBoxes[team] = box;
 
-            // Nom d'équipe seul (le liseré jaune dit déjà laquelle est la mienne), gros chiffre des KO et « KO » discret dessous.
-            var align = team == 0 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-            var name = UiKit.Text(team == 0 ? "ORANGE" : "BLEUE", 24, UiKit.Cream, 6, team == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
-            name.Position = new Vector2(team == 0 ? 26 : 18, 28);
-            name.Size = new Vector2(206, 32);
-            box.AddChild(name);
-
-            var ko = UiKit.Text("0", 76, Colors.White, 12, align);
-            ko.Position = new Vector2(team == 0 ? 120 : 24, -11);
-            ko.Size = new Vector2(100, 92);
+            var ko = UiKit.DisplayText("0", 34, Colors.White, 0, HorizontalAlignment.Center);
+            ko.VerticalAlignment = VerticalAlignment.Center;
+            ko.Position = Vector2.Zero;
+            ko.Size = box.Size;
             ko.PivotOffset = ko.Size / 2;
             box.AddChild(ko);
             koLabels[team] = ko;
-            // « KO » et pastilles : 22 px du HUD de 1080 lignes, soit 14 px au moins en 720p.
-            var koTag = UiKit.Text("KO", 22, UiKit.Cream, 6, align);
-            koTag.Position = new Vector2(team == 0 ? 118 : 26, 61);
-            koTag.Size = new Vector2(100, 28);
-            box.AddChild(koTag);
 
-            // Pastilles des manches gagnées (22 px), du côté du chrono.
+            // Petits points ronds de manches gagnées dans les ailes de la pilule
             for (int i = 0; i < 5; i++)
             {
-                var pip = new Pip { Color = color, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(22, 22) };
-                pip.Position = new Vector2(team == 0 ? 224 - i * 29 : 454 + i * 29, 101);
-                pip.PivotOffset = new Vector2(11, 11);
+                var pip = new Pip { Color = color, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(14, 14) };
+                pip.Position = new Vector2(team == 0 ? 90 - i * 18 : 364 + i * 18, 24);
+                pip.PivotOffset = new Vector2(7, 7);
                 board.AddChild(pip);
                 roundPips[team].Add(pip);
             }
         }
 
+        // Chrono blanc net au centre de la pilule
         timerBox = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
+        timerStyle.BgColor = new Color(0, 0, 0, 0);
+        timerStyle.BorderWidthTop = timerStyle.BorderWidthBottom = timerStyle.BorderWidthLeft = timerStyle.BorderWidthRight = 0;
         timerBox.AddThemeStyleboxOverride("panel", timerStyle);
-        timerBox.Position = new Vector2(262, -4);
-        timerBox.Size = new Vector2(176, 104);
+        timerBox.Position = new Vector2(174, 4);
+        timerBox.Size = new Vector2(120, 54);
         timerBox.PivotOffset = timerBox.Size / 2;
         board.AddChild(timerBox);
-        timer = UiKit.Text("2:00", 58, Colors.White, 10, HorizontalAlignment.Center);
-        timer.Position = new Vector2(0, 2);
-        timer.Size = new Vector2(176, 70);
+
+        timer = UiKit.DisplayText("2:00", 36, Colors.White, 0, HorizontalAlignment.Center);
+        timer.Position = new Vector2(0, -1);
+        timer.Size = new Vector2(120, 40);
         timer.PivotOffset = timer.Size / 2;
         timerBox.AddChild(timer);
-        roundLabel = UiKit.Text("MANCHE 1/5", 21, UiKit.Sky, 5, HorizontalAlignment.Center);
-        roundLabel.Position = new Vector2(0, 68);
-        roundLabel.Size = new Vector2(176, 28);
+
+        roundLabel = UiKit.Text("M1/5", 12, new Color(1f, 1f, 1f, 0.72f), 0, HorizontalAlignment.Center);
+        roundLabel.Position = new Vector2(0, 36);
+        roundLabel.Size = new Vector2(120, 16);
         timerBox.AddChild(roundLabel);
 
-        overtime = UiKit.Text("PROLONGATION", 30, UiKit.Yellow, 8, HorizontalAlignment.Center);
-        overtime.Position = new Vector2(200, 104);
-        overtime.Size = new Vector2(300, 40);
+        overtime = UiKit.DisplayText("PROLONGATION", 18, UiKit.Orange, 2, HorizontalAlignment.Center);
+        overtime.Position = new Vector2(84, 66);
+        overtime.Size = new Vector2(300, 26);
         overtime.PivotOffset = overtime.Size / 2;
         overtime.Visible = false;
         board.AddChild(overtime);
     }
 
-    /// <summary>Pastille de manche gagnée (pleine) ou à jouer (creuse) : petit pavé penché, comme les boutons du menu. Le dessin suit la taille du contrôle.</summary>
+    /// <summary>Pastille ronde de manche gagnée (pleine lumineuse) ou à jouer (discrète).</summary>
     sealed partial class Pip : Control
     {
         public Color Color;
         public bool On;
         public override void _Draw()
         {
-            float w = Size.X, h = Size.Y * 0.8f, y = (Size.Y - h) / 2, k = h * 0.3f;
-            Vector2[] Quad(float g, Vector2 o) => new[] { o + new Vector2(k + g * 0.3f, y + g), o + new Vector2(w - g, y + g), o + new Vector2(w - k - g * 0.3f, y + h - g), o + new Vector2(g, y + h - g) };
-            DrawColoredPolygon(Quad(0, new Vector2(0, 2)), new Color(0, 0, 0, 0.45f));
-            DrawColoredPolygon(Quad(0, Vector2.Zero), UiKit.Navy);
-            DrawColoredPolygon(Quad(3.5f, Vector2.Zero), On ? Color : new Color(1, 1, 1, 0.18f));
+            var c = Size / 2f;
+            float r = Mathf.Min(Size.X, Size.Y) * 0.42f;
+            DrawCircle(c, r, On ? Color : new Color(1f, 1f, 1f, 0.24f));
+            if (On) DrawArc(c, r, 0, Mathf.Tau, 20, new Color(1f, 1f, 1f, 0.45f), 1.5f, true);
         }
     }
 
@@ -220,7 +220,7 @@ public partial class DesktopHud : CanvasLayer
         bool live = s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         int sec = live ? s.Seconds : Mathf.Max(0, lastSecond);
         timer.Text = Clock(sec);
-        roundLabel.Text = s.Round > s.MaxRounds ? "MANCHE DÉCISIVE" : $"MANCHE {Mathf.Max(1, s.Round)}/{s.MaxRounds}";
+        roundLabel.Text = s.Round > s.MaxRounds ? "DÉCISIVE" : $"M{Mathf.Max(1, s.Round)}/{s.MaxRounds}";
         bool urgent = s.Phase == MatchView.Phase.Playing && sec <= 10;
         if (urgent && sec != lastSecond)
         {
@@ -229,8 +229,8 @@ public partial class DesktopHud : CanvasLayer
         }
         lastSecond = sec;
         float pulse = urgent ? 0.5f + 0.5f * Mathf.Sin((float)age * 10f) : 0f;
-        timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(Urgent, 0.6f + 0.4f * pulse) : Colors.White);
-        timerStyle.BgColor = urgent ? UiKit.Navy.Lerp(new Color("5a3a08"), pulse) : UiKit.Navy;
+        timer.AddThemeColorOverride("font_color", urgent ? Colors.White.Lerp(UiKit.Orange, 0.5f + 0.5f * pulse) : Colors.White);
+        timerStyle.BgColor = new Color(0, 0, 0, 0);
         bool ot = s.Overtime && s.Phase is MatchView.Phase.Playing or MatchView.Phase.Countdown;
         if (ot && !overtime.Visible) UiKit.Punch(overtime, 2f, 0.35);
         overtime.Visible = ot;
@@ -244,11 +244,11 @@ public partial class DesktopHud : CanvasLayer
         tw.TweenProperty(c, "modulate", Colors.White, 0.35);
     }
 
-    // ------------------------------------------------------------------ cœurs (bas gauche)
+    // ------------------------------------------------------------------ cœurs flottants (bas gauche, zéro boîte)
 
     readonly List<Heart> hearts = new();
     int lastLives;
-    const float HeartSize = 80f;   // contrôle de 80 px : cœur dessiné d'environ 64 px, liseré compris
+    const float HeartSize = 54f;
     Control heartsHolder = null!;
     HeartBreak heartBreak = null!;
 
@@ -258,7 +258,7 @@ public partial class DesktopHud : CanvasLayer
         public float Shake;
         public Color Fill = UiKit.Orange;
         static Vector2[]? shape;
-        /// <summary>Contour du cœur (48 points, unité ~1) : indices 0 à 24 pour la moitié droite (encoche en haut à 0, pointe en bas à 24).</summary>
+        /// <summary>Contour du cœur (48 points, unité ~1).</summary>
         public static Vector2[] Shape()
         {
             if (shape != null) return shape;
@@ -282,38 +282,43 @@ public partial class DesktopHud : CanvasLayer
         public override void _Draw()
         {
             var c = Size / 2 + new Vector2(Mathf.Sin(Shake * 60f) * Shake * Size.X * 0.12f, 0);
-            float r = Size.X * 0.36f;
-            DrawColoredPolygon(At(c + new Vector2(0, 3), r + 5), new Color(0, 0, 0, 0.4f));
-            DrawColoredPolygon(At(c, r + 5), UiKit.Navy);
-            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(0.25f, 0.28f, 0.4f));
-            if (Full) DrawColoredPolygon(At(c + new Vector2(-r * 0.32f, -r * 0.3f), r * 0.28f), new Color(1, 1, 1, 0.55f));
+            float r = Size.X * 0.38f;
+            DrawColoredPolygon(At(c + new Vector2(0, 3), r + 2.5f), new Color(0, 0, 0, 0.32f));
+            DrawColoredPolygon(At(c, r + 2f), Full ? Fill.Darkened(0.45f) : new Color(0, 0, 0, 0.25f));
+            DrawColoredPolygon(At(c, r), Full ? Fill : new Color(0.25f, 0.28f, 0.36f, 0.45f));
+            if (Full) DrawColoredPolygon(At(c + new Vector2(-r * 0.30f, -r * 0.28f), r * 0.26f), new Color(1, 1, 1, 0.50f));
         }
     }
 
     void BuildHearts()
     {
-        // Bas à gauche, à la Knockout City : mon nom (ou « Toi ») au-dessus de gros cœurs.
+        // Bas à gauche flottant directement sur le jeu (façon maquette AAA : cœurs sculptés + pastille d'équipe + pseudo).
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        holder.OffsetLeft = 32; holder.OffsetTop = -158; holder.OffsetRight = 420; holder.OffsetBottom = -28;
+        holder.OffsetLeft = 36; holder.OffsetTop = -114; holder.OffsetRight = 380; holder.OffsetBottom = -26;
         root.AddChild(holder);
         heartsHolder = holder;
-        string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
-        var who = UiKit.Text(me, 28, Colors.White, 8);
-        who.Position = new Vector2(8, 0);
-        who.Size = new Vector2(380, 36);
-        holder.AddChild(who);
-        var back = MakePanel(new Color(UiKit.Navy, 0.6f), -0.15f, 16, 0, null, 4);
-        back.Position = new Vector2(0, 38);
-        back.Size = new Vector2(24 + (HeartSize + 8) * View.MaxLives, HeartSize + 12);
-        holder.AddChild(back);
+        var teamColor = Palette.Team(View.LocalTeam);
+
         for (int i = 0; i < View.MaxLives; i++)
         {
-            var h = new Heart { Fill = Palette.Team(View.LocalTeam), MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(14 + i * (HeartSize + 8), 44) };
+            var h = new Heart { Fill = teamColor, MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(HeartSize, HeartSize), Position = new Vector2(i * (HeartSize + 4), 0) };
             h.PivotOffset = h.Size / 2;
             holder.AddChild(h);
             hearts.Add(h);
         }
+
+        // Ligne pseudo sous les cœurs : petite pastille d'équipe + nom blanc net
+        var dot = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(4, 58), Size = new Vector2(18, 18) };
+        dot.AddThemeStyleboxOverride("panel", UiKit.Pill(teamColor, 9, 2, Colors.White, 4, 0.3f));
+        holder.AddChild(dot);
+
+        string me = MatchView.HumanName?.Invoke(View.LocalId) is { Length: > 0 } pseudo ? pseudo : View.NameOf(View.LocalId);
+        var who = UiKit.DisplayText(me.ToUpperInvariant(), 24, Colors.White, 2);
+        who.Position = new Vector2(30, 52);
+        who.Size = new Vector2(300, 30);
+        holder.AddChild(who);
+
         // Cœur perdu en grand, par-dessus le reste du HUD (bris et éclats).
         heartBreak = new HeartBreak { MouseFilter = Control.MouseFilterEnum.Ignore };
         heartBreak.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -476,81 +481,71 @@ public partial class DesktopHud : CanvasLayer
         public override void _Draw()
         {
             var c = Size / 2;
-            float r = 46f;
-            DrawCircle(c + new Vector2(0, 4), r + 6, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 6, new Color(UiKit.Navy, 0.8f));
+            float r = 44f;
+            // Disque verre fumé léger + anneau blanc fin (façon maquette AAA)
+            DrawCircle(c, r, new Color("121622", Holding ? 0.42f : 0.28f));
+            DrawArc(c, r, 0, Mathf.Tau, 48, new Color(1f, 1f, 1f, Holding ? 0.55f : 0.32f), 3f, true);
             if (!Holding)
             {
-                for (int i = 0; i < 16; i++)
-                {
-                    float a = Mathf.Tau * i / 16f;
-                    DrawArc(c, r - 6, a, a + Mathf.Tau / 32f, 4, new Color(1, 1, 1, 0.3f), 4f, true);
-                }
+                // Icône balle discrète en filaire blanc
+                DrawArc(c, 22f, 0, Mathf.Tau, 32, new Color(1f, 1f, 1f, 0.42f), 3.5f, true);
+                DrawArc(c + new Vector2(-12, 0), 20f, -0.75f, 0.75f, 14, new Color(1f, 1f, 1f, 0.35f), 2.5f, true);
+                DrawArc(c + new Vector2(12, 0), 20f, Mathf.Pi - 0.75f, Mathf.Pi + 0.75f, 14, new Color(1f, 1f, 1f, 0.35f), 2.5f, true);
                 return;
             }
-            float rr = r - 6 + Pop * 8f;
+            float rr = 26f + Pop * 5f;
             DrawCircle(c, rr, BallColor);
-            DrawArc(c, rr * 0.72f, -2.4f, -0.7f, 16, new Color(1, 1, 1, 0.35f), 5f, true);
-            DrawCircle(c + new Vector2(-rr * 0.35f, -rr * 0.38f), rr * 0.18f, new Color(1, 1, 1, 0.6f));
-            if (Tier > 0)
+            DrawArc(c, rr * 0.74f, -2.3f, -0.6f, 16, new Color(1f, 1f, 1f, 0.55f), 4f, true);
+            var ringCol = Tier > 0 ? BallTierColors[Mathf.Clamp(Tier, 0, 3)] : UiKit.Orange;
+            DrawArc(c, r, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * (0.4f + 0.6f * Mathf.Clamp(Pop + 0.5f, 0f, 1f)), 48, ringCol, 5f, true);
+            for (int i = 0; i < Tier; i++)
             {
-                var col = BallTierColors[Mathf.Clamp(Tier, 0, 3)];
-                DrawArc(c, r + 2, 0, Mathf.Tau, 48, col, 6f, true);
-                for (int i = 0; i < Tier; i++)   // pastilles de palier au-dessus de la balle
-                {
-                    var p = c + new Vector2((i - (Tier - 1) / 2f) * 20f, -r - 16);
-                    DrawCircle(p, 8f, UiKit.Navy);
-                    DrawCircle(p, 6f, col);
-                }
+                var p = c + new Vector2((i - (Tier - 1) / 2f) * 18f, -r - 12);
+                DrawCircle(p, 5.5f, ringCol);
             }
         }
     }
 
-    /// <summary>Jauge ronde (attrape, dash) : pictogramme, remplissage en camembert pendant la recharge, charges en pastilles.</summary>
+    /// <summary>Anneau de capacité aérien (attrape, esquive) : verre translucide, arc de recharge lumineux, pictogramme blanc épuré.</summary>
     sealed partial class RoundGauge : Control
     {
         public float Fill = 1f;
-        public Color Color = UiKit.Green;
+        public Color Color = UiKit.Sky;
         public bool Dash;
         public int Charges, MaxCharges;
         public float Glow;
         public override void _Draw()
         {
-            var c = new Vector2(Size.X / 2, 40);
-            float r = 34f;
-            DrawCircle(c + new Vector2(0, 3), r + 5, new Color(0, 0, 0, 0.35f));
-            DrawCircle(c, r + 5, UiKit.Navy);
-            DrawCircle(c, r, new Color(0.18f, 0.22f, 0.36f));
+            var c = new Vector2(Size.X / 2, 48);
+            float r = 42f;
+            DrawCircle(c, r, new Color("121622", 0.30f));
+            DrawArc(c, r, 0, Mathf.Tau, 48, new Color(1f, 1f, 1f, 0.28f), 3f, true);
             if (Fill > 0.001f)
             {
-                var pts = new List<Vector2> { c };
-                int n = Mathf.Max(2, (int)(40 * Fill));
-                for (int i = 0; i <= n; i++) pts.Add(c + Vector2.FromAngle(-Mathf.Pi / 2 + Mathf.Tau * Fill * i / n) * r);
-                DrawColoredPolygon(pts.ToArray(), new Color(Color, Fill >= 1f ? 1f : 0.55f));
+                var arcCol = Fill >= 1f ? Colors.White : new Color(Color, 0.85f);
+                DrawArc(c, r, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * Mathf.Clamp(Fill, 0f, 1f), 48, arcCol, 5f, true);
             }
-            if (Glow > 0) DrawArc(c, r + 9, 0, Mathf.Tau, 40, new Color(Color, Glow), 5f, true);
-            var ink = UiKit.Navy;
+            if (Glow > 0) DrawArc(c, r + 5, 0, Mathf.Tau, 40, new Color(Color, Glow * 0.75f), 4f, true);
+            var iconCol = new Color(1f, 1f, 1f, Fill >= 1f ? 0.96f : 0.45f);
             if (Dash)
             {
-                for (int k = 0; k < 2; k++)   // deux chevrons : élan
-                {
-                    float x = -9 + k * 14;
-                    DrawPolyline(new[] { c + new Vector2(x - 6, -12), c + new Vector2(x + 6, 0), c + new Vector2(x - 6, 12) }, ink, 6f, true);
-                }
+                // Balle rapide + 3 traits de vitesse (façon maquette AAA)
+                DrawCircle(c + new Vector2(10, 0), 13f, iconCol);
+                DrawLine(c + new Vector2(-22, -8), c + new Vector2(-7, -8), iconCol, 4f, true);
+                DrawLine(c + new Vector2(-26, 0), c + new Vector2(-9, 0), iconCol, 4f, true);
+                DrawLine(c + new Vector2(-22, 8), c + new Vector2(-7, 8), iconCol, 4f, true);
                 for (int i = 0; i < MaxCharges; i++)
                 {
-                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 20f, r + 16);
-                    DrawCircle(p, 8f, UiKit.Navy);
-                    DrawCircle(p, 6f, i < Charges ? Color : new Color(1, 1, 1, 0.2f));
+                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 16f, r + 12);
+                    DrawCircle(p, 4.5f, i < Charges ? Colors.White : new Color(1f, 1f, 1f, 0.25f));
                 }
             }
             else
             {
-                // Main ouverte stylisée : paume et trois doigts, une balle au-dessus.
-                DrawArc(c + new Vector2(0, 2), 13f, 0.1f, Mathf.Pi - 0.1f, 16, ink, 6f, true);
-                DrawLine(c + new Vector2(-13, 2), c + new Vector2(-15, -10), ink, 5f, true);
-                DrawLine(c + new Vector2(13, 2), c + new Vector2(15, -10), ink, 5f, true);
-                DrawCircle(c + new Vector2(0, -8), 7f, ink);
+                // Pictogramme attrape / renvoi : deux flèches circulaires épurées autour d'un centre
+                DrawArc(c, 15f, -2.5f, -0.3f, 16, iconCol, 4.5f, true);
+                DrawArc(c, 15f, 0.6f, 2.8f, 16, iconCol, 4.5f, true);
+                DrawCircle(c, 5.5f, iconCol);
             }
         }
     }
@@ -559,71 +554,51 @@ public partial class DesktopHud : CanvasLayer
 
     Control bottomHolder = null!;
     Label fireAction = null!;
-    // Bloc d'actions compact en bas à droite (au-dessus du rappel « F1 commandes ») : loin des pieds du personnage, que la caméra
-    // d'épaule place à gauche du centre, et des cœurs en bas à gauche. Icônes à 60 % (IconScale) ; nom de l'action et touche
-    // en petit dessous. Les icônes sont dans un parent réduit : UiKit.Punch remet leur propre échelle à 1.
-    const float IconScale = 0.6f;
-    const float ActionsWidth = 300f, ActionsHeight = 140f;
+    const float IconScale = 0.72f;
+    const float ActionsWidth = 310f, ActionsHeight = 114f;
 
     void BuildBottomCenter()
     {
+        // Bas à droite sans boîte noire : 3 anneaux translucides flottants + petites touches discrètes dessous.
         var holder = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        holder.OffsetRight = -30; holder.OffsetLeft = -30 - ActionsWidth; holder.OffsetBottom = -84; holder.OffsetTop = -84 - ActionsHeight;
+        holder.OffsetRight = -32; holder.OffsetLeft = -32 - ActionsWidth; holder.OffsetBottom = -52; holder.OffsetTop = -52 - ActionsHeight;
         root.AddChild(holder);
         bottomHolder = holder;
-        var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(12, 0), Scale = Vector2.One * IconScale };
+
+        var icons = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(8, 0), Scale = Vector2.One * IconScale };
         holder.AddChild(icons);
-        catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(10, 30), Size = new Vector2(110, 110) };
-        catchGauge.PivotOffset = new Vector2(55, 40);
+        catchGauge = new RoundGauge { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 4), Size = new Vector2(110, 110) };
+        catchGauge.PivotOffset = new Vector2(55, 48);
         icons.AddChild(catchGauge);
-        ballSlot = new BallSlot { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(170, 4), Size = new Vector2(120, 120) };
+        ballSlot = new BallSlot { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(142, 4), Size = new Vector2(110, 110) };
         ballSlot.PivotOffset = ballSlot.Size / 2;
         icons.AddChild(ballSlot);
-        dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(340, 30), Size = new Vector2(110, 110) };
-        dashGauge.PivotOffset = new Vector2(55, 40);
+        dashGauge = new RoundGauge { Dash = true, MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(284, 4), Size = new Vector2(110, 110) };
+        dashGauge.PivotOffset = new Vector2(55, 48);
         icons.AddChild(dashGauge);
-        // Sous chaque icône, centrés sur elle : le nom de l'action puis sa touche (attraper, lancer la balle tenue, esquive).
+
         float Center(float x, float w) => icons.Position.X + (x + w / 2) * IconScale;
-        ActionUnder(holder, Center(10, 110), 84, "Attraper");
-        fireAction = ActionUnder(holder, Center(170, 120), 84, "Lancer");
-        ActionUnder(holder, Center(340, 110), 84, "Esquive");
-        catchKey = KeyUnder(holder, Center(10, 110), 108);
-        fireKey = KeyUnder(holder, Center(170, 120), 108);
-        dashKey = KeyUnder(holder, Center(340, 110), 108);
+        fireAction = new Label { Visible = false };   // conservé pour la compatibilité de UpdateBottomCenter
+        holder.AddChild(fireAction);
+        catchKey = KeyUnder(holder, Center(0, 110), 82);
+        fireKey = KeyUnder(holder, Center(142, 110), 82);
+        dashKey = KeyUnder(holder, Center(284, 110), 82);
     }
 
-    const float ActionColumn = 98f;   // largeur d'une colonne (nom, touche) : écart entre deux icônes
-
-    Label ActionUnder(Control parent, float centerX, float y, string text)
-    {
-        var l = UiKit.Text(text, 17, Colors.White, 6, HorizontalAlignment.Center);
-        l.Position = new Vector2(centerX - ActionColumn / 2, y);
-        l.Size = new Vector2(ActionColumn, 22);
-        parent.AddChild(l);
-        return l;
-    }
+    const float ActionColumn = 96f;
 
     Label KeyUnder(Control parent, float centerX, float y)
     {
-        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(centerX - ActionColumn / 2, y), Size = new Vector2(ActionColumn, 30) };
+        var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(centerX - ActionColumn / 2, y), Size = new Vector2(ActionColumn, 28) };
         parent.AddChild(center);
-        var l = KeyCap("", 15);
+        var l = KeyCap("", 13);
         center.AddChild(l);
         return l;
     }
 
-    /// <summary>
-    /// Touche de clavier dessinée : pavé crème penché, tranche grise en bas (relief), texte marine (UiKit.KeyBox).
-    /// Sert sous les jauges, dans l'aide (F1) et dans le rappel « F1 : commandes ».
-    /// </summary>
-    public static Label KeyCap(string text, int size)
-    {
-        var l = UiKit.Text(text, size, UiKit.Navy, 0, HorizontalAlignment.Center);
-        l.VerticalAlignment = VerticalAlignment.Center;
-        l.AddThemeStyleboxOverride("normal", UiKit.KeyBox());
-        return l;
-    }
+    /// <summary>Touche de clavier discrète : pastille arrondie translucide.</summary>
+    public static Label KeyCap(string text, int size) => UiKit.KeyCap(text, size);
 
     int lastCatchState, lastDashCharges = -1, lastTier;
     bool lastHolding;
@@ -1616,69 +1591,68 @@ public partial class DesktopHud : CanvasLayer
         inter.AddChild(interContent);
         var c = interContent;
 
-        interHead = Put(c, Place(UiKit.Text("FIN DE LA MANCHE 1/5", 38, UiKit.Cream, 10, HorizontalAlignment.Center), 0, 34, 1920, 56));
-        interTitle = Put(c, Place(Italic(UiKit.Text("", 140, Colors.White, 26, HorizontalAlignment.Center)), 0, 84, 1920, 170));
+        interHead = Put(c, Place(UiKit.DisplayText("FIN DE LA MANCHE 1/5", 28, UiKit.Lavender, 2, HorizontalAlignment.Center), 0, 96, 1920, 38));
+        interTitle = Put(c, Place(Italic(UiKit.Text("", 98, Colors.White, 4, HorizontalAlignment.Center)), 0, 134, 1920, 120));
 
-        // Score de manches au centre, façon tableau : « 1 – 0 », pastilles, KO de la manche, règle de la partie.
-        var plate = MakePanel(new Color(UiKit.Navy, 0.96f), 0f, 26, 4, UiKit.NavySoft, 10);
-        plate.Position = new Vector2(960 - 250, 316); plate.Size = new Vector2(500, 400);
+        // Score de manches au centre, façon tableau broadcast : « 1 – 0 », barrettes, KO de la manche, règle.
+        var plate = MakePanel(new Color(UiKit.Navy, 0.94f), 0f, 6, 2, new Color(1f, 1f, 1f, 0.18f), 4);
+        plate.Position = new Vector2(960 - 250, 276); plate.Size = new Vector2(500, 390);
         c.AddChild(plate);
-        plate.AddChild(Place(UiKit.Text("MANCHES", 30, UiKit.Sky, 8, HorizontalAlignment.Center), 0, 16, 500, 40));
-        var score = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 50), Size = new Vector2(500, 160) };
-        score.AddThemeConstantOverride("separation", 26);
+        plate.AddChild(Place(UiKit.DisplayText("MANCHES", 26, UiKit.Sky, 0, HorizontalAlignment.Center), 0, 18, 500, 34));
+        var score = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 52), Size = new Vector2(500, 156) };
+        score.AddThemeConstantOverride("separation", 24);
         plate.AddChild(score);
         for (int t = 0; t < 2; t++)
         {
-            var digit = Italic(UiKit.Text("0", 160, t == 0 ? UiKit.Orange.Lightened(0.1f) : UiKit.Sky, 22, HorizontalAlignment.Center));
+            var digit = UiKit.DisplayText("0", 144, t == 0 ? UiKit.Orange.Lightened(0.08f) : UiKit.Sky, 4, HorizontalAlignment.Center);
             digit.VerticalAlignment = VerticalAlignment.Center;
-            digit.CustomMinimumSize = new Vector2(130, 0);
+            digit.CustomMinimumSize = new Vector2(126, 0);
             interScore[t] = digit;
             score.AddChild(digit);
-            if (t == 0) score.AddChild(Italic(UiKit.Text("–", 110, UiKit.Cream, 16, HorizontalAlignment.Center)));
+            if (t == 0) score.AddChild(UiKit.DisplayText("–", 96, UiKit.Lavender, 0, HorizontalAlignment.Center));
         }
-        // Pastilles de manches à la Knockout City : les manches de l'orange se remplissent depuis la gauche, celles de la bleue depuis la droite.
-        interPips = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 220), Size = new Vector2(500, 60) };
+        interPips = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center, Position = new Vector2(0, 218), Size = new Vector2(500, 50) };
         interPips.AddThemeConstantOverride("separation", 14);
         plate.AddChild(interPips);
-        interKoLine = Put(plate, Place(UiKit.Text("", 28, UiKit.Yellow, 8, HorizontalAlignment.Center), 0, 292, 500, 40));
-        interRule = Put(plate, Place(UiKit.Text("", 21, new Color(UiKit.Cream, 0.8f), 6, HorizontalAlignment.Center), 0, 336, 500, 34));
+        interKoLine = Put(plate, Place(UiKit.DisplayText("", 28, UiKit.Yellow, 2, HorizontalAlignment.Center), 0, 282, 500, 38));
+        interRule = Put(plate, Place(UiKit.Text("", 19, UiKit.Lavender, 0, HorizontalAlignment.Center), 0, 326, 500, 32));
 
-        // Équipes : nom en très gros, « TON ÉQUIPE » / « ADVERSES », puis les joueurs et leurs KO de la manche (rangés vers le centre).
+        // Équipes : nom en grand, « TON ÉQUIPE » / « ADVERSES », puis joueurs et KO de la manche.
         for (int t = 0; t < 2; t++)
         {
             bool left = t == 0;
             var align = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             float x = left ? 60 : 1240;
-            c.AddChild(Place(Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 104, Colors.White, 22, align)), x, 296, 620, 120));
-            interTeamTags[t] = Put(c, Place(UiKit.Text("", 30, UiKit.Cream, 9, align), x, 410, 620, 40));
-            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 468), Size = new Vector2(620, 0) };
+            c.AddChild(Place(Italic(UiKit.Text(left ? "ORANGE" : "BLEUE", 92, Colors.White, 4, align)), x, 276, 620, 108));
+            interTeamTags[t] = Put(c, Place(UiKit.DisplayText("", 26, UiKit.Cream, 2, align), x, 382, 620, 36));
+            var list = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(x, 436), Size = new Vector2(620, 0) };
             list.AddThemeConstantOverride("separation", 10);
             c.AddChild(list);
             interLists[t] = list;
         }
 
-        // Compte à rebours de la manche suivante, en bas, et la balle spéciale qu'elle lancera.
-        var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 790), Size = new Vector2(1920, 250) };
+        // Compte à rebours de la manche suivante, bien cadré au-dessus du bord bas (marge de 110 px).
+        var bottom = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 740), Size = new Vector2(1920, 220) };
         c.AddChild(bottom);
         var nextPanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var nextBox = UiKit.Box(new Color(UiKit.Navy, 0.96f), 24, -0.12f, 4, UiKit.Yellow, 10);
-        nextBox.ContentMarginLeft = 64; nextBox.ContentMarginRight = 64; nextBox.ContentMarginTop = 0; nextBox.ContentMarginBottom = 24;
+        var nextBox = UiKit.Box(new Color(UiKit.Navy, 0.94f), 6, -0.08f, 2, UiKit.Yellow, 4);
+        nextBox.ContentMarginLeft = 52; nextBox.ContentMarginRight = 52; nextBox.ContentMarginTop = 10; nextBox.ContentMarginBottom = 14;
         nextPanel.AddThemeStyleboxOverride("panel", nextBox);
         bottom.AddChild(nextPanel);
         interNextRow = nextPanel;
         var nextCol = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        nextCol.AddThemeConstantOverride("separation", -6);
+        nextCol.AddThemeConstantOverride("separation", 2);
         nextPanel.AddChild(nextCol);
         var next = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
-        next.AddThemeConstantOverride("separation", 26);
+        next.AddThemeConstantOverride("separation", 24);
         nextCol.AddChild(next);
-        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 64, UiKit.Yellow, 14));
+        interNextTitle = Italic(UiKit.Text("MANCHE 2 DANS", 52, UiKit.Cream, 2));
         interNextTitle.VerticalAlignment = VerticalAlignment.Center;
         next.AddChild(interNextTitle);
-        interNext = Italic(UiKit.Text("12", 128, UiKit.Yellow, 22, HorizontalAlignment.Center));
-        interNext.CustomMinimumSize = new Vector2(150, 0);
+        interNext = UiKit.DisplayText("12", 96, UiKit.Yellow, 4, HorizontalAlignment.Center);
+        interNext.CustomMinimumSize = new Vector2(110, 0);
         next.AddChild(interNext);
-        interSpecial = UiKit.Text("", 28, UiKit.Cream, 8, HorizontalAlignment.Center);
+        interSpecial = UiKit.Text("", 22, UiKit.Lavender, 0, HorizontalAlignment.Center);
         nextCol.AddChild(interSpecial);
     }
 
@@ -1873,19 +1847,24 @@ public partial class DesktopHud : CanvasLayer
             Row(InputSetup.KeyName(a.Name), a.Name == "help" ? "Fermer cette aide" : a.Label);
         }
 
-        // Rappel discret des premières secondes : « [F1] commandes ».
+        // Rappel discret des premières secondes : cartouche carbone « [F1] COMMANDES » lisible sur tout décor.
+        var hintPill = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var pillBox = UiKit.Box(new Color(UiKit.Navy, 0.84f), 4, -0.06f, 1, new Color(1f, 1f, 1f, 0.16f), 2);
+        pillBox.ContentMarginLeft = 12; pillBox.ContentMarginRight = 14; pillBox.ContentMarginTop = 5; pillBox.ContentMarginBottom = 5;
+        hintPill.AddThemeStyleboxOverride("panel", pillBox);
+        hintPill.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        hintPill.GrowHorizontal = Control.GrowDirection.Begin;
+        hintPill.GrowVertical = Control.GrowDirection.Begin;
+        hintPill.OffsetRight = -28; hintPill.OffsetBottom = -24; hintPill.OffsetLeft = -28; hintPill.OffsetTop = -24;
         var hint = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
-        hint.AddThemeConstantOverride("separation", 10);
-        hint.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        hint.GrowHorizontal = Control.GrowDirection.Begin;
-        hint.GrowVertical = Control.GrowDirection.Begin;
-        hint.OffsetRight = -36; hint.OffsetBottom = -40; hint.OffsetLeft = -36; hint.OffsetTop = -40;
-        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 19));
-        var words = UiKit.Text("commandes", 22, new Color(1, 1, 1, 0.9f), 6);
+        hint.AddThemeConstantOverride("separation", 8);
+        hint.AddChild(KeyCap(InputSetup.KeyName("help"), 16));
+        var words = UiKit.DisplayText("COMMANDES", 17, UiKit.Cream, 0);
         words.VerticalAlignment = VerticalAlignment.Center;
         hint.AddChild(words);
-        helpLayer.AddChild(hint);
-        helpHint = hint;
+        hintPill.AddChild(hint);
+        helpLayer.AddChild(hintPill);
+        helpHint = hintPill;
     }
 
     void SetHelp(bool show)

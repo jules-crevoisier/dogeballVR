@@ -160,10 +160,10 @@ public partial class ProfileScreen : Control
         return b;
     }
 
-    /// <summary>Jauge d'XP penchée : rail sombre, remplissage jaune vers or.</summary>
-    public static KcBox Gauge(bool filled, float slant = 8f)
+    /// <summary>Jauge d'XP propre.</summary>
+    public static StyleBox Gauge(bool filled, float slant = 8f)
     {
-        var b = filled ? new KcBox { Top = UiKit.Yellow, Bottom = UiKit.Gold, Slant = slant } : UiKit.InsetBox(null, slant);
+        StyleBox b = filled ? UiKit.Pill(UiKit.Orange, 6, 0, null, 0) : UiKit.InsetBox(null, slant);
         b.ContentMarginLeft = b.ContentMarginRight = b.ContentMarginTop = b.ContentMarginBottom = 0;
         return b;
     }

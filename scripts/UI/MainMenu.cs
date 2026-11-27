@@ -6,10 +6,10 @@ using DogeballVR.Net;
 namespace DogeballVR.UI;
 
 /// <summary>
-/// Menu principal du mode PC, par-dessus le décor 3D : grand bandeau diagonal plein à gauche (~40 % de l'écran, les
-/// personnages occupent la droite), logo, items en grosses lettres penchées surlignés par une barre jaune inclinée qui
-/// glisse de l'un à l'autre, comme le menu de Knockout City ; pages Jouer en ligne, Options et Crédits. À la toute
-/// première partie, on propose le tutoriel.
+/// Menu principal plein écran par-dessus l'arène 3D ensoleillée :
+/// - Barre de navigation horizontale épurée en haut (onglets clairs façon Overwatch 2 / The Finals / Rocket League).
+/// - Carte blanche & orange flottante en bas à droite pour choisir la carte et lancer directement la partie.
+/// - Zéro mur opaque à gauche : la scène 3D et les joueurs respirent en 100 % plein écran.
 /// </summary>
 public partial class MainMenu : CanvasLayer
 {
@@ -18,31 +18,33 @@ public partial class MainMenu : CanvasLayer
     /// <summary>Partie solo contre les bots sur la carte choisie (nom du fichier de maps/).</summary>
     public event Action<string>? SoloChosen;
 
-    /// <summary>Cartes proposées en solo, dans l'ordre du sélecteur.</summary>
-    static readonly (string Map, string Name, string Info)[] SoloMaps =
+    /// <summary>Actions en ligne (Steam / salle) : branchées par Main sur le module Online quand il est présent.</summary>
+    public event Action? QuickMatch, CreatePrivate, HostLan;
+    public event Action<string>? JoinCode, JoinAddress;
+
+    /// <summary>Clavier virtuel (Steam : Deck, Big Picture) ; branché par Main.</summary>
+    public static Func<string, string, int, Rect2I, Action<string?>, bool>? TextInput { get; set; }
+
+    static readonly (string Map, string Name, string Format, Color Mood, string Info)[] SoloMaps =
     {
-        ("croix_neon", "CROIX NÉON", "2 contre 2. Quatre plateaux autour d'un moyeu, le rotor balaie le centre."),
-        ("fosse_croisee", "FOSSE CROISÉE", "2 contre 2. Le moulinet passe au-dessus d'une fosse : un tacle peut y pousser l'adversaire."),
-        ("tour_4v4", "TOUR 4V4", "4 contre 4. Terrasses, fosse et rotor : la plus grande carte."),
-        ("la_fosse", "LA FOSSE", "2 contre 2. Zones face à face : chacun garde la sienne, E pour esquiver."),
-        ("neon_court", "NÉON COURT", "2 contre 2. Terrain court en zones : chacun garde la sienne, E pour esquiver."),
+        ("croix_neon", "CROIX NÉON", "2V2", new Color("274060"), "4 plateaux autour d'un moyeu avec rotor."),
+        ("fosse_croisee", "FOSSE CROISÉE", "2V2", new Color("3b3159"), "Fosse centrale, tremplins et ring-outs."),
+        ("tour_4v4", "TOUR 4V4", "4V4", new Color("5c2d3e"), "8 plaques autour d'une grande fosse 4c4."),
+        ("la_fosse", "LA FOSSE", "2V2", new Color("233b4d"), "Zones face à face et plateaux élévateurs."),
+        ("neon_court", "NÉON COURT", "2V2", new Color("162244"), "Arène nocturne néon en zones face à face."),
     };
 
     Control root = null!;
-    VBoxContainer column = null!;
+    Control homeGroup = null!;
     Control? overlay;
     ColorRect fade = null!;
-    MenuBand band = null!;
-    SelectBar bar = null!;
-    Control? barOn;   // item sous la barre jaune (null : barre cachée)
-    Tween? barTween;
-    Control escHint = null!;
-    Action? back;   // page précédente (Échap) : null sur le menu racine
-    bool leaving, compact;
-
-    const string ItemMeta = "menu_item";
-    const float BarLead = 46f;   // la barre commence un peu à gauche du texte
-    static readonly string[] FontColors = { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" };
+    Button playBtn = null!;
+    Label mapNameLabel = null!, mapFormatLabel = null!, mapSubLabel = null!;
+    Panel mapBanner = null!;
+    StyleBoxFlat mapBannerStyle = null!;
+    TextureRect mapThumb = null!;
+    int selectedMap;
+    bool leaving;
 
     public override void _Ready()
     {
@@ -51,80 +53,25 @@ public partial class MainMenu : CanvasLayer
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
 
-        // Écran bas (interface agrandie : 1080 / 1,3 ≈ 830 px utiles) : logo réduit, colonne remontée, le pied de page reste dégagé.
-        compact = root.GetViewportRect().Size.Y < 960f;
-        float top = compact ? -44f : 0f;
+        homeGroup = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        homeGroup.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(homeGroup);
 
-        // Grand bandeau plein qui part du bord gauche et monte en biais : il porte le logo et les items.
-        band = new MenuBand { MouseFilter = Control.MouseFilterEnum.Ignore };
-        band.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        band.Resized += band.QueueRedraw;
-        root.AddChild(band);
-        UiKit.SlideIn(band, 0f, -260f);
-
-        // Logo penché, en autocollant : ombre marine, contour crème épais, puis le texte orange cerné de marine.
-        var logoScale = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Scale = Vector2.One * (compact ? 0.82f : 1f) };   // le logo « tape » (Punch remet son échelle à 1) : on réduit son parent
-        root.AddChild(logoScale);
-        var logoBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(72, compact ? 30 : 42), Size = new Vector2(700, 210), RotationDegrees = -6f };
-        logoScale.AddChild(logoBox);
-        void LogoLayer(Color color, int outline, Color outlineColor, Vector2 at)
-        {
-            var l = UiKit.Text("DOGEBALL", 138, color, outline);
-            l.AddThemeColorOverride("font_outline_color", outlineColor);
-            if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
-            l.Position = at;
-            logoBox.AddChild(l);
-        }
-        LogoLayer(new Color("0a0f22"), 60, new Color("0a0f22"), new Vector2(9, 12));
-        LogoLayer(UiKit.Cream, 60, UiKit.Cream, Vector2.Zero);
-        LogoLayer(UiKit.Orange, 30, UiKit.Navy, Vector2.Zero);
-        var tag = UiKit.Text("ESQUIVE · ATTRAPE · RENVOIE", 30, UiKit.Yellow, 10);
-        if (UiKit.Italic is Font ti) tag.AddThemeFontOverride("font", ti);
-        tag.Position = new Vector2(22, 170);
-        logoBox.AddChild(tag);
-        UiKit.Punch(logoBox, 1.3f, 0.45);
-        // Le logo respire doucement.
-        var bob = logoBox.CreateTween().SetLoops();
-        bob.TweenProperty(logoBox, "rotation_degrees", -4.5f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-        bob.TweenProperty(logoBox, "rotation_degrees", -6f, 1.8).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
-
-        // Aides clavier en bas à gauche, en touches dessinées (« [Entrée] Valider  [Échap] Retour »).
-        var hints = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        hints.AddThemeConstantOverride("separation", 36);
-        hints.AddChild(UiKit.KeyHint("Entrée", "Valider", 24));
-        escHint = UiKit.KeyHint(InputSetup.KeyName("pause"), "Retour", 24);   // sous-menus seulement : le menu racine n'a pas de retour
-        escHint.Visible = false;
-        hints.AddChild(escHint);
-        hints.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        hints.GrowVertical = Control.GrowDirection.Begin;
-        hints.OffsetLeft = 72; hints.OffsetTop = -36; hints.OffsetRight = 900; hints.OffsetBottom = -36;
-        root.AddChild(hints);
-
-        // Barre jaune de sélection, sous les items (elle suit le focus dans _Process).
-        bar = new SelectBar { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-        root.AddChild(bar);
-
-        column = new VBoxContainer { Position = new Vector2(110, 300 + top) };
-        column.AddThemeConstantOverride("separation", compact ? 10 : 14);
-        root.AddChild(column);
-
-        string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
-        var version = UiKit.Text($"Accès anticipé · v{(ver == "" ? "0.1" : ver)}", 18, new Color(1, 1, 1, 0.8f), 5, HorizontalAlignment.Right);
-        version.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        version.OffsetLeft = -700; version.OffsetTop = -44; version.OffsetRight = -24; version.OffsetBottom = -16;
-        root.AddChild(version);
+        BuildTopBar();
+        BuildPlayCard();
+        BuildFooter();
 
         fade = new ColorRect { Color = new Color(0, 0, 0, 1), MouseFilter = Control.MouseFilterEnum.Ignore };
         fade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(fade);
-        fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.6);
+        fade.CreateTween().TweenProperty(fade, "color:a", 0.0, 0.45);
 
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Music.PlayMenu();
-        ShowMain();
-        if (Tools.DevFlags.Has("--profile-test")) ShowProfile();   // captures
+        playBtn.CallDeferred(Control.MethodName.GrabFocus);
+
+        if (Tools.DevFlags.Has("--profile-test")) ShowProfile();
         if (Tools.DevFlags.Has("--options-test")) OpenOverlay(new OptionsMenu { FirstTab = 1 });
-        // Captures d'écran : --menu-page=online | lan | credits | first | maps ouvre la page au bout d'une seconde.
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--menu-page="))
             {
@@ -134,139 +81,287 @@ public partial class MainMenu : CanvasLayer
                     if (page == "online") ShowOnline();
                     else if (page == "lan") ShowLan();
                     else if (page == "credits") ShowCredits();
-                    else if (page == "first") { GameSettings.TutorialDone = false; PlayBots(); }
+                    else if (page == "first") { GameSettings.TutorialDone = false; PlaySelected(); }
                     else if (page == "maps") ShowMapPicker();
                 };
             }
     }
 
-    void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); } });
+    // ------------------------------------------------------------------ Barre de navigation supérieure (style AAA épuré)
 
-    public override void _Process(double delta)
+    void BuildTopBar()
     {
-        escHint.Visible = back != null || overlay != null;
+        // Fine barre givrée claire en haut : laisse la scène 3D respirer à 100 %.
+        var topBar = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        topBar.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        topBar.OffsetTop = 22; topBar.OffsetBottom = 86; topBar.OffsetLeft = 36; topBar.OffsetRight = -36;
+        homeGroup.AddChild(topBar);
 
-        // La barre jaune suit l'item qui a le focus (clavier ou survol) et glisse de l'un à l'autre.
-        var f = column.Visible ? root.GetViewport().GuiGetFocusOwner() : null;
-        Control? on = f != null && f.HasMeta(ItemMeta) && column.IsAncestorOf(f) ? f : null;
-        if (on == null) { bar.Visible = false; barOn = null; return; }
-        var want = BarRect(on);
-        if (on != barOn)
-        {
-            barTween?.Kill();
-            barTween = bar.CreateTween().SetParallel().SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-            if (barOn == null)
-            {
-                // Première apparition (nouvelle page) : la barre se déroule depuis la gauche.
-                bar.Position = want.Position;
-                bar.Size = new Vector2(0, want.Size.Y);
-                barTween.TweenProperty(bar, "size", want.Size, 0.18);
-            }
-            else
-            {
-                barTween.TweenProperty(bar, "position", want.Position, 0.12);
-                barTween.TweenProperty(bar, "size", want.Size, 0.12);
-            }
-            barOn = on;
-            bar.Visible = true;
-        }
-        else if (barTween == null || !barTween.IsRunning())
-        {
-            bar.Position = want.Position;   // la colonne a pu bouger (mise en page)
-            bar.Size = want.Size;
-        }
-        bar.QueueRedraw();
+        // Titre typographique minimaliste à gauche (sans badge/bouclier cartoon).
+        var brand = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(0, 4) };
+        brand.AddThemeConstantOverride("separation", 6);
+        topBar.AddChild(brand);
+        var b1 = UiKit.DisplayText("DODGE", 40, UiKit.InkDark, 0);
+        b1.AddThemeColorOverride("font_shadow_color", new Color(1, 1, 1, 0.55f));
+        b1.AddThemeConstantOverride("shadow_offset_y", 1);
+        var b2 = UiKit.DisplayText("ARENA", 40, UiKit.Orange, 0);
+        b2.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.25f));
+        b2.AddThemeConstantOverride("shadow_offset_y", 2);
+        brand.AddChild(b1);
+        brand.AddChild(b2);
+
+        // Pilule de navigation centrale blanche translucide avec onglets nets.
+        var navCenter = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        navCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        topBar.AddChild(navCenter);
+
+        var navPill = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var pillStyle = UiKit.Pill(new Color(0.97f, 0.98f, 1f, 0.80f), 14, 1, new Color(1f, 1f, 1f, 0.9f), 16, 0.14f);
+        pillStyle.ContentMarginLeft = 8; pillStyle.ContentMarginRight = 8; pillStyle.ContentMarginTop = 6; pillStyle.ContentMarginBottom = 6;
+        navPill.AddThemeStyleboxOverride("panel", pillStyle);
+        navCenter.AddChild(navPill);
+
+        var navRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        navRow.AddThemeConstantOverride("separation", 4);
+        navPill.AddChild(navRow);
+
+        navRow.AddChild(NavTab("JOUER", PlaySelected, active: true));
+        navRow.AddChild(NavTab("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())));
+        navRow.AddChild(NavTab("EN LIGNE", ShowOnline));
+        navRow.AddChild(NavTab("PROFIL", ShowProfile));
+        navRow.AddChild(NavTab("OPTIONS", () => OpenOverlay(new OptionsMenu())));
+        navRow.AddChild(NavTab("CRÉDITS", ShowCredits));
+
+        // Bloc profil + Quitter discret en haut à droite.
+        var rightBox = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
+        rightBox.AddThemeConstantOverride("separation", 10);
+        rightBox.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        rightBox.OffsetLeft = -420; rightBox.OffsetRight = 0; rightBox.OffsetTop = 4; rightBox.OffsetBottom = 56;
+        topBar.AddChild(rightBox);
+
+        int xp = DogeballVR.Online.Progression.TotalXp;
+        int lvl = DogeballVR.Online.Progression.LevelOf(xp).Level;
+        var profilePill = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var pStyle = UiKit.Pill(new Color(0.97f, 0.98f, 1f, 0.84f), 12, 1, new Color(1f, 1f, 1f, 0.9f), 12, 0.12f);
+        pStyle.ContentMarginLeft = 14; pStyle.ContentMarginRight = 16; pStyle.ContentMarginTop = 6; pStyle.ContentMarginBottom = 6;
+        profilePill.AddThemeStyleboxOverride("panel", pStyle);
+        var pRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        pRow.AddThemeConstantOverride("separation", 10);
+        profilePill.AddChild(pRow);
+        var avatarDot = new Panel { CustomMinimumSize = new Vector2(30, 30), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore };
+        avatarDot.AddThemeStyleboxOverride("panel", UiKit.Pill(UiKit.Blue, 15, 0, null, 0));
+        pRow.AddChild(avatarDot);
+        var pCol = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        pCol.AddThemeConstantOverride("separation", -2);
+        pRow.AddChild(pCol);
+        pCol.AddChild(UiKit.DisplayText("JOUEUR", 18, UiKit.InkDark, 0));
+        pCol.AddChild(UiKit.Text($"NIVEAU {lvl} · {xp} XP", 13, UiKit.Grey, 0));
+        rightBox.AddChild(profilePill);
+
+        var quit = NavTab("QUITTER", () => GetTree().Quit(), subtle: true);
+        rightBox.AddChild(quit);
     }
 
-    /// <summary>Rectangle de la barre pour un item : du texte jusqu'un peu au-delà du liseré du bandeau, comme dans KC.</summary>
-    Rect2 BarRect(Control item)
+    Button NavTab(string text, Action onPress, bool active = false, bool subtle = false)
     {
-        float y = column.Position.Y + item.Position.Y;
-        float x0 = column.Position.X - BarLead;
-        float x1 = band.EdgeX(y + item.Size.Y / 2f) + 44f;
-        return new Rect2(x0, y + 3, x1 - x0, item.Size.Y - 6);
-    }
+        var b = new Button
+        {
+            Text = text, FocusMode = Control.FocusModeEnum.All,
+            CustomMinimumSize = new Vector2(0, 42),
+        };
+        if (UiKit.Display is Font df) b.AddThemeFontOverride("font", df);
+        b.AddThemeFontSizeOverride("font_size", 21);
 
-    void Fill(params Control[] items)
-    {
-        foreach (var c in column.GetChildren()) c.QueueFree();
-        // Les items du menu racine se touchent (la barre fait l'espacement) ; les pages à boutons gardent leur écart.
-        column.AddThemeConstantOverride("separation", Array.Exists(items, c => c.HasMeta(ItemMeta)) ? 0 : compact ? 10 : 14);
-        int i = 0;
-        foreach (var c in items)
-        {
-            // Items en lettres penchées et grasses, comme les menus de Knockout City.
-            if (UiKit.Italic is Font it && c is Button or Label) c.AddThemeFontOverride("font", it);
-            column.AddChild(c);
-            UiKit.SlideIn(c, 0.05f * i++);
-        }
-        // Focus sur le premier bouton (les pages En ligne / Réseau local commencent par un titre) : clavier utilisable d'emblée.
-        if (Array.Find(items, c => c is Button) is Button b) b.CallDeferred(Control.MethodName.GrabFocus);
-    }
+        StyleBox normal = active
+            ? UiKit.Pill(Colors.White, 10, 0, null, 8, 0.14f)
+            : subtle
+                ? UiKit.Pill(new Color(0.97f, 0.98f, 1f, 0.72f), 10, 1, new Color(1f, 1f, 1f, 0.8f), 8, 0.1f)
+                : new StyleBoxEmpty();
+        normal.ContentMarginLeft = normal.ContentMarginRight = 18;
+        normal.ContentMarginTop = normal.ContentMarginBottom = 6;
 
-    /// <summary>
-    /// Item du menu racine : texte XXL penché, sans boîte. Le focus (clavier, ou survol de la souris qui le prend) le passe
-    /// en marine sur la barre jaune et le pousse un peu vers la droite. Les items secondaires sont plus petits et grisés.
-    /// </summary>
-    Button Item(string text, Action onPress, bool main = true, Color? restColor = null)
-    {
-        var pad = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 8, ContentMarginTop = 0, ContentMarginBottom = 4 };
-        var b = new Button { Text = text, Flat = true, Alignment = HorizontalAlignment.Left, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(560, main ? 84 : 52) };
-        b.SetMeta(ItemMeta, true);
-        foreach (var st in new[] { "normal", "hover", "pressed", "focus", "hover_pressed", "disabled" }) b.AddThemeStyleboxOverride(st, pad);
-        b.AddThemeFontSizeOverride("font_size", main ? 70 : 38);
-        if (UiKit.Italic is Font it) b.AddThemeFontOverride("font", it);
-        b.AddThemeColorOverride("font_outline_color", UiKit.Navy);
-        var rest = restColor ?? (main ? Colors.White : UiKit.Lavender);   // gris lavande : 3e niveau de hiérarchie, comme « SETTINGS » dans KC
-        int restOutline = main ? 12 : 8;
-        void Paint(Color c, int outline)
-        {
-            foreach (var k in FontColors) b.AddThemeColorOverride(k, c);
-            b.AddThemeConstantOverride("outline_size", outline);
-        }
-        Paint(rest, restOutline);
-        Tween? slide = null;
-        void Shift(float to)
-        {
-            slide?.Kill();
-            slide = b.CreateTween();
-            slide.TweenProperty(pad, "content_margin_left", to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-        }
-        b.FocusEntered += () => { if (bar.Visible) Sfx.Play(b, SfxKind.UiHover); Paint(UiKit.Navy, 2); Shift(main ? 36f : 30f); };
-        b.FocusExited += () => { Paint(rest, restOutline); Shift(0f); };
-        b.MouseEntered += () => { if (!b.Disabled && !leaving) b.GrabFocus(); };
+        var hover = UiKit.Pill(active ? Colors.White : new Color(1f, 1f, 1f, 0.92f), 10, 0, null, 8, 0.12f);
+        hover.ContentMarginLeft = hover.ContentMarginRight = 18;
+        hover.ContentMarginTop = hover.ContentMarginBottom = 6;
+
+        var pressed = UiKit.Pill(UiKit.Orange, 10, 0, null, 4, 0.2f);
+        pressed.ContentMarginLeft = pressed.ContentMarginRight = 18;
+        pressed.ContentMarginTop = pressed.ContentMarginBottom = 6;
+
+        b.AddThemeStyleboxOverride("normal", normal);
+        b.AddThemeStyleboxOverride("hover", hover);
+        b.AddThemeStyleboxOverride("focus", hover);
+        b.AddThemeStyleboxOverride("pressed", pressed);
+        b.AddThemeStyleboxOverride("hover_pressed", pressed);
+
+        var restCol = active ? UiKit.InkDark : subtle ? UiKit.Grey : new Color("2b3242");
+        b.AddThemeColorOverride("font_color", restCol);
+        b.AddThemeColorOverride("font_hover_color", UiKit.Orange);
+        b.AddThemeColorOverride("font_focus_color", UiKit.Orange);
+        b.AddThemeColorOverride("font_pressed_color", Colors.White);
+        b.AddThemeColorOverride("font_hover_pressed_color", Colors.White);
+        b.AddThemeConstantOverride("outline_size", 0);
+        b.MouseEntered += () => Sfx.Play(b, SfxKind.UiHover);
         b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
         return b;
     }
 
-    void ShowMain()
+    // ------------------------------------------------------------------ Carte JOUER blanche & orange en bas à droite
+
+    void BuildPlayCard()
     {
-        back = null;
-        Fill(
-            Item("JOUER", PlayBots),
-            Item("ENTRAÎNEMENT", () => Leave(() => TutorialChosen?.Invoke())),
-            Item("EN LIGNE", ShowOnline),
-            Item("PROFIL", ShowProfile),
-            Item("OPTIONS", () => OpenOverlay(new OptionsMenu())),
-            UiKit.Spacer(14),
-            Item("CRÉDITS", ShowCredits, false),
-            Item("QUITTER", () => GetTree().Quit(), false));
+        var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Stop };
+        var cardStyle = UiKit.Pill(new Color(0.98f, 0.99f, 1f, 0.96f), 20, 1, new Color(1f, 1f, 1f, 1f), 26, 0.24f);
+        cardStyle.ContentMarginLeft = 18; cardStyle.ContentMarginRight = 18; cardStyle.ContentMarginTop = 16; cardStyle.ContentMarginBottom = 18;
+        card.AddThemeStyleboxOverride("panel", cardStyle);
+        card.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        card.OffsetRight = -42; card.OffsetBottom = -42; card.OffsetLeft = -420; card.OffsetTop = -340;
+        homeGroup.AddChild(card);
+
+        var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        col.AddThemeConstantOverride("separation", 12);
+        card.AddChild(col);
+
+        // En-tête de la carte : "JOUER" + flèches de sélection d'arène
+        var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        col.AddChild(head);
+        var hdr = UiKit.DisplayText("ARÈNE", 26, UiKit.InkDark, 0);
+        hdr.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        head.AddChild(hdr);
+        head.AddChild(SmallSwitchBtn("‹", () => CycleMap(-1)));
+        head.AddChild(SmallSwitchBtn("›", () => CycleMap(1)));
+
+        // Vignette visuelle avec vraie capture 3D de la carte, découpée aux coins arrondis.
+        mapBanner = new Panel
+        {
+            CustomMinimumSize = new Vector2(0, 128),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ClipChildren = CanvasItem.ClipChildrenMode.AndDraw,
+        };
+        mapBannerStyle = UiKit.Pill(SoloMaps[0].Mood, 12, 0, null, 0);
+        mapBanner.AddThemeStyleboxOverride("panel", mapBannerStyle);
+        col.AddChild(mapBanner);
+
+        mapThumb = new TextureRect
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
+        };
+        mapThumb.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapBanner.AddChild(mapThumb);
+
+        // Dégradé sombre discret en bas pour que le nom et le sous-titre ressortent sur toutes les cartes (jour & nuit).
+        var grad = new Gradient();
+        grad.SetColor(0, new Color(0.05f, 0.07f, 0.12f, 0.08f));
+        grad.SetColor(1, new Color(0.05f, 0.07f, 0.12f, 0.88f));
+        var scrim = new TextureRect
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            Texture = new GradientTexture2D { Gradient = grad, FillFrom = new Vector2(0, 0.15f), FillTo = new Vector2(0, 1f), Width = 4, Height = 64 },
+        };
+        scrim.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapBanner.AddChild(scrim);
+
+        // Badge format 2V2 / 4V4 en haut à droite de la vignette
+        var badgePanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        var bStyle = UiKit.Pill(Colors.White, 7, 0, null, 4, 0.22f);
+        bStyle.ContentMarginLeft = 10; bStyle.ContentMarginRight = 10; bStyle.ContentMarginTop = 3; bStyle.ContentMarginBottom = 3;
+        badgePanel.AddThemeStyleboxOverride("panel", bStyle);
+        badgePanel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        badgePanel.OffsetRight = -10; badgePanel.OffsetTop = 10; badgePanel.OffsetLeft = -70; badgePanel.OffsetBottom = 38;
+        mapBanner.AddChild(badgePanel);
+        mapFormatLabel = UiKit.DisplayText("2V2", 17, UiKit.InkDark, 0, HorizontalAlignment.Center);
+        badgePanel.AddChild(mapFormatLabel);
+
+        mapNameLabel = UiKit.DisplayText("CROIX NÉON", 28, Colors.White, 2);
+        mapNameLabel.Position = new Vector2(14, 62);
+        mapNameLabel.Size = new Vector2(310, 34);
+        mapBanner.AddChild(mapNameLabel);
+
+        mapSubLabel = UiKit.Text(SoloMaps[0].Info, 13, new Color(1f, 1f, 1f, 0.90f), 0);
+        mapSubLabel.Position = new Vector2(14, 96);
+        mapSubLabel.Size = new Vector2(316, 24);
+        mapSubLabel.ClipText = true;
+        mapBanner.AddChild(mapSubLabel);
+
+        // Gros bouton tactile JOUER orange vif
+        playBtn = new Button
+        {
+            Text = "JOUER", CustomMinimumSize = new Vector2(0, 64), FocusMode = Control.FocusModeEnum.All,
+        };
+        if (UiKit.Display is Font pdf) playBtn.AddThemeFontOverride("font", pdf);
+        playBtn.AddThemeFontSizeOverride("font_size", 34);
+        var ctaNormal = UiKit.Pill(UiKit.Orange, 13, 0, null, 12, 0.30f);
+        var ctaHover = UiKit.Pill(UiKit.Orange.Lightened(0.08f), 13, 0, null, 16, 0.38f);
+        var ctaPress = UiKit.Pill(UiKit.Orange.Darkened(0.12f), 13, 0, null, 6, 0.25f);
+        playBtn.AddThemeStyleboxOverride("normal", ctaNormal);
+        playBtn.AddThemeStyleboxOverride("hover", ctaHover);
+        playBtn.AddThemeStyleboxOverride("focus", ctaHover);
+        playBtn.AddThemeStyleboxOverride("pressed", ctaPress);
+        playBtn.AddThemeStyleboxOverride("hover_pressed", ctaPress);
+        foreach (var k in new[] { "font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color" })
+            playBtn.AddThemeColorOverride(k, Colors.White);
+        playBtn.AddThemeConstantOverride("outline_size", 0);
+        playBtn.MouseEntered += () => Sfx.Play(playBtn, SfxKind.UiHover);
+        playBtn.Pressed += () => { Sfx.Play(playBtn, SfxKind.UiClick); PlaySelected(); };
+        UiKit.Juicy(playBtn);
+        col.AddChild(playBtn);
+
+        RefreshMapCard();
     }
 
-    /// <summary>
-    /// Actions en ligne (Steam / salle) : branchées par Main sur le module Online quand il est présent.
-    /// Sans écouteur, la partie rapide et la salle privée retombent sur l'hébergement réseau local.
-    /// </summary>
-    public event Action? QuickMatch, CreatePrivate, HostLan;
-    public event Action<string>? JoinCode, JoinAddress;
+    Button SmallSwitchBtn(string glyph, Action onPress)
+    {
+        var b = new Button { Text = glyph, CustomMinimumSize = new Vector2(34, 34), FocusMode = Control.FocusModeEnum.All };
+        if (UiKit.Display is Font df) b.AddThemeFontOverride("font", df);
+        b.AddThemeFontSizeOverride("font_size", 24);
+        var n = UiKit.Pill(new Color("e6eaf2"), 8, 0, null, 0);
+        var h = UiKit.Pill(UiKit.Orange, 8, 0, null, 0);
+        b.AddThemeStyleboxOverride("normal", n);
+        b.AddThemeStyleboxOverride("hover", h);
+        b.AddThemeStyleboxOverride("focus", h);
+        b.AddThemeStyleboxOverride("pressed", h);
+        b.AddThemeColorOverride("font_color", UiKit.InkDark);
+        foreach (var k in new[] { "font_hover_color", "font_focus_color", "font_pressed_color" }) b.AddThemeColorOverride(k, Colors.White);
+        b.AddThemeConstantOverride("outline_size", 0);
+        b.Pressed += () => { Sfx.Play(b, SfxKind.UiClick); onPress(); };
+        return b;
+    }
 
-    /// <summary>Clavier virtuel (Steam : Deck, Big Picture) ; branché par Main. Faux s'il n'a pas pu s'ouvrir.</summary>
-    public static Func<string, string, int, Rect2I, Action<string?>, bool>? TextInput { get; set; }
+    void CycleMap(int delta)
+    {
+        selectedMap = (selectedMap + delta + SoloMaps.Length) % SoloMaps.Length;
+        RefreshMapCard();
+    }
 
-    /// <summary>
-    /// Champ de texte jouable à la manette : A sur le champ (ou un bouton qui le demande vide) ouvre le clavier virtuel de Steam.
-    /// Sur Deck le clavier flottant tape directement dans le champ ; ailleurs le texte revient à la fermeture, puis le focus passe à <paramref name="next"/>.
-    /// </summary>
+    void RefreshMapCard()
+    {
+        var m = SoloMaps[selectedMap];
+        mapNameLabel.Text = m.Name;
+        mapFormatLabel.Text = m.Format;
+        mapSubLabel.Text = m.Info;
+        mapBannerStyle.BgColor = m.Mood;
+        string thumbPath = $"res://assets/ui/maps/{m.Map}.png";
+        mapThumb.Texture = ResourceLoader.Exists(thumbPath) ? GD.Load<Texture2D>(thumbPath) : null;
+    }
+
+    void BuildFooter()
+    {
+        string ver = ProjectSettings.GetSetting("application/config/version", "").AsString();
+        var version = UiKit.Text($"EVA DEMO · v{(ver == "" ? "0.1" : ver)}", 15, new Color(1, 1, 1, 0.78f), 2);
+        version.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        version.OffsetLeft = 36; version.OffsetTop = -40; version.OffsetRight = 320; version.OffsetBottom = -16;
+        homeGroup.AddChild(version);
+    }
+
+    // ------------------------------------------------------------------ Sous-pages et modales
+
+    void PlaySelected() => FirstMatch(() => Leave(() => SoloChosen?.Invoke(SoloMaps[selectedMap].Map)));
+
+    void ShowProfile() => OpenOverlay(new ProfileScreen { Back = () => { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); } });
+
     static void PadKeyboard(LineEdit field, string description, Func<Control?> next)
     {
         field.GuiInput += e =>
@@ -291,91 +386,97 @@ public partial class MainMenu : CanvasLayer
 
     void ShowOnline()
     {
-        back = ShowMain;
-        var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
+        var card = new PanelContainer();
+        var col = new VBoxContainer();
+        col.AddThemeConstantOverride("separation", 12);
+        card.AddChild(col);
+        col.AddChild(UiKit.Title("JOUER EN LIGNE", 44));
+        var quick = UiKit.Button("PARTIE RAPIDE", UiKit.Orange, () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))), 26, new Vector2(460, 58));
+        col.AddChild(quick);
+        col.AddChild(UiKit.Button("CRÉER UNE SALLE PRIVÉE", UiKit.Blue, () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, "")), 24, new Vector2(460, 54)));
+        var code = new LineEdit { PlaceholderText = "Code de la salle", CustomMinimumSize = new Vector2(460, 50), Alignment = HorizontalAlignment.Center, MaxLength = 12 };
+        col.AddChild(code);
         Button? join = null;
         PadKeyboard(code, "Code de la salle", () => join);
-        // Mêmes items que le menu racine (barre jaune qui glisse), en taille secondaire.
-        Fill(
-            UiKit.Title("EN LIGNE", 56, HorizontalAlignment.Left),
-            Item("PARTIE RAPIDE", () => FirstMatch(() => Online(QuickMatch, () => Chosen?.Invoke(NetMode.Host, ""))), false, Colors.White),
-            Item("CRÉER UNE SALLE PRIVÉE", () => Online(CreatePrivate, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
-            code,
-            join = Item("REJOINDRE AVEC LE CODE", () =>
-            {
-                var c = code.Text.Trim().ToUpperInvariant();
-                if (c == "") { code.GrabFocus(); if (InputSetup.UsingPad) OpenKeyboard(code, "Code de la salle", () => join); return; }
-                if (JoinCode != null) Leave(() => JoinCode(c));
-            }, false, Colors.White),
-            Item("RÉSEAU LOCAL", ShowLan, false, Colors.White),
-            UiKit.Spacer(10),
-            Item("RETOUR", () => { Sfx.Play(this, SfxKind.UiBack); ShowMain(); }, false));
+        join = UiKit.Button("REJOINDRE AVEC LE CODE", UiKit.Blue, () =>
+        {
+            var c = code.Text.Trim().ToUpperInvariant();
+            if (c == "") { code.GrabFocus(); if (InputSetup.UsingPad) OpenKeyboard(code, "Code de la salle", () => join); return; }
+            if (JoinCode != null) Leave(() => JoinCode(c));
+        }, 24, new Vector2(460, 54));
+        col.AddChild(join);
+        col.AddChild(UiKit.Button("RÉSEAU LOCAL (LAN / EVA)", UiKit.Grey, ShowLan, 22, new Vector2(460, 50)));
+        col.AddChild(UiKit.Spacer(6));
+        col.AddChild(UiKit.Button("RETOUR", UiKit.Grey, CloseOverlay, 22, new Vector2(460, 48)));
+        OpenOverlay(Centered(card));
+        quick.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     void ShowLan()
     {
-        back = ShowOnline;
-        var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(440, 58), Alignment = HorizontalAlignment.Center };
+        var card = new PanelContainer();
+        var col = new VBoxContainer();
+        col.AddThemeConstantOverride("separation", 12);
+        card.AddChild(col);
+        col.AddChild(UiKit.Title("RÉSEAU LOCAL (EVA)", 44));
+        var host = UiKit.Button("HÉBERGER LA PARTIE", UiKit.Orange, () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, "")), 26, new Vector2(460, 58));
+        col.AddChild(host);
+        var address = new LineEdit { Text = "127.0.0.1", PlaceholderText = "Adresse IP de l'hôte", CustomMinimumSize = new Vector2(460, 50), Alignment = HorizontalAlignment.Center };
+        col.AddChild(address);
         Button? join = null;
         PadKeyboard(address, "Adresse IP de l'hôte", () => join);
-        Fill(
-            UiKit.Title("RÉSEAU LOCAL", 56, HorizontalAlignment.Left),
-            Item("HÉBERGER", () => Online(HostLan, () => Chosen?.Invoke(NetMode.Host, "")), false, Colors.White),
-            address,
-            join = Item("REJOINDRE", () =>
-            {
-                var ip = address.Text.Trim();
-                if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));
-            }, false, Colors.White),
-            UiKit.Spacer(10),
-            Item("RETOUR", () => { Sfx.Play(this, SfxKind.UiBack); ShowOnline(); }, false));
+        join = UiKit.Button("REJOINDRE L'HÔTE", UiKit.Blue, () =>
+        {
+            var ip = address.Text.Trim();
+            if (JoinAddress != null) Leave(() => JoinAddress(ip)); else Leave(() => Chosen?.Invoke(NetMode.Client, ip));
+        }, 24, new Vector2(460, 54));
+        col.AddChild(join);
+        col.AddChild(UiKit.Spacer(6));
+        col.AddChild(UiKit.Button("RETOUR", UiKit.Grey, ShowOnline, 22, new Vector2(460, 48)));
+        OpenOverlay(Centered(card));
+        host.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     void Online(Action? handler, Action fallback) => Leave(handler ?? fallback);
 
-    void PlayBots() => FirstMatch(ShowMapPicker);   // solo : choix de la carte (la première fois, après la proposition d'entraînement)
-
-    /// <summary>Contre les bots ou en partie rapide : la toute première fois, on propose l'entraînement avant <paramref name="play"/>.</summary>
     void FirstMatch(Action play)
     {
         if (GameSettings.TutorialDone) { play(); return; }
-        // Première partie : on propose le tutoriel (2 minutes), sans l'imposer.
         var card = new PanelContainer();
         var col = new VBoxContainer();
-        col.AddThemeConstantOverride("separation", 14);
+        col.AddThemeConstantOverride("separation", 16);
         card.AddChild(col);
-        col.AddChild(UiKit.Title("PREMIÈRE PARTIE ?", 52));
-        col.AddChild(UiKit.Text("L'entraînement t'apprend à lancer, attraper et esquiver en deux minutes.", 24, Colors.White, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Title("PREMIÈRE PARTIE ?", 44));
+        col.AddChild(UiKit.Text("L'entraînement t'apprend à lancer, attraper et esquiver en deux minutes.", 21, UiKit.Lavender, 0, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        row.AddThemeConstantOverride("separation", 16);
+        row.AddThemeConstantOverride("separation", 14);
         col.AddChild(row);
-        var yes = UiKit.Button("ENTRAÎNEMENT", UiKit.Orange, () => Leave(() => TutorialChosen?.Invoke()), 28, new Vector2(320, 64));
+        var yes = UiKit.Button("ENTRAÎNEMENT", UiKit.Orange, () => Leave(() => TutorialChosen?.Invoke()), 26, new Vector2(280, 58));
         row.AddChild(yes);
         row.AddChild(UiKit.Button("JOUER DIRECT", UiKit.Blue, () =>
         {
             GameSettings.TutorialDone = true;
             GameSettings.Save();
             play();
-        }, 28, new Vector2(320, 64)));
+        }, 26, new Vector2(280, 58)));
         OpenOverlay(Centered(card));
         yes.CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    /// <summary>Solo : choix de la carte, à la Knockout City (liste à gauche, description de la carte sélectionnée dessous).</summary>
     void ShowMapPicker()
     {
         var card = new PanelContainer();
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 10);
         card.AddChild(col);
-        col.AddChild(UiKit.Title("CHOISIS LA CARTE", 52));
-        var info = UiKit.Text("", 22, UiKit.Cream, 6, HorizontalAlignment.Center);
+        col.AddChild(UiKit.Title("CHOISIS L'ARÈNE", 44));
+        var info = UiKit.Text("", 20, UiKit.Lavender, 0, HorizontalAlignment.Center);
         info.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        info.CustomMinimumSize = new Vector2(560, 64);
+        info.CustomMinimumSize = new Vector2(520, 56);
         Button? first = null;
-        foreach (var (map, name, text) in SoloMaps)
+        foreach (var (map, name, format, _, text) in SoloMaps)
         {
-            var b = UiKit.ListButton(name, () => Leave(() => SoloChosen?.Invoke(map)), 34, new Vector2(560, 62));
+            var b = UiKit.ListButton($"{name}  ·  {format}", () => Leave(() => SoloChosen?.Invoke(map)), 26, new Vector2(520, 54));
             b.FocusEntered += () => info.Text = text;
             col.AddChild(b);
             first ??= b;
@@ -391,68 +492,67 @@ public partial class MainMenu : CanvasLayer
         var col = new VBoxContainer();
         col.AddThemeConstantOverride("separation", 10);
         card.AddChild(col);
-        col.AddChild(UiKit.Title("CRÉDITS", 56));
+        col.AddChild(UiKit.Title("CRÉDITS", 46));
         foreach (var (who, what) in new[]
         {
             ("Conception et direction", "jules"),
             ("Moteur", "Godot Engine 4.3 (MIT)"),
-            ("Police", "Lilita One, Juan Montoreano (SIL OFL)"),
+            ("Polices", "Barlow & Barlow Condensed (SIL OFL)"),
             ("Modèles 3D", "faits maison avec Blender"),
             ("Sons", "voir assets/audio/CREDITS.md"),
-            ("Inspiration", "Knockout City (Velan Studios), hommage"),
+            ("Inspiration", "Knockout City (Velan Studios)"),
         })
         {
             var row = new HBoxContainer();
-            row.AddThemeConstantOverride("separation", 24);
-            var a = UiKit.Text(who, 24, UiKit.Sky, 6, HorizontalAlignment.Right);
-            a.CustomMinimumSize = new Vector2(330, 0);
+            row.AddThemeConstantOverride("separation", 20);
+            var a = UiKit.Text(who, 20, UiKit.Sky, 0, HorizontalAlignment.Right);
+            a.CustomMinimumSize = new Vector2(280, 0);
             row.AddChild(a);
-            row.AddChild(UiKit.Text(what, 24, Colors.White, 6));
+            row.AddChild(UiKit.Text(what, 20, Colors.White, 0));
             col.AddChild(row);
         }
-        var back = UiKit.Button("RETOUR", UiKit.Orange, CloseOverlay, 26, new Vector2(300, 58));
-        back.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-        col.AddChild(UiKit.Spacer(6));
-        col.AddChild(back);
+        var backBtn = UiKit.Button("RETOUR", UiKit.Orange, CloseOverlay, 24, new Vector2(260, 52));
+        backBtn.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+        col.AddChild(UiKit.Spacer(8));
+        col.AddChild(backBtn);
         OpenOverlay(Centered(card));
-        back.CallDeferred(Control.MethodName.GrabFocus);
+        backBtn.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     static Control Centered(Control card)
     {
         var holder = new Control();
         holder.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        holder.AddChild(UiKit.Dim(0.5f));
+        holder.AddChild(UiKit.Dim(0.48f));
         var center = new CenterContainer();
         center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         holder.AddChild(center);
         center.AddChild(card);
-        UiKit.Punch(card, 0.85f, 0.22);
+        UiKit.Punch(card, 0.92f, 0.2);
         return holder;
     }
 
     void OpenOverlay(Control c)
     {
         CloseOverlay();
-        column.Visible = false;
+        homeGroup.Visible = false;
         overlay = c;
-        if (c is OptionsMenu o) o.Closed += () => { overlay = null; column.Visible = true; ShowMain(); };
+        if (c is OptionsMenu o) o.Closed += () => { overlay = null; homeGroup.Visible = true; playBtn.CallDeferred(Control.MethodName.GrabFocus); };
         root.AddChild(c);
         root.MoveChild(fade, -1);
     }
 
     void CloseOverlay()
     {
-        if (overlay is OptionsMenu) return;   // l'écran d'options se ferme lui-même (et enregistre)
+        if (overlay is OptionsMenu) return;
         overlay?.QueueFree();
         overlay = null;
-        column.Visible = true;
+        homeGroup.Visible = true;
+        playBtn?.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        // ZQSD / WASD (touches de déplacement, réglables) : mêmes sauts de focus que les flèches. Les flèches sont déjà
-        // consommées par l'interface ; on laisse l'écran d'options et les champs de saisie gérer leurs touches.
         if (overlay is not OptionsMenu && !leaving && GetViewport().GuiGetFocusOwner() is not LineEdit)
             foreach (var (move, ui) in new[] { ("move_forward", "ui_up"), ("move_back", "ui_down"), ("move_left", "ui_left"), ("move_right", "ui_right") })
                 if (e is InputEventKey && e.IsActionPressed(move, true))
@@ -463,37 +563,15 @@ public partial class MainMenu : CanvasLayer
                     return;
                 }
         if (!e.IsActionPressed("pause") && !e.IsActionPressed("ui_cancel")) return;
-        if (overlay != null && overlay is not OptionsMenu) { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); ShowMain(); GetViewport().SetInputAsHandled(); }
-        else if (overlay == null && back != null && !leaving) { Sfx.Play(this, SfxKind.UiBack); back(); GetViewport().SetInputAsHandled(); }   // En ligne, Réseau local : page précédente
+        if (overlay != null && overlay is not OptionsMenu) { Sfx.Play(this, SfxKind.UiBack); CloseOverlay(); GetViewport().SetInputAsHandled(); }
     }
 
-    /// <summary>Fondu au noir puis lancement (la partie se construit derrière le noir, qui se dissipe ensuite).</summary>
     void Leave(Action then)
     {
         if (leaving) return;
         leaving = true;
         var tw = fade.CreateTween();
-        tw.TweenProperty(fade, "color:a", 1.0, 0.35);
+        tw.TweenProperty(fade, "color:a", 1.0, 0.32);
         tw.TweenCallback(Callable.From(then));
-    }
-
-    /// <summary>Barre de sélection jaune inclinée, qui vire à l'or vers le bas, avec l'étoile marine devant le texte (« ✦ JUGAR »).</summary>
-    sealed partial class SelectBar : Control
-    {
-        static readonly Color Gold = new("ffb21f");
-
-        public override void _Draw()
-        {
-            float w = Size.X, h = Size.Y;
-            if (w < 2f) return;
-            float s = Mathf.Min(h * 0.3f, w);   // biais : le haut part vers la droite, comme le texte penché
-            Vector2[] Quad(Vector2 o) => new[] { o + new Vector2(s, 0), o + new Vector2(w, 0), o + new Vector2(w - s, h), o + new Vector2(0, h) };
-            DrawColoredPolygon(Quad(new Vector2(7, 7)), new Color(0.02f, 0.03f, 0.1f, 0.55f));
-            DrawPolygon(Quad(Vector2.Zero), new[] { UiKit.Yellow, UiKit.Yellow, Gold, Gold });
-            if (w < BarLead + 24f) return;
-            var c = new Vector2(BarLead + 10f, h / 2f);
-            float r = Mathf.Min(h * 0.24f, 15f), k = r * 0.3f;
-            DrawColoredPolygon(new[] { c + new Vector2(0, -r), c + new Vector2(k, -k), c + new Vector2(r, 0), c + new Vector2(k, k), c + new Vector2(0, r), c + new Vector2(-k, k), c + new Vector2(-r, 0), c + new Vector2(-k, -k) }, UiKit.Navy);
-        }
     }
 }
