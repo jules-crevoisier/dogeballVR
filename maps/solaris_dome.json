@@ -1,0 +1,46 @@
+{
+  "name": "solaris_dome",
+  "schemaVersion": 3,
+  "decor": "solaris_dome",
+  "ambiance": "jour",
+  "layout": "ring",
+  "zoneWidth": 10,
+  "zoneDepth": 8,
+  "edgeWarningDistance": 1.5,
+  "bounds": { "minX": -17, "maxX": 17, "minZ": -13, "maxZ": 13 },
+  "zones": [
+    { "id": 0, "slot": "NW", "team": 0, "x": -9.0, "y": 0.0, "z": -5.2, "facingDegrees": 270 },
+    { "id": 1, "slot": "NE", "team": 1, "x": 9.0, "y": 0.0, "z": -5.2, "facingDegrees": 90 },
+    { "id": 2, "slot": "SW", "team": 0, "x": -9.0, "y": 0.0, "z": 5.2, "facingDegrees": 270 },
+    { "id": 3, "slot": "SE", "team": 1, "x": 9.0, "y": 0.0, "z": 5.2, "facingDegrees": 90 }
+  ],
+  "pc": {
+    "note": "Arène Solaris Dome : 4 zones sécurisées en VR/EVA, déplacement libre sur tout le terrain au PC.",
+    "spawns": [
+      { "zone": 0, "x": -11.5, "z": -5.2 },
+      { "zone": 1, "x": 11.5, "z": -5.2 },
+      { "zone": 2, "x": -11.5, "z": 5.2 },
+      { "zone": 3, "x": 11.5, "z": 5.2 }
+    ]
+  },
+  "obstacles": [
+    { "id": "pilier_nw", "zone": -1, "kind": "cover", "x": -6.2, "y": 0.0, "z": -4.6, "sx": 1.15, "sy": 3.1, "sz": 1.15 },
+    { "id": "pilier_sw", "zone": -1, "kind": "cover", "x": -6.2, "y": 0.0, "z": 4.6, "sx": 1.15, "sy": 3.1, "sz": 1.15 },
+    { "id": "pilier_ne", "zone": -1, "kind": "cover", "x": 6.2, "y": 0.0, "z": -4.6, "sx": 1.15, "sy": 3.1, "sz": 1.15 },
+    { "id": "pilier_se", "zone": -1, "kind": "cover", "x": 6.2, "y": 0.0, "z": 4.6, "sx": 1.15, "sy": 3.1, "sz": 1.15 },
+    { "id": "muret_w_n", "zone": -1, "kind": "cover", "x": -3.2, "y": 0.0, "z": -3.4, "sx": 0.55, "sy": 1.05, "sz": 2.9 },
+    { "id": "muret_w_s", "zone": -1, "kind": "cover", "x": -3.2, "y": 0.0, "z": 3.4, "sx": 0.55, "sy": 1.05, "sz": 2.9 },
+    { "id": "muret_e_n", "zone": -1, "kind": "cover", "x": 3.2, "y": 0.0, "z": -3.4, "sx": 0.55, "sy": 1.05, "sz": 2.9 },
+    { "id": "muret_e_s", "zone": -1, "kind": "cover", "x": 3.2, "y": 0.0, "z": 3.4, "sx": 0.55, "sy": 1.05, "sz": 2.9 },
+    { "id": "pilier_arriere_w", "zone": -1, "kind": "cover", "x": -11.5, "y": 0.0, "z": 0.0, "sx": 1.2, "sy": 2.8, "sz": 1.2 },
+    { "id": "pilier_arriere_e", "zone": -1, "kind": "cover", "x": 11.5, "y": 0.0, "z": 0.0, "sx": 1.2, "sy": 2.8, "sz": 1.2 }
+  ],
+  "ballSpawns": [
+    { "id": "centre", "zone": -1, "kind": "dispenser", "x": 0.0, "y": 0.85, "z": 0.0 },
+    { "id": "disp_nw", "zone": 0, "kind": "dispenser", "x": -8.8, "y": 0.85, "z": -7.8 },
+    { "id": "disp_ne", "zone": 1, "kind": "dispenser", "x": 8.8, "y": 0.85, "z": -7.8 },
+    { "id": "disp_sw", "zone": 2, "kind": "dispenser", "x": -8.8, "y": 0.85, "z": 7.8 },
+    { "id": "disp_se", "zone": 3, "kind": "dispenser", "x": 8.8, "y": 0.85, "z": 7.8 }
+  ],
+  "props": []
+}

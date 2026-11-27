@@ -632,20 +632,20 @@ public partial class DesktopHud : CanvasLayer
         catchGauge.Modulate = new Color(1, 1, 1, holding ? 0.45f : 1f);
         catchGauge.QueueRedraw();
 
-        int charges = Player.DashCharges;
-        dashGauge.Charges = charges;
-        dashGauge.MaxCharges = Player.DashMax;
-        dashGauge.Fill = charges >= 1 ? 1f : Player.DashRecharge01;
-        dashGauge.Color = charges >= 1 ? UiKit.Sky : new Color(0.6f, 0.63f, 0.72f);
-        dashGauge.Glow = Player.Dashing ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.05f);
-        if (lastDashCharges >= 0 && charges > lastDashCharges) UiKit.Punch(dashGauge, 1.2f, 0.2);
-        lastDashCharges = charges;
+        // Effet Courbe (E) : remplace l'ancien Dash (supprimé pour parité VR) — s'allume balle en main.
+        dashGauge.Charges = 0;
+        dashGauge.MaxCharges = 0;
+        dashGauge.Fill = holding ? 1f : 0f;
+        dashGauge.Color = holding ? UiKit.Sky : new Color(0.6f, 0.63f, 0.72f);
+        dashGauge.Glow = holding && Input.IsActionPressed("curve") ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.08f);
+        dashGauge.Modulate = new Color(1, 1, 1, holding ? 1f : 0.45f);
         dashGauge.QueueRedraw();
 
         catchKey.Text = InputSetup.KeyName("catch");
         fireKey.Text = InputSetup.KeyName("fire");
-        dashKey.Text = InputSetup.KeyName("dash");
+        dashKey.Text = InputSetup.KeyName("curve");
         fireKey.Modulate = fireAction.Modulate = new Color(1, 1, 1, holding ? 1f : 0.6f);   // lancer : utile balle en main seulement
+        dashKey.Modulate = new Color(1, 1, 1, holding ? 1f : 0.45f);
     }
 
     // ------------------------------------------------------------------ viseur, charge en arc, marqueur de touche

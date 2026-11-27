@@ -88,7 +88,7 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
     public bool Dashing => dodgeLeft > 0 && FreeRoam;
     /// <summary>Compteurs d'actions du joueur (tutoriel, statistiques locales).</summary>
-    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups;
+    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Curves, Feints, Pickups;
     /// <summary>Rotation cumulée de la vue (radians) et distance parcourue (m) : tutoriel.</summary>
     public float LookTravel, WalkTravel;
     /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
@@ -426,7 +426,7 @@ public partial class DesktopPlayer : Node3D
         // Actions de l'InputMap (touches physiques réassignables, voir UI.InputSetup) : ZQSD sur AZERTY, WASD sur QWERTY.
         static bool A(string action) => Input.IsActionPressed(action);
         var m = Input.GetVector("move_left", "move_right", "move_forward", "move_back");   // stick analogique ou touches
-        bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
+        bool jump = A("jump"), catchDown = A("catch");
         bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
         if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }
         else crouchToggled = false;
@@ -435,16 +435,16 @@ public partial class DesktopPlayer : Node3D
             Move = m.LimitLength(1f),
             Crouch = GameSettings.ToggleCrouch ? crouchToggled : crouchKey,
             Jump = jump && !prevJump,
-            Dodge = dash && !prevDodge,
-            Sprint = !FreeRoam && A("dash"),
+            Dodge = false,   // Dash supprimé : parité compétitive avec la VR (aucun dash en casque)
+            Sprint = A("dash"),
             Catch = catchDown && !prevCatch,
             Fire = A("fire"),
-            Pass = FreeRoam && pass && !prevPass,
-            Lob = FreeRoam && lob && !prevLob,
-            Feint = FreeRoam && feint && !prevFeint,
-            Curve = FreeRoam && A("curve"),
+            Pass = pass && !prevPass,
+            Lob = lob && !prevLob,
+            Feint = feint && !prevFeint,
+            Curve = A("curve"),
         };
-        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
+        prevJump = jump; prevDodge = false; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
         return input;
     }
 
@@ -454,32 +454,10 @@ public partial class DesktopPlayer : Node3D
         var right = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
         var wish = right * input.Move.X - forward * input.Move.Y;
 
-        // Dash (Maj) : 4 m en 0,2 s dans la direction voulue (ou vers l'avant), 2 charges qui reviennent une par une,
-        // invulnérable pendant l'impulsion. Les cartes en zones (sans jeu libre) gardent une esquive plus courte.
         if (FreeRoam && Hurtbox.Eliminated) wish = Vector2.Zero;   // KO : on ne bouge plus jusqu'au retour
-        if (dashCharges < MaxCharges)
-        {
-            dashRechargeLeft -= dt;
-            if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = RechargeTime; }
-        }
-        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated && !(FreeRoam && jumpY > 0.1f && PitGap(worldPos) < 6f))   // pas de dash en l'air près de la fosse
-        {
-            dodgeDir = wish.LengthSquared() > 0.01f ? wish.Normalized() : forward;
-            dodgeLeft = FreeRoam ? DashTime : DodgeTime;
-            if (dashCharges == MaxCharges) dashRechargeLeft = RechargeTime;
-            dashCharges--;
-            dashStartedAt = time;
-            dashCount++;
-            Dashes++;
-            if (FreeRoam) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
-            if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
-        }
-        Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
-        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.05)   // ~3 silhouettes par dash
-        {
-            lastGhostAt = time;
-            Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
-        }
+        // Pas de dash ni d'invulnérabilité de dash (alignement compétitif PC / VR).
+        dodgeLeft = 0;
+        Hurtbox.DashInvulnerable = false;
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
         float top = charging ? ChargeSpeed : FreeRoam || (input.Sprint && input.Move.Y < -0.1f && !crouched) ? RunSpeed : WalkSpeed;
@@ -852,11 +830,12 @@ public partial class DesktopPlayer : Node3D
             }
             else if (input.Lob)
             {
-                var enemy = BestEnemy(AssistCone * 2f);
+                var enemy = BestEnemy(AssistCone * 2.2f);
                 var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
                 var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
                 if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }   // au-delà, la vitesse maximale ne suffit plus
-                Launch(ArcVelocity(holdPoint.GlobalPosition, to, 3.0f), 0f, Ball.ModeLob);
+                Launch(ArcVelocity(holdPoint.GlobalPosition, to, 4.2f), 0f, Ball.ModeLob);
+                ShowSticker("CLOCHE !");
             }
             else if (fire)
             {
@@ -873,8 +852,18 @@ public partial class DesktopPlayer : Node3D
             {
                 float t = (float)(chargeTime / MaxChargeTime);
                 float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);   // palier = vitesse ; un hôte VR plafonne quand même à 20 m/s
-                float spin = input.Curve && Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) * CurveSpin : 0f;   // effet : E maintenu + gauche/droite
-                Launch(ThrowVelocity(speed), spin, 0);
+                // Curve Shot façon Knockout City : E maintenu (+ Gauche/Droite, ou droite par défaut) ouvre l'angle pour contourner un pilier puis revient en arc.
+                float dir = input.Curve ? (Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) : 1f) : 0f;
+                var vel = ThrowVelocity(speed);
+                float spin = 0f;
+                if (dir != 0f)
+                {
+                    // Ouverture latérale de ~22° côté extérieur puis retour Magnus vers la cible.
+                    vel = vel.Rotated(Vector3.Up, -dir * Mathf.DegToRad(22f));
+                    spin = -dir * 9.5f;
+                    ShowSticker(dir > 0 ? "COURBE →" : "← COURBE");
+                }
+                Launch(vel, spin, 0);
             }
         }
         else { charging = false; chargeTime = 0; }
@@ -889,7 +878,7 @@ public partial class DesktopPlayer : Node3D
     {
         if (mode == Ball.ModePass) Passes++;
         else if (mode == Ball.ModeLob) Lobs++;
-        else { Throws++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
+        else { Throws++; if (spin != 0f) Curves++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
         BallActions.Throw(held!, 1, velocity, spin, mode);
         if (spin != 0) apCurvePending = false; else if (mode == 0) apCurvePending = true;
         GD.Print($"[PC] Lancer {(mode == Ball.ModePass ? "passe" : mode == Ball.ModeLob ? "cloche" : spin != 0 ? "effet" : "tendu")} à {velocity.Length():0.0} m/s");

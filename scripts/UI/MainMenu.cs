@@ -27,6 +27,8 @@ public partial class MainMenu : CanvasLayer
 
     static readonly (string Map, string Name, string Format, Color Mood, string Info)[] SoloMaps =
     {
+        ("solaris_dome", "SOLARIS DOME", "2V2", new Color("1f4d7a"), "Stade sous verrière : piliers Curve & murets Lob."),
+        ("helios_concourse", "HELIOS CONCOURSE", "2V2", new Color("21415f"), "Grand hall ouvert EVA : couloirs libres & monolithes."),
         ("croix_neon", "CROIX NÉON", "2V2", new Color("274060"), "4 plateaux autour d'un moyeu avec rotor."),
         ("fosse_croisee", "FOSSE CROISÉE", "2V2", new Color("3b3159"), "Fosse centrale, tremplins et ring-outs."),
         ("tour_4v4", "TOUR 4V4", "4V4", new Color("5c2d3e"), "8 plaques autour d'une grande fosse 4c4."),

@@ -51,15 +51,17 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>Fenêtre modale (options, pause, fin de match…) : panneau charbon propre, sans biais exagéré.</summary>
+    /// <summary>Fenêtre modale (options, pause, lobby, profil, fin de match…) : verre fumé arrondi cohérent avec le HUD et le menu AAA.</summary>
     public static KcBox PanelBox(float slant = 0f, int margin = 32)
     {
         var b = new KcBox
         {
-            Top = new Color(VioletTop, 0.95f), Bottom = new Color(NavyLow, 0.97f), BorderWidth = 1.5f, BorderColor = Hairline, Slant = 0,
-            ShadowOffset = new Vector2(0, 10), ShadowColor = new Color(Ink, 0.5f),
+            Top = new Color("1b2233", 0.90f), Bottom = new Color("131926", 0.94f),
+            BorderWidth = 1.5f, BorderColor = new Color(1f, 1f, 1f, 0.22f),
+            Slant = 0, Radius = 18f,
+            ShadowOffset = new Vector2(0, 12), ShadowColor = new Color(Ink, 0.38f),
             StripOffset = Vector2.Zero, StripColor = new Color(0, 0, 0, 0),
-            AccentColor = Orange, AccentWidth = 4,
+            AccentColor = new Color(0, 0, 0, 0), AccentWidth = 0,
         };
         b.ContentMarginLeft = b.ContentMarginRight = margin;
         b.ContentMarginTop = b.ContentMarginBottom = margin * 0.78f;
@@ -69,8 +71,13 @@ public static class UiKit
     /// <summary>Encart dans une fenêtre (description, ligne de tableau, carte).</summary>
     public static KcBox InsetBox(Color? fill = null, float slant = 0f, int border = 1, Color? borderColor = null)
     {
-        var c = fill ?? new Color(Ink, 0.45f);
-        var b = new KcBox { Top = c, Bottom = c.Darkened(0.06f), Slant = 0, BorderWidth = border, BorderColor = borderColor ?? new Color(1f, 1f, 1f, 0.12f) };
+        var c = fill ?? new Color(1f, 1f, 1f, 0.07f);
+        var b = new KcBox
+        {
+            Top = c, Bottom = c.Darkened(0.05f),
+            Slant = 0, Radius = 12f,
+            BorderWidth = border, BorderColor = borderColor ?? new Color(1f, 1f, 1f, 0.14f),
+        };
         b.ContentMarginLeft = b.ContentMarginRight = 18;
         b.ContentMarginTop = 8; b.ContentMarginBottom = 8;
         return b;
@@ -84,27 +91,33 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>Bouton au repos : surface arrondie sobre.</summary>
+    /// <summary>Bouton au repos : pilule arrondie en verre clair (ou orange vif si action principale).</summary>
     public static KcBox ButtonIdle(Color accent, bool box = true)
     {
+        bool primary = box && accent == Orange;
         var b = new KcBox
         {
-            Top = box ? new Color("1f2536", 0.94f) : new Color(0, 0, 0, 0), Bottom = box ? new Color("181d2b", 0.96f) : new Color(0, 0, 0, 0),
-            BorderWidth = box ? 1.5f : 0, BorderColor = Hairline, Slant = 0,
-            ShadowOffset = new Vector2(0, 4), ShadowColor = new Color(Ink, box ? 0.32f : 0f),
-            AccentColor = accent, AccentWidth = 4,
+            Top = primary ? Orange : box ? new Color(1f, 1f, 1f, 0.11f) : new Color(0, 0, 0, 0),
+            Bottom = primary ? Orange.Darkened(0.08f) : box ? new Color(1f, 1f, 1f, 0.07f) : new Color(0, 0, 0, 0),
+            BorderWidth = primary ? 0f : box ? 1.5f : 0f,
+            BorderColor = new Color(1f, 1f, 1f, 0.20f),
+            Slant = 0, Radius = 12f,
+            ShadowOffset = new Vector2(0, 4), ShadowColor = new Color(primary ? Orange : Ink, primary ? 0.28f : box ? 0.20f : 0f),
+            AccentColor = primary ? new Color(0, 0, 0, 0) : accent, AccentWidth = primary ? 0 : 4,
         };
         b.ContentMarginLeft = b.ContentMarginRight = 24; b.ContentMarginTop = 10; b.ContentMarginBottom = 10;
         return b;
     }
 
-    /// <summary>Bouton sélectionné (survol ou clavier) : orange vif sportif.</summary>
+    /// <summary>Bouton sélectionné (survol ou clavier) : orange vif sportif arrondi.</summary>
     public static KcBox ButtonLit(bool pressed = false)
     {
         var b = new KcBox
         {
-            Top = pressed ? Orange.Darkened(0.12f) : Orange, Bottom = pressed ? Orange.Darkened(0.22f) : Orange.Darkened(0.08f), Slant = 0,
-            ShadowOffset = new Vector2(0, 5), ShadowColor = new Color(Orange, 0.35f), Star = false,
+            Top = pressed ? Orange.Darkened(0.12f) : Orange.Lightened(0.04f),
+            Bottom = pressed ? Orange.Darkened(0.22f) : Orange.Darkened(0.06f),
+            Slant = 0, Radius = 12f,
+            ShadowOffset = new Vector2(0, 5), ShadowColor = new Color(Orange, 0.36f), Star = false,
         };
         b.ContentMarginLeft = b.ContentMarginRight = 24; b.ContentMarginTop = 10; b.ContentMarginBottom = 10;
         return b;
@@ -288,34 +301,23 @@ public static class UiKit
         return b;
     }
 
-    /// <summary>Habille un bouton : repos (idle), barre jaune au focus et au survol, texte qui glisse, son. Rest = couleur du texte au repos.</summary>
-    public static void Style(Button b, KcBox idle, Color rest, float shift = 22f)
+    /// <summary>Habille un bouton dans la DA AAA unifiée : repos verre fumé arrondi, survol orange vif, pas de saut horizontal.</summary>
+    public static void Style(Button b, KcBox idle, Color rest, float shift = 0f)
     {
         var lit = ButtonLit();
         var down = ButtonLit(true);
-        // La barre jaune et le repos partagent les marges : le texte glisse de la même façon sur les deux.
         b.AddThemeStyleboxOverride("normal", idle);
         b.AddThemeStyleboxOverride("hover", lit);
         b.AddThemeStyleboxOverride("pressed", down);
         b.AddThemeStyleboxOverride("hover_pressed", down);
         b.AddThemeStyleboxOverride("focus", lit);
-        if (Italic is Font it) b.AddThemeFontOverride("font", it);
+        if (Display is Font d) b.AddThemeFontOverride("font", d);
         b.AddThemeColorOverride("font_color", rest);
         foreach (var k in new[] { "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" }) b.AddThemeColorOverride(k, Colors.White);
         b.AddThemeColorOverride("font_outline_color", Ink);
         b.AddThemeConstantOverride("outline_size", 0);
-        float baseLeft = idle.ContentMarginLeft;
-        Tween? slide = null;
-        void Shift(float to)
-        {
-            slide?.Kill();
-            if (!b.IsInsideTree()) return;
-            slide = b.CreateTween().SetParallel();
-            foreach (var box in new[] { idle, lit, down })
-                slide.TweenProperty(box, "content_margin_left", baseLeft + to, 0.12).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-        }
-        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 0); Shift(shift); Sfx.Play(b, SfxKind.UiHover); };
-        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 0); Shift(0f); };
+        b.FocusEntered += () => { b.AddThemeConstantOverride("outline_size", 0); Sfx.Play(b, SfxKind.UiHover); };
+        b.FocusExited += () => { b.AddThemeConstantOverride("outline_size", 0); };
         b.MouseEntered += () => { if (!b.Disabled && b.FocusMode != Control.FocusModeEnum.None) b.GrabFocus(); };
     }
 
@@ -437,10 +439,10 @@ public static class UiKit
 
     public static Control Spacer(float h) => new() { CustomMinimumSize = new Vector2(0, h), MouseFilter = Control.MouseFilterEnum.Ignore };
 
-    /// <summary>Voile plein écran derrière un menu : le jeu flouté puis teinté carbone sombre.</summary>
-    public static ColorRect Dim(float alpha = 0.62f)
+    /// <summary>Voile plein écran derrière un menu : flou doux qui laisse voir l'arène lumineuse.</summary>
+    public static ColorRect Dim(float alpha = 0.34f)
     {
-        var r = new ColorRect { Color = new Color(new Color("060a14"), alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = BlurMaterial() };
+        var r = new ColorRect { Color = new Color(new Color("0d1322"), alpha), MouseFilter = Control.MouseFilterEnum.Stop, Material = BlurMaterial() };
         r.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         return r;
     }

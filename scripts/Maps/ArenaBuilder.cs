@@ -28,11 +28,17 @@ public static class ArenaBuilder
         }
         Node3D ParentOf(int zone) => platforms.TryGetValue(zone, out var p) ? p : root;
 
-        var decor = map.Decor == null ? null : ModelLibrary.Instance(map.Decor);
-        bool kc = decor != null;
+        bool customStadium = EsportStadiumBuilder.Handles(map.Decor);
+        var decor = map.Decor == null || customStadium ? null : ModelLibrary.Instance(map.Decor);
+        bool kc = decor != null || customStadium;
         if (kc) AddKcEnvironment(root, pcProfile, map.Ambiance); else AddEnvironment(root);
         AddFloor(root, map);
-        if (kc)
+        if (customStadium)
+        {
+            EsportStadiumBuilder.Build(root, map);
+            HideFloorMeshes(root);
+        }
+        else if (kc)
         {
             root.AddChild(decor!);
             var city = ModelLibrary.Instance(map.Decor + "_ville") ?? ModelLibrary.Instance("toit_ville");   // variantes du toit (autres cartes) : skyline commune

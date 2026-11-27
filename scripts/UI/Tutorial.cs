@@ -56,52 +56,49 @@ public partial class Tutorial : CanvasLayer
         Bot.Gentle = true;
         Bot.Calm = true;   // dès la première image : pas de tir pendant « REGARDE AUTOUR DE TOI » (Next arrive en différé)
         MatchController.HitScored += OnHit;
-        steps.Add(new("REGARDE AUTOUR DE TOI", () => Pad("Le [color=#ffd23f]stick droit[/color] tourne la caméra.", "Bouge la souris pour tourner la caméra."), p => p.LookTravel - start["look"] > 3.5f));
-        steps.Add(new("DÉPLACE-TOI", () => Pad("Le [color=#ffd23f]stick gauche[/color] fait courir sur le toit.", $"{K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")} pour courir sur le toit."), p => p.WalkTravel - start["walk"] > 8f));
-        steps.Add(new("SAUTE", () => $"{K("jump")} pour sauter par-dessus un muret.", p => p.Jumps > start["jumps"]));
-        steps.Add(new("ESQUIVE", () => $"{K("dash")} : un bond éclair, invulnérable pendant l'élan. Tu as deux charges : enchaîne-en deux.", p => p.Dashes - start["dashes"] >= 2));
-        steps.Add(new("RAMASSE UNE BALLE", () => "Cours sur une balle jaune (ou sur le plot de ton camp) pour la prendre.", p => p.HeldBall != null));
-        steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger (la jauge se remplit), relâche pour lancer.", p => p.ChargedThrows > start["charged"]));
-        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un bleu (le viseur prend sa couleur) et lance avec {K("fire")}. L'aide à la visée corrige les presque-touches.", _ => hitsByMe > 0));
-        steps.Add(new(CatchTitle, () => $"Quand un bleu te vise (liseré bleu au bord de l'écran, chevron près du viseur), appuie sur {K("catch")} juste avant l'impact. Approche-toi d'eux pour qu'ils te visent.", p => p.Catches > start["catches"]));
-        steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main, {K("pass")} l'envoie à ton coéquipier orange : une passe charge la balle.", p => p.Passes > start["passes"]));
-        steps.Add(new("FEINTE", () => $"Balle en main, {K("feint")} fait mine de lancer : l'adversaire attrape dans le vide.", p => p.Feints > start["feints"]));
+        steps.Add(new("PRISE EN MAIN", () => Pad("Déplace-toi avec le [color=#ff7a29]stick gauche[/color] et tourne la caméra avec le [color=#ff7a29]stick droit[/color].", $"Déplace-toi avec {K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")} et bouge la souris."), p => p.WalkTravel - start["walk"] > 5f && p.LookTravel - start["look"] > 1.5f));
+        steps.Add(new("RAMASSE UNE BALLE", () => "Approche-toi d'un [color=#38e8ff]distributeur turquoise[/color] (ou d'une balle au sol) pour la prendre.", p => p.HeldBall != null));
+        steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger le tir, puis relâche pour lancer tendu.", p => p.ChargedThrows > start["charged"]));
+        steps.Add(new("TIR COURBÉ (CONTOURNER UN PILIER)", () => $"Balle en main : maintiens {K("curve")} (+ {K("move_left")} ou {K("move_right")}) puis relâche {K("fire")} pour faire contourner un pilier à la balle !", p => p.Curves > start["curves"]));
+        steps.Add(new("TIR EN CLOCHE (PAR LE HAUT)", () => $"Balle en main : appuie sur {K("lob")} pour envoyer la balle en cloche par-dessus un muret et frapper par le haut.", p => p.Lobs > start["lobs"]));
+        steps.Add(new("FEINTE", () => $"Balle en main : appuie sur {K("feint")} pour faire mine de lancer et piéger l'attrape de l'adversaire.", p => p.Feints > start["feints"]));
+        steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main : {K("pass")} l'envoie à ton coéquipier orange et charge instantanément la balle.", p => p.Passes > start["passes"]));
+        steps.Add(new(CatchTitle, () => $"Quand un bleu te vise (liseré au bord de l'écran), appuie sur {K("catch")} juste avant l'impact pour une attrape parfaite !", p => p.Catches > start["catches"]));
+        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un adversaire bleu et élimine-le avec {K("fire")} (tendu, courbe ou cloche).", _ => hitsByMe > 0));
         if (Match != null)
-            steps.Add(new("BALLE SPÉCIALE", () => "Une [color=#ffd23f]bombe[/color] tombe près de toi : elle explose à l'impact et touche tout autour. "
-                + $"Ramasse-la (lance d'abord la balle que tu tiens) et envoie-la sur les bleus avec {K("fire")}.", SpecialDone, DropSpecial));
+            steps.Add(new("BALLE SPÉCIALE", () => "Une [color=#ff7a29]bombe[/color] apparaît près de toi : ramasse-la et envoie-la sur les bleus pour une explosion de zone !", SpecialDone, DropSpecial));
 
         var root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(root);
-        card = new PanelContainer { CustomMinimumSize = new Vector2(760, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
-        var cardBox = UiKit.PanelBox(16, 26);   // la fenêtre du menu, liseré jaune : la consigne se détache du jeu
-        cardBox.BorderColor = UiKit.Yellow;
+        card = new PanelContainer { CustomMinimumSize = new Vector2(780, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var cardBox = UiKit.PanelBox(0, 24);
+        cardBox.BorderColor = new Color(UiKit.Orange, 0.75f);
         card.AddThemeStyleboxOverride("panel", cardBox);
         card.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        card.OffsetLeft = -380; card.OffsetRight = 380; card.OffsetTop = 150;
+        card.OffsetLeft = -390; card.OffsetRight = 390; card.OffsetTop = 92;
         root.AddChild(card);
         var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddThemeConstantOverride("separation", 6);
         card.AddChild(col);
         var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(head);
-        counter = UiKit.Text("", 22, UiKit.Sky, 6);
+        counter = UiKit.DisplayText("", 18, UiKit.Orange, 0);
         counter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         head.AddChild(counter);
-        skipHint = UiKit.Text("", 22, UiKit.Cream, 6);
+        skipHint = UiKit.Text("", 16, UiKit.Lavender, 0);
         head.AddChild(skipHint);
-        title = UiKit.Title("", 46, HorizontalAlignment.Left);
+        title = UiKit.Title("", 38, HorizontalAlignment.Left);
         col.AddChild(title);
-        body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(720, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
-        body.AddThemeFontSizeOverride("normal_font_size", 26);
-        body.AddThemeConstantOverride("outline_size", 6);
-        body.AddThemeColorOverride("font_outline_color", UiKit.Navy);
+        body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(730, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+        body.AddThemeFontSizeOverride("normal_font_size", 22);
+        body.AddThemeConstantOverride("outline_size", 0);
         col.AddChild(body);
-        var barBack = new ColorRect { Color = new Color(1, 1, 1, 0.15f), CustomMinimumSize = new Vector2(0, 8), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var barBack = new ColorRect { Color = new Color(1, 1, 1, 0.14f), CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(barBack);
-        progress = new ColorRect { Color = UiKit.Orange, Size = new Vector2(0, 8), MouseFilter = Control.MouseFilterEnum.Ignore };
+        progress = new ColorRect { Color = UiKit.Orange, Size = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
         barBack.AddChild(progress);
-        check = UiKit.Text("✔", 90, UiKit.Green, 14, HorizontalAlignment.Center);
+        check = UiKit.Text("✔", 76, UiKit.Green, 6, HorizontalAlignment.Center);
         check.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
         check.Position = new Vector2(card.OffsetRight - 70, 0);
         check.Visible = false;
@@ -130,7 +127,8 @@ public partial class Tutorial : CanvasLayer
         start = new()
         {
             ["look"] = Player.LookTravel, ["walk"] = Player.WalkTravel, ["jumps"] = Player.Jumps, ["dashes"] = Player.Dashes,
-            ["charged"] = Player.ChargedThrows, ["catches"] = Player.Catches, ["passes"] = Player.Passes, ["feints"] = Player.Feints,
+            ["charged"] = Player.ChargedThrows, ["curves"] = Player.Curves, ["lobs"] = Player.Lobs,
+            ["catches"] = Player.Catches, ["passes"] = Player.Passes, ["feints"] = Player.Feints,
         };
     }
 
