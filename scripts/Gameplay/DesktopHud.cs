@@ -1225,17 +1225,14 @@ public partial class DesktopHud : CanvasLayer
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
         countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
-        // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
-        var roundBox = UiKit.PanelBox(16, 4);
-        roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
+        var roundBox = UiKit.DarkPanelBox(0, 8);
+        roundBox.BorderWidth = 1.5f; roundBox.ShadowOffset = new Vector2(0, 6);
         countdownRound.AddThemeStyleboxOverride("normal", roundBox);
-        if (UiKit.Italic is Font it) countdownRound.AddThemeFontOverride("font", it);
+        if (UiKit.Display is Font it) countdownRound.AddThemeFontOverride("font", it);
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
-        // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
-        // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
         notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var noticeBox = UiKit.PanelBox(14, 18);
-        noticeBox.BorderWidth = 4; noticeBox.BorderColor = UiKit.Yellow; noticeBox.ShadowOffset = new Vector2(7, 7); noticeBox.StripOffset = new Vector2(12, 12);
+        var noticeBox = UiKit.DarkPanelBox(0, 18);
+        noticeBox.BorderWidth = 1.5f; noticeBox.BorderColor = new Color(UiKit.Orange, 0.8f); noticeBox.ShadowOffset = new Vector2(0, 6);
         noticeBox.ContentMarginTop = noticeBox.ContentMarginBottom = 6;
         notice.AddThemeStyleboxOverride("panel", noticeBox);
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
@@ -1912,7 +1909,7 @@ public partial class DesktopHud : CanvasLayer
         table.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(table);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(18, 30));   // la fenêtre du menu principal
+        panel.AddThemeStyleboxOverride("panel", UiKit.DarkPanelBox(0, 30));
         table.AddChild(panel);
         tableRows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         tableRows.AddThemeConstantOverride("separation", 6);

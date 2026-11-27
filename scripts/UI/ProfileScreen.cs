@@ -53,7 +53,7 @@ public partial class ProfileScreen : Control
         nameRow.AddChild(name);
         nameRow.AddChild(UiKit.Text(need > 0 ? $"{XpBanner.Spaced(into)} / {XpBanner.Spaced(need)} XP" : "NIVEAU MAX", 22, UiKit.Sky, 6, HorizontalAlignment.Right));
         who.AddChild(nameRow);
-        who.AddChild(UiKit.Text($"{Progression.TitleOf(level)}  ·  {XpBanner.Spaced(xp)} XP au total", 24, UiKit.Cream, 6));
+        who.AddChild(UiKit.Text($"{Progression.TitleOf(level)}  ·  {XpBanner.Spaced(xp)} XP au total", 22, UiKit.Lavender, 0));
         float fill = need > 0 ? (float)into / need : 1f;
         var bar = new Control { CustomMinimumSize = new Vector2(0, 18) };
         bar.Draw += () =>
@@ -117,10 +117,10 @@ public partial class ProfileScreen : Control
         box.ContentMarginTop = box.ContentMarginBottom = 6;
         row.AddThemeStyleboxOverride("panel", box);
         var h = new HBoxContainer();
-        var l = UiKit.Text(label, 24, UiKit.Cream, 4);
+        var l = UiKit.Text(label, 22, UiKit.Lavender, 0);
         l.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         h.AddChild(l);
-        h.AddChild(UiKit.Text(value, 26, Colors.White, 6, HorizontalAlignment.Right));
+        h.AddChild(UiKit.DisplayText(value, 24, UiKit.InkDark, 0, HorizontalAlignment.Right));
         row.AddChild(h);
         parent.AddChild(row);
     }
@@ -128,26 +128,25 @@ public partial class ProfileScreen : Control
     static Control AchievementRow(AchievementDef a, bool unlocked)
     {
         var row = new PanelContainer { FocusMode = FocusModeEnum.All, MouseFilter = MouseFilterEnum.Pass };
-        // Débloqué : encart doré à liseré jaune (comme la barre du menu) ; à faire : encart sombre. Sélectionné : liseré jaune épais.
-        var box = unlocked ? UiKit.InsetBox(new Color(UiKit.Gold, 0.2f), 10, 2, new Color(UiKit.Yellow, 0.8f)) : UiKit.InsetBox(null, 10);
+        var box = unlocked ? UiKit.InsetBox(new Color(UiKit.Orange, 0.10f), 0, 2, new Color(UiKit.Orange, 0.55f)) : UiKit.InsetBox(null, 0);
         box.ContentMarginTop = box.ContentMarginBottom = 6;
         var lit = box.Copy();
-        lit.BorderWidth = 4;
-        lit.BorderColor = UiKit.Yellow;
+        lit.BorderWidth = 2;
+        lit.BorderColor = UiKit.Orange;
         row.AddThemeStyleboxOverride("panel", box);
         row.FocusEntered += () => { row.AddThemeStyleboxOverride("panel", lit); Sfx.Play(row, SfxKind.UiHover); };
         row.FocusExited += () => row.AddThemeStyleboxOverride("panel", box);
         var h = new HBoxContainer();
         h.AddThemeConstantOverride("separation", 14);
-        h.AddChild(UiKit.Text(unlocked ? "★" : "·", 30, unlocked ? UiKit.Yellow : UiKit.Grey, 4, HorizontalAlignment.Center));
+        h.AddChild(UiKit.Text(unlocked ? "★" : "·", 28, unlocked ? UiKit.Orange : UiKit.Grey, 0, HorizontalAlignment.Center));
         var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         text.AddThemeConstantOverride("separation", -2);
         bool secret = a.Hidden && !unlocked;
-        text.AddChild(UiKit.Text(secret ? "Succès caché" : a.NameFr, 24, unlocked ? Colors.White : new Color(1, 1, 1, 0.6f), 4));
-        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 18, unlocked ? UiKit.Cream : new Color(UiKit.Cream, 0.5f), 3));
+        text.AddChild(UiKit.DisplayText(secret ? "Succès caché" : a.NameFr, 22, unlocked ? UiKit.InkDark : new Color(UiKit.InkDark, 0.55f), 0));
+        text.AddChild(UiKit.Text(secret ? "À découvrir en jouant." : a.DescFr, 17, unlocked ? UiKit.Lavender : new Color(UiKit.Lavender, 0.65f), 0));
         h.AddChild(text);
         if (!unlocked && a.Stat != null && a.Threshold > 1)
-            h.AddChild(UiKit.Text($"{Mathf.Min(Achievements.GetStat(a.Stat), a.Threshold)} / {a.Threshold}", 20, UiKit.Sky, 4, HorizontalAlignment.Right));
+            h.AddChild(UiKit.DisplayText($"{Mathf.Min(Achievements.GetStat(a.Stat), a.Threshold)} / {a.Threshold}", 20, UiKit.Orange, 0, HorizontalAlignment.Right));
         row.AddChild(h);
         return row;
     }

@@ -88,11 +88,6 @@ public partial class KcBox : StyleBox
                 }
                 rs.CanvasItemAddPolygon(ci, pts, cols);
             }
-            if (AccentColor.A > 0f && AccentWidth > 0f)
-            {
-                var bar = new Rect2(inner.Position.X + 4f, inner.Position.Y + 8f, AccentWidth, Mathf.Max(4f, inner.Size.Y - 16f));
-                Poly(RoundedRect(bar, AccentWidth * 0.5f), AccentColor);
-            }
             return;
         }
 
@@ -109,11 +104,5 @@ public partial class KcBox : StyleBox
         }
         if (Top.A > 0.001f || Bottom.A > 0.001f)
             rs.CanvasItemAddPolygon(ci, q, new[] { Top, Top, Bottom, Bottom });
-        if (AccentColor.A > 0f)
-        {
-            var a = innerRect.Position;
-            float w = AccentWidth, h = innerRect.Size.Y;
-            Poly(new[] { a + new Vector2(k, 0), a + new Vector2(k + w, 0), a + new Vector2(w, h), a + new Vector2(0, h) }, AccentColor);
-        }
     }
 }

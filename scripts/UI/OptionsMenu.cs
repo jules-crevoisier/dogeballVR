@@ -141,7 +141,7 @@ public partial class OptionsMenu : Control
         var db = UiKit.InsetBox(null, 10);
         descBox.AddThemeStyleboxOverride("panel", db);
         col.AddChild(descBox);
-        desc = UiKit.Text("", 22, UiKit.Cream, 5);
+        desc = UiKit.Text("", 20, UiKit.InkDark, 0);
         desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         desc.VerticalAlignment = VerticalAlignment.Center;
         desc.SizeFlagsVertical = SizeFlags.Fill;
@@ -247,7 +247,7 @@ public partial class OptionsMenu : Control
     {
         tab = i;
         for (int k = 0; k < 4; k++)
-            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Violet : null, k == i ? UiKit.Yellow : null);   // onglet ouvert : violet clair, accent et texte jaunes
+            UiKit.Tint(tabs[k], new Color(0, 0, 0, 0), k == i ? UiKit.Orange : null, k == i ? Colors.White : UiKit.InkDark);
         foreach (var c in list.GetChildren()) c.QueueFree();
         rows.Clear();
         lit = null;
@@ -325,10 +325,9 @@ public partial class OptionsMenu : Control
         if (!first) list.AddChild(UiKit.Spacer(8));
         var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 16);
-        var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
-        if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+        var l = UiKit.DisplayText(text.ToUpperInvariant(), 26, UiKit.InkDark, 0);
         h.AddChild(l);
-        var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
+        var rule = new ColorRect { Color = new Color(UiKit.Orange, 0.45f), CustomMinimumSize = new Vector2(0, 2), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
         h.AddChild(rule);
         list.AddChild(h);
     }
@@ -340,7 +339,7 @@ public partial class OptionsMenu : Control
         panel.AddThemeStyleboxOverride("panel", rowIdle);
         var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 46) };
         row.AddThemeConstantOverride("separation", 18);
-        var l = UiKit.Text(label, 24, Colors.White, 6);
+        var l = UiKit.Text(label, 22, UiKit.InkDark, 0);
         l.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
@@ -357,7 +356,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label);
         var s = new HSlider { MinValue = min, MaxValue = max, Step = step, Value = value, CustomMinimumSize = new Vector2(320, 30), SizeFlagsVertical = SizeFlags.ShrinkCenter, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.1f };
-        var v = UiKit.Text(show(value), 22, UiKit.Yellow, 6);
+        var v = UiKit.DisplayText(show(value), 22, UiKit.Orange, 0);
         v.CustomMinimumSize = new Vector2(150, 0);
         v.HorizontalAlignment = HorizontalAlignment.Right;
         v.VerticalAlignment = VerticalAlignment.Center;
@@ -378,7 +377,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
         var b = UiKit.Button(value ? "OUI" : "NON", UiKit.NavySoft, () => { }, 22, new Vector2(150, 44));
-        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Green : new Color(0, 0, 0, 0), on ? new Color("1f6b45") : null, on ? Colors.White : UiKit.Lavender);
+        void Paint(bool on) => UiKit.Tint(b, new Color(0, 0, 0, 0), on ? UiKit.Green : null, on ? Colors.White : UiKit.InkDark);
         Paint(value);
         b.Pressed += () =>
         {

@@ -93,9 +93,10 @@ public partial class Tutorial : CanvasLayer
         col.AddChild(title);
         body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(730, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
         body.AddThemeFontSizeOverride("normal_font_size", 22);
+        body.AddThemeColorOverride("default_color", UiKit.InkDark);
         body.AddThemeConstantOverride("outline_size", 0);
         col.AddChild(body);
-        var barBack = new ColorRect { Color = new Color(1, 1, 1, 0.14f), CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var barBack = new ColorRect { Color = new Color("d5dde9"), CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddChild(barBack);
         progress = new ColorRect { Color = UiKit.Orange, Size = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
         barBack.AddChild(progress);
@@ -235,7 +236,7 @@ public partial class Tutorial : CanvasLayer
         col.AddChild(UiKit.Title("TU ES PRÊT !", 76));
         var rules = Match?.Rules;
         int koTarget = KcRules.Def.KoTarget > 0 ? KcRules.Def.KoTarget : rules?.KoTarget ?? 3;   // seuil de la carte (6 sur Croix Néon), sinon celui de la partie
-        col.AddChild(UiKit.Text($"Première équipe à {koTarget} KO gagne la manche. {rules?.MaxRounds ?? 5} manches, prolongation en mort subite.\n1 cœur par coup, et attraper ne soigne pas.", 24, Colors.White, 6, HorizontalAlignment.Center));
+        col.AddChild(UiKit.Text($"Première équipe à {koTarget} KO gagne la manche. {rules?.MaxRounds ?? 5} manches, prolongation en mort subite.\n1 cœur par coup, et attraper ne soigne pas.", 22, UiKit.InkDark, 0, HorizontalAlignment.Center));
         col.AddChild(UiKit.Text("En ligne, PARTIE RAPIDE te trouve des joueurs, et complète avec des bots.", 22, UiKit.Sky, 6, HorizontalAlignment.Center));
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         row.AddThemeConstantOverride("separation", 16);
