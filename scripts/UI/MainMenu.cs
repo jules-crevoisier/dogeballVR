@@ -42,6 +42,7 @@ public partial class MainMenu : CanvasLayer
     Label mapNameLabel = null!, mapFormatLabel = null!, mapSubLabel = null!;
     Panel mapBanner = null!;
     StyleBoxFlat mapBannerStyle = null!;
+    TextureRect mapThumb = null!;
     int selectedMap;
     bool leaving;
 
@@ -230,45 +231,68 @@ public partial class MainMenu : CanvasLayer
         head.AddChild(SmallSwitchBtn("‹", () => CycleMap(-1)));
         head.AddChild(SmallSwitchBtn("›", () => CycleMap(1)));
 
-        // Vignette visuelle de la carte sélectionnée
-        mapBanner = new Panel { CustomMinimumSize = new Vector2(0, 118), MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Vignette visuelle avec vraie capture 3D de la carte, découpée aux coins arrondis.
+        mapBanner = new Panel
+        {
+            CustomMinimumSize = new Vector2(0, 128),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ClipChildren = CanvasItem.ClipChildrenMode.AndDraw,
+        };
         mapBannerStyle = UiKit.Pill(SoloMaps[0].Mood, 12, 0, null, 0);
         mapBanner.AddThemeStyleboxOverride("panel", mapBannerStyle);
         col.AddChild(mapBanner);
 
-        // Bande graphique diagonale discrète dans la vignette
-        var stripe = new ColorRect { Color = new Color(UiKit.Orange, 0.85f), Position = new Vector2(0, 0), Size = new Vector2(6, 118), MouseFilter = Control.MouseFilterEnum.Ignore };
-        mapBanner.AddChild(stripe);
+        mapThumb = new TextureRect
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
+        };
+        mapThumb.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapBanner.AddChild(mapThumb);
+
+        // Dégradé sombre discret en bas pour que le nom et le sous-titre ressortent sur toutes les cartes (jour & nuit).
+        var grad = new Gradient();
+        grad.SetColor(0, new Color(0.05f, 0.07f, 0.12f, 0.08f));
+        grad.SetColor(1, new Color(0.05f, 0.07f, 0.12f, 0.88f));
+        var scrim = new TextureRect
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            Texture = new GradientTexture2D { Gradient = grad, FillFrom = new Vector2(0, 0.15f), FillTo = new Vector2(0, 1f), Width = 4, Height = 64 },
+        };
+        scrim.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapBanner.AddChild(scrim);
 
         // Badge format 2V2 / 4V4 en haut à droite de la vignette
         var badgePanel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var bStyle = UiKit.Pill(Colors.White, 7, 0, null, 4, 0.18f);
+        var bStyle = UiKit.Pill(Colors.White, 7, 0, null, 4, 0.22f);
         bStyle.ContentMarginLeft = 10; bStyle.ContentMarginRight = 10; bStyle.ContentMarginTop = 3; bStyle.ContentMarginBottom = 3;
         badgePanel.AddThemeStyleboxOverride("panel", bStyle);
         badgePanel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        badgePanel.OffsetRight = -12; badgePanel.OffsetTop = 12; badgePanel.OffsetLeft = -74; badgePanel.OffsetBottom = 40;
+        badgePanel.OffsetRight = -10; badgePanel.OffsetTop = 10; badgePanel.OffsetLeft = -70; badgePanel.OffsetBottom = 38;
         mapBanner.AddChild(badgePanel);
-        mapFormatLabel = UiKit.DisplayText("2V2", 18, UiKit.InkDark, 0, HorizontalAlignment.Center);
+        mapFormatLabel = UiKit.DisplayText("2V2", 17, UiKit.InkDark, 0, HorizontalAlignment.Center);
         badgePanel.AddChild(mapFormatLabel);
 
-        mapNameLabel = UiKit.DisplayText("CROIX NÉON", 30, Colors.White, 0);
-        mapNameLabel.Position = new Vector2(18, 44);
-        mapNameLabel.Size = new Vector2(310, 36);
+        mapNameLabel = UiKit.DisplayText("CROIX NÉON", 28, Colors.White, 2);
+        mapNameLabel.Position = new Vector2(14, 62);
+        mapNameLabel.Size = new Vector2(310, 34);
         mapBanner.AddChild(mapNameLabel);
 
-        mapSubLabel = UiKit.Text(SoloMaps[0].Info, 14, new Color(1f, 1f, 1f, 0.82f), 0);
-        mapSubLabel.Position = new Vector2(18, 82);
-        mapSubLabel.Size = new Vector2(310, 30);
+        mapSubLabel = UiKit.Text(SoloMaps[0].Info, 13, new Color(1f, 1f, 1f, 0.90f), 0);
+        mapSubLabel.Position = new Vector2(14, 96);
+        mapSubLabel.Size = new Vector2(316, 24);
         mapSubLabel.ClipText = true;
         mapBanner.AddChild(mapSubLabel);
 
         // Gros bouton tactile JOUER orange vif
         playBtn = new Button
         {
-            Text = "JOUER", CustomMinimumSize = new Vector2(0, 68), FocusMode = Control.FocusModeEnum.All,
+            Text = "JOUER", CustomMinimumSize = new Vector2(0, 64), FocusMode = Control.FocusModeEnum.All,
         };
         if (UiKit.Display is Font pdf) playBtn.AddThemeFontOverride("font", pdf);
-        playBtn.AddThemeFontSizeOverride("font_size", 36);
+        playBtn.AddThemeFontSizeOverride("font_size", 34);
         var ctaNormal = UiKit.Pill(UiKit.Orange, 13, 0, null, 12, 0.30f);
         var ctaHover = UiKit.Pill(UiKit.Orange.Lightened(0.08f), 13, 0, null, 16, 0.38f);
         var ctaPress = UiKit.Pill(UiKit.Orange.Darkened(0.12f), 13, 0, null, 6, 0.25f);
@@ -319,6 +343,8 @@ public partial class MainMenu : CanvasLayer
         mapFormatLabel.Text = m.Format;
         mapSubLabel.Text = m.Info;
         mapBannerStyle.BgColor = m.Mood;
+        string thumbPath = $"res://assets/ui/maps/{m.Map}.png";
+        mapThumb.Texture = ResourceLoader.Exists(thumbPath) ? GD.Load<Texture2D>(thumbPath) : null;
     }
 
     void BuildFooter()
