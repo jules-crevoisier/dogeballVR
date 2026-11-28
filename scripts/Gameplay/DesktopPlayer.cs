@@ -88,7 +88,7 @@ public partial class DesktopPlayer : Node3D
     /// <summary>Dash en cours (lignes de vitesse du HUD).</summary>
     public bool Dashing => dodgeLeft > 0 && FreeRoam;
     /// <summary>Compteurs d'actions du joueur (tutoriel, statistiques locales).</summary>
-    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Feints, Pickups;
+    public int Jumps, Dashes, Throws, ChargedThrows, Catches, PerfectCatches, Passes, Lobs, Curves, Feints, Pickups;
     /// <summary>Rotation cumulée de la vue (radians) et distance parcourue (m) : tutoriel.</summary>
     public float LookTravel, WalkTravel;
     /// <summary>Vitesse au sol (m/s), pour les effets de vitesse.</summary>
@@ -183,7 +183,11 @@ public partial class DesktopPlayer : Node3D
     double apNextSpecial = 3;
     double apFireStart = -1, apNextJump = 2, apNextDodge = 4, apCrouchUntil;
 
-    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, Feint, Curve; }
+    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, LobHeld, Feint, Curve; }
+
+    Visual.TrajectoryPreview? preview;
+    bool chargingCurve, chargingLob;
+    float curveDir = 1f;
 
     int killerId = -1;
     float killCamBlend;   // 0 → 1 : la caméra recule et se tourne vers celui qui nous a mis KO
@@ -217,6 +221,11 @@ public partial class DesktopPlayer : Node3D
 
     public override void _Ready()
     {
+        if (DisplayServer.GetName() != "headless")
+        {
+            preview = new Visual.TrajectoryPreview { Name = "TrajectoryPreview" };
+            AddChild(preview);
+        }
         MatchController.HitScored += OnHitScored;
         forceEyeView = Tools.DevFlags.Has("--first-person");
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
@@ -382,8 +391,11 @@ public partial class DesktopPlayer : Node3D
             }
             if (fade <= 0f) ballMeshes.Remove(ball);
         }
-        foreach (var gone in new System.Collections.Generic.List<Ball>(ballMeshes.Keys)) if (!IsInstanceValid(gone)) ballMeshes.Remove(gone);
+        staleBalls.Clear();
+        foreach (var b in ballMeshes.Keys) if (!IsInstanceValid(b)) staleBalls.Add(b);
+        foreach (var gone in staleBalls) ballMeshes.Remove(gone);
     }
+    readonly System.Collections.Generic.List<Ball> staleBalls = new();
 
     public override void _PhysicsProcess(double delta)
     {
@@ -426,7 +438,7 @@ public partial class DesktopPlayer : Node3D
         // Actions de l'InputMap (touches physiques réassignables, voir UI.InputSetup) : ZQSD sur AZERTY, WASD sur QWERTY.
         static bool A(string action) => Input.IsActionPressed(action);
         var m = Input.GetVector("move_left", "move_right", "move_forward", "move_back");   // stick analogique ou touches
-        bool jump = A("jump"), dash = A(FreeRoam ? "dash" : "curve"), catchDown = A("catch");   // cartes en zones : E esquive, Maj sprint
+        bool jump = A("jump"), catchDown = A("catch");
         bool pass = A("pass"), lob = A("lob"), feint = A("feint"), crouchKey = A("crouch");
         if (GameSettings.ToggleCrouch) { if (crouchKey && !prevCrouch) crouchToggled = !crouchToggled; }
         else crouchToggled = false;
@@ -435,16 +447,17 @@ public partial class DesktopPlayer : Node3D
             Move = m.LimitLength(1f),
             Crouch = GameSettings.ToggleCrouch ? crouchToggled : crouchKey,
             Jump = jump && !prevJump,
-            Dodge = dash && !prevDodge,
-            Sprint = !FreeRoam && A("dash"),
+            Dodge = false,   // Dash supprimé : parité compétitive avec la VR (aucun dash en casque)
+            Sprint = A("dash"),
             Catch = catchDown && !prevCatch,
             Fire = A("fire"),
-            Pass = FreeRoam && pass && !prevPass,
-            Lob = FreeRoam && lob && !prevLob,
-            Feint = FreeRoam && feint && !prevFeint,
-            Curve = FreeRoam && A("curve"),
+            Pass = pass && !prevPass,
+            Lob = lob && !prevLob,
+            LobHeld = lob,
+            Feint = feint && !prevFeint,
+            Curve = A("curve"),
         };
-        prevJump = jump; prevDodge = dash; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
+        prevJump = jump; prevDodge = false; prevCatch = catchDown; prevPass = pass; prevLob = lob; prevFeint = feint; prevCrouch = crouchKey;
         return input;
     }
 
@@ -454,32 +467,10 @@ public partial class DesktopPlayer : Node3D
         var right = new Vector2(Mathf.Cos(yaw), -Mathf.Sin(yaw));
         var wish = right * input.Move.X - forward * input.Move.Y;
 
-        // Dash (Maj) : 4 m en 0,2 s dans la direction voulue (ou vers l'avant), 2 charges qui reviennent une par une,
-        // invulnérable pendant l'impulsion. Les cartes en zones (sans jeu libre) gardent une esquive plus courte.
         if (FreeRoam && Hurtbox.Eliminated) wish = Vector2.Zero;   // KO : on ne bouge plus jusqu'au retour
-        if (dashCharges < MaxCharges)
-        {
-            dashRechargeLeft -= dt;
-            if (dashRechargeLeft <= 0) { dashCharges++; dashRechargeLeft = RechargeTime; }
-        }
-        if (input.Dodge && dashCharges > 0 && dodgeLeft <= 0 && time - dashStartedAt >= DashGap && !Hurtbox.Eliminated && !(FreeRoam && jumpY > 0.1f && PitGap(worldPos) < 6f))   // pas de dash en l'air près de la fosse
-        {
-            dodgeDir = wish.LengthSquared() > 0.01f ? wish.Normalized() : forward;
-            dodgeLeft = FreeRoam ? DashTime : DodgeTime;
-            if (dashCharges == MaxCharges) dashRechargeLeft = RechargeTime;
-            dashCharges--;
-            dashStartedAt = time;
-            dashCount++;
-            Dashes++;
-            if (FreeRoam) { CameraFx.FovPunch(9f); Sfx.Play(this, SfxKind.Dash, null, 0.95f + 0.1f * dashCharges); }
-            if (FreeRoam && Elevation + jumpY < 0.2f) Juice.Dust(this, new Vector3(worldPos.X, Elevation, worldPos.Y), 12, 2.2f);
-        }
-        Hurtbox.DashInvulnerable = FreeRoam && dodgeLeft > 0;
-        if (Hurtbox.DashInvulnerable && time - lastGhostAt > 0.05)   // ~3 silhouettes par dash
-        {
-            lastGhostAt = time;
-            Juice.Afterimage(this, new Vector3(worldPos.X, Elevation + jumpY, worldPos.Y), Palette.Team(Hurtbox.Team));
-        }
+        // Pas de dash ni d'invulnérabilité de dash (alignement compétitif PC / VR).
+        dodgeLeft = 0;
+        Hurtbox.DashInvulnerable = false;
 
         bool crouched = eyeY < (EyeHeight + CrouchHeight) * 0.5f + 0.1f;
         float top = charging ? ChargeSpeed : FreeRoam || (input.Sprint && input.Move.Y < -0.1f && !crouched) ? RunSpeed : WalkSpeed;
@@ -639,9 +630,25 @@ public partial class DesktopPlayer : Node3D
         if (time < padReadyAt || Zones.Map.Pc == null) return;
         foreach (var pad in Zones.Map.Pc.JumpPads)
         {
-            var padZone = Zones.Map.Zones.Find(z => z.Id == pad.Zone);
-            var terrace = Zones.Map.Pc.Terraces.Find(t => t.Zone == pad.Zone);
-            if (padZone == null || padZone.Team != Hurtbox.Team || terrace == null) continue;
+            TerraceDef? terrace;
+            if (pad.Zone < 0)
+            {
+                // Tremplin neutre (ex. Solaris Dome) : accessible aux deux équipes, cible la terrasse la plus proche.
+                terrace = null;
+                float bestD = float.MaxValue;
+                foreach (var t in Zones.Map.Pc.Terraces)
+                {
+                    float d = new Vector2(t.X - pad.X, t.Z - pad.Z).LengthSquared();
+                    if (d < bestD) { bestD = d; terrace = t; }
+                }
+            }
+            else
+            {
+                var padZone = Zones.Map.Zones.Find(z => z.Id == pad.Zone);
+                if (padZone == null || padZone.Team != Hurtbox.Team) continue;
+                terrace = Zones.Map.Pc.Terraces.Find(t => t.Zone == pad.Zone);
+            }
+            if (terrace == null) continue;
             if (new Vector2(worldPos.X - pad.X, worldPos.Y - pad.Z).Length() > pad.Radius + 0.1f) continue;
             float vy = Mathf.Sqrt(2f * PadGravity * pad.LaunchToY);
             float flight = (vy + Mathf.Sqrt(Mathf.Max(vy * vy - 2f * PadGravity * terrace.Sy, 0f))) / PadGravity;   // durée jusqu'à redescendre à hauteur de la terrasse
@@ -836,48 +843,106 @@ public partial class DesktopPlayer : Node3D
         }
         else if (held != null)
         {
+            if (Mathf.Abs(input.Move.X) > 0.1f) curveDir = Mathf.Sign(input.Move.X);
             if (input.Feint)
             {
                 // Feinte : le bras part comme pour un tir, sans lâcher. Le clic doit être relâché avant de réarmer.
-                charging = false; chargeTime = 0; fireLatch = true; fire = false;
+                charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
                 Feints++;
                 ShowSticker("FEINTE !");
+                preview?.HidePreview();
             }
             else if (input.Pass)
             {
+                charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0;
+                preview?.HidePreview();
                 var mate = BestAlly();
                 if (mate == null) ShowToast("Pas d'allié à portée");
                 else Launch(ArcVelocity(holdPoint.GlobalPosition, mate.GlobalPosition + Vector3.Up * 0.4f, 4.2f), 0f, Ball.ModePass);
             }
-            else if (input.Lob)
+            else if (input.Lob && autoplay)
             {
-                var enemy = BestEnemy(AssistCone * 2f);
-                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
-                var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
-                if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }   // au-delà, la vitesse maximale ne suffit plus
-                Launch(ArcVelocity(holdPoint.GlobalPosition, to, 3.0f), 0f, Ball.ModeLob);
+                // Mode autoplay (CI) : lancer direct en cloche.
+                var velLob = ComputeLobVelocity();
+                Launch(velLob, 0f, Ball.ModeLob);
+                ShowSticker("CLOCHE !");
+            }
+            else if (input.LobHeld && !autoplay)
+            {
+                // Tir en Cloche (R maintenu) : prévision 3D par le haut en temps réel, part au relâchement !
+                chargingLob = true; charging = false; chargingCurve = false;
+                var velLob = ComputeLobVelocity();
+                preview?.ShowArc(holdPoint.GlobalPosition, velLob, 0f, Ball.ModeLob, new Color("FFB703"));
+            }
+            else if (chargingLob)
+            {
+                chargingLob = false;
+                preview?.HidePreview();
+                Launch(ComputeLobVelocity(), 0f, Ball.ModeLob);
+                ShowSticker("CLOCHE !");
+            }
+            else if (input.Curve && !fire && !autoplay)
+            {
+                // Tir Courbé en 1 seule touche (E maintenu) : charge + prévision 3D autour du pilier, part au relâchement !
+                if (!chargingCurve) { chargeTicks = 0; chargeTime = 0; }
+                chargingCurve = true; charging = true;
+                chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                var (velC, spinC) = ComputeCurveThrow(curveDir);
+                preview?.ShowArc(holdPoint.GlobalPosition, velC, spinC, 0, new Color("00E5FF"));
+            }
+            else if (chargingCurve && !input.Curve)
+            {
+                float dir = curveDir;
+                var (velC, spinC) = ComputeCurveThrow(dir);
+                chargingCurve = false; charging = false;
+                preview?.HidePreview();
+                ShowSticker(dir > 0 ? "COURBE →" : "← COURBE");
+                Launch(velC, spinC, 0);
             }
             else if (fire)
             {
                 if (!charging) chargeTicks = 0;
-                charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                charging = true; chargingCurve = false;
+                chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
                 int tick = Mathf.FloorToInt((float)(chargeTime / MaxChargeTime) * 3f + 0.001f);
                 if (tick > chargeTicks)
                 {
                     chargeTicks = tick;
                     Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
                 }
+                if (input.Curve)
+                {
+                    var (velC, spinC) = ComputeCurveThrow(curveDir);
+                    preview?.ShowArc(holdPoint.GlobalPosition, velC, spinC, 0, new Color("00E5FF"));
+                }
+                else
+                {
+                    float t = (float)(chargeTime / MaxChargeTime);
+                    float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);
+                    preview?.ShowArc(holdPoint.GlobalPosition, ThrowVelocity(speed), 0f, 0, new Color("FF6414"));
+                }
             }
             else if (charging)
             {
-                float t = (float)(chargeTime / MaxChargeTime);
-                float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);   // palier = vitesse ; un hôte VR plafonne quand même à 20 m/s
-                float spin = input.Curve && Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) * CurveSpin : 0f;   // effet : E maintenu + gauche/droite
-                Launch(ThrowVelocity(speed), spin, 0);
+                preview?.HidePreview();
+                if (input.Curve)
+                {
+                    float dir = curveDir;
+                    var (velC, spinC) = ComputeCurveThrow(dir);
+                    ShowSticker(dir > 0 ? "COURBE →" : "← COURBE");
+                    Launch(velC, spinC, 0);
+                }
+                else
+                {
+                    float t = (float)(chargeTime / MaxChargeTime);
+                    float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);
+                    Launch(ThrowVelocity(speed), 0f, 0);
+                }
             }
+            else preview?.HidePreview();
         }
-        else { charging = false; chargeTime = 0; }
+        else { charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0; preview?.HidePreview(); }
         holdPoint.Position = HoldLocalPosition();
         holdPoint.Scale = HoldScale();
         // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
@@ -885,11 +950,28 @@ public partial class DesktopPlayer : Node3D
             holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
     }
 
+    Vector3 ComputeLobVelocity()
+    {
+        var enemy = BestEnemy(AssistCone * 2.2f);
+        var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
+        var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
+        if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }
+        return ArcVelocity(holdPoint.GlobalPosition, to, 4.2f);
+    }
+
+    (Vector3 vel, float spin) ComputeCurveThrow(float dir)
+    {
+        float t = (float)(chargeTime / MaxChargeTime);
+        float speed = Mathf.Lerp(MinThrow, MaxThrow, Mathf.Max(t, 0.35f)) * KcRules.PcTierFactor(held?.Charge ?? 0);
+        var vel = ThrowVelocity(speed).Rotated(Vector3.Up, -dir * Mathf.DegToRad(22f));
+        return (vel, -dir * 9.5f);
+    }
+
     void Launch(Vector3 velocity, float spin, int mode)
     {
         if (mode == Ball.ModePass) Passes++;
         else if (mode == Ball.ModeLob) Lobs++;
-        else { Throws++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
+        else { Throws++; if (spin != 0f) Curves++; if (charging && chargeTime >= MaxChargeTime * 0.95) ChargedThrows++; }
         BallActions.Throw(held!, 1, velocity, spin, mode);
         if (spin != 0) apCurvePending = false; else if (mode == 0) apCurvePending = true;
         GD.Print($"[PC] Lancer {(mode == Ball.ModePass ? "passe" : mode == Ball.ModeLob ? "cloche" : spin != 0 ? "effet" : "tendu")} à {velocity.Length():0.0} m/s");

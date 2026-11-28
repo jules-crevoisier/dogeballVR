@@ -28,6 +28,8 @@ public partial class KcBox : StyleBox
     [Export] public Color AccentColor { get; set; } = new(1, 1, 1, 0);
     /// <summary>Chevron athlétique devant le texte sur les éléments sélectionnés.</summary>
     [Export] public bool Star { get; set; }
+    /// <summary>Rayon des coins arrondis (px) lorsque Slant == 0.</summary>
+    [Export] public float Radius { get; set; } = 14f;
 
     public KcBox Copy() => (KcBox)Duplicate();
 
@@ -37,58 +39,70 @@ public partial class KcBox : StyleBox
         r.Position + new Vector2(r.Size.X - s, r.Size.Y), r.Position + new Vector2(0, r.Size.Y),
     };
 
+    static Vector2[] RoundedRect(Rect2 r, float radius)
+    {
+        float rad = Mathf.Clamp(radius, 0f, Mathf.Min(r.Size.X, r.Size.Y) * 0.48f);
+        if (rad < 1f) return Quad(r, 0f);
+        const int seg = 5;
+        var pts = new Vector2[(seg + 1) * 4];
+        int idx = 0;
+        var corners = new (Vector2 center, float start)[]
+        {
+            (new Vector2(r.Position.X + r.Size.X - rad, r.Position.Y + rad), -Mathf.Pi * 0.5f),
+            (new Vector2(r.Position.X + r.Size.X - rad, r.Position.Y + r.Size.Y - rad), 0f),
+            (new Vector2(r.Position.X + rad, r.Position.Y + r.Size.Y - rad), Mathf.Pi * 0.5f),
+            (new Vector2(r.Position.X + rad, r.Position.Y + rad), Mathf.Pi),
+        };
+        foreach (var (center, start) in corners)
+            for (int i = 0; i <= seg; i++)
+            {
+                float a = start + (Mathf.Pi * 0.5f) * (i / (float)seg);
+                pts[idx++] = center + new Vector2(Mathf.Cos(a) * rad, Mathf.Sin(a) * rad);
+            }
+        return pts;
+    }
+
     public override void _Draw(Rid ci, Rect2 rect)
     {
         var rs = RenderingServer.Singleton;
-        // Le biais ne doit pas dépasser un quart de la largeur (petits boutons, cases).
         float s = Mathf.Clamp(Slant, -rect.Size.X * 0.2f, rect.Size.X * 0.2f);
+        bool rounded = Mathf.Abs(s) < 0.5f && Radius > 0.5f;
         void Poly(Vector2[] pts, Color c) { if (c.A > 0.001f) rs.CanvasItemAddPolygon(ci, pts, new[] { c }); }
+
+        if (rounded)
+        {
+            if (ShadowColor.A > 0f) Poly(RoundedRect(new Rect2(rect.Position + ShadowOffset, rect.Size), Radius), ShadowColor);
+            if (BorderWidth > 0f && BorderColor.A > 0.001f) Poly(RoundedRect(rect, Radius), BorderColor);
+            var inner = rect.Grow(-Mathf.Max(BorderWidth, 0f));
+            if (inner.Size.X <= 1f || inner.Size.Y <= 1f) return;
+            float inRad = Mathf.Max(0f, Radius - BorderWidth);
+            if (Top.A > 0.001f || Bottom.A > 0.001f)
+            {
+                var pts = RoundedRect(inner, inRad);
+                var cols = new Color[pts.Length];
+                float h = Mathf.Max(inner.Size.Y, 1f);
+                for (int i = 0; i < pts.Length; i++)
+                {
+                    float t = Mathf.Clamp((pts[i].Y - inner.Position.Y) / h, 0f, 1f);
+                    cols[i] = Top.Lerp(Bottom, t);
+                }
+                rs.CanvasItemAddPolygon(ci, pts, cols);
+            }
+            return;
+        }
+
         if (StripColor.A > 0f) Poly(Quad(new Rect2(rect.Position + StripOffset, rect.Size), s), StripColor);
         if (ShadowColor.A > 0f) Poly(Quad(new Rect2(rect.Position + ShadowOffset, rect.Size), s), ShadowColor);
-        var inner = rect.Grow(-Mathf.Max(BorderWidth, 0f));
-        if (inner.Size.X <= 1f || inner.Size.Y <= 1f) return;
-        float k = s * inner.Size.Y / Mathf.Max(rect.Size.Y, 1f);
-        var q = Quad(inner, k);
+        var innerRect = rect.Grow(-Mathf.Max(BorderWidth, 0f));
+        if (innerRect.Size.X <= 1f || innerRect.Size.Y <= 1f) return;
+        float k = s * innerRect.Size.Y / Mathf.Max(rect.Size.Y, 1f);
+        var q = Quad(innerRect, k);
         if (BorderWidth > 0f)
         {
             var o = Quad(rect, s);
             for (int i = 0; i < 4; i++) Poly(new[] { o[i], o[(i + 1) % 4], q[(i + 1) % 4], q[i] }, BorderColor);
         }
         if (Top.A > 0.001f || Bottom.A > 0.001f)
-        {
             rs.CanvasItemAddPolygon(ci, q, new[] { Top, Top, Bottom, Bottom });
-            // Fin filet spéculaire en haut pour un rendu verre fumé / broadcast propre.
-            if (inner.Size.Y > 12f)
-            {
-                float hi = 1.5f;
-                float kh = s * hi / Mathf.Max(rect.Size.Y, 1f);
-                Poly(new[]
-                {
-                    q[0], q[1],
-                    q[1] + new Vector2(-kh, hi), q[0] + new Vector2(-kh, hi)
-                }, new Color(1f, 1f, 1f, 0.12f));
-            }
-        }
-        if (AccentColor.A > 0f)
-        {
-            var a = inner.Position;
-            float w = AccentWidth, h = inner.Size.Y;
-            Poly(new[] { a + new Vector2(k, 0), a + new Vector2(k + w, 0), a + new Vector2(w, h), a + new Vector2(0, h) }, AccentColor);
-        }
-        if (Star && inner.Size.X > 60f)
-        {
-            // Chevron e-sport affûté (remplace l'étoile cartoon).
-            var c = inner.Position + new Vector2(Mathf.Abs(s) + 18f, inner.Size.Y / 2f);
-            float h = Mathf.Min(inner.Size.Y * 0.24f, 11f), w = h * 0.72f, t = Mathf.Max(3f, h * 0.32f);
-            Poly(new[]
-            {
-                c + new Vector2(-w * 0.5f, -h),
-                c + new Vector2(-w * 0.5f + t, -h),
-                c + new Vector2(w * 0.7f, 0),
-                c + new Vector2(-w * 0.5f + t, h),
-                c + new Vector2(-w * 0.5f, h),
-                c + new Vector2(w * 0.7f - t, 0),
-            }, UiKit.Navy);
-        }
     }
 }

@@ -1,0 +1,54 @@
+{
+  "name": "helios_concourse",
+  "schemaVersion": 3,
+  "decor": "helios_concourse",
+  "ambiance": "chantier",
+  "layout": "ring",
+  "zoneWidth": 10,
+  "zoneDepth": 8,
+  "edgeWarningDistance": 1.5,
+  "bounds": { "minX": -21, "maxX": 21, "minZ": -15, "maxZ": 15 },
+  "zones": [
+    { "id": 0, "slot": "NW", "team": 0, "x": -11.5, "y": 0.0, "z": -5.5, "facingDegrees": 270 },
+    { "id": 1, "slot": "NE", "team": 1, "x": 11.5, "y": 0.0, "z": -5.5, "facingDegrees": 90 },
+    { "id": 2, "slot": "SW", "team": 0, "x": -11.5, "y": 0.0, "z": 5.5, "facingDegrees": 270 },
+    { "id": 3, "slot": "SE", "team": 1, "x": 11.5, "y": 0.0, "z": 5.5, "facingDegrees": 90 }
+  ],
+  "pc": {
+    "note": "Helios Concourse — hall commun EVA 3-lanes avec 2 terrasses en diagonale, tremplins, boucles de flank rapides et 4 monolithes centraux pour les tirs courbés.",
+    "spawns": [
+      { "zone": 0, "x": -16.5, "z": -4.8 },
+      { "zone": 1, "x": 16.5, "z": -4.8 },
+      { "zone": 2, "x": -16.5, "z": 4.8 },
+      { "zone": 3, "x": 16.5, "z": 4.8 }
+    ],
+    "jumpPads": [
+      { "id": "pad_w", "zone": 0, "x": -12.0, "z": -9.8, "radius": 0.85, "launchToY": 2.8, "maxStaySeconds": 8, "cooldownSeconds": 6 },
+      { "id": "pad_e", "zone": 3, "x": 12.0, "z": 9.8, "radius": 0.85, "launchToY": 2.8, "maxStaySeconds": 8, "cooldownSeconds": 6 }
+    ],
+    "terraces": [
+      { "id": "terrasse_nw", "zone": 0, "x": -15.5, "y": 0.0, "z": -12.2, "sx": 6.0, "sy": 1.8, "sz": 3.2, "parapetHeight": 0.95 },
+      { "id": "terrasse_se", "zone": 3, "x": 15.5, "y": 0.0, "z": 12.2, "sx": 6.0, "sy": 1.8, "sz": 3.2, "parapetHeight": 0.95 }
+    ]
+  },
+  "obstacles": [
+    { "id": "ecran_spawn_w", "zone": -1, "kind": "cover", "x": -13.4, "y": 0.0, "z": 0.0, "sx": 0.8, "sy": 3.0, "sz": 4.4 },
+    { "id": "ecran_spawn_e", "zone": -1, "kind": "cover", "x": 13.4, "y": 0.0, "z": 0.0, "sx": 0.8, "sy": 3.0, "sz": 4.4 },
+    { "id": "monolithe_nw", "zone": -1, "kind": "cover", "x": -4.8, "y": 0.0, "z": -4.6, "sx": 1.4, "sy": 3.8, "sz": 1.4 },
+    { "id": "monolithe_sw", "zone": -1, "kind": "cover", "x": -4.8, "y": 0.0, "z": 4.6, "sx": 1.4, "sy": 3.8, "sz": 1.4 },
+    { "id": "monolithe_ne", "zone": -1, "kind": "cover", "x": 4.8, "y": 0.0, "z": -4.6, "sx": 1.4, "sy": 3.8, "sz": 1.4 },
+    { "id": "monolithe_se", "zone": -1, "kind": "cover", "x": 4.8, "y": 0.0, "z": 4.6, "sx": 1.4, "sy": 3.8, "sz": 1.4 },
+    { "id": "couvert_centre_n", "zone": -1, "kind": "cover", "x": 0.0, "y": 0.0, "z": -7.2, "sx": 3.8, "sy": 1.15, "sz": 0.6 },
+    { "id": "couvert_centre_s", "zone": -1, "kind": "cover", "x": 0.0, "y": 0.0, "z": 7.2, "sx": 3.8, "sy": 1.15, "sz": 0.6 },
+    { "id": "couvert_mid_w", "zone": -1, "kind": "cover", "x": -8.8, "y": 0.0, "z": -3.2, "sx": 0.6, "sy": 1.15, "sz": 2.6 },
+    { "id": "couvert_mid_e", "zone": -1, "kind": "cover", "x": 8.8, "y": 0.0, "z": 3.2, "sx": 0.6, "sy": 1.15, "sz": 2.6 }
+  ],
+  "ballSpawns": [
+    { "id": "centre", "zone": -1, "kind": "dispenser", "x": 0.0, "y": 0.85, "z": 0.0 },
+    { "id": "couloir_n", "zone": -1, "kind": "dispenser", "x": 0.0, "y": 0.85, "z": -11.2 },
+    { "id": "couloir_s", "zone": -1, "kind": "dispenser", "x": 0.0, "y": 0.85, "z": 11.2 },
+    { "id": "camp_w", "zone": 0, "kind": "dispenser", "x": -10.0, "y": 0.85, "z": 4.0 },
+    { "id": "camp_e", "zone": 1, "kind": "dispenser", "x": 10.0, "y": 0.85, "z": -4.0 }
+  ],
+  "props": []
+}

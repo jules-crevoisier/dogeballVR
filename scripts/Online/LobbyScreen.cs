@@ -236,7 +236,7 @@ public partial class LobbyScreen : CanvasLayer
 
     static Label Text(string text, int size, HorizontalAlignment align = HorizontalAlignment.Center)
     {
-        var l = UiKit.Text(text, size, Colors.White, 6, align);
+        var l = UiKit.Text(text, size, UiKit.InkDark, 0, align);
         l.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         return l;
     }

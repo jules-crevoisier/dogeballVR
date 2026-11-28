@@ -28,11 +28,17 @@ public static class ArenaBuilder
         }
         Node3D ParentOf(int zone) => platforms.TryGetValue(zone, out var p) ? p : root;
 
-        var decor = map.Decor == null ? null : ModelLibrary.Instance(map.Decor);
-        bool kc = decor != null;
+        bool customStadium = EsportStadiumBuilder.Handles(map.Decor);
+        var decor = map.Decor == null || customStadium ? null : ModelLibrary.Instance(map.Decor);
+        bool kc = decor != null || customStadium;
         if (kc) AddKcEnvironment(root, pcProfile, map.Ambiance); else AddEnvironment(root);
         AddFloor(root, map);
-        if (kc)
+        if (customStadium)
+        {
+            EsportStadiumBuilder.Build(root, map);
+            HideFloorMeshes(root);
+        }
+        else if (kc)
         {
             root.AddChild(decor!);
             var city = ModelLibrary.Instance(map.Decor + "_ville") ?? ModelLibrary.Instance("toit_ville");   // variantes du toit (autres cartes) : skyline commune
@@ -95,8 +101,8 @@ public static class ArenaBuilder
         root.AddChild(new DirectionalLight3D
         {
             RotationDegrees = m.SunRot, LightEnergy = m.SunEnergy, LightColor = new Color(m.Sun),
-            ShadowEnabled = pcProfile, ShadowBias = 0.1f, ShadowNormalBias = 2.2f, ShadowBlur = 0.6f,
-            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
+            ShadowEnabled = pcProfile, ShadowBias = 0.04f, ShadowNormalBias = 1.2f, ShadowBlur = 1.6f,
+            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits, DirectionalShadowMaxDistance = 48f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
         if (ambiance == "nuit" && pcProfile)   // marché de nuit : la lumière chaude des guirlandes sur le terrain (sans ombres)
             foreach (var p in new[] { new Vector3(-9, 7.5f, -5), new Vector3(9, 7.5f, -5), new Vector3(-9, 7.5f, 5), new Vector3(9, 7.5f, 5), new Vector3(0, 7.5f, 0) })

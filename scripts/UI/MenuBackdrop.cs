@@ -16,12 +16,12 @@ public partial class MenuBackdrop : Node3D
     Vector3 ballFrom, ballTo;
     Avatar? hero, rival;
 
-    static readonly Vector3 CamPos = new(-0.6f, 1.5f, -13.0f);
-    static readonly Vector3 LookTarget = new(-2.0f, 1.3f, -5.0f);
+    static readonly Vector3 CamPos = new(-0.5f, 3.8f, -9.6f);
+    static readonly Vector3 LookTarget = new(0.5f, 1.2f, 2.5f);
 
     public override void _Ready()
     {
-        var path = "res://maps/croix_neon.json";
+        var path = "res://maps/solaris_dome.json";
         if (FileAccess.FileExists(path))
         {
             var map = MapData.Load(path);

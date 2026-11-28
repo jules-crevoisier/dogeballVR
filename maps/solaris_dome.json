@@ -1,0 +1,56 @@
+{
+  "name": "solaris_dome",
+  "schemaVersion": 3,
+  "decor": "solaris_dome",
+  "ambiance": "jour",
+  "layout": "ring",
+  "zoneWidth": 10,
+  "zoneDepth": 8,
+  "edgeWarningDistance": 1.5,
+  "bounds": { "minX": -20, "maxX": 20, "minZ": -15, "maxZ": 15 },
+  "zones": [
+    { "id": 0, "slot": "NW", "team": 0, "x": -11.0, "y": 0.0, "z": -5.5, "facingDegrees": 270 },
+    { "id": 1, "slot": "NE", "team": 1, "x": 11.0, "y": 0.0, "z": -5.5, "facingDegrees": 90 },
+    { "id": 2, "slot": "SW", "team": 0, "x": -11.0, "y": 0.0, "z": 5.5, "facingDegrees": 270 },
+    { "id": 3, "slot": "SE", "team": 1, "x": 11.0, "y": 0.0, "z": 5.5, "facingDegrees": 90 }
+  ],
+  "pc": {
+    "note": "Solaris Dome — vrai level design 3-lanes (Nord / Centre / Sud), boucles de circulation sans cul-de-sac, 2 terrasses hautes avec tremplins, murs anti-spawn-kill, piliers Curve et murets Lob.",
+    "spawns": [
+      { "zone": 0, "x": -15.5, "z": -4.5 },
+      { "zone": 1, "x": 15.5, "z": -4.5 },
+      { "zone": 2, "x": -15.5, "z": 4.5 },
+      { "zone": 3, "x": 15.5, "z": 4.5 }
+    ],
+    "jumpPads": [
+      { "id": "pad_nord", "zone": -1, "x": 0.0, "z": -9.2, "radius": 0.85, "launchToY": 2.8, "maxStaySeconds": 8, "cooldownSeconds": 6 },
+      { "id": "pad_sud", "zone": -1, "x": 0.0, "z": 9.2, "radius": 0.85, "launchToY": 2.8, "maxStaySeconds": 8, "cooldownSeconds": 6 }
+    ],
+    "terraces": [
+      { "id": "terrasse_nord", "zone": -1, "x": 0.0, "y": 0.0, "z": -12.4, "sx": 7.0, "sy": 1.8, "sz": 3.4, "parapetHeight": 0.95 },
+      { "id": "terrasse_sud", "zone": -1, "x": 0.0, "y": 0.0, "z": 12.4, "sx": 7.0, "sy": 1.8, "sz": 3.4, "parapetHeight": 0.95 }
+    ]
+  },
+  "obstacles": [
+    { "id": "mur_spawn_w", "zone": -1, "kind": "cover", "x": -12.6, "y": 0.0, "z": 0.0, "sx": 0.8, "sy": 2.9, "sz": 4.8 },
+    { "id": "mur_spawn_e", "zone": -1, "kind": "cover", "x": 12.6, "y": 0.0, "z": 0.0, "sx": 0.8, "sy": 2.9, "sz": 4.8 },
+    { "id": "pilier_curve_nw", "zone": -1, "kind": "cover", "x": -5.6, "y": 0.0, "z": -4.4, "sx": 1.3, "sy": 3.4, "sz": 1.3 },
+    { "id": "pilier_curve_sw", "zone": -1, "kind": "cover", "x": -5.6, "y": 0.0, "z": 4.4, "sx": 1.3, "sy": 3.4, "sz": 1.3 },
+    { "id": "pilier_curve_ne", "zone": -1, "kind": "cover", "x": 5.6, "y": 0.0, "z": -4.4, "sx": 1.3, "sy": 3.4, "sz": 1.3 },
+    { "id": "pilier_curve_se", "zone": -1, "kind": "cover", "x": 5.6, "y": 0.0, "z": 4.4, "sx": 1.3, "sy": 3.4, "sz": 1.3 },
+    { "id": "muret_lob_w", "zone": -1, "kind": "cover", "x": -3.0, "y": 0.0, "z": 0.0, "sx": 0.55, "sy": 1.15, "sz": 3.2 },
+    { "id": "muret_lob_e", "zone": -1, "kind": "cover", "x": 3.0, "y": 0.0, "z": 0.0, "sx": 0.55, "sy": 1.15, "sz": 3.2 },
+    { "id": "couvert_flank_nw", "zone": -1, "kind": "cover", "x": -8.2, "y": 0.0, "z": -9.5, "sx": 2.6, "sy": 1.15, "sz": 0.55 },
+    { "id": "couvert_flank_sw", "zone": -1, "kind": "cover", "x": -8.2, "y": 0.0, "z": 9.5, "sx": 2.6, "sy": 1.15, "sz": 0.55 },
+    { "id": "couvert_flank_ne", "zone": -1, "kind": "cover", "x": 8.2, "y": 0.0, "z": -9.5, "sx": 2.6, "sy": 1.15, "sz": 0.55 },
+    { "id": "couvert_flank_se", "zone": -1, "kind": "cover", "x": 8.2, "y": 0.0, "z": 9.5, "sx": 2.6, "sy": 1.15, "sz": 0.55 }
+  ],
+  "ballSpawns": [
+    { "id": "centre", "zone": -1, "kind": "dispenser", "x": 0.0, "y": 0.85, "z": 0.0 },
+    { "id": "flank_nw", "zone": 0, "kind": "dispenser", "x": -10.5, "y": 0.85, "z": -6.5 },
+    { "id": "flank_ne", "zone": 1, "kind": "dispenser", "x": 10.5, "y": 0.85, "z": -6.5 },
+    { "id": "flank_sw", "zone": 2, "kind": "dispenser", "x": -10.5, "y": 0.85, "z": 6.5 },
+    { "id": "flank_se", "zone": 3, "kind": "dispenser", "x": 10.5, "y": 0.85, "z": 6.5 }
+  ],
+  "props": []
+}

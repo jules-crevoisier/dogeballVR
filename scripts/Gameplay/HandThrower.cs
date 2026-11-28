@@ -144,9 +144,25 @@ public partial class HandThrower : XRController3D
         vel = (vel * Assist.SpeedMultiplier).LimitLength(Assist.VrRules ? Assist.MaxLaunchSpeedVR : Assist.MaxLaunchSpeedOther);
         // Vrai lancer (mouvement net) : vitesse minimale de la map, pour qu'un geste mou parte quand même tendu (l'hôte replanifie, voir Assist.Plan).
         if (vel.Length() > 1.5f && vel.Length() < Assist.MinLaunchSpeed) vel = vel.Normalized() * Assist.MinLaunchSpeed;
+        int mode = 0;
+        float flatSpeed = new Vector2(vel.X, vel.Z).Length();
+        // Geste naturel de Cloche (Lob Shot) en VR : lancer nettement vers le haut (> 32°) pour passer par-dessus un muret.
+        if (vel.Length() > 2.5f && vel.Y > flatSpeed * 0.62f && vel.Y > 3.5f)
+        {
+            mode = Ball.ModeLob;
+            spin = 0f;
+            vel = new Vector3(vel.X, Mathf.Max(vel.Y, 9.5f), vel.Z).LimitLength(22f);
+        }
+        // Geste naturel de Courbe (Curve Shot) en VR : coup de poignet franc (|spin| > 2.2 rad/s) pour contourner un pilier.
+        else if (vel.Length() > 3.0f && Mathf.Abs(spin) > 2.2f)
+        {
+            float dir = Mathf.Sign(spin);
+            vel = vel.Rotated(Vector3.Up, -dir * Mathf.DegToRad(18f));
+            spin = -dir * Mathf.Clamp(Mathf.Abs(spin) * 1.4f, 7.5f, 10.5f);
+        }
         if (held != null && IsInstanceValid(held)) held.LocalHoldOverride = null;
-        if (held != null) BallActions.Throw(held, HandIndex, vel, spin);
-        else BallActions.Net!.RequestThrow(HandIndex, vel, spin); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
+        if (held != null) BallActions.Throw(held, HandIndex, vel, spin, mode);
+        else BallActions.Net!.RequestThrow(HandIndex, vel, spin, mode); // relâché avant la confirmation de la prise : l'hôte les traite dans l'ordre
         ignoreHeldUntil = Time.GetTicksMsec() / 1000.0 + 0.4;
         held = null;
         Hurtbox.HeldHand = -1;

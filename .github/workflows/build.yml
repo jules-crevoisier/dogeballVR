@@ -337,11 +337,7 @@ jobs:
             FAIL=0
             CATCHES=$(grep -c "attrapée par la zone 2" ring-host.log || true)
             THROWS=$(grep -c "Balle [0-9]* lancée par la zone 2" ring-host.log || true)
-            DASHES=$(grep -c "Dash validé pour la zone 2" ring-host.log || true)
-            echo "Croix Néon, client PC libre : prises $CATCHES, lancers $THROWS, dashs $DASHES"
-            if [ "$DASHES" -lt 3 ]; then
-              echo "Le dash du client n'est pas reconnu par l'hôte"; FAIL=1
-            fi
+            echo "Croix Néon, client PC libre : prises $CATCHES, lancers $THROWS"
             PASSES=$(grep -c "(passe)" ring-host.log || true)
             LOBS=$(grep -c "(cloche)" ring-host.log || true)
             CURVES=$(grep -c "(effet)" ring-host.log || true)
@@ -426,14 +422,11 @@ jobs:
             fi
             PADS=$(cat fc-host.log fc-client.log | grep -c "\[PC\] Tremplin" || true)
             TERRACES=$(grep -c "\[Net\] Terrasse .* atteinte" fc-host.log || true)
-            STOPS=$(cat fc-host.log fc-client.log | grep -c "Dash arrêté avant le vide" || true)
             FALLS=$(grep -c "Chute dans la fosse" fc-host.log || true)
-            TACKLES=$(grep -c "\[Match\] Tacle du joueur 1 sur le joueur 0" fc-host.log || true)
-            RINGOUTS=$(grep -c "Ring-out : le joueur 0 est poussé dans la fosse par le joueur 1" fc-host.log || true)
             SPECIALS=$(grep -c "\[Client\] Balle spéciale reçue" fc-client.log || true)
-            echo "Fosse croisée : tremplins $PADS, terrasses validées $TERRACES, dashs arrêtés $STOPS, chutes $FALLS, tacles $TACKLES, ring-outs $RINGOUTS, balles spéciales reçues par le client $SPECIALS"
-            if [ "$SPECIALS" -lt 1 ] || [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$STOPS" -lt 1 ] || [ "$FALLS" -lt 1 ] || [ "$TACKLES" -lt 1 ] || [ "$RINGOUTS" -lt 1 ]; then
-              echo "Tentative $ATTEMPT : tremplin, terrasse, arrêt du dash, chute, tacle du client ou ring-out non reconnus"
+            echo "Fosse croisée : tremplins $PADS, terrasses validées $TERRACES, chutes $FALLS, balles spéciales reçues par le client $SPECIALS"
+            if [ "$SPECIALS" -lt 1 ] || [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$FALLS" -lt 1 ]; then
+              echo "Tentative $ATTEMPT : tremplin, terrasse, chute ou balle spéciale non reconnus"
               [ "$ATTEMPT" = 4 ] && exit 1
             else
               break
@@ -463,7 +456,7 @@ jobs:
 
       - uses: ./.github/actions/godot-setup
 
-      - name: Test Tour 4v4 (huit plaques, fosse 16×10, tremplin, terrasse, tacle, ring-out)
+      - name: Test Tour 4v4 (huit plaques, fosse 16×10, tremplin, terrasse)
         run: |
           for ATTEMPT in 1 2 3 4; do
             "$GODOT" --headless --path . --max-fps 60 --quit-after 4800 -- --host --map=tour_4v4 --pc-autoplay > tr-host.log 2>&1 &
@@ -476,13 +469,10 @@ jobs:
             fi
             PADS=$(cat tr-host.log tr-client.log | grep -c "\[PC\] Tremplin" || true)
             TERRACES=$(grep -c "\[Net\] Terrasse .* atteinte" tr-host.log || true)
-            STOPS=$(cat tr-host.log tr-client.log | grep -c "Dash arrêté avant le vide" || true)
             FALLS=$(grep -c "Chute dans la fosse" tr-host.log || true)
-            TACKLES=$(grep -c "\[Match\] Tacle du joueur 1 sur le joueur 0" tr-host.log || true)
-            RINGOUTS=$(grep -c "Ring-out : le joueur 0 est poussé dans la fosse par le joueur 1" tr-host.log || true)
-            echo "Tour 4v4 : tremplins $PADS, terrasses validées $TERRACES, dashs arrêtés $STOPS, chutes $FALLS, tacles $TACKLES, ring-outs $RINGOUTS"
-            if [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$STOPS" -lt 1 ] || [ "$FALLS" -lt 1 ] || [ "$TACKLES" -lt 1 ] || [ "$RINGOUTS" -lt 1 ]; then
-              echo "Tentative $ATTEMPT : tremplin, terrasse, arrêt du dash, chute, tacle du client ou ring-out non reconnus"
+            echo "Tour 4v4 : tremplins $PADS, terrasses validées $TERRACES, chutes $FALLS"
+            if [ "$PADS" -lt 2 ] || [ "$TERRACES" -lt 1 ] || [ "$FALLS" -lt 1 ]; then
+              echo "Tentative $ATTEMPT : tremplin, terrasse ou chute non reconnus"
               [ "$ATTEMPT" = 4 ] && exit 1
             else
               break

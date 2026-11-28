@@ -74,12 +74,12 @@ public partial class OptionsMenu : Control
 
     readonly KcBox rowIdle = RowBox(false), rowLit = RowBox(true);
 
-    /// <summary>Ligne d'option : transparente au repos ; allumée, un aplat violet penché avec l'accent jaune à gauche (comme le menu).</summary>
+    /// <summary>Ligne d'option : transparente au repos, surlignage pêche doux arrondi au survol (cohérent avec le thème blanc AAA).</summary>
     static KcBox RowBox(bool on)
     {
-        var fill = on ? new Color(UiKit.Violet, 0.55f) : new Color(0, 0, 0, 0);
-        var b = new KcBox { Top = fill, Bottom = on ? new Color(UiKit.VioletMid, 0.55f) : fill, Slant = 8, AccentColor = on ? UiKit.Yellow : new Color(0, 0, 0, 0), AccentWidth = 7 };
-        b.ContentMarginLeft = 22; b.ContentMarginRight = 12; b.ContentMarginTop = 2; b.ContentMarginBottom = 2;
+        var fill = on ? new Color("fff1e6") : new Color(0, 0, 0, 0);
+        var b = new KcBox { Top = fill, Bottom = fill, Slant = 0, Radius = 10f, BorderWidth = on ? 1f : 0f, BorderColor = new Color(UiKit.Orange, 0.35f) };
+        b.ContentMarginLeft = 18; b.ContentMarginRight = 12; b.ContentMarginTop = 4; b.ContentMarginBottom = 4;
         return b;
     }
 
@@ -88,7 +88,7 @@ public partial class OptionsMenu : Control
         Theme = UiKit.Theme;
         ProcessMode = ProcessModeEnum.Always;
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        AddChild(UiKit.Dim(0.82f));
+        AddChild(UiKit.Dim(0.36f));
 
         // Panneau centré en largeur, posé à TopMargin du haut : il prend la hauteur de son contenu (les onglets ne bougent pas
         // d'un onglet à l'autre, seul le bas suit), jusqu'à la hauteur de l'écran ; au-delà, la liste défile (voir FitHeight).
@@ -121,7 +121,8 @@ public partial class OptionsMenu : Control
         scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
         scroll.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         holder.AddChild(scroll);
-        var fadeGrad = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { new Color(UiKit.NavyLow, 0f), UiKit.NavyLow } };
+        var panelBg = new Color("eef2f7");
+        var fadeGrad = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { new Color(panelBg, 0f), panelBg } };
         moreBelow = new TextureRect { Texture = new GradientTexture2D { Gradient = fadeGrad, Width = 4, Height = 64, FillFrom = new Vector2(0, 0), FillTo = new Vector2(0, 1) }, StretchMode = TextureRect.StretchModeEnum.Scale, MouseFilter = MouseFilterEnum.Ignore };
         moreBelow.SetAnchorsPreset(LayoutPreset.BottomWide);
         moreBelow.OffsetTop = -56; moreBelow.OffsetRight = -24;
@@ -141,7 +142,7 @@ public partial class OptionsMenu : Control
         var db = UiKit.InsetBox(null, 10);
         descBox.AddThemeStyleboxOverride("panel", db);
         col.AddChild(descBox);
-        desc = UiKit.Text("", 22, UiKit.Cream, 5);
+        desc = UiKit.Text("", 20, UiKit.InkDark, 0);
         desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         desc.VerticalAlignment = VerticalAlignment.Center;
         desc.SizeFlagsVertical = SizeFlags.Fill;
@@ -247,7 +248,7 @@ public partial class OptionsMenu : Control
     {
         tab = i;
         for (int k = 0; k < 4; k++)
-            UiKit.Tint(tabs[k], k == i ? UiKit.Yellow : new Color(0, 0, 0, 0), k == i ? UiKit.Violet : null, k == i ? UiKit.Yellow : null);   // onglet ouvert : violet clair, accent et texte jaunes
+            UiKit.Tint(tabs[k], new Color(0, 0, 0, 0), k == i ? UiKit.Orange : null, k == i ? Colors.White : UiKit.InkDark);
         foreach (var c in list.GetChildren()) c.QueueFree();
         rows.Clear();
         lit = null;
@@ -308,7 +309,7 @@ public partial class OptionsMenu : Control
                 GameSettings.ContextHints = true;
                 GameSettings.Upnp = false;
                 GameSettings.Sensitivity = GameSettings.DefaultSensitivity; GameSettings.InvertY = false; GameSettings.Fov = GameSettings.DefaultFov;
-                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = true; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false; GameSettings.FirstPerson = false;
+                GameSettings.AimAssist = 1f; GameSettings.ScreenShake = 1f; GameSettings.Haptics = 1f; GameSettings.HitStop = false; GameSettings.HitMarkers = true; GameSettings.ToggleCrouch = false; GameSettings.FirstPerson = false;
                 GameSettings.UiScale = GameSettings.DefaultUiScale; GameSettings.ReduceFlashes = false; GameSettings.TeamSymbols = false; GameSettings.SoundCues = false;
                 break;
             case 1: InputSetup.ResetAll(); break;
@@ -325,10 +326,9 @@ public partial class OptionsMenu : Control
         if (!first) list.AddChild(UiKit.Spacer(8));
         var h = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 16);
-        var l = UiKit.Text(text.ToUpperInvariant(), 30, UiKit.Cream, 8);
-        if (UiKit.Italic is Font it) l.AddThemeFontOverride("font", it);
+        var l = UiKit.DisplayText(text.ToUpperInvariant(), 26, UiKit.InkDark, 0);
         h.AddChild(l);
-        var rule = new ColorRect { Color = new Color(UiKit.Yellow, 0.55f), CustomMinimumSize = new Vector2(0, 3), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
+        var rule = new ColorRect { Color = new Color(UiKit.Orange, 0.45f), CustomMinimumSize = new Vector2(0, 2), SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseFilter = MouseFilterEnum.Ignore };
         h.AddChild(rule);
         list.AddChild(h);
     }
@@ -340,7 +340,7 @@ public partial class OptionsMenu : Control
         panel.AddThemeStyleboxOverride("panel", rowIdle);
         var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 46) };
         row.AddThemeConstantOverride("separation", 18);
-        var l = UiKit.Text(label, 24, Colors.White, 6);
+        var l = UiKit.Text(label, 22, UiKit.InkDark, 0);
         l.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         l.VerticalAlignment = VerticalAlignment.Center;
         row.AddChild(l);
@@ -357,7 +357,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label);
         var s = new HSlider { MinValue = min, MaxValue = max, Step = step, Value = value, CustomMinimumSize = new Vector2(320, 30), SizeFlagsVertical = SizeFlags.ShrinkCenter, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.1f };
-        var v = UiKit.Text(show(value), 22, UiKit.Yellow, 6);
+        var v = UiKit.DisplayText(show(value), 22, UiKit.Orange, 0);
         v.CustomMinimumSize = new Vector2(150, 0);
         v.HorizontalAlignment = HorizontalAlignment.Right;
         v.VerticalAlignment = VerticalAlignment.Center;
@@ -378,7 +378,7 @@ public partial class OptionsMenu : Control
     {
         var row = Row(label, Help.GetValueOrDefault(label, ""), out var panel);
         var b = UiKit.Button(value ? "OUI" : "NON", UiKit.NavySoft, () => { }, 22, new Vector2(150, 44));
-        void Paint(bool on) => UiKit.Tint(b, on ? UiKit.Green : new Color(0, 0, 0, 0), on ? new Color("1f6b45") : null, on ? Colors.White : UiKit.Lavender);
+        void Paint(bool on) => UiKit.Tint(b, new Color(0, 0, 0, 0), on ? UiKit.Green : null, on ? Colors.White : UiKit.InkDark);
         Paint(value);
         b.Pressed += () =>
         {
@@ -425,12 +425,12 @@ public partial class OptionsMenu : Control
             listening = a.Name;
             listeningButton = b;
             b.Text = "Appuie…";
-            UiKit.Tint(b, UiKit.Pink, UiKit.Pink.Darkened(0.35f));
+            UiKit.Tint(b, UiKit.Orange, UiKit.Orange, Colors.White);
         };
         row.AddChild(b);
         if (a.Secondary != null && !InputSetup.UsingPad)   // à la manette, la touche clavier fixe n'a rien à faire là
         {
-            var alt = UiKit.Text(InputSetup.Describe(a.Secondary), 20, new Color(1, 1, 1, 0.55f), 4);
+            var alt = UiKit.Text(InputSetup.Describe(a.Secondary), 20, new Color(UiKit.InkDark, 0.58f), 0);
             alt.CustomMinimumSize = new Vector2(110, 0);
             alt.VerticalAlignment = VerticalAlignment.Center;
             row.AddChild(alt);

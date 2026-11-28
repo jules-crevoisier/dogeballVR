@@ -174,7 +174,7 @@ public partial class PauseMenu : CanvasLayer
         void Row(Control keys, string what)
         {
             grid.AddChild(keys);
-            var l = UiKit.Text(what, size, Colors.White, 6);
+            var l = UiKit.Text(what, size, UiKit.InkDark, 0);
             l.VerticalAlignment = VerticalAlignment.Center;
             l.SizeFlagsVertical = Control.SizeFlags.Fill;
             grid.AddChild(l);

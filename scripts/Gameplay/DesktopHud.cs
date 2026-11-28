@@ -529,16 +529,12 @@ public partial class DesktopHud : CanvasLayer
             var iconCol = new Color(1f, 1f, 1f, Fill >= 1f ? 0.96f : 0.45f);
             if (Dash)
             {
-                // Balle rapide + 3 traits de vitesse (façon maquette AAA)
-                DrawCircle(c + new Vector2(10, 0), 13f, iconCol);
-                DrawLine(c + new Vector2(-22, -8), c + new Vector2(-7, -8), iconCol, 4f, true);
-                DrawLine(c + new Vector2(-26, 0), c + new Vector2(-9, 0), iconCol, 4f, true);
-                DrawLine(c + new Vector2(-22, 8), c + new Vector2(-7, 8), iconCol, 4f, true);
-                for (int i = 0; i < MaxCharges; i++)
-                {
-                    var p = c + new Vector2((i - (MaxCharges - 1) / 2f) * 16f, r + 12);
-                    DrawCircle(p, 4.5f, i < Charges ? Colors.White : new Color(1f, 1f, 1f, 0.25f));
-                }
+                // Pictogramme Tir Courbé (Curve Shot) : arc courbé net + pointe de flèche + petite balle
+                DrawArc(c + new Vector2(0, 8), 20f, -Mathf.Pi * 0.85f, -Mathf.Pi * 0.15f, 20, iconCol, 4.5f, true);
+                var tip = c + new Vector2(18, -3);
+                DrawLine(tip, tip + new Vector2(-10, -2), iconCol, 4f, true);
+                DrawLine(tip, tip + new Vector2(-4, -10), iconCol, 4f, true);
+                DrawCircle(c + new Vector2(-16, 6), 6.5f, iconCol);
             }
             else
             {
@@ -617,7 +613,7 @@ public partial class DesktopHud : CanvasLayer
         ballSlot.Tier = ball?.Charge ?? 0;
         if (ballSlot.Tier > lastTier && holding) UiKit.Punch(ballSlot, 1.35f, 0.3);
         lastTier = ballSlot.Tier;
-        ballSlot.BallColor = ball?.Kind switch { Ball.KindBomb => new Color(1f, 0.8f, 0.1f), Ball.KindBounce => new Color(0.7f, 0.4f, 1f), _ => Palette.BallCore };
+        ballSlot.BallColor = ball?.Kind switch { Ball.KindBomb => new Color("FFB703"), Ball.KindBounce => new Color("7C5CFF"), _ => UiKit.Orange };
         ballSlot.Pop = Player.ThrowCharge01 * (0.5f + 0.5f * Mathf.Sin((float)age * 30f));
         ballSlot.QueueRedraw();
 
@@ -632,20 +628,20 @@ public partial class DesktopHud : CanvasLayer
         catchGauge.Modulate = new Color(1, 1, 1, holding ? 0.45f : 1f);
         catchGauge.QueueRedraw();
 
-        int charges = Player.DashCharges;
-        dashGauge.Charges = charges;
-        dashGauge.MaxCharges = Player.DashMax;
-        dashGauge.Fill = charges >= 1 ? 1f : Player.DashRecharge01;
-        dashGauge.Color = charges >= 1 ? UiKit.Sky : new Color(0.6f, 0.63f, 0.72f);
-        dashGauge.Glow = Player.Dashing ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.05f);
-        if (lastDashCharges >= 0 && charges > lastDashCharges) UiKit.Punch(dashGauge, 1.2f, 0.2);
-        lastDashCharges = charges;
+        // Effets (Courbe E / Cloche R) : s'allume balle en main.
+        dashGauge.Charges = 0;
+        dashGauge.MaxCharges = 0;
+        dashGauge.Fill = holding ? 1f : 0f;
+        dashGauge.Color = holding ? UiKit.Sky : new Color(0.6f, 0.63f, 0.72f);
+        dashGauge.Glow = holding && (Input.IsActionPressed("curve") || Input.IsActionPressed("lob")) ? 0.9f : Mathf.Max(0, dashGauge.Glow - 0.08f);
+        dashGauge.Modulate = new Color(1, 1, 1, holding ? 1f : 0.45f);
         dashGauge.QueueRedraw();
 
         catchKey.Text = InputSetup.KeyName("catch");
         fireKey.Text = InputSetup.KeyName("fire");
-        dashKey.Text = InputSetup.KeyName("dash");
+        dashKey.Text = $"{InputSetup.KeyName("curve")} / {InputSetup.KeyName("lob")}";
         fireKey.Modulate = fireAction.Modulate = new Color(1, 1, 1, holding ? 1f : 0.6f);   // lancer : utile balle en main seulement
+        dashKey.Modulate = new Color(1, 1, 1, holding ? 1f : 0.45f);
     }
 
     // ------------------------------------------------------------------ viseur, charge en arc, marqueur de touche
@@ -1225,17 +1221,14 @@ public partial class DesktopHud : CanvasLayer
         // Titre de manche sur un bandeau sombre (lisible sur les façades claires), au-dessus du chiffre même quand il grossit au punch.
         // Chiffres et « GO ! » au-dessus de l'horizon, dans le ciel : ils ne se posent plus sur les adversaires.
         countdownRound = CenterLabel("", 50, UiKit.Yellow, 12, 158, 76);
-        // Cartouche dans la DA du menu : panneau violet penché, liseré crème, lettres jaunes penchées.
-        var roundBox = UiKit.PanelBox(16, 4);
-        roundBox.BorderWidth = 4; roundBox.ShadowOffset = new Vector2(7, 7); roundBox.StripOffset = new Vector2(12, 12);
+        var roundBox = UiKit.DarkPanelBox(0, 8);
+        roundBox.BorderWidth = 1.5f; roundBox.ShadowOffset = new Vector2(0, 6);
         countdownRound.AddThemeStyleboxOverride("normal", roundBox);
-        if (UiKit.Italic is Font it) countdownRound.AddThemeFontOverride("font", it);
+        if (UiKit.Display is Font it) countdownRound.AddThemeFontOverride("font", it);
         countdown = CenterLabel("", 220, UiKit.Yellow, 26, 240, 230);
-        // Annonce (balle spéciale, échange de plaques) : cartouche bleu nuit opaque à liseré jaune, comme celui du tutoriel,
-        // texte blanc et décompte en jaune. Opacité fixe : seul un petit « punch » d'échelle marque chaque nouveau chiffre.
         notice = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        var noticeBox = UiKit.PanelBox(14, 18);
-        noticeBox.BorderWidth = 4; noticeBox.BorderColor = UiKit.Yellow; noticeBox.ShadowOffset = new Vector2(7, 7); noticeBox.StripOffset = new Vector2(12, 12);
+        var noticeBox = UiKit.DarkPanelBox(0, 18);
+        noticeBox.BorderWidth = 1.5f; noticeBox.BorderColor = new Color(UiKit.Orange, 0.8f); noticeBox.ShadowOffset = new Vector2(0, 6);
         noticeBox.ContentMarginTop = noticeBox.ContentMarginBottom = 6;
         notice.AddThemeStyleboxOverride("panel", noticeBox);
         notice.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
@@ -1912,7 +1905,7 @@ public partial class DesktopHud : CanvasLayer
         table.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(table);
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        panel.AddThemeStyleboxOverride("panel", UiKit.PanelBox(18, 30));   // la fenêtre du menu principal
+        panel.AddThemeStyleboxOverride("panel", UiKit.DarkPanelBox(0, 30));
         table.AddChild(panel);
         tableRows = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         tableRows.AddThemeConstantOverride("separation", 6);

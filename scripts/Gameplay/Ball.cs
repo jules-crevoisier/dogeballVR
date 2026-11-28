@@ -656,11 +656,12 @@ public partial class Ball : RigidBody3D
         if (ThrowMode != 0 && !IsHeld && ((arcTime += delta) > ArcMaxSeconds || (arcTime > 0.3 && GlobalPosition.Y < 0.25f))) Spent();   // fin de l'arc : au sol la balle redevient une balle neutre ramassable par tous   // une cloche qui n'a touché personne devient neutre
         if (!IsHeld && ThrowMode == 0 && OwnerTeam >= 0 && MaxFlightSeconds > 0f && (flightTime += delta) > MaxFlightSeconds * (kind == KindBounce ? 2.5f : 1f)) Spent();
         RestTime = !IsHeld && LinearVelocity.Length() < 0.4f ? RestTime + delta : 0;
-        if (IsHeld || curveSpin == 0f) return;
-        // Force latérale (Magnus simplifié) : perpendiculaire à la vitesse, dans le plan horizontal.
+        if (IsHeld || curveSpin == 0f || ThrowMode != 0) return;
+        // Force latérale (Magnus façon Knockout City) : courbe franche pour contourner un pilier et revenir sur la cible.
         var v = LinearVelocity;
+        if (v.LengthSquared() < 1f) return;
         var side = v.Cross(Vector3.Up).Normalized();
-        ApplyCentralForce(side * curveSpin * v.Length() * 0.05f);
-        curveSpin = Mathf.MoveToward(curveSpin, 0f, (float)delta * 4f);
+        ApplyCentralForce(side * curveSpin * v.Length() * 0.13f);
+        curveSpin = Mathf.MoveToward(curveSpin, 0f, (float)delta * 1.8f);
     }
 }

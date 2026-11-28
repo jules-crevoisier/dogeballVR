@@ -156,11 +156,11 @@ public partial class Main : Node3D
             var backdrop = new UI.MenuBackdrop { Name = "MenuBackdrop" };
             AddChild(backdrop);
             var menu = new UI.MainMenu { Name = "MainMenu" };
-            void Begin(NetMode mode, string address, bool tutorial, string map = "croix_neon")
+            void Begin(NetMode mode, string address, bool tutorial, string map = "solaris_dome")
             {
                 menu.QueueFree();
                 backdrop.QueueFree();
-                cfg.Choose(mode, address, map);
+                cfg.Choose(mode, address, tutorial ? "tuto_arena" : map);
                 menuSolo = mode == NetMode.Offline;
                 Tutorial = tutorial;
                 StartMatch(xrActive);
@@ -191,7 +191,7 @@ public partial class Main : Node3D
         Audio.Music.PlayMatch();
         bool client = cfg.Mode == NetMode.Client;
 
-        string selectedMap = Tools.EvaDemoControl.MapOverride ?? cfg.Map;
+        string selectedMap = Tutorial ? "tuto_arena" : Tools.EvaDemoControl.MapOverride ?? cfg.Map;
         string mapPath = $"res://maps/{selectedMap}.json";
         if (!FileAccess.FileExists(mapPath))
         {

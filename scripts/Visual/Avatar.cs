@@ -476,13 +476,13 @@ public partial class Avatar : Node3D
             foreach (var b in goneBalls) seenBalls.Remove(b);
         }
         if (actionLeft <= 0 && climb > 2.2f && (airborne || ik == null || !IkEnabled)) PlayAction("Saut", 0.7);   // pas en se relevant vite
-        if (actionLeft <= 0 && dash) PlayAction("Esquive", 0.45);   // dash : 21,5 m/s, bien au-dessus de la course
         dash = false;
         UpdateIk((float)delta);
         if (actionLeft > 0) { actionLeft -= delta; return; }
-        string loop = Charging && anim.HasAnimation("Armer") ? "Armer" : speed > 1.0f ? "Course" : "Repos";
-        if (anim.CurrentAnimation != loop) anim.Play(loop, 0.15);
-        anim.SpeedScale = loop == "Course" ? Mathf.Clamp(speed / 4.5f, 0.7f, 1.6f) : 1f;
+        // Course dès 0,35 m/s (même en chargeant une balle : les jambes courent, l'IK du bras garde l'armé) pour éviter tout patinage.
+        string loop = speed > 0.35f ? "Course" : Charging && anim.HasAnimation("Armer") ? "Armer" : "Repos";
+        if (anim.CurrentAnimation != loop) anim.Play(loop, 0.12);
+        anim.SpeedScale = loop == "Course" ? Mathf.Clamp(speed / 3.8f, 0.55f, 2.1f) : 1f;
     }
 
     /// <summary>Place l'avatar dans le monde (positions globales : le parent doit être à l'origine, sans rotation).</summary>
@@ -727,8 +727,12 @@ public partial class Avatar : Node3D
         // Bassin au plus bas (squat profond) : le reste de la correction penche le buste.
         float hipWant = HipDropFor(crouchDrop / s) * s + headFix;
         float over = Mathf.Max(0f, hipWant - AvatarIk.MaxCrouch * s);
+        ik.Grounded = !airborne && !ko && bodyBase.Y >= floorY - 0.08f;
+        ik.FloorY = floorY;
+        ik.Idle = speed < 0.35f;
+        float runLean = !airborne && !ko && speed > 0.6f ? Mathf.Clamp(speed / 7.5f, 0f, 1f) * 0.14f : 0f;
         ik.Crouch = Mathf.MoveToward(ik.Crouch, ko || !posed ? 0f : hipWant - over, dt * crouchRate);
-        ik.Lean = Mathf.MoveToward(ik.Lean, ko || !posed ? 0f : LeanFor(crouchDrop / s) + over / (TorsoLength * s), dt * leanRate);
+        ik.Lean = Mathf.MoveToward(ik.Lean, ko || !posed ? 0f : LeanFor(crouchDrop / s) + over / (TorsoLength * s) + runLean, dt * leanRate);
 
         var basis = new Basis(Vector3.Up, posed ? bodyYaw : body.GlobalRotation.Y);
         var feet = body.GlobalPosition;

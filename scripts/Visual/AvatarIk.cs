@@ -71,6 +71,13 @@ public partial class AvatarIk : SkeletonModifier3D
         right = forward.Cross(up).Normalized();
     }
 
+    /// <summary>Pieds au sol : empêche les chevilles de traverser le sol et ancre les appuis au repos.</summary>
+    public bool Grounded { get; set; } = true;
+    /// <summary>Hauteur monde du sol sous le personnage (m).</summary>
+    public float FloorY { get; set; }
+    /// <summary>True si le personnage est quasiment immobile (ancrage ferme des deux pieds au sol).</summary>
+    public bool Idle { get; set; }
+
     public override void _ProcessModification()
     {
         var skel = GetSkeleton();
@@ -107,6 +114,27 @@ public partial class AvatarIk : SkeletonModifier3D
                 // genoux vers l'avant, un peu écartés
                 SolveTwoBone(skel, thigh, shin, foot, ankle.Origin, hip + (forward + right * side * 0.25f) * 0.5f, 1f);
                 SetGlobalBasis(skel, foot, ankle.Basis);
+            }
+        }
+
+        // Ancrage des pieds au sol : empêche les pieds de passer sous le sol pendant la course et plaque les appuis au repos.
+        if (Grounded)
+        {
+            var skelWorld = skel.GlobalTransform;
+            float minAnkleWorldY = FloorY + 0.085f;
+            for (int s = 0; s < 2; s++)
+            {
+                int thigh = leg[s * 3], shin = leg[s * 3 + 1], foot = leg[s * 3 + 2];
+                var anklePose = skel.GetBoneGlobalPose(foot);
+                var worldAnkle = skelWorld * anklePose.Origin;
+                bool clampFloor = worldAnkle.Y < minAnkleWorldY || (Idle && worldAnkle.Y > minAnkleWorldY + 0.015f && worldAnkle.Y < minAnkleWorldY + 0.22f);
+                if (!clampFloor) continue;
+                var targetWorld = new Vector3(worldAnkle.X, minAnkleWorldY, worldAnkle.Z);
+                var targetSkel = toSkel * targetWorld;
+                float side = s == 0 ? -1f : 1f;
+                var hip = skel.GetBoneGlobalPose(thigh).Origin;
+                SolveTwoBone(skel, thigh, shin, foot, targetSkel, hip + (forward + right * side * 0.25f) * 0.5f, 1f);
+                SetGlobalBasis(skel, foot, anklePose.Basis);
             }
         }
 
