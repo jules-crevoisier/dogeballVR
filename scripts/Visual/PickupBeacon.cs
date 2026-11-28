@@ -25,8 +25,8 @@ public partial class PickupBeacon : Node3D
         });
         beam = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.08f, BottomRadius = 0.18f, Height = 5.5f, RadialSegments = 10 },
-            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.50f)), Position = new Vector3(0, 2.75f + TopY, 0),
+            Mesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.11f, Height = 3.0f, RadialSegments = 10 },
+            MaterialOverride = Materials.Additive(new Color(Palette.Beacon, 0.22f)), Position = new Vector3(0, 1.5f + TopY, 0),
         };
         AddChild(beam);
         for (int i = 0; i < spiral.Length; i++)

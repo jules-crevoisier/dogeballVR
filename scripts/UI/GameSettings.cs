@@ -30,7 +30,7 @@ public static class GameSettings
     // Confort
     public static float ScreenShake = 1f;                    // 0 à 1
     public static float Haptics = 1f;                        // vibrations des manettes VR, 0 à 1
-    public static bool HitStop = true;
+    public static bool HitStop = false;
     public static bool HitMarkers = true;
     public static bool ShowFps;
     // Accessibilité

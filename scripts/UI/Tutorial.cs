@@ -46,7 +46,7 @@ public partial class Tutorial : CanvasLayer
     static readonly bool autoTest = Tools.DevFlags.Has("--tutorial-test");
     double stepStart;
 
-    static string K(string action) => $"[color=#ffd23f]{InputSetup.KeyName(action)}[/color]";
+    static string K(string action) => $"[b][color=#e8590c]{InputSetup.KeyName(action)}[/color][/b]";
     static string Pad(string pad, string keyboard) => InputSetup.UsingPad ? pad : keyboard;
 
     public override void _Ready()
@@ -56,18 +56,18 @@ public partial class Tutorial : CanvasLayer
         Bot.Gentle = true;
         Bot.Calm = true;   // dès la première image : pas de tir pendant « REGARDE AUTOUR DE TOI » (Next arrive en différé)
         MatchController.HitScored += OnHit;
-        steps.Add(new("REGARDE AUTOUR DE TOI", () => Pad("Tourne la caméra avec le [color=#ff7a29]stick droit[/color].", "Bouge la souris pour regarder autour de toi."), p => p.LookTravel - start["look"] > 2.5f));
-        steps.Add(new("DÉPLACE-TOI", () => Pad("Déplace-toi avec le [color=#ff7a29]stick gauche[/color].", $"Déplace-toi avec {K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")}."), p => p.WalkTravel - start["walk"] > 6f));
-        steps.Add(new("RAMASSE UNE BALLE", () => "Approche-toi d'un [color=#38e8ff]distributeur turquoise[/color] (ou d'une balle au sol) pour la prendre.", p => p.HeldBall != null));
-        steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger le tir, puis relâche pour lancer tendu.", p => p.ChargedThrows > start["charged"]));
-        steps.Add(new("TIR COURBÉ (CONTOURNER UN PILIER)", () => $"Balle en main : maintiens {K("curve")} (+ {K("move_left")} ou {K("move_right")}) puis relâche {K("fire")} pour faire contourner un pilier à la balle !", p => p.Curves > start["curves"]));
-        steps.Add(new("TIR EN CLOCHE (PAR LE HAUT)", () => $"Balle en main : appuie sur {K("lob")} pour envoyer la balle en cloche par-dessus un muret et frapper par le haut.", p => p.Lobs > start["lobs"]));
+        steps.Add(new("REGARDE AUTOUR DE TOI", () => Pad("Tourne la caméra avec le [b][color=#e8590c]stick droit[/color][/b].", "Bouge la souris pour regarder autour de toi."), p => p.LookTravel - start["look"] > 2.5f));
+        steps.Add(new("DÉPLACE-TOI", () => Pad("Déplace-toi avec le [b][color=#e8590c]stick gauche[/color][/b].", $"Déplace-toi avec {K("move_forward")} {K("move_left")} {K("move_back")} {K("move_right")}."), p => p.WalkTravel - start["walk"] > 6f));
+        steps.Add(new("RAMASSE UNE BALLE", () => "Approche-toi d'un [b][color=#0284c7]distributeur turquoise[/color][/b] (ou d'une balle au sol) pour la prendre.", p => p.HeldBall != null));
+        steps.Add(new("LANCER CHARGÉ", () => $"Maintiens {K("fire")} pour charger le tir (la trajectoire 3D s'affiche), puis relâche pour lancer tendu.", p => p.ChargedThrows > start["charged"]));
+        steps.Add(new("TIR COURBÉ (CONTOURNER UN PILIER)", () => $"Balle en main : maintiens {K("curve")} (appuie sur {K("move_left")} / {K("move_right")} pour choisir le côté) pour voir l'arc 3D, puis relâche {K("curve")} !", p => p.Curves > start["curves"]));
+        steps.Add(new("TIR EN CLOCHE (PAR LE HAUT)", () => $"Balle en main : maintiens {K("lob")} pour voir l'arc en cloche par-dessus le muret, puis relâche {K("lob")} !", p => p.Lobs > start["lobs"]));
         steps.Add(new("FEINTE", () => $"Balle en main : appuie sur {K("feint")} pour faire mine de lancer et piéger l'attrape de l'adversaire.", p => p.Feints > start["feints"]));
         steps.Add(new("PASSE À UN ALLIÉ", () => $"Balle en main : {K("pass")} l'envoie à ton coéquipier orange et charge instantanément la balle.", p => p.Passes > start["passes"]));
         steps.Add(new(CatchTitle, () => $"Quand un bleu te vise (liseré au bord de l'écran), appuie sur {K("catch")} juste avant l'impact pour une attrape parfaite !", p => p.Catches > start["catches"]));
-        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un adversaire bleu et élimine-le avec {K("fire")} (tendu, courbe ou cloche).", _ => hitsByMe > 0));
+        steps.Add(new("TOUCHE UN ADVERSAIRE", () => $"Vise un adversaire bleu et élimine-le avec {K("fire")}, {K("curve")} (courbe) ou {K("lob")} (cloche).", _ => hitsByMe > 0));
         if (Match != null)
-            steps.Add(new("BALLE SPÉCIALE", () => "Une [color=#ff7a29]bombe[/color] apparaît près de toi : ramasse-la et envoie-la sur les bleus pour une explosion de zone !", SpecialDone, DropSpecial));
+            steps.Add(new("BALLE SPÉCIALE", () => "Une [b][color=#e8590c]bombe[/color][/b] apparaît près de toi : ramasse-la et envoie-la sur les bleus pour une explosion de zone !", SpecialDone, DropSpecial));
 
         var root = new Control { Theme = UiKit.Theme, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -77,22 +77,30 @@ public partial class Tutorial : CanvasLayer
         cardBox.BorderColor = new Color(UiKit.Orange, 0.75f);
         card.AddThemeStyleboxOverride("panel", cardBox);
         card.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        card.OffsetLeft = -390; card.OffsetRight = 390; card.OffsetTop = 92;
+        card.OffsetLeft = -390; card.OffsetRight = 390; card.OffsetTop = 28;
         root.AddChild(card);
         var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         col.AddThemeConstantOverride("separation", 6);
         card.AddChild(col);
         var head = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        head.AddThemeConstantOverride("separation", 12);
         col.AddChild(head);
         counter = UiKit.DisplayText("", 18, UiKit.Orange, 0);
         counter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         head.AddChild(counter);
+        check = UiKit.DisplayText("VALIDÉ", 16, Colors.White, 0, HorizontalAlignment.Center);
+        var okStyle = UiKit.Pill(UiKit.Green, 8, 0, null, 0);
+        okStyle.ContentMarginLeft = okStyle.ContentMarginRight = 12;
+        okStyle.ContentMarginTop = okStyle.ContentMarginBottom = 3;
+        check.AddThemeStyleboxOverride("normal", okStyle);
+        check.Visible = false;
+        head.AddChild(check);
         skipHint = UiKit.Text("", 16, UiKit.Lavender, 0);
         head.AddChild(skipHint);
-        title = UiKit.Title("", 38, HorizontalAlignment.Left);
+        title = UiKit.Title("", 36, HorizontalAlignment.Left);
         col.AddChild(title);
         body = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(730, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
-        body.AddThemeFontSizeOverride("normal_font_size", 22);
+        body.AddThemeFontSizeOverride("normal_font_size", 21);
         body.AddThemeColorOverride("default_color", UiKit.InkDark);
         body.AddThemeConstantOverride("outline_size", 0);
         col.AddChild(body);
@@ -100,11 +108,6 @@ public partial class Tutorial : CanvasLayer
         col.AddChild(barBack);
         progress = new ColorRect { Color = UiKit.Orange, Size = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore };
         barBack.AddChild(progress);
-        check = UiKit.Text("✔", 76, UiKit.Green, 6, HorizontalAlignment.Center);
-        check.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
-        check.Position = new Vector2(card.OffsetRight - 70, 0);
-        check.Visible = false;
-        card.AddChild(check);
         // Captures : `--tutorial-step=N` commence à l'étape N.
         foreach (var arg in Tools.DevFlags.Args)
             if (arg.StartsWith("--tutorial-step=") && int.TryParse(arg["--tutorial-step=".Length..], out int first)) index = Mathf.Clamp(first, 1, steps.Count) - 2;

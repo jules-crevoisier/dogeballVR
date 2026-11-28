@@ -101,8 +101,8 @@ public static class ArenaBuilder
         root.AddChild(new DirectionalLight3D
         {
             RotationDegrees = m.SunRot, LightEnergy = m.SunEnergy, LightColor = new Color(m.Sun),
-            ShadowEnabled = pcProfile, ShadowBias = 0.1f, ShadowNormalBias = 2.2f, ShadowBlur = 0.6f,
-            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits, DirectionalShadowMaxDistance = 70f,   // Quest : pas d'ombres temps réel, faux contact au sol
+            ShadowEnabled = pcProfile, ShadowBias = 0.04f, ShadowNormalBias = 1.2f, ShadowBlur = 1.6f,
+            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits, DirectionalShadowMaxDistance = 48f,   // Quest : pas d'ombres temps réel, faux contact au sol
         });
         if (ambiance == "nuit" && pcProfile)   // marché de nuit : la lumière chaude des guirlandes sur le terrain (sans ombres)
             foreach (var p in new[] { new Vector3(-9, 7.5f, -5), new Vector3(9, 7.5f, -5), new Vector3(-9, 7.5f, 5), new Vector3(9, 7.5f, 5), new Vector3(0, 7.5f, 0) })

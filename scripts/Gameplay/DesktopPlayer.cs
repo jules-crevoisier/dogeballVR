@@ -183,7 +183,11 @@ public partial class DesktopPlayer : Node3D
     double apNextSpecial = 3;
     double apFireStart = -1, apNextJump = 2, apNextDodge = 4, apCrouchUntil;
 
-    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, Feint, Curve; }
+    struct PcInput { public Vector2 Move; public bool Crouch, Jump, Dodge, Fire, Catch, Sprint, Pass, Lob, LobHeld, Feint, Curve; }
+
+    Visual.TrajectoryPreview? preview;
+    bool chargingCurve, chargingLob;
+    float curveDir = 1f;
 
     int killerId = -1;
     float killCamBlend;   // 0 → 1 : la caméra recule et se tourne vers celui qui nous a mis KO
@@ -217,6 +221,11 @@ public partial class DesktopPlayer : Node3D
 
     public override void _Ready()
     {
+        if (DisplayServer.GetName() != "headless")
+        {
+            preview = new Visual.TrajectoryPreview { Name = "TrajectoryPreview" };
+            AddChild(preview);
+        }
         MatchController.HitScored += OnHitScored;
         forceEyeView = Tools.DevFlags.Has("--first-person");
         camera = new Camera3D { Name = "Camera", Current = true, Position = new Vector3(0, EyeHeight, 0), Fov = fov, Near = 0.05f, KeepAspect = Camera3D.KeepAspectEnum.Width };
@@ -382,8 +391,11 @@ public partial class DesktopPlayer : Node3D
             }
             if (fade <= 0f) ballMeshes.Remove(ball);
         }
-        foreach (var gone in new System.Collections.Generic.List<Ball>(ballMeshes.Keys)) if (!IsInstanceValid(gone)) ballMeshes.Remove(gone);
+        staleBalls.Clear();
+        foreach (var b in ballMeshes.Keys) if (!IsInstanceValid(b)) staleBalls.Add(b);
+        foreach (var gone in staleBalls) ballMeshes.Remove(gone);
     }
+    readonly System.Collections.Generic.List<Ball> staleBalls = new();
 
     public override void _PhysicsProcess(double delta)
     {
@@ -441,6 +453,7 @@ public partial class DesktopPlayer : Node3D
             Fire = A("fire"),
             Pass = pass && !prevPass,
             Lob = lob && !prevLob,
+            LobHeld = lob,
             Feint = feint && !prevFeint,
             Curve = A("curve"),
         };
@@ -617,9 +630,25 @@ public partial class DesktopPlayer : Node3D
         if (time < padReadyAt || Zones.Map.Pc == null) return;
         foreach (var pad in Zones.Map.Pc.JumpPads)
         {
-            var padZone = Zones.Map.Zones.Find(z => z.Id == pad.Zone);
-            var terrace = Zones.Map.Pc.Terraces.Find(t => t.Zone == pad.Zone);
-            if (padZone == null || padZone.Team != Hurtbox.Team || terrace == null) continue;
+            TerraceDef? terrace;
+            if (pad.Zone < 0)
+            {
+                // Tremplin neutre (ex. Solaris Dome) : accessible aux deux équipes, cible la terrasse la plus proche.
+                terrace = null;
+                float bestD = float.MaxValue;
+                foreach (var t in Zones.Map.Pc.Terraces)
+                {
+                    float d = new Vector2(t.X - pad.X, t.Z - pad.Z).LengthSquared();
+                    if (d < bestD) { bestD = d; terrace = t; }
+                }
+            }
+            else
+            {
+                var padZone = Zones.Map.Zones.Find(z => z.Id == pad.Zone);
+                if (padZone == null || padZone.Team != Hurtbox.Team) continue;
+                terrace = Zones.Map.Pc.Terraces.Find(t => t.Zone == pad.Zone);
+            }
+            if (terrace == null) continue;
             if (new Vector2(worldPos.X - pad.X, worldPos.Y - pad.Z).Length() > pad.Radius + 0.1f) continue;
             float vy = Mathf.Sqrt(2f * PadGravity * pad.LaunchToY);
             float flight = (vy + Mathf.Sqrt(Mathf.Max(vy * vy - 2f * PadGravity * terrace.Sy, 0f))) / PadGravity;   // durée jusqu'à redescendre à hauteur de la terrasse
@@ -814,64 +843,128 @@ public partial class DesktopPlayer : Node3D
         }
         else if (held != null)
         {
+            if (Mathf.Abs(input.Move.X) > 0.1f) curveDir = Mathf.Sign(input.Move.X);
             if (input.Feint)
             {
                 // Feinte : le bras part comme pour un tir, sans lâcher. Le clic doit être relâché avant de réarmer.
-                charging = false; chargeTime = 0; fireLatch = true; fire = false;
+                charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0; fireLatch = true; fire = false;
                 feintUntil = time + 0.35;
                 Feints++;
                 ShowSticker("FEINTE !");
+                preview?.HidePreview();
             }
             else if (input.Pass)
             {
+                charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0;
+                preview?.HidePreview();
                 var mate = BestAlly();
                 if (mate == null) ShowToast("Pas d'allié à portée");
                 else Launch(ArcVelocity(holdPoint.GlobalPosition, mate.GlobalPosition + Vector3.Up * 0.4f, 4.2f), 0f, Ball.ModePass);
             }
-            else if (input.Lob)
+            else if (input.Lob && autoplay)
             {
-                var enemy = BestEnemy(AssistCone * 2.2f);
-                var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
-                var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
-                if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }   // au-delà, la vitesse maximale ne suffit plus
-                Launch(ArcVelocity(holdPoint.GlobalPosition, to, 4.2f), 0f, Ball.ModeLob);
+                // Mode autoplay (CI) : lancer direct en cloche.
+                var velLob = ComputeLobVelocity();
+                Launch(velLob, 0f, Ball.ModeLob);
                 ShowSticker("CLOCHE !");
+            }
+            else if (input.LobHeld && !autoplay)
+            {
+                // Tir en Cloche (R maintenu) : prévision 3D par le haut en temps réel, part au relâchement !
+                chargingLob = true; charging = false; chargingCurve = false;
+                var velLob = ComputeLobVelocity();
+                preview?.ShowArc(holdPoint.GlobalPosition, velLob, 0f, Ball.ModeLob, new Color("FFB703"));
+            }
+            else if (chargingLob)
+            {
+                chargingLob = false;
+                preview?.HidePreview();
+                Launch(ComputeLobVelocity(), 0f, Ball.ModeLob);
+                ShowSticker("CLOCHE !");
+            }
+            else if (input.Curve && !fire && !autoplay)
+            {
+                // Tir Courbé en 1 seule touche (E maintenu) : charge + prévision 3D autour du pilier, part au relâchement !
+                if (!chargingCurve) { chargeTicks = 0; chargeTime = 0; }
+                chargingCurve = true; charging = true;
+                chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                var (velC, spinC) = ComputeCurveThrow(curveDir);
+                preview?.ShowArc(holdPoint.GlobalPosition, velC, spinC, 0, new Color("00E5FF"));
+            }
+            else if (chargingCurve && !input.Curve)
+            {
+                float dir = curveDir;
+                var (velC, spinC) = ComputeCurveThrow(dir);
+                chargingCurve = false; charging = false;
+                preview?.HidePreview();
+                ShowSticker(dir > 0 ? "COURBE →" : "← COURBE");
+                Launch(velC, spinC, 0);
             }
             else if (fire)
             {
                 if (!charging) chargeTicks = 0;
-                charging = true; chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
+                charging = true; chargingCurve = false;
+                chargeTime = Mathf.Min(chargeTime + delta, MaxChargeTime);
                 int tick = Mathf.FloorToInt((float)(chargeTime / MaxChargeTime) * 3f + 0.001f);
                 if (tick > chargeTicks)
                 {
                     chargeTicks = tick;
                     Sfx.Play(this, SfxKind.ChargeTick, null, 0.9f + 0.25f * tick, tick >= 3 ? 0f : -6f);
                 }
+                if (input.Curve)
+                {
+                    var (velC, spinC) = ComputeCurveThrow(curveDir);
+                    preview?.ShowArc(holdPoint.GlobalPosition, velC, spinC, 0, new Color("00E5FF"));
+                }
+                else
+                {
+                    float t = (float)(chargeTime / MaxChargeTime);
+                    float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);
+                    preview?.ShowArc(holdPoint.GlobalPosition, ThrowVelocity(speed), 0f, 0, new Color("FF6414"));
+                }
             }
             else if (charging)
             {
-                float t = (float)(chargeTime / MaxChargeTime);
-                float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);   // palier = vitesse ; un hôte VR plafonne quand même à 20 m/s
-                // Curve Shot façon Knockout City : E maintenu (+ Gauche/Droite, ou droite par défaut) ouvre l'angle pour contourner un pilier puis revient en arc.
-                float dir = input.Curve ? (Mathf.Abs(input.Move.X) > 0.1f ? Mathf.Sign(input.Move.X) : 1f) : 0f;
-                var vel = ThrowVelocity(speed);
-                float spin = 0f;
-                if (dir != 0f)
+                preview?.HidePreview();
+                if (input.Curve)
                 {
-                    // Ouverture latérale de ~22° côté extérieur puis retour Magnus vers la cible.
-                    vel = vel.Rotated(Vector3.Up, -dir * Mathf.DegToRad(22f));
-                    spin = -dir * 9.5f;
+                    float dir = curveDir;
+                    var (velC, spinC) = ComputeCurveThrow(dir);
                     ShowSticker(dir > 0 ? "COURBE →" : "← COURBE");
+                    Launch(velC, spinC, 0);
                 }
-                Launch(vel, spin, 0);
+                else
+                {
+                    float t = (float)(chargeTime / MaxChargeTime);
+                    float speed = Mathf.Lerp(MinThrow, MaxThrow, t) * KcRules.PcTierFactor(held.Charge);
+                    Launch(ThrowVelocity(speed), 0f, 0);
+                }
             }
+            else preview?.HidePreview();
         }
-        else { charging = false; chargeTime = 0; }
+        else { charging = false; chargingCurve = false; chargingLob = false; chargeTime = 0; preview?.HidePreview(); }
         holdPoint.Position = HoldLocalPosition();
         holdPoint.Scale = HoldScale();
         // Lancer chargé à fond : la balle tremble dans la main, prête à partir.
         if (charging && chargeTime >= MaxChargeTime * 0.99)
             holdPoint.Position += new Vector3((float)GD.RandRange(-1.0, 1.0), (float)GD.RandRange(-1.0, 1.0), 0) * 0.012f;
+    }
+
+    Vector3 ComputeLobVelocity()
+    {
+        var enemy = BestEnemy(AssistCone * 2.2f);
+        var to = enemy != null ? enemy.GlobalPosition + Vector3.Up * 0.3f : camera.GlobalPosition + AimFwd * AimDistance();
+        var flat = new Vector3(to.X - holdPoint.GlobalPosition.X, 0, to.Z - holdPoint.GlobalPosition.Z);
+        if (flat.Length() > 30f) { var cut = holdPoint.GlobalPosition + flat.Normalized() * 30f; to = new Vector3(cut.X, to.Y, cut.Z); }
+        return ArcVelocity(holdPoint.GlobalPosition, to, 4.2f);
+    }
+
+    (Vector3 vel, float spin) ComputeCurveThrow(float dir)
+    {
+        float t = (float)(chargeTime / MaxChargeTime);
+        float speed = Mathf.Lerp(MinThrow, MaxThrow, Mathf.Max(t, 0.35f)) * KcRules.PcTierFactor(held?.Charge ?? 0);
+        var vel = ThrowVelocity(speed).Rotated(Vector3.Up, -dir * Mathf.DegToRad(22f));
+        return (vel, -dir * 9.5f);
     }
 
     void Launch(Vector3 velocity, float spin, int mode)

@@ -15,7 +15,7 @@ namespace DogeballVR.Tools;
 public partial class EvaDemoControl : Node
 {
     /// <summary>Arènes vitrines du pack démo EVA, parcourues avec F7.</summary>
-    public static readonly string[] ShowcaseMaps = { "solaris_dome", "helios_concourse", "croix_neon", "fosse_croisee" };
+    public static readonly string[] ShowcaseMaps = { "solaris_dome", "helios_concourse" };
 
     /// <summary>True si le jeu a été lancé avec <c>--eva-demo</c>.</summary>
     public static bool Active => DevFlags.Has("--eva-demo");

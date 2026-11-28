@@ -27,13 +27,8 @@ public partial class MainMenu : CanvasLayer
 
     static readonly (string Map, string Name, string Format, Color Mood, string Info)[] SoloMaps =
     {
-        ("solaris_dome", "SOLARIS DOME", "2V2", new Color("1f4d7a"), "Stade sous verrière : piliers Curve & murets Lob."),
-        ("helios_concourse", "HELIOS CONCOURSE", "2V2", new Color("21415f"), "Grand hall ouvert EVA : couloirs libres & monolithes."),
-        ("croix_neon", "CROIX NÉON", "2V2", new Color("274060"), "4 plateaux autour d'un moyeu avec rotor."),
-        ("fosse_croisee", "FOSSE CROISÉE", "2V2", new Color("3b3159"), "Fosse centrale, tremplins et ring-outs."),
-        ("tour_4v4", "TOUR 4V4", "4V4", new Color("5c2d3e"), "8 plaques autour d'une grande fosse 4c4."),
-        ("la_fosse", "LA FOSSE", "2V2", new Color("233b4d"), "Zones face à face et plateaux élévateurs."),
-        ("neon_court", "NÉON COURT", "2V2", new Color("162244"), "Arène nocturne néon en zones face à face."),
+        ("solaris_dome", "SOLARIS DOME", "2V2", new Color("1f4d7a"), "Stade 3-lanes, tremplins & verrière."),
+        ("helios_concourse", "HELIOS CONCOURSE", "2V2", new Color("21415f"), "Hall EVA 3-lanes & terrasses hautes."),
     };
 
     Control root = null!;
@@ -182,11 +177,11 @@ public partial class MainMenu : CanvasLayer
         normal.ContentMarginLeft = normal.ContentMarginRight = 18;
         normal.ContentMarginTop = normal.ContentMarginBottom = 6;
 
-        var hover = UiKit.Pill(active ? Colors.White : new Color(1f, 1f, 1f, 0.92f), 10, 0, null, 8, 0.12f);
+        var hover = UiKit.Pill(active ? Colors.White : UiKit.Orange, 10, 0, null, 8, 0.22f);
         hover.ContentMarginLeft = hover.ContentMarginRight = 18;
         hover.ContentMarginTop = hover.ContentMarginBottom = 6;
 
-        var pressed = UiKit.Pill(UiKit.Orange, 10, 0, null, 4, 0.2f);
+        var pressed = UiKit.Pill(UiKit.Orange.Darkened(0.08f), 10, 0, null, 4, 0.2f);
         pressed.ContentMarginLeft = pressed.ContentMarginRight = 18;
         pressed.ContentMarginTop = pressed.ContentMarginBottom = 6;
 
@@ -198,8 +193,8 @@ public partial class MainMenu : CanvasLayer
 
         var restCol = active ? UiKit.InkDark : subtle ? UiKit.Grey : new Color("2b3242");
         b.AddThemeColorOverride("font_color", restCol);
-        b.AddThemeColorOverride("font_hover_color", UiKit.Orange);
-        b.AddThemeColorOverride("font_focus_color", UiKit.Orange);
+        b.AddThemeColorOverride("font_hover_color", active ? UiKit.Orange : Colors.White);
+        b.AddThemeColorOverride("font_focus_color", active ? UiKit.Orange : Colors.White);
         b.AddThemeColorOverride("font_pressed_color", Colors.White);
         b.AddThemeColorOverride("font_hover_pressed_color", Colors.White);
         b.AddThemeConstantOverride("outline_size", 0);
@@ -507,10 +502,10 @@ public partial class MainMenu : CanvasLayer
         {
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 20);
-            var a = UiKit.Text(who, 20, UiKit.Sky, 0, HorizontalAlignment.Right);
-            a.CustomMinimumSize = new Vector2(280, 0);
+            var a = UiKit.DisplayText(who.ToUpperInvariant(), 18, UiKit.Orange, 0, HorizontalAlignment.Right);
+            a.CustomMinimumSize = new Vector2(260, 0);
             row.AddChild(a);
-            row.AddChild(UiKit.Text(what, 20, Colors.White, 0));
+            row.AddChild(UiKit.Text(what, 20, UiKit.InkDark, 0));
             col.AddChild(row);
         }
         var backBtn = UiKit.Button("RETOUR", UiKit.Orange, CloseOverlay, 24, new Vector2(260, 52));

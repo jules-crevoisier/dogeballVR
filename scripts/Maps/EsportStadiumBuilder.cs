@@ -10,18 +10,21 @@ namespace DogeballVR.Maps;
 /// </summary>
 public static class EsportStadiumBuilder
 {
-    public static bool Handles(string? decor) => decor is "solaris_dome" or "helios_concourse";
+    public static bool Handles(string? decor) => decor is "solaris_dome" or "helios_concourse" or "tuto_arena";
 
     public static void Build(Node3D root, MapData map)
     {
         var holder = new Node3D { Name = $"Stadium_{map.Decor}" };
         root.AddChild(holder);
 
-        var white = Materials.Flat(new Color("E6ECF4"));
-        var slate = Materials.Flat(new Color("252D3D"));
-        var floorMat = Materials.Flat(new Color("8C97AA"));
-        var outerFloor = Materials.Flat(new Color("6F7A8E"));
-        var standMat = Materials.Flat(new Color("A4AEBE"));
+        bool isHelios = map.Decor == "helios_concourse";
+        var white = Materials.Flat(new Color(isHelios ? "DDE3EE" : "E6ECF4"));
+        var slate = Materials.Flat(new Color(isHelios ? "1C2230" : "252D3D"));
+        var floorMat = Materials.Flat(new Color(isHelios ? "5E697D" : "8692A6"));
+        var outerFloor = Materials.Flat(new Color(isHelios ? "465063" : "6B778C"));
+        var standMat = Materials.Flat(new Color(isHelios ? "7D8799" : "A4AEBE"));
+        var campOrange = Materials.Flat(new Color(isHelios ? "9E5A3E" : "B87D63"));
+        var campBlue = Materials.Flat(new Color(isHelios ? "3B6B9E" : "5E8AB8"));
         var glassMat = new StandardMaterial3D
         {
             AlbedoColor = new Color("9CD8FF", 0.16f),
@@ -30,10 +33,10 @@ public static class EsportStadiumBuilder
             Metallic = 0.1f,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
-        var lineWhite = Materials.Glow(new Color("FFFFFF"), 0.9f);
-        var glowOrange = Materials.Glow(new Color("FF6A1A"), 1.7f);
-        var glowBlue = Materials.Glow(new Color("1995FF"), 1.7f);
-        var glowCyan = Materials.Glow(Palette.Beacon, 1.8f);
+        var lineWhite = Materials.Glow(new Color("FFFFFF"), 0.85f);
+        var glowOrange = Materials.Glow(new Color("FF6A1A"), 1.6f);
+        var glowBlue = Materials.Glow(new Color("1995FF"), 1.6f);
+        var glowCyan = Materials.Glow(isHelios ? new Color("FFB703") : Palette.Beacon, 1.5f);
 
         float w = map.Bounds.MaxX - map.Bounds.MinX;
         float d = map.Bounds.MaxZ - map.Bounds.MinZ;
@@ -51,12 +54,16 @@ public static class EsportStadiumBuilder
             parent.AddChild(m);
         }
 
-        // Sol principal athlétique gris clair + pourtour stade.
+        // Sol principal athlétique + zones de camp Orange (gauche) / Bleu (droite) + marquage des 3 lanes.
         Box(holder, new Vector3(0, -0.06f, 0), new Vector3(w + 1.5f, 0.12f, d + 1.5f), floorMat);
+        Box(holder, new Vector3(-hw * 0.62f, 0.002f, 0), new Vector3(hw * 0.68f, 0.008f, d - 3.6f), campOrange);
+        Box(holder, new Vector3(hw * 0.62f, 0.002f, 0), new Vector3(hw * 0.68f, 0.008f, d - 3.6f), campBlue);
         Box(holder, new Vector3(0, -0.14f, 0), new Vector3(w + 26f, 0.16f, d + 26f), outerFloor);
 
-        // Ligne centrale blanche et périmètre sportif.
+        // Lignes des 3 lanes (couloirs Nord / Centre / Sud) + ligne médiane.
         Box(holder, new Vector3(0, 0.008f, 0), new Vector3(0.18f, 0.01f, d - 1.2f), lineWhite);
+        Box(holder, new Vector3(0, 0.008f, -hd * 0.52f), new Vector3(w - 2.4f, 0.01f, 0.12f), lineWhite);
+        Box(holder, new Vector3(0, 0.008f, hd * 0.52f), new Vector3(w - 2.4f, 0.01f, 0.12f), lineWhite);
         Box(holder, new Vector3(-hw + 0.6f, 0.008f, 0), new Vector3(0.14f, 0.01f, d - 1.2f), glowOrange);
         Box(holder, new Vector3(hw - 0.6f, 0.008f, 0), new Vector3(0.14f, 0.01f, d - 1.2f), glowBlue);
         Box(holder, new Vector3(-hw * 0.5f, 0.008f, -hd + 0.6f), new Vector3(hw - 0.8f, 0.01f, 0.14f), glowOrange);
@@ -104,6 +111,27 @@ public static class EsportStadiumBuilder
                 Box(holder, new Vector3(0, y, z), new Vector3(w + 10f, 0.72f, 1.35f), row % 2 == 0 ? standMat : white);
             }
             Box(holder, new Vector3(0, 5.2f, s * (hd + 10.2f)), new Vector3(w + 14f, 2.2f, 0.6f), slate);
+        }
+
+        // Pads lumineux au sol pour rendre les tremplins immédiatement lisibles.
+        if (map.Pc != null)
+        {
+            foreach (var pad in map.Pc.JumpPads)
+            {
+                holder.AddChild(new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { TopRadius = pad.Radius, BottomRadius = pad.Radius + 0.12f, Height = 0.08f, RadialSegments = 20 },
+                    MaterialOverride = slate,
+                    Position = new Vector3(pad.X, 0.04f, pad.Z),
+                });
+                holder.AddChild(new MeshInstance3D
+                {
+                    Mesh = new TorusMesh { InnerRadius = pad.Radius * 0.65f, OuterRadius = pad.Radius * 0.92f, Rings = 24, RingSegments = 6 },
+                    MaterialOverride = glowCyan,
+                    Position = new Vector3(pad.X, 0.09f, pad.Z),
+                    Scale = new Vector3(1, 0.25f, 1),
+                });
+            }
         }
 
         if (map.Decor == "solaris_dome")
